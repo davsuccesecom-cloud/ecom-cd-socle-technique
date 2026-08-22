@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import type { Team, User } from "@ecomcod/shared";
+import type { Team, AppUser } from "@ecomcod/shared";
 
 interface UtilisateursProps {
   workspaceId: string;
   team: Team | null;
-  closeuses: User[];
-  livreurs: User[];
+  closeuses: AppUser[];
+  livreurs: AppUser[];
 }
 
 type Role = "closeuse" | "livreur";
@@ -53,7 +53,7 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
 
   const linkFor = (userId: string) => links.find((l) => l.userId === userId) ?? null;
 
-  const handleRegenerate = async (user: User) => {
+  const handleRegenerate = async (user: AppUser) => {
     setBusyUserId(user.id);
     setError(null);
     try {
@@ -66,7 +66,7 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
     }
   };
 
-  const handleToggleStatus = async (user: User) => {
+  const handleToggleStatus = async (user: AppUser) => {
     const link = linkFor(user.id);
     if (!link) return;
     setBusyUserId(user.id);
@@ -357,3 +357,4 @@ function PasswordRevealModal({
     </div>
   );
 }
+
