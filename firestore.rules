@@ -1,0 +1,111 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function auth_() { return request.auth; }
+    function claims() { return auth_().token; }
+    function isSignedIn() { return auth_() != null; }
+    function isWorkspace(workspaceId) {
+      return isSignedIn() && claims().workspaceId == workspaceId;
+    }
+    function isAdmin(workspaceId) {
+      return isWorkspace(workspaceId) && claims().role == 'admin';
+    }
+    function isCloseuse(workspaceId) {
+      return isWorkspace(workspaceId) && claims().role == 'closeuse';
+    }
+    function isLivreur(workspaceId) {
+      return isWorkspace(workspaceId) && claims().role == 'livreur';
+    }
+    function isSameTeam(teamId) {
+      return claims().teamId == teamId;
+    }
+
+    // Table de correspondance email Google → workspace possédé — jamais
+    // lisible/écrivable côté client, uniquement via authenticateAdminGoogle
+    // (Admin SDK). Chaque admin ne voit que SON propre espace (isolation
+    // multi-tenant garantie par le custom claim workspaceId ci-dessous).
+    match /adminsByEmail/{email} {
+      allow read, write: if false;
+    }
+
+    match /workspaces/{workspaceId} {
+      allow read: if isWorkspace(workspaceId);
+      allow write: if isAdmin(workspaceId);
+
+      match /teams/{teamId} {
+        allow read: if isWorkspace(workspaceId);
+        allow write: if isAdmin(workspaceId);
+      }
+
+      match /users/{userId} {
+        allow read: if isWorkspace(workspaceId);
+        allow write: if isAdmin(workspaceId);
+        // un employé peut mettre à jour SON propre token FCM et SES
+        // préférences de rappel, rien d'autre
+        allow update: if isWorkspace(workspaceId)
+          && auth_().uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['fcmTokens', 'reminderWindowStart', 'reminderWindowEnd']);
+      }
+
+      match /accessLinks/{linkId} {
+        // jamais accessible côté client — uniquement via Cloud Functions
+        // (Admin SDK, qui contourne les règles) : section 10
+        allow read, write: if false;
+      }
+      
+      match /accessLinkSecrets/{linkId} {
+        // jamais accessible côté client — uniquement via Cloud Functions
+        // (Admin SDK, qui contourne les règles)
+        allow read, write: if false;
+      }
+
+      match /accessLinkSecrets/{linkId} {
+        // jamais accessible côté client — uniquement via Cloud Functions (Admin SDK)
+        allow read, write: if false;
+      }
+
+      match /notifications/{notifId} {
+        allow read: if isAdmin(workspaceId);
+        allow create: if false; // uniquement écrites par Cloud Functions
+        // L'admin peut seulement marquer comme lu, rien d'autre modifiable
+        allow update: if isAdmin(workspaceId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        allow delete: if false;
+      }
+
+      match /remunerations/{userId} {
+        allow read: if isAdmin(workspaceId) || (isSignedIn() && auth_().uid == userId);
+        allow write: if false; // écrit uniquement par Cloud Function
+      }
+
+      match /orders/{orderId} {
+        allow read: if isAdmin(workspaceId)
+          || (isCloseuse(workspaceId) && isSameTeam(resource.data.teamId))
+          || (isLivreur(workspaceId) && isSameTeam(resource.data.teamId));
+
+        allow create: if isAdmin(workspaceId); // créées par la sync Sheet→Firestore
+
+        // Closeuse : uniquement statutCloseuse + callInProgress, jamais
+        // statutAdminOverride ni statutLivreur — section 14
+        allow update: if isCloseuse(workspaceId)
+          && isSameTeam(resource.data.teamId)
+          && resource.data.closeuseId == auth_().uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['statutCloseuse', 'callInProgress']);
+
+        // Livreur : uniquement statutLivreur
+        allow update: if isLivreur(workspaceId)
+          && isSameTeam(resource.data.teamId)
+          && resource.data.livreurId == auth_().uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['statutLivreur']);
+
+        // Admin : accès complet, y compris statutAdminOverride
+        allow update, delete: if isAdmin(workspaceId);
+      }
+    }
+  }
+}

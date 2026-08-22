@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-surface text-slate-100;
+  -webkit-tap-highlight-color: transparent;
+}

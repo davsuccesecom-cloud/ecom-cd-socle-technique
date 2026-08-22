@@ -1,0 +1,9 @@
+{
+  "name": "ecom-cod-system",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "functions",
+    "apps/*"
+  ]
+}

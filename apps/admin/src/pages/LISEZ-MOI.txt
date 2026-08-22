@@ -1,0 +1,24 @@
+RÉSUMÉ RAPIDE — installation
+=============================
+
+3 fichiers dans ce zip :
+
+1. QuickSummary.tsx
+   → Copier dans : apps/admin/src/components/QuickSummary.tsx
+   (nouveau fichier)
+
+2. QuickSummaryFab.tsx
+   → Copier dans : apps/admin/src/components/QuickSummaryFab.tsx
+   (nouveau fichier)
+
+3. Dashboard.tsx
+   → REMPLACE : apps/admin/src/pages/Dashboard.tsx
+   (ton fichier actuel, avec juste les imports + le bloc "Résumé rapide"
+   ajoutés — rien d'autre n'a changé, tu peux faire un diff si tu veux
+   vérifier avant d'écraser)
+
+Rien à toucher côté Firestore, hooks, ou packages/shared — tout est calculé
+en mémoire à partir de ce que Dashboard.tsx charge déjà (orders, stats).
+
+Après copie : redémarre le serveur de dev (npm run dev) si Vite ne
+recharge pas automatiquement les nouveaux fichiers.
