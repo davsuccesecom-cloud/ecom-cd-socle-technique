@@ -1,10 +1,11 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import {
   CLOSEUSE_PRIORITY_STATUSES,
   CLOSEUSE_STATUS_LABELS,
   useCallInProgress,
   useOrders,
   useRegisterPushNotifications,
+  useTeamUsers,
   useUpdateOrderStatus,
   type CloseuseStatus,
 } from "@ecomcod/shared";
@@ -19,8 +20,9 @@ interface DashboardProps {
 
 export default function Dashboard({ workspaceId, teamId, closeuseId }: DashboardProps) {
   const { orders, loading } = useOrders({ workspaceId, teamId, closeuseId });
+  const { users: livreurs } = useTeamUsers(workspaceId, teamId, "livreur");
   const { startCall, endCall } = useCallInProgress(workspaceId);
-  const { updateCloseuseStatus } = useUpdateOrderStatus(workspaceId);
+  const { updateCloseuseStatus, assignLivreur } = useUpdateOrderStatus(workspaceId);
   useRegisterPushNotifications(workspaceId, closeuseId, import.meta.env.VITE_FIREBASE_VAPID_KEY);
 
   const [activeTab, setActiveTab] = useState<CloseuseStatus>("nouveau");
@@ -95,9 +97,11 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
           <OrderCard
             key={order.id}
             order={order}
+            livreurs={livreurs}
             onCall={() => startCall(order.id, closeuseId)}
             onEndCall={() => endCall(order.id)}
             onChangeStatus={(status) => updateCloseuseStatus(order.id, status)}
+            onAssignLivreur={(livreurId) => assignLivreur(order.id, livreurId)}
           />
         ))}
       </main>

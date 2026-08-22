@@ -55,15 +55,10 @@ service cloud.firestore {
         // (Admin SDK, qui contourne les règles) : section 10
         allow read, write: if false;
       }
-      
+
       match /accessLinkSecrets/{linkId} {
         // jamais accessible côté client — uniquement via Cloud Functions
         // (Admin SDK, qui contourne les règles)
-        allow read, write: if false;
-      }
-
-      match /accessLinkSecrets/{linkId} {
-        // jamais accessible côté client — uniquement via Cloud Functions (Admin SDK)
         allow read, write: if false;
       }
 
@@ -88,13 +83,15 @@ service cloud.firestore {
 
         allow create: if isAdmin(workspaceId); // créées par la sync Sheet→Firestore
 
-        // Closeuse : uniquement statutCloseuse + callInProgress, jamais
-        // statutAdminOverride ni statutLivreur — section 14
+        // Closeuse : statutCloseuse + callInProgress (section 14, jamais
+        // statutAdminOverride) + livreurId/statutLivreur pour pouvoir
+        // assigner elle-même un livreur disponible à sa commande une fois
+        // confirmée (flux validé : closeuse traite puis assigne).
         allow update: if isCloseuse(workspaceId)
           && isSameTeam(resource.data.teamId)
           && resource.data.closeuseId == auth_().uid
           && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['statutCloseuse', 'callInProgress']);
+             .hasOnly(['statutCloseuse', 'callInProgress', 'livreurId', 'statutLivreur']);
 
         // Livreur : uniquement statutLivreur
         allow update: if isLivreur(workspaceId)

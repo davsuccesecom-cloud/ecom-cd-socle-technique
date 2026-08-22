@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.onOrderUpdated = exports.onOrderCreated = exports.listAccessLinks = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
+exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.onOrderUpdated = exports.onOrderCreated = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -48,31 +48,31 @@ const ORDER_PURGE_AFTER_DAYS = 3;
 const REMINDER_DELAY_MINUTES = 20;
 const FINAL_STATUSES = ["livre", "rejete", "injoignable"];
 // ---------------------------------------------------------------------------
-// 1. Authentification par lien d'accès + mot de passe simple (section 10)
+// 1. Authentification par lien d'accÃ¨s + mot de passe simple (section 10)
 // ---------------------------------------------------------------------------
 // REMPLACE AUSSI toute la fonction `authenticateAccess` existante par
 // celle-ci (elle inclut la lecture depuis accessLinkSecrets + le rate
-// limiting anti-bruteforce, déjà donnés dans un message précédent) :
+// limiting anti-bruteforce, dÃ©jÃ  donnÃ©s dans un message prÃ©cÃ©dent) :
 // ============================================================================
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
     const { accessLinkId, password } = request.data;
     if (!accessLinkId || !password) {
-        throw new https_1.HttpsError("invalid-argument", "Lien d'accès et mot de passe requis.");
+        throw new https_1.HttpsError("invalid-argument", "Lien d'accÃ¨s et mot de passe requis.");
     }
     const linkSnap = await db.collectionGroup("accessLinks").where("id", "==", accessLinkId).limit(1).get();
     if (linkSnap.empty) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès invalide.");
+        throw new https_1.HttpsError("not-found", "Lien d'accÃ¨s invalide.");
     }
     const linkDoc = linkSnap.docs[0];
     const link = linkDoc.data();
     if (link.disabledAt) {
-        throw new https_1.HttpsError("permission-denied", "Cet accès a été désactivé.");
+        throw new https_1.HttpsError("permission-denied", "Cet accÃ¨s a Ã©tÃ© dÃ©sactivÃ©.");
     }
-    // Le hash vit dans une sous-collection séparée, jamais retournée dans
-    // aucune réponse de Cloud Function côté client — corrige la faille
-    // "passwordHash exposé".
+    // Le hash vit dans une sous-collection sÃ©parÃ©e, jamais retournÃ©e dans
+    // aucune rÃ©ponse de Cloud Function cÃ´tÃ© client â€” corrige la faille
+    // "passwordHash exposÃ©".
     const secretRef = db
         .collection("workspaces")
         .doc(link.workspaceId)
@@ -80,14 +80,14 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         .doc(linkDoc.id);
     const secretSnap = await secretRef.get();
     if (!secretSnap.exists) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès invalide.");
+        throw new https_1.HttpsError("not-found", "Lien d'accÃ¨s invalide.");
     }
     const secret = secretSnap.data();
-    // Verrouillage anti-bruteforce : 5 tentatives ratées → blocage 15 min
+    // Verrouillage anti-bruteforce : 5 tentatives ratÃ©es â†’ blocage 15 min
     const now = Date.now();
     if (secret.lockedUntil && secret.lockedUntil > now) {
         const minutesLeft = Math.ceil((secret.lockedUntil - now) / 60000);
-        throw new https_1.HttpsError("resource-exhausted", `Trop de tentatives. Réessaie dans ${minutesLeft} min.`);
+        throw new https_1.HttpsError("resource-exhausted", `Trop de tentatives. RÃ©essaie dans ${minutesLeft} min.`);
     }
     const passwordOk = await bcrypt.compare(password, secret.passwordHash);
     if (!passwordOk) {
@@ -100,7 +100,7 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         await secretRef.set(update, { merge: true });
         throw new https_1.HttpsError("permission-denied", "Mot de passe incorrect.");
     }
-    // Connexion réussie : on remet le compteur à zéro
+    // Connexion rÃ©ussie : on remet le compteur Ã  zÃ©ro
     if (secret.failedAttempts || secret.lockedUntil) {
         await secretRef.set({ failedAttempts: 0, lockedUntil: admin.firestore.FieldValue.delete() }, { merge: true });
     }
@@ -112,7 +112,7 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         .get();
     const user = userSnap.data();
     if (!user || user.status !== "active") {
-        throw new https_1.HttpsError("permission-denied", "Compte désactivé.");
+        throw new https_1.HttpsError("permission-denied", "Compte dÃ©sactivÃ©.");
     }
     const sessions = link.activeSessions ?? [];
     const newSession = {
@@ -124,7 +124,7 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         .sort((a, b) => b.connectedAt - a.connectedAt)
         .slice(0, MAX_SESSIONS_PER_ACCESS_LINK);
     await linkDoc.ref.update({ activeSessions: updatedSessions });
-    await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connecté(e) depuis un nouvel appareil.`);
+    await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connectÃ©(e) depuis un nouvel appareil.`);
     const customToken = await admin.auth().createCustomToken(link.userId, {
         workspaceId: link.workspaceId,
         teamId: user.teamId,
@@ -139,13 +139,13 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
     };
 });
 // ---------------------------------------------------------------------------
-// 1bis. Authentification admin — système multi-entreprises (SaaS) : n'importe
-// quel email peut créer SON PROPRE espace isolé (workspace), avec son propre
-// nom, ses propres équipes/closeuses/livreurs. Aucune donnée n'est jamais
-// partagée entre deux espaces différents. Agnostique du mode de connexion
-// utilisé côté client (lien magique par email) — seul l'email authentifié
+// 1bis. Authentification admin â€” systÃ¨me multi-entreprises (SaaS) : n'importe
+// quel email peut crÃ©er SON PROPRE espace isolÃ© (workspace), avec son propre
+// nom, ses propres Ã©quipes/closeuses/livreurs. Aucune donnÃ©e n'est jamais
+// partagÃ©e entre deux espaces diffÃ©rents. Agnostique du mode de connexion
+// utilisÃ© cÃ´tÃ© client (lien magique par email) â€” seul l'email authentifiÃ©
 // par Firebase Auth compte ici. Une simple table de correspondance
-// (adminsByEmail) relie chaque email au workspace qu'il possède.
+// (adminsByEmail) relie chaque email au workspace qu'il possÃ¨de.
 // ---------------------------------------------------------------------------
 exports.authenticateAdmin = (0, https_1.onCall)(async (request) => {
     const uid = request.auth?.uid;
@@ -156,17 +156,17 @@ exports.authenticateAdmin = (0, https_1.onCall)(async (request) => {
     }
     const mappingRef = db.collection("adminsByEmail").doc(email);
     const mappingSnap = await mappingRef.get();
-    // Cas 1 : ce compte Google possède déjà un espace — on le reconnecte
-    // simplement à SON workspace existant.
+    // Cas 1 : ce compte Google possÃ¨de dÃ©jÃ  un espace â€” on le reconnecte
+    // simplement Ã  SON workspace existant.
     if (mappingSnap.exists) {
         const { workspaceId } = mappingSnap.data();
         await admin.auth().setCustomUserClaims(uid, { workspaceId, role: "admin" });
         return { workspaceId, role: "admin", isNewWorkspace: false };
     }
-    // Cas 2 : première connexion de ce compte — nouvelle entreprise qui
-    // s'inscrit. Il faut le nom de son espace pour le créer ; si le client
+    // Cas 2 : premiÃ¨re connexion de ce compte â€” nouvelle entreprise qui
+    // s'inscrit. Il faut le nom de son espace pour le crÃ©er ; si le client
     // ne l'a pas encore fourni, on le lui demande via ce code d'erreur
-    // reconnu côté frontend (affiche un formulaire "Nom de ton entreprise").
+    // reconnu cÃ´tÃ© frontend (affiche un formulaire "Nom de ton entreprise").
     const { workspaceName } = request.data;
     if (!workspaceName || !workspaceName.trim()) {
         throw new https_1.HttpsError("failed-precondition", "NEW_WORKSPACE_NEEDS_NAME");
@@ -192,23 +192,23 @@ exports.authenticateAdmin = (0, https_1.onCall)(async (request) => {
     return { workspaceId: workspaceRef.id, role: "admin", isNewWorkspace: true };
 });
 // ---------------------------------------------------------------------------
-// 1ter. Gestion des accès — création, régénération mot de passe, activation,
-// listing (section "Utilisateurs & Accès"). Toutes réservées à un admin de
-// SON workspace (isolation multi-tenant vérifiée à chaque appel).
+// 1ter. Gestion des accÃ¨s â€” crÃ©ation, rÃ©gÃ©nÃ©ration mot de passe, activation,
+// listing (section "Utilisateurs & AccÃ¨s"). Toutes rÃ©servÃ©es Ã  un admin de
+// SON workspace (isolation multi-tenant vÃ©rifiÃ©e Ã  chaque appel).
 // ---------------------------------------------------------------------------
 function requireAdmin(request) {
     const workspaceId = request.auth?.token?.workspaceId;
     const role = request.auth?.token?.role;
     if (!workspaceId || role !== "admin") {
-        throw new https_1.HttpsError("permission-denied", "Accès réservé aux admins.");
+        throw new https_1.HttpsError("permission-denied", "AccÃ¨s rÃ©servÃ© aux admins.");
     }
     return workspaceId;
 }
 function generateAccessLinkId() {
-    return crypto.randomBytes(9).toString("base64url"); // ~12 caractères, sûr en URL
+    return crypto.randomBytes(9).toString("base64url"); // ~12 caractÃ¨res, sÃ»r en URL
 }
 function generatePassword() {
-    // Sans caractères ambigus (I, O, 0, 1, L) — plus simple à lire/taper à l'oral
+    // Sans caractÃ¨res ambigus (I, O, 0, 1, L) â€” plus simple Ã  lire/taper Ã  l'oral
     const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
     return Array.from(crypto.randomBytes(8), (b) => chars[b % chars.length]).join("");
 }
@@ -216,12 +216,12 @@ exports.createAccessUser = (0, https_1.onCall)(async (request) => {
     const workspaceId = requireAdmin(request);
     const { name, phone, role, teamId } = request.data;
     if (!name?.trim() || !teamId || (role !== "closeuse" && role !== "livreur")) {
-        throw new https_1.HttpsError("invalid-argument", "Nom, rôle (closeuse/livreur) et équipe requis.");
+        throw new https_1.HttpsError("invalid-argument", "Nom, rÃ´le (closeuse/livreur) et Ã©quipe requis.");
     }
-    // Vérifie que l'équipe appartient bien à CE workspace — isolation multi-tenant
+    // VÃ©rifie que l'Ã©quipe appartient bien Ã  CE workspace â€” isolation multi-tenant
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).get();
     if (!teamSnap.exists) {
-        throw new https_1.HttpsError("not-found", "Équipe introuvable.");
+        throw new https_1.HttpsError("not-found", "Ã‰quipe introuvable.");
     }
     const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc();
     await userRef.set({
@@ -246,8 +246,8 @@ exports.createAccessUser = (0, https_1.onCall)(async (request) => {
         activeSessions: [],
         createdAt: Date.now(),
     });
-    // Le hash vit UNIQUEMENT ici — jamais dans accessLinks, jamais renvoyé
-    // ailleurs qu'à cet instant précis de création.
+    // Le hash vit UNIQUEMENT ici â€” jamais dans accessLinks, jamais renvoyÃ©
+    // ailleurs qu'Ã  cet instant prÃ©cis de crÃ©ation.
     await db
         .collection("workspaces")
         .doc(workspaceId)
@@ -257,7 +257,7 @@ exports.createAccessUser = (0, https_1.onCall)(async (request) => {
     return {
         userId: userRef.id,
         accessLinkId,
-        password, // affiché une seule fois côté Admin — jamais re-consultable après
+        password, // affichÃ© une seule fois cÃ´tÃ© Admin â€” jamais re-consultable aprÃ¨s
     };
 });
 exports.regenerateAccessPassword = (0, https_1.onCall)(async (request) => {
@@ -274,7 +274,7 @@ exports.regenerateAccessPassword = (0, https_1.onCall)(async (request) => {
         .limit(1)
         .get();
     if (linkSnap.empty) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès introuvable.");
+        throw new https_1.HttpsError("not-found", "Lien d'accÃ¨s introuvable.");
     }
     const linkDoc = linkSnap.docs[0];
     const password = generatePassword();
@@ -285,9 +285,9 @@ exports.regenerateAccessPassword = (0, https_1.onCall)(async (request) => {
         .collection("accessLinkSecrets")
         .doc(linkDoc.id)
         .set({ passwordHash, failedAttempts: 0, lockedUntil: admin.firestore.FieldValue.delete() }, { merge: true });
-    // Nouveau mot de passe = toutes les sessions déjà connectées sont éjectées
+    // Nouveau mot de passe = toutes les sessions dÃ©jÃ  connectÃ©es sont Ã©jectÃ©es
     await linkDoc.ref.update({ activeSessions: [] });
-    return { password }; // affiché une seule fois
+    return { password }; // affichÃ© une seule fois
 });
 exports.setAccessLinkStatus = (0, https_1.onCall)(async (request) => {
     const workspaceId = requireAdmin(request);
@@ -303,14 +303,61 @@ exports.setAccessLinkStatus = (0, https_1.onCall)(async (request) => {
         .limit(1)
         .get();
     if (linkSnap.empty) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès introuvable.");
+        throw new https_1.HttpsError("not-found", "Lien d'accÃ¨s introuvable.");
     }
     const linkDoc = linkSnap.docs[0];
     await linkDoc.ref.update({
         disabledAt: disabled ? Date.now() : null,
         activeSessions: disabled ? [] : linkDoc.data().activeSessions ?? [],
     });
+    // Désactivation : révoquer également les sessions Firebase existantes.
+    if (disabled) {
+        const linkData = linkDoc.data();
+        try {
+            await admin.auth().revokeRefreshTokens(linkData.userId);
+        }
+        catch (err) {
+            console.error("Impossible de révoquer les sessions Firebase :", err);
+        }
+    }
     return { success: true };
+});
+exports.validateAccessSession = (0, https_1.onCall)(async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Session Firebase absente.");
+    }
+    const workspaceId = request.auth.token.workspaceId;
+    const userId = request.auth.uid;
+    if (!workspaceId) {
+        throw new https_1.HttpsError("permission-denied", "Workspace introuvable.");
+    }
+    const linkSnap = await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("accessLinks")
+        .where("userId", "==", userId)
+        .limit(1)
+        .get();
+    if (linkSnap.empty) {
+        throw new https_1.HttpsError("permission-denied", "Accès introuvable.");
+    }
+    const link = linkSnap.docs[0].data();
+    if (link.disabledAt) {
+        await admin.auth().revokeRefreshTokens(userId);
+        throw new https_1.HttpsError("permission-denied", "Ton accès a été désactivé par l'administrateur.");
+    }
+    const userSnap = await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("users")
+        .doc(userId)
+        .get();
+    const user = userSnap.data();
+    if (!user || user.status !== "active") {
+        await admin.auth().revokeRefreshTokens(userId);
+        throw new https_1.HttpsError("permission-denied", "Ton compte a été désactivé.");
+    }
+    return { valid: true };
 });
 exports.listAccessLinks = (0, https_1.onCall)(async (request) => {
     const workspaceId = requireAdmin(request);
@@ -327,8 +374,8 @@ exports.listAccessLinks = (0, https_1.onCall)(async (request) => {
     const userIds = usersSnap.docs.map((d) => d.id);
     if (userIds.length === 0)
         return { links: [] };
-    // Limite Firestore : "in" accepte 30 valeurs max — largement suffisant
-    // pour une équipe (maxClosseuses/maxLivreurs = 10 chacun par défaut)
+    // Limite Firestore : "in" accepte 30 valeurs max â€” largement suffisant
+    // pour une Ã©quipe (maxClosseuses/maxLivreurs = 10 chacun par dÃ©faut)
     const linksSnap = await db
         .collection("workspaces")
         .doc(workspaceId)
@@ -347,7 +394,7 @@ exports.listAccessLinks = (0, https_1.onCall)(async (request) => {
     return { links };
 });
 // ---------------------------------------------------------------------------
-// 2. Assignation automatique à la création d'une commande (section 8)
+// 2. Assignation automatique Ã  la crÃ©ation d'une commande (section 8)
 // ---------------------------------------------------------------------------
 exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspaceId}/orders/{orderId}", async (event) => {
     const snap = event.data;
@@ -364,7 +411,7 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
         .where("status", "==", "active")
         .get();
     if (closeusesSnap.empty)
-        return; // aucune closeuse active, laissée non assignée
+        return; // aucune closeuse active, laissÃ©e non assignÃ©e
     // Charge active de chaque closeuse
     const loads = await Promise.all(closeusesSnap.docs.map(async (userDoc) => {
         const activeSnap = await db
@@ -381,16 +428,16 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
         closeuseId: chosen.id,
         "timestamps.assignedToCloseuse": Date.now(),
     });
-    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`);
+    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} â€” ${order.product}`);
     // Alerte admin si surcharge, sans jamais bloquer l'assignation (section 8)
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
     if (chosen.count + 1 >= threshold) {
-        await notifyAdmins(workspaceId, "Closeuse surchargée", `${chosen.data.name} a ${chosen.count + 1} commandes actives.`);
+        await notifyAdmins(workspaceId, "Closeuse surchargÃ©e", `${chosen.data.name} a ${chosen.count + 1} commandes actives.`);
     }
 });
 // ---------------------------------------------------------------------------
-// 3. Propagation de statut livreur → closeuse + rémunération (sections 6, 15)
+// 3. Propagation de statut livreur â†’ closeuse + rÃ©munÃ©ration (sections 6, 15)
 // ---------------------------------------------------------------------------
 exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)("workspaces/{workspaceId}/orders/{orderId}", async (event) => {
     const before = event.data?.before.data();
@@ -401,9 +448,9 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)("workspaces/{workspa
     const ref = db.collection("workspaces").doc(workspaceId).collection("orders").doc(orderId);
     const statutLivreurChanged = before.statutLivreur !== after.statutLivreur;
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
-    // Horodatage de réactivité réelle — base du module "Performance
-    // employés" (délai de traitement par closeuse, délai de réaction par
-    // livreur). Posé une seule fois, à la première sortie de l'état initial.
+    // Horodatage de rÃ©activitÃ© rÃ©elle â€” base du module "Performance
+    // employÃ©s" (dÃ©lai de traitement par closeuse, dÃ©lai de rÃ©action par
+    // livreur). PosÃ© une seule fois, Ã  la premiÃ¨re sortie de l'Ã©tat initial.
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
         await ref.update({ "timestamps.closeuseDecidedAt": Date.now() });
     }
@@ -412,13 +459,13 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)("workspaces/{workspa
     }
     if (statutLivreurChanged && after.statutLivreur === "en_route") {
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} — en cours de livraison`);
+            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} â€” en cours de livraison`);
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "livre") {
         const purgeAt = Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000;
         await ref.update({
-            statutCloseuse: "livre", // visibilité instantanée chez la closeuse, section 6
+            statutCloseuse: "livre", // visibilitÃ© instantanÃ©e chez la closeuse, section 6
             "timestamps.delivered": Date.now(),
             purgeAt,
         });
@@ -433,19 +480,19 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)("workspaces/{workspa
                 : Promise.resolve(),
         ]);
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Commande livrée", `${after.clientName} — confirmé livré`);
+            await sendPushToUser(workspaceId, after.closeuseId, "Commande livrÃ©e", `${after.clientName} â€” confirmÃ© livrÃ©`);
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "injoignable") {
-        // Remonte immédiatement dans le flux principal de la closeuse — pas
-        // caché dans le menu secondaire (demande explicite, section 6)
+        // Remonte immÃ©diatement dans le flux principal de la closeuse â€” pas
+        // cachÃ© dans le menu secondaire (demande explicite, section 6)
         await ref.update({ statutCloseuse: "injoignable" });
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`);
+            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} â€” le livreur n'a pas pu joindre le client`);
         }
     }
-    // Purge programmée si la closeuse clôture elle-même une commande sans
-    // passage par le livreur (rejeté / injoignable direct)
+    // Purge programmÃ©e si la closeuse clÃ´ture elle-mÃªme une commande sans
+    // passage par le livreur (rejetÃ© / injoignable direct)
     if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse) && !after.purgeAt) {
         await ref.update({ purgeAt: Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000 });
     }
@@ -466,7 +513,7 @@ async function incrementRemuneration(workspaceId, userId, role, amountPerOrder, 
     });
 }
 // ---------------------------------------------------------------------------
-// 4. Purge automatique des commandes traitées (section 15/16)
+// 4. Purge automatique des commandes traitÃ©es (section 15/16)
 // ---------------------------------------------------------------------------
 exports.scheduledPurge = (0, scheduler_1.onSchedule)("every 24 hours", async () => {
     const now = Date.now();
@@ -500,8 +547,8 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
         for (const [closeuseId, count] of byCloseuse) {
             await sendPushToUser(wsDoc.id, closeuseId, "Rappel", `${count} commande(s) en attente depuis plus de ${REMINDER_DELAY_MINUTES} min`);
         }
-        // Alerte agrégée pour l'admin — surveillance des retards par équipe,
-        // demandée explicitement pour suivre l'efficacité des employés.
+        // Alerte agrÃ©gÃ©e pour l'admin â€” surveillance des retards par Ã©quipe,
+        // demandÃ©e explicitement pour suivre l'efficacitÃ© des employÃ©s.
         // Anti-spam : au plus une alerte toutes les ~25 min tant que le retard
         // persiste (sinon une notif identique toutes les 5 min, illisible).
         if (byCloseuse.size > 0) {
@@ -519,7 +566,7 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
     }
 });
 // ---------------------------------------------------------------------------
-// 6. Résumé périodique admin (section 5.1)
+// 6. RÃ©sumÃ© pÃ©riodique admin (section 5.1)
 // ---------------------------------------------------------------------------
 exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async () => {
     const now = Date.now();
@@ -550,7 +597,7 @@ exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async 
                 if (o.statutCloseuse === "injoignable")
                     injoignables++;
             });
-            await notifyAdmins(wsDoc.id, `Résumé — ${team.name}`, `${livrees} livrées, ${rejetees} rejetées, ${injoignables} injoignables — ${ca} F`);
+            await notifyAdmins(wsDoc.id, `RÃ©sumÃ© â€” ${team.name}`, `${livrees} livrÃ©es, ${rejetees} rejetÃ©es, ${injoignables} injoignables â€” ${ca} F`);
             await teamDoc.ref.update({ lastDigestAt: now });
         }
     }
@@ -569,8 +616,8 @@ async function sendPushToUser(workspaceId, userId, title, body) {
     });
 }
 async function notifyAdmins(workspaceId, title, body) {
-    // Persisté en Firestore (pas juste push FCM) pour que la cloche de
-    // l'app Admin ait un vrai historique consultable, même après coup —
+    // PersistÃ© en Firestore (pas juste push FCM) pour que la cloche de
+    // l'app Admin ait un vrai historique consultable, mÃªme aprÃ¨s coup â€”
     // demande explicite : "des rappels notifs pour moi".
     await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
         title,

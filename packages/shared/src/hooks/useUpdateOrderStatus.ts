@@ -11,6 +11,10 @@ import type { CloseuseStatus, LivreurStatus } from "../types";
  *   "livre" déclenche côté Cloud Function le calcul de rémunération
  *   (section 15) et la mise à jour visible instantanément chez la closeuse
  *   (section 6, visibilité temps réel).
+ * - `assignLivreur` écrit `livreurId` + initialise `statutLivreur` à
+ *   "recu" — la closeuse choisit elle-même le livreur disponible une fois
+ *   la commande confirmée (flux validé : closeuse traite puis assigne,
+ *   l'admin ne gère plus l'assignation en usage normal).
  */
 export function useUpdateOrderStatus(workspaceId: string) {
   const updateCloseuseStatus = useCallback(
@@ -37,5 +41,16 @@ export function useUpdateOrderStatus(workspaceId: string) {
     [workspaceId]
   );
 
-  return { updateCloseuseStatus, updateLivreurStatus };
+  const assignLivreur = useCallback(
+    async (orderId: string, livreurId: string) => {
+      const db = getDb();
+      const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
+      // "recu" = statut initial livreur dès l'assignation, apparaît
+      // immédiatement dans l'onglet "À livrer" côté app Livreur.
+      await updateDoc(ref, { livreurId, statutLivreur: "recu" });
+    },
+    [workspaceId]
+  );
+
+  return { updateCloseuseStatus, updateLivreurStatus, assignLivreur };
 }

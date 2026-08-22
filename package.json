@@ -5,5 +5,8 @@
     "packages/*",
     "functions",
     "apps/*"
-  ]
+  ],
+  "dependencies": {
+    "firebase-functions": "^7.3.2"
+  }
 }
