@@ -24,6 +24,7 @@ const callCreateAccessUser = httpsCallable(functions, "createAccessUser");
 const callRegeneratePassword = httpsCallable(functions, "regenerateAccessPassword");
 const callSetStatus = httpsCallable(functions, "setAccessLinkStatus");
 const callListLinks = httpsCallable(functions, "listAccessLinks");
+const callDeleteEmployee = httpsCallable(functions, "deleteEmployee");
 
 const CLOSEUSE_URL = import.meta.env.VITE_CLOSEUSE_URL as string | undefined;
 const LIVREUR_URL = import.meta.env.VITE_LIVREUR_URL as string | undefined;
@@ -35,6 +36,7 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
   const [showCreate, setShowCreate] = useState(false);
   const [revealedPassword, setRevealedPassword] = useState<{ label: string; password: string } | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<AppUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const users = tab === "closeuse" ? closeuses : livreurs;
@@ -78,6 +80,23 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action impossible.");
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setBusyUserId(confirmDelete.id);
+    setError(null);
+    try {
+      await callDeleteEmployee({ userId: confirmDelete.id });
+      setConfirmDelete(null);
+      // La liste closeuses/livreurs vient des props (useTeamUsers en temps
+      // réel côté parent) — elle se mettra à jour toute seule dès que
+      // Firestore reflète la suppression.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Suppression impossible.");
     } finally {
       setBusyUserId(null);
     }
@@ -185,6 +204,18 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
                         >
                           {disabled ? "Activer" : "Désactiver"}
                         </button>
+                        {/* Suppression visible UNIQUEMENT une fois l'accès
+                           révoqué — garde-fou pour ne jamais supprimer un
+                           employé encore actif par erreur. */}
+                        {disabled && (
+                          <button
+                            disabled={busyUserId === user.id}
+                            onClick={() => setConfirmDelete(user)}
+                            className="rounded-lg border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                          >
+                            Supprimer
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -216,6 +247,54 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
           onClose={() => setRevealedPassword(null)}
         />
       )}
+
+      {confirmDelete && (
+        <ConfirmDeleteModal
+          name={confirmDelete.name}
+          busy={busyUserId === confirmDelete.id}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={handleDelete}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmDeleteModal({
+  name,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  name: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onCancel}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-red-500/30 bg-surface-raised p-6 text-center">
+        <h2 className="mb-2 text-lg font-medium text-slate-100">Supprimer {name} ?</h2>
+        <p className="mb-6 text-sm text-slate-500">
+          Action définitive et irréversible. Le compte, son lien d'accès et son historique de connexion seront
+          supprimés. Es-tu sûr ?
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-xl border border-surface-border py-2.5 text-sm text-slate-300"
+          >
+            Annuler
+          </button>
+          <button
+            disabled={busy}
+            onClick={onConfirm}
+            className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {busy ? "Suppression..." : "Oui, supprimer"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -357,4 +436,3 @@ function PasswordRevealModal({
     </div>
   );
 }
-
