@@ -10,7 +10,7 @@ interface SidebarProps {
 // "overview", "performance" et "users" ont un écran réel — les autres
 // (Commandes, Livraisons, Équipes & Sheets, Rémunération, Paramètres)
 // seront branchés un par un.
-const ENABLED_KEYS = ["overview", "performance", "users"];
+const ENABLED_KEYS = ["overview", "performance", "users", "orders", "teams"];
 
 const NAV_ITEMS = [
   { key: "overview", label: "Vue d'ensemble", icon: OverviewIcon },
