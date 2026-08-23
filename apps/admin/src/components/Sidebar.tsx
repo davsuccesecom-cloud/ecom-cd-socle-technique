@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NAV_ITEMS, ENABLED_KEYS } from "../navConfig";
 
 interface SidebarProps {
   active: string;
@@ -7,21 +8,16 @@ interface SidebarProps {
   onNavigate: (key: string) => void;
 }
 
-// "overview", "performance" et "users" ont un écran réel — les autres
-// (Commandes, Livraisons, Équipes & Sheets, Rémunération, Paramètres)
-// seront branchés un par un.
-const ENABLED_KEYS = ["overview", "performance", "users", "orders", "teams"];
-
-const NAV_ITEMS = [
-  { key: "overview", label: "Vue d'ensemble", icon: OverviewIcon },
-  { key: "orders", label: "Commandes", icon: OrdersIcon },
-  { key: "deliveries", label: "Livraisons", icon: DeliveriesIcon },
-  { key: "performance", label: "Performance", icon: PerformanceIcon },
-  { key: "teams", label: "Équipes & Sheets", icon: TeamsIcon },
-  { key: "users", label: "Utilisateurs & Accès", icon: UsersIcon },
-  { key: "remuneration", label: "Rémunération", icon: RemunerationIcon },
-  { key: "settings", label: "Paramètres", icon: SettingsIcon },
-];
+const ICONS: Record<string, () => JSX.Element> = {
+  overview: OverviewIcon,
+  orders: OrdersIcon,
+  deliveries: DeliveriesIcon,
+  performance: PerformanceIcon,
+  teams: TeamsIcon,
+  users: UsersIcon,
+  remuneration: RemunerationIcon,
+  settings: SettingsIcon,
+};
 
 export default function Sidebar({ active, userEmail, onLogout, onNavigate }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -37,7 +33,7 @@ export default function Sidebar({ active, userEmail, onLogout, onNavigate }: Sid
 
       <nav className="flex flex-1 flex-col gap-1">
         {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
+          const Icon = ICONS[item.key];
           const isActive = item.key === active;
           const isEnabled = ENABLED_KEYS.includes(item.key);
           return (
@@ -93,12 +89,7 @@ export default function Sidebar({ active, userEmail, onLogout, onNavigate }: Sid
 function LogoIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M12 2a10 10 0 1 0 7.07 17.07"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
+      <path d="M12 2a10 10 0 1 0 7.07 17.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -117,7 +108,6 @@ function OverviewIcon() {
     </svg>
   );
 }
-
 function OrdersIcon() {
   return (
     <svg {...iconProps()}>
@@ -127,7 +117,6 @@ function OrdersIcon() {
     </svg>
   );
 }
-
 function DeliveriesIcon() {
   return (
     <svg {...iconProps()}>
@@ -138,7 +127,6 @@ function DeliveriesIcon() {
     </svg>
   );
 }
-
 function TeamsIcon() {
   return (
     <svg {...iconProps()}>
@@ -148,7 +136,6 @@ function TeamsIcon() {
     </svg>
   );
 }
-
 function UsersIcon() {
   return (
     <svg {...iconProps()}>
@@ -159,7 +146,6 @@ function UsersIcon() {
     </svg>
   );
 }
-
 function RemunerationIcon() {
   return (
     <svg {...iconProps()}>
@@ -169,7 +155,6 @@ function RemunerationIcon() {
     </svg>
   );
 }
-
 function PerformanceIcon() {
   return (
     <svg {...iconProps()}>
@@ -178,7 +163,6 @@ function PerformanceIcon() {
     </svg>
   );
 }
-
 function SettingsIcon() {
   return (
     <svg {...iconProps()}>

@@ -26,19 +26,21 @@ const ACCENT_STROKE: Record<StatCardProps["accent"], string> = {
 
 export default function StatCard({ label, value, icon, accent, trendPoints }: StatCardProps) {
   return (
-    <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="rounded-2xl border border-surface-border bg-surface-raised p-3 sm:p-4">
+      <div className="mb-2 flex items-center justify-between sm:mb-3">
         <div className="flex items-center gap-2">
-          <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${ACCENT_BG[accent]}`}>
+          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-9 sm:w-9 ${ACCENT_BG[accent]}`}>
             {icon}
           </div>
-          <span className="text-sm text-slate-400">{label}</span>
+          <span className="truncate text-xs text-slate-400 sm:text-sm">{label}</span>
         </div>
       </div>
-      <div className="flex items-end justify-between">
-        <span className="text-2xl font-semibold text-slate-100">{value}</span>
+      <div className="flex items-end justify-between gap-2">
+        <span className="text-xl font-semibold text-slate-100 sm:text-2xl">{value}</span>
         {trendPoints && trendPoints.length > 1 && (
-          <Sparkline points={trendPoints} color={ACCENT_STROKE[accent]} />
+          <div className="hidden shrink-0 sm:block">
+            <Sparkline points={trendPoints} color={ACCENT_STROKE[accent]} />
+          </div>
         )}
       </div>
     </div>
