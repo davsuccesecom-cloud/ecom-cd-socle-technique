@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getFirebaseAuth, useAdminEmailAuth } from "@ecomcod/shared";
+import { useTheme } from "./hooks/useTheme";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 
@@ -9,6 +10,11 @@ interface SessionClaims {
 }
 
 export default function App() {
+  // Appliqué le plus tôt possible dans le cycle de vie de l'app, avant
+  // même de savoir sur quelle page on atterrit — évite un flash visible du
+  // mauvais thème au chargement si "clair" était déjà choisi.
+  useTheme();
+
   const {
     firebaseUser,
     authLoading,

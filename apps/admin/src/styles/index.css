@@ -2,7 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --surface: #0B0D10;
+  --surface-raised: #14171C;
+  --surface-border: #22262D;
+  --brand: #6366F1;
+  --brand-light: #1E1B4B;
+}
+
+html.light {
+  --surface: #F8FAFC;
+  --surface-raised: #FFFFFF;
+  --surface-border: #E2E8F0;
+  --brand: #6366F1;
+  --brand-light: #EEF2FF;
+}
+
 body {
   @apply bg-surface text-slate-100;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Mode clair — les composants utilisent les nuances de gris natives de
+   Tailwind (slate-100 à slate-600), conçues pour du texte clair sur fond
+   sombre. Plutôt que de modifier chaque composant individuellement (risque
+   élevé d'erreur sur autant de fichiers), on redéfinit ces classes
+   globalement quand .light est actif sur <html> — un seul endroit à
+   maintenir, aucun composant à toucher. */
+html.light .text-slate-100,
+html.light .text-slate-200 {
+  color: #0f172a;
+}
+html.light .text-slate-300 {
+  color: #1e293b;
+}
+html.light .text-slate-400,
+html.light .text-slate-500 {
+  color: #475569;
+}
+html.light .text-slate-600 {
+  color: #94a3b8;
+}
+html.light .placeholder\:text-slate-600::placeholder {
+  color: #94a3b8;
 }

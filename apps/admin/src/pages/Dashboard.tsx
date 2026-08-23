@@ -16,6 +16,7 @@ import QuickSummaryFab from "../components/QuickSummaryFab";
 import Utilisateurs from "./Utilisateurs";
 import Commandes from "./Commandes";
 import EquipesSheets from "./EquipesSheets";
+import Parametres from "./Parametres";
 
 interface DashboardProps {
   workspaceId: string;
@@ -58,6 +59,7 @@ const PAGE_TITLES: Record<string, string> = {
   users: "Utilisateurs & Accès 🔐",
   orders: "Commandes 🛒",
   teams: "Équipes & Sheets 📊",
+  settings: "Paramètres ⚙️",
 };
 
 export default function Dashboard({ workspaceId, onLogout, userEmail }: DashboardProps) {
@@ -199,9 +201,11 @@ export default function Dashboard({ workspaceId, onLogout, userEmail }: Dashboar
           <Commandes workspaceId={workspaceId} team={activeTeam} orders={allOrders} closeuses={closeuses} livreurs={livreurs} />
         ) : page === "teams" ? (
           <EquipesSheets workspaceId={workspaceId} teams={teams} />
+        ) : page === "settings" ? (
+          <Parametres />
         ) : (
           <>
-            <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
               <StatCard label="Chiffre d'affaires" value={`${stats.ca.toLocaleString("fr-FR")}`} icon={<CaIcon />} accent="blue" />
               <StatCard label="Livraisons réussies" value={String(stats.livraisonsReussies)} icon={<TruckIcon />} accent="green" />
               <StatCard label="Injoignables" value={String(stats.injoignables)} icon={<XIcon />} accent="red" />
