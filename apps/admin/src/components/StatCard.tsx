@@ -3,37 +3,50 @@ interface StatCardProps {
   value: string;
   icon: React.ReactNode;
   accent: "blue" | "green" | "red" | "orange" | "purple" | "cyan";
-  trendPoints?: number[]; // valeurs relatives pour dessiner la sparkline
+  trendPoints?: number[];
+  onClick?: () => void;
 }
 
-const ACCENT_BG: Record<StatCardProps["accent"], string> = {
-  blue: "bg-accent-blue/15 text-accent-blue",
-  green: "bg-accent-green/15 text-accent-green",
-  red: "bg-accent-red/15 text-accent-red",
-  orange: "bg-accent-orange/15 text-accent-orange",
-  purple: "bg-accent-purple/15 text-accent-purple",
-  cyan: "bg-accent-cyan/15 text-accent-cyan",
+const ACCENT_GRADIENT: Record<StatCardProps["accent"], [string, string]> = {
+  blue: ["#3B82F6", "#1D4ED8"],
+  green: ["#10B981", "#047857"],
+  red: ["#EF4444", "#B91C1C"],
+  orange: ["#F59E0B", "#B45309"],
+  purple: ["#8B5CF6", "#6D28D9"],
+  cyan: ["#06B6D4", "#0E7490"],
 };
 
 const ACCENT_STROKE: Record<StatCardProps["accent"], string> = {
   blue: "#3B82F6",
-  green: "#22C55E",
+  green: "#10B981",
   red: "#EF4444",
-  orange: "#F97316",
+  orange: "#F59E0B",
   purple: "#8B5CF6",
   cyan: "#06B6D4",
 };
 
-export default function StatCard({ label, value, icon, accent, trendPoints }: StatCardProps) {
+export default function StatCard({ label, value, icon, accent, trendPoints, onClick }: StatCardProps) {
+  const Wrapper = onClick ? "button" : "div";
+
   return (
-    <div className="rounded-2xl border border-surface-border bg-surface-raised p-3 sm:p-4">
-      <div className="mb-2 flex items-center justify-between sm:mb-3">
-        <div className="flex items-center gap-2">
-          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-9 sm:w-9 ${ACCENT_BG[accent]}`}>
-            {icon}
-          </div>
-          <span className="truncate text-xs text-slate-400 sm:text-sm">{label}</span>
-        </div>
+    <Wrapper
+      onClick={onClick}
+      className={`relative w-full rounded-2xl border border-surface-border bg-surface-raised p-3 text-left sm:p-4 ${
+        onClick ? "cursor-pointer transition-transform hover:-translate-y-0.5 hover:border-brand/40" : ""
+      }`}
+    >
+      {onClick && (
+        <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-surface text-slate-500 sm:right-4 sm:top-4">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M3 3v18h18" />
+            <path d="m19 9-5 5-4-4-3 3" />
+          </svg>
+        </span>
+      )}
+
+      <div className="mb-2 flex items-center gap-2 sm:mb-3">
+        <GradientIcon accent={accent}>{icon}</GradientIcon>
+        <span className="truncate text-xs text-slate-400 sm:text-sm">{label}</span>
       </div>
       <div className="flex items-end justify-between gap-2">
         <span className="text-xl font-semibold text-slate-100 sm:text-2xl">{value}</span>
@@ -43,6 +56,38 @@ export default function StatCard({ label, value, icon, accent, trendPoints }: St
           </div>
         )}
       </div>
+    </Wrapper>
+  );
+}
+
+/**
+ * Icône avec fond en dégradé + reflet léger — approximation "glossy" en
+ * SVG pur, léger et net à toute taille (contrairement à une image générée
+ * en rendu 3D, qui pixelise vite à petite taille pour une icône d'UI).
+ */
+function GradientIcon({ accent, children }: { accent: StatCardProps["accent"]; children: React.ReactNode }) {
+  const [from, to] = ACCENT_GRADIENT[accent];
+  const gradientId = `grad-${accent}`;
+  return (
+    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-9 sm:w-9">
+      <svg width="0" height="0" className="absolute">
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={from} />
+            <stop offset="100%" stopColor={to} />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div
+        className="absolute inset-0 rounded-xl shadow-inner"
+        style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
+      />
+      {/* Reflet diagonal subtil pour l'effet "glossy" */}
+      <div
+        className="absolute inset-0 rounded-xl opacity-30"
+        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.5) 0%, transparent 50%)" }}
+      />
+      <div className="relative text-white">{children}</div>
     </div>
   );
 }

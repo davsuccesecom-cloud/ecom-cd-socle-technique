@@ -92,9 +92,6 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
     try {
       await callDeleteEmployee({ userId: confirmDelete.id });
       setConfirmDelete(null);
-      // La liste closeuses/livreurs vient des props (useTeamUsers en temps
-      // réel côté parent) — elle se mettra à jour toute seule dès que
-      // Firestore reflète la suppression.
     } catch (err) {
       setError(err instanceof Error ? err.message : "Suppression impossible.");
     } finally {
@@ -116,7 +113,7 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex rounded-xl border border-surface-border bg-surface-raised p-1">
           {(["closeuse", "livreur"] as Role[]).map((r) => (
             <button
@@ -141,91 +138,87 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
 
       {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
 
-      <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised">
-        {users.length === 0 ? (
-          <p className="p-6 text-center text-sm text-slate-500">
-            Aucun{tab === "livreur" ? "" : "e"} {tab} sur cette équipe pour l'instant.
-          </p>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-surface-border text-xs text-slate-500">
-                <th className="px-4 py-3 font-normal">Nom</th>
-                <th className="px-4 py-3 font-normal">Téléphone</th>
-                <th className="px-4 py-3 font-normal">Statut</th>
-                <th className="px-4 py-3 font-normal">Sessions</th>
-                <th className="px-4 py-3 font-normal">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((user) => {
-                const link = linkFor(user.id);
-                const url = accessUrl(user.id);
-                const disabled = !!link?.disabledAt;
-                return (
-                  <tr key={user.id} className="border-b border-surface-border last:border-0">
-                    <td className="px-4 py-3 text-slate-200">{user.name}</td>
-                    <td className="px-4 py-3 text-slate-400">{user.phone || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs ${
-                          disabled ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"
-                        }`}
-                      >
-                        {disabled ? "Désactivé" : "Actif"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-400">{link ? `${link.sessionsCount}/2` : "—"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        {url && (
-                          <button
-                            onClick={() => navigator.clipboard.writeText(url)}
-                            className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 hover:bg-surface"
-                          >
-                            Copier le lien
-                          </button>
-                        )}
-                        <button
-                          disabled={busyUserId === user.id}
-                          onClick={() => handleRegenerate(user)}
-                          className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 hover:bg-surface disabled:opacity-50"
-                        >
-                          Régénérer
-                        </button>
-                        <button
-                          disabled={busyUserId === user.id}
-                          onClick={() => handleToggleStatus(user)}
-                          className={`rounded-lg px-2.5 py-1 text-xs disabled:opacity-50 ${
-                            disabled
-                              ? "border border-green-500/30 text-green-400 hover:bg-green-500/10"
-                              : "border border-red-500/30 text-red-400 hover:bg-red-500/10"
-                          }`}
-                        >
-                          {disabled ? "Activer" : "Désactiver"}
-                        </button>
-                        {/* Suppression visible UNIQUEMENT une fois l'accès
-                           révoqué — garde-fou pour ne jamais supprimer un
-                           employé encore actif par erreur. */}
-                        {disabled && (
-                          <button
-                            disabled={busyUserId === user.id}
-                            onClick={() => setConfirmDelete(user)}
-                            className="rounded-lg border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-                          >
-                            Supprimer
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-        {loadingLinks && <p className="px-4 py-2 text-xs text-slate-600">Mise à jour des accès…</p>}
-      </div>
+      {users.length === 0 ? (
+        <div className="rounded-2xl border border-surface-border bg-surface-raised p-6 text-center text-sm text-slate-500">
+          Aucun{tab === "livreur" ? "" : "e"} {tab} sur cette équipe pour l'instant.
+        </div>
+      ) : (
+        <>
+          {/* Vue tableau — desktop uniquement, colonnes trop nombreuses
+             pour tenir proprement sur mobile */}
+          <div className="hidden overflow-hidden rounded-2xl border border-surface-border bg-surface-raised sm:block">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-surface-border text-xs text-slate-500">
+                  <th className="px-4 py-3 font-normal">Nom</th>
+                  <th className="px-4 py-3 font-normal">Téléphone</th>
+                  <th className="px-4 py-3 font-normal">Statut</th>
+                  <th className="px-4 py-3 font-normal">Sessions</th>
+                  <th className="px-4 py-3 font-normal">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => {
+                  const link = linkFor(user.id);
+                  const url = accessUrl(user.id);
+                  const disabled = !!link?.disabledAt;
+                  return (
+                    <tr key={user.id} className="border-b border-surface-border last:border-0">
+                      <td className="px-4 py-3 text-slate-200">{user.name}</td>
+                      <td className="px-4 py-3 text-slate-400">{user.phone || "—"}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge disabled={disabled} />
+                      </td>
+                      <td className="px-4 py-3 text-slate-400">{link ? `${link.sessionsCount}/2` : "—"}</td>
+                      <td className="px-4 py-3">
+                        <UserActions
+                          url={url}
+                          busy={busyUserId === user.id}
+                          disabled={disabled}
+                          onRegenerate={() => handleRegenerate(user)}
+                          onToggle={() => handleToggleStatus(user)}
+                          onDelete={() => setConfirmDelete(user)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Vue cartes — mobile uniquement, une carte empilée par employé */}
+          <div className="space-y-3 sm:hidden">
+            {users.map((user) => {
+              const link = linkFor(user.id);
+              const url = accessUrl(user.id);
+              const disabled = !!link?.disabledAt;
+              return (
+                <div key={user.id} className="rounded-2xl border border-surface-border bg-surface-raised p-4">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-200">{user.name}</p>
+                      <p className="truncate text-xs text-slate-500">{user.phone || "Pas de téléphone"}</p>
+                    </div>
+                    <StatusBadge disabled={disabled} />
+                  </div>
+                  <p className="mb-3 text-xs text-slate-500">Sessions : {link ? `${link.sessionsCount}/2` : "—"}</p>
+                  <UserActions
+                    url={url}
+                    busy={busyUserId === user.id}
+                    disabled={disabled}
+                    onRegenerate={() => handleRegenerate(user)}
+                    onToggle={() => handleToggleStatus(user)}
+                    onDelete={() => setConfirmDelete(user)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {loadingLinks && <p className="mt-2 text-xs text-slate-600">Mise à jour des accès…</p>}
 
       {showCreate && (
         <CreateAccessModal
@@ -255,6 +248,74 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
           onCancel={() => setConfirmDelete(null)}
           onConfirm={handleDelete}
         />
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({ disabled }: { disabled: boolean }) {
+  return (
+    <span
+      className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
+        disabled ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"
+      }`}
+    >
+      {disabled ? "Désactivé" : "Actif"}
+    </span>
+  );
+}
+
+function UserActions({
+  url,
+  busy,
+  disabled,
+  onRegenerate,
+  onToggle,
+  onDelete,
+}: {
+  url: string | null;
+  busy: boolean;
+  disabled: boolean;
+  onRegenerate: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {url && (
+        <button
+          onClick={() => navigator.clipboard.writeText(url)}
+          className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 hover:bg-surface"
+        >
+          Copier le lien
+        </button>
+      )}
+      <button
+        disabled={busy}
+        onClick={onRegenerate}
+        className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 hover:bg-surface disabled:opacity-50"
+      >
+        Régénérer
+      </button>
+      <button
+        disabled={busy}
+        onClick={onToggle}
+        className={`rounded-lg px-2.5 py-1 text-xs disabled:opacity-50 ${
+          disabled
+            ? "border border-green-500/30 text-green-400 hover:bg-green-500/10"
+            : "border border-red-500/30 text-red-400 hover:bg-red-500/10"
+        }`}
+      >
+        {disabled ? "Activer" : "Désactiver"}
+      </button>
+      {disabled && (
+        <button
+          disabled={busy}
+          onClick={onDelete}
+          className="rounded-lg border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+        >
+          Supprimer
+        </button>
       )}
     </div>
   );

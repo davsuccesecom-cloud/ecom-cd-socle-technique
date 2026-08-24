@@ -162,13 +162,13 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
             {team.sheetIds.map((id) => (
               <li
                 key={id}
-                className="flex items-center justify-between gap-2 rounded-xl border border-surface-border px-3 py-2 text-sm"
+                className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-surface-border px-3 py-2 text-sm"
               >
                 <a
                   href={`https://docs.google.com/spreadsheets/d/${id}/edit`}
                   target="_blank"
                   rel="noreferrer"
-                  className="truncate text-slate-300 hover:text-brand"
+                  className="min-w-0 flex-1 truncate text-slate-300 hover:text-brand"
                 >
                   {id}
                 </a>

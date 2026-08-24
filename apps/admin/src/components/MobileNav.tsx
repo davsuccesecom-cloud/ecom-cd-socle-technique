@@ -6,10 +6,10 @@ interface MobileNavProps {
   onNavigate: (key: string) => void;
 }
 
-// 4 raccourcis directs en barre basse — les plus utilisés au quotidien.
-// Tout le reste (Performance, Rémunération, Paramètres, Livraisons quand
-// elle sera prête) passe par "Plus", pour ne pas surcharger la barre.
-const PRIMARY_KEYS = ["overview", "orders", "teams", "users"];
+// 3 raccourcis directs en barre basse (au lieu de 4) — plus d'espace par
+// item, évite le texte tassé constaté avec 5 items dont un label long
+// ("Utilisateurs & Accès"). Le reste, dont "Accès", passe par "Plus".
+const PRIMARY_KEYS = ["overview", "orders", "teams"];
 
 const ICONS: Record<string, () => JSX.Element> = {
   overview: OverviewIcon,
@@ -31,7 +31,7 @@ export default function MobileNav({ active, onNavigate }: MobileNavProps) {
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-surface-border bg-surface px-2 pb-[env(safe-area-inset-bottom)] md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-10 flex border-t border-surface-border bg-surface px-1 pb-[env(safe-area-inset-bottom)] md:hidden">
         {primaryItems.map((item) => {
           const Icon = ICONS[item.key];
           const isEnabled = ENABLED_KEYS.includes(item.key);
@@ -46,7 +46,7 @@ export default function MobileNav({ active, onNavigate }: MobileNavProps) {
               }`}
             >
               <Icon />
-              <span className="truncate px-1">{item.label}</span>
+              <span className="truncate px-1">{item.shortLabel ?? item.label}</span>
             </button>
           );
         })}

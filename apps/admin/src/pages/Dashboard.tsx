@@ -17,6 +17,7 @@ import Utilisateurs from "./Utilisateurs";
 import Commandes from "./Commandes";
 import EquipesSheets from "./EquipesSheets";
 import Parametres from "./Parametres";
+import RevenueChart from "../components/RevenueChart";
 
 interface DashboardProps {
   workspaceId: string;
@@ -68,6 +69,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail }: Dashboar
   const [teamId, setTeamId] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>("jour");
   const [showAddMarket, setShowAddMarket] = useState(false);
+  const [showRevenueChart, setShowRevenueChart] = useState(false);
   const activeTeamId = teamId ?? teams[0]?.id ?? null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
 
@@ -202,11 +204,17 @@ export default function Dashboard({ workspaceId, onLogout, userEmail }: Dashboar
         ) : page === "teams" ? (
           <EquipesSheets workspaceId={workspaceId} teams={teams} />
         ) : page === "settings" ? (
-          <Parametres />
+          <Parametres workspaceId={workspaceId} team={activeTeam} />
         ) : (
           <>
             <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
-              <StatCard label="Chiffre d'affaires" value={`${stats.ca.toLocaleString("fr-FR")}`} icon={<CaIcon />} accent="blue" />
+              <StatCard
+                label="Chiffre d'affaires"
+                value={`${stats.ca.toLocaleString("fr-FR")}`}
+                icon={<CaIcon />}
+                accent="blue"
+                onClick={() => setShowRevenueChart(true)}
+              />
               <StatCard label="Livraisons réussies" value={String(stats.livraisonsReussies)} icon={<TruckIcon />} accent="green" />
               <StatCard label="Injoignables" value={String(stats.injoignables)} icon={<XIcon />} accent="red" />
               <StatCard label="Rejetées" value={String(stats.rejetees)} icon={<BanIcon />} accent="orange" />
@@ -244,6 +252,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail }: Dashboar
 
       <MobileNav active={page} onNavigate={setPage} />
 
+      {showRevenueChart && (
+        <RevenueChart orders={orders} periodLabel={PERIOD_LABELS[period]} onClose={() => setShowRevenueChart(false)} />
+      )}
+
       {showAddMarket && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
@@ -267,8 +279,16 @@ export default function Dashboard({ workspaceId, onLogout, userEmail }: Dashboar
 
 function LogoIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2a10 10 0 1 0 7.07 17.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <defs>
+        <linearGradient id="logoGradMobile" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#818CF8" />
+          <stop offset="100%" stopColor="#6366F1" />
+        </linearGradient>
+      </defs>
+      <path d="M6 8h12l-1 12a2 2 0 0 1-2 1.8H9A2 2 0 0 1 7 20L6 8Z" fill="url(#logoGradMobile)" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="url(#logoGradMobile)" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8.5 12.5 11 15l4.5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

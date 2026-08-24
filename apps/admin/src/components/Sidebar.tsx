@@ -88,8 +88,16 @@ export default function Sidebar({ active, userEmail, onLogout, onNavigate }: Sid
 
 function LogoIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 2a10 10 0 1 0 7.07 17.07" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <defs>
+        <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#818CF8" />
+          <stop offset="100%" stopColor="#6366F1" />
+        </linearGradient>
+      </defs>
+      <path d="M6 8h12l-1 12a2 2 0 0 1-2 1.8H9A2 2 0 0 1 7 20L6 8Z" fill="url(#logoGrad)" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="url(#logoGrad)" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8.5 12.5 11 15l4.5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

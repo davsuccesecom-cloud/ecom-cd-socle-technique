@@ -6,15 +6,18 @@
 export interface NavItem {
   key: string;
   label: string;
+  /** Libellé compact pour la barre de nav mobile — évite le texte tassé
+   * quand le nom complet est trop long ("Équipes & Sheets" → "Équipes"). */
+  shortLabel?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { key: "overview", label: "Vue d'ensemble" },
+  { key: "overview", label: "Vue d'ensemble", shortLabel: "Accueil" },
   { key: "orders", label: "Commandes" },
   { key: "deliveries", label: "Livraisons" },
   { key: "performance", label: "Performance" },
-  { key: "teams", label: "Équipes & Sheets" },
-  { key: "users", label: "Utilisateurs & Accès" },
+  { key: "teams", label: "Équipes & Sheets", shortLabel: "Équipes" },
+  { key: "users", label: "Utilisateurs & Accès", shortLabel: "Accès" },
   { key: "remuneration", label: "Rémunération" },
   { key: "settings", label: "Paramètres" },
 ];
