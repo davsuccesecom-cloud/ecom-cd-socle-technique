@@ -3,57 +3,64 @@ import { arrayUnion, doc, updateDoc } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
 import { getDb, getFirebaseMessaging } from "../firebase";
 
-/**
- * Demande la permission de notification au premier chargement (si pas deja
- * repondu), enregistre EXPLICITEMENT le service worker firebase-messaging-sw.js
- * (evite tout conflit avec un autre service worker de l'app, ex: celui
- * genere par le plugin PWA), recupere le token FCM de l'appareil, et l'ajoute
- * a la liste des tokens de l'utilisateur.
- *
- * `vapidKey` vient de Firebase Console -> Cloud Messaging -> Certificats
- * push web.
- */
 export function useRegisterPushNotifications(
   workspaceId: string,
   userId: string,
   vapidKey: string
 ) {
   useEffect(() => {
-    if (!("Notification" in window)) return;
-    if (!("serviceWorker" in navigator)) return;
+    if (!("Notification" in window)) {
+      alert("DIAGNOSTIC: Notification non supportee par ce navigateur.");
+      return;
+    }
+    if (!("serviceWorker" in navigator)) {
+      alert("DIAGNOSTIC: serviceWorker non supporte par ce navigateur.");
+      return;
+    }
     let cancelled = false;
     (async () => {
       const messaging = await getFirebaseMessaging();
-      if (!messaging || cancelled) return;
+      if (!messaging || cancelled) {
+        alert("DIAGNOSTIC: getFirebaseMessaging() a retourne null. Arret ici.");
+        return;
+      }
 
       let permission = Notification.permission;
+      alert("DIAGNOSTIC: permission actuelle = " + permission);
+
       if (permission === "default") {
         permission = await Notification.requestPermission();
+        alert("DIAGNOSTIC: permission apres demande = " + permission);
       }
-      if (permission !== "granted") return;
+      if (permission !== "granted") {
+        alert("DIAGNOSTIC: permission refusee, arret. Valeur = " + permission);
+        return;
+      }
 
-      // Enregistrement EXPLICITE du service worker FCM, avec un scope
-      // dedie, pour eviter tout conflit avec un autre service worker
-      // (ex: celui genere par le plugin PWA de l'app).
-      const swRegistration = await navigator.serviceWorker.register(
-        "/firebase-messaging-sw.js",
-        { scope: "/firebase-cloud-messaging-push-scope" }
-      );
+      try {
+        const swRegistration = await navigator.serviceWorker.register(
+          "/firebase-messaging-sw.js",
+          { scope: "/firebase-cloud-messaging-push-scope" }
+        );
+        alert("DIAGNOSTIC: service worker enregistre avec succes.");
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      const token = await getToken(messaging, {
-        vapidKey,
-        serviceWorkerRegistration: swRegistration,
-      }).catch((err) => {
-        console.error("useRegisterPushNotifications: getToken a echoue:", err);
-        return null;
-      });
+        const token = await getToken(messaging, {
+          vapidKey,
+          serviceWorkerRegistration: swRegistration,
+        });
 
-      if (!token || cancelled) return;
+        alert("DIAGNOSTIC: token obtenu = " + (token ? token.substring(0, 20) + "..." : "NULL"));
 
-      const userRef = doc(getDb(), "workspaces", workspaceId, "users", userId);
-      await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
+        if (!token || cancelled) return;
+
+        const userRef = doc(getDb(), "workspaces", workspaceId, "users", userId);
+        await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
+        alert("DIAGNOSTIC: token sauvegarde dans Firestore avec succes !");
+      } catch (err) {
+        alert("DIAGNOSTIC: ERREUR = " + String(err));
+      }
     })();
     return () => {
       cancelled = true;
