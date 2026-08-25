@@ -23,6 +23,7 @@ interface DashboardProps {
   workspaceId: string;
   onLogout: () => void;
   userEmail: string | null;
+  adminId: string;
 }
 
 type Period = "jour" | "semaine" | "mois" | "tout";
