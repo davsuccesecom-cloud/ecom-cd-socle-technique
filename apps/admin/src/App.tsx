@@ -72,5 +72,12 @@ export default function App() {
     );
   }
 
-  return <Dashboard workspaceId={claims.workspaceId} onLogout={logout} userEmail={firebaseUser.email} />;
+  return (
+    <Dashboard
+      workspaceId={claims.workspaceId}
+      onLogout={logout}
+      userEmail={firebaseUser.email}
+      adminId={firebaseUser.uid}
+    />
+  );
 }

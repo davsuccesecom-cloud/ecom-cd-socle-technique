@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useOrders, useTeams, useTeamUsers } from "@ecomcod/shared";
+import { useOrders, useTeams, useTeamUsers, useRegisterPushNotifications } from "@ecomcod/shared";
 import type { CloseuseStatus } from "@ecomcod/shared";
 import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
@@ -63,7 +63,8 @@ const PAGE_TITLES: Record<string, string> = {
   settings: "Paramètres ⚙️",
 };
 
-export default function Dashboard({ workspaceId, onLogout, userEmail }: DashboardProps) {
+export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }: DashboardProps) {
+  useRegisterPushNotifications(workspaceId, adminId, import.meta.env.VITE_FIREBASE_VAPID_KEY);
   const [page, setPage] = useState<string>("overview");
   const { teams, loading: teamsLoading } = useTeams(workspaceId);
   const [teamId, setTeamId] = useState<string | null>(null);
