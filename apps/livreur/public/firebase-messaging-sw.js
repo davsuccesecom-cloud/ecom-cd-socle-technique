@@ -1,14 +1,10 @@
-// Ce fichier doit rester à la racine de public/ (portée requise par FCM).
-// Il tourne séparément du service worker PWA généré par vite-plugin-pwa,
-// et gère spécifiquement la réception des notifications en arrière-plan
-// (architecture section 3.2).
+// Ce fichier doit rester a la racine de public/ (portee requise par FCM).
+// Recoit les notifications push en arriere-plan pour l'app Livreur.
 
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
 
-// Ces valeurs sont publiques par nature (config Web app Firebase), donc
-// pas besoin de variable d'environnement ici — remplace-les avec les
-// mêmes valeurs que ton .env.local une fois le projet Firebase connecté.
+// Valeurs publiques par nature (config Web app Firebase).
 firebase.initializeApp({
   apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
   authDomain: "meta-capi-app.firebaseapp.com",
@@ -22,7 +18,7 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   const { title, body } = payload.notification ?? {};
-  self.registration.showNotification(title ?? "Ecom COD", {
+  self.registration.showNotification(title ?? "Ecom COD — Livreur", {
     body: body ?? "",
     icon: "/icon-192.png",
     badge: "/icon-192.png",

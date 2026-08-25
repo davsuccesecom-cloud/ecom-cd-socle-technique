@@ -7,12 +7,12 @@ importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-com
 // Valeurs publiques par nature (config Web app Firebase) — remplace avec
 // les mêmes valeurs que ton .env.local une fois le projet Firebase connecté.
 firebase.initializeApp({
-  apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
-  authDomain: "meta-capi-app.firebaseapp.com",
-  projectId: "meta-capi-app",
-  storageBucket: "meta-capi-app.firebasestorage.app",
-  messagingSenderId: "972779076968",
-  appId: "1:972779076968:web:206a988757da4219a82add",
+  apiKey: "REPLACE_ME",
+  authDomain: "REPLACE_ME",
+  projectId: "REPLACE_ME",
+  storageBucket: "REPLACE_ME",
+  messagingSenderId: "REPLACE_ME",
+  appId: "REPLACE_ME",
 });
 
 const messaging = firebase.messaging();

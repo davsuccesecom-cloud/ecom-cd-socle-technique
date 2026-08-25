@@ -1,9 +1,12 @@
 import * as crypto from "crypto";
 import * as admin from "firebase-admin";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
 import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { defineSecret } from "firebase-functions/params";
 import * as bcrypt from "bcryptjs";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { writeOrderStatusToSheet } from "./sheetsSync";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -14,13 +17,12 @@ const ORDER_PURGE_AFTER_DAYS = 3;
 const REMINDER_DELAY_MINUTES = 20;
 const FINAL_STATUSES = ["livre", "rejete", "injoignable"];
 
+const sheetWebhookSecret = defineSecret("SHEET_WEBHOOK_SECRET");
+const sheetsServiceAccountKey = defineSecret("GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY");
+
 // ---------------------------------------------------------------------------
 // 1. Authentification par lien d'accès + mot de passe simple (section 10)
 // ---------------------------------------------------------------------------
-// REMPLACE AUSSI toute la fonction `authenticateAccess` existante par
-// celle-ci (elle inclut la lecture depuis accessLinkSecrets + le rate
-// limiting anti-bruteforce, déjà donnés dans un message précédent) :
-// ============================================================================
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
@@ -46,9 +48,6 @@ export const authenticateAccess = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Cet accès a été désactivé.");
   }
 
-  // Le hash vit dans une sous-collection séparée, jamais retournée dans
-  // aucune réponse de Cloud Function côté client — corrige la faille
-  // "passwordHash exposé".
   const secretRef = db
     .collection("workspaces")
     .doc(link.workspaceId)
@@ -60,7 +59,6 @@ export const authenticateAccess = onCall(async (request) => {
   }
   const secret = secretSnap.data()!;
 
-  // Verrouillage anti-bruteforce : 5 tentatives ratées → blocage 15 min
   const now = Date.now();
   if (secret.lockedUntil && secret.lockedUntil > now) {
     const minutesLeft = Math.ceil((secret.lockedUntil - now) / 60000);
@@ -79,7 +77,6 @@ export const authenticateAccess = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Mot de passe incorrect.");
   }
 
-  // Connexion réussie : on remet le compteur à zéro
   if (secret.failedAttempts || secret.lockedUntil) {
     await secretRef.set(
       { failedAttempts: 0, lockedUntil: admin.firestore.FieldValue.delete() },
@@ -133,13 +130,7 @@ export const authenticateAccess = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
-// 1bis. Authentification admin — système multi-entreprises (SaaS) : n'importe
-// quel email peut créer SON PROPRE espace isolé (workspace), avec son propre
-// nom, ses propres équipes/closeuses/livreurs. Aucune donnée n'est jamais
-// partagée entre deux espaces différents. Agnostique du mode de connexion
-// utilisé côté client (lien magique par email) — seul l'email authentifié
-// par Firebase Auth compte ici. Une simple table de correspondance
-// (adminsByEmail) relie chaque email au workspace qu'il possède.
+// 1bis. Authentification admin — système multi-entreprises (SaaS)
 // ---------------------------------------------------------------------------
 
 export const authenticateAdmin = onCall(async (request) => {
@@ -154,18 +145,12 @@ export const authenticateAdmin = onCall(async (request) => {
   const mappingRef = db.collection("adminsByEmail").doc(email);
   const mappingSnap = await mappingRef.get();
 
-  // Cas 1 : ce compte Google possède déjà un espace — on le reconnecte
-  // simplement à SON workspace existant.
   if (mappingSnap.exists) {
     const { workspaceId } = mappingSnap.data() as { workspaceId: string };
     await admin.auth().setCustomUserClaims(uid, { workspaceId, role: "admin" });
     return { workspaceId, role: "admin" as const, isNewWorkspace: false };
   }
 
-  // Cas 2 : première connexion de ce compte — nouvelle entreprise qui
-  // s'inscrit. Il faut le nom de son espace pour le créer ; si le client
-  // ne l'a pas encore fourni, on le lui demande via ce code d'erreur
-  // reconnu côté frontend (affiche un formulaire "Nom de ton entreprise").
   const { workspaceName } = request.data as { workspaceName?: string };
   if (!workspaceName || !workspaceName.trim()) {
     throw new HttpsError("failed-precondition", "NEW_WORKSPACE_NEEDS_NAME");
@@ -194,10 +179,9 @@ export const authenticateAdmin = onCall(async (request) => {
 
   return { workspaceId: workspaceRef.id, role: "admin" as const, isNewWorkspace: true };
 });
+
 // ---------------------------------------------------------------------------
-// 1ter. Gestion des accès — création, régénération mot de passe, activation,
-// listing (section "Utilisateurs & Accès"). Toutes réservées à un admin de
-// SON workspace (isolation multi-tenant vérifiée à chaque appel).
+// 1ter. Gestion des accès
 // ---------------------------------------------------------------------------
 
 function requireAdmin(request: { auth?: { token?: Record<string, unknown> } }): string {
@@ -210,11 +194,10 @@ function requireAdmin(request: { auth?: { token?: Record<string, unknown> } }): 
 }
 
 function generateAccessLinkId(): string {
-  return crypto.randomBytes(9).toString("base64url"); // ~12 caractères, sûr en URL
+  return crypto.randomBytes(9).toString("base64url");
 }
 
 function generatePassword(): string {
-  // Sans caractères ambigus (I, O, 0, 1, L) — plus simple à lire/taper à l'oral
   const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   return Array.from(crypto.randomBytes(8), (b) => chars[b % chars.length]).join("");
 }
@@ -232,7 +215,6 @@ export const createAccessUser = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "Nom, rôle (closeuse/livreur) et équipe requis.");
   }
 
-  // Vérifie que l'équipe appartient bien à CE workspace — isolation multi-tenant
   const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).get();
   if (!teamSnap.exists) {
     throw new HttpsError("not-found", "Équipe introuvable.");
@@ -264,8 +246,6 @@ export const createAccessUser = onCall(async (request) => {
     createdAt: Date.now(),
   });
 
-  // Le hash vit UNIQUEMENT ici — jamais dans accessLinks, jamais renvoyé
-  // ailleurs qu'à cet instant précis de création.
   await db
     .collection("workspaces")
     .doc(workspaceId)
@@ -276,7 +256,7 @@ export const createAccessUser = onCall(async (request) => {
   return {
     userId: userRef.id,
     accessLinkId,
-    password, // affiché une seule fois côté Admin — jamais re-consultable après
+    password,
   };
 });
 
@@ -312,10 +292,9 @@ export const regenerateAccessPassword = onCall(async (request) => {
       { merge: true }
     );
 
-  // Nouveau mot de passe = toutes les sessions déjà connectées sont éjectées
   await linkDoc.ref.update({ activeSessions: [] });
 
-  return { password }; // affiché une seule fois
+  return { password };
 });
 
 export const setAccessLinkStatus = onCall(async (request) => {
@@ -342,7 +321,78 @@ export const setAccessLinkStatus = onCall(async (request) => {
     activeSessions: disabled ? [] : linkDoc.data().activeSessions ?? [],
   });
 
+  if (disabled) {
+    const linkData = linkDoc.data();
+    try {
+      await admin.auth().revokeRefreshTokens(linkData.userId);
+    } catch (err) {
+      console.error("Impossible de révoquer les sessions Firebase :", err);
+    }
+  }
+
   return { success: true };
+});
+
+// Vérification stricte de révocation : `request.auth` (fourni automatiquement
+// par le framework Callable) vérifie seulement la SIGNATURE du token, pas
+// s'il a été révoqué entre-temps — un token déjà émis reste valide jusqu'à
+// ~1h après un revokeRefreshTokens() si on ne fait que ça. On extrait donc
+// le token brut depuis l'en-tête Authorization et on le revérifie nous-mêmes
+// avec `checkRevoked = true`, seule façon de forcer un rejet immédiat.
+export const validateAccessSession = onCall(async (request) => {
+  const authHeader = request.rawRequest.headers.authorization;
+  const rawToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (!request.auth || !rawToken) {
+    throw new HttpsError("unauthenticated", "Session Firebase absente.");
+  }
+
+  let decoded: admin.auth.DecodedIdToken;
+  try {
+    decoded = await admin.auth().verifyIdToken(rawToken, true); // checkRevoked = true
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "auth/id-token-revoked") {
+      throw new HttpsError("permission-denied", "Session révoquée.");
+    }
+    throw new HttpsError("unauthenticated", "Session invalide.");
+  }
+
+  const workspaceId = decoded.workspaceId as string | undefined;
+  const userId = decoded.uid;
+
+  if (!workspaceId) {
+    throw new HttpsError("permission-denied", "Workspace introuvable.");
+  }
+
+  const linkSnap = await db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("accessLinks")
+    .where("userId", "==", userId)
+    .limit(1)
+    .get();
+
+  if (linkSnap.empty) {
+    throw new HttpsError("permission-denied", "Accès introuvable.");
+  }
+
+  const link = linkSnap.docs[0].data();
+
+  if (link.disabledAt) {
+    await admin.auth().revokeRefreshTokens(userId);
+    throw new HttpsError("permission-denied", "Ton accès a été désactivé par l'administrateur.");
+  }
+
+  const userSnap = await db.collection("workspaces").doc(workspaceId).collection("users").doc(userId).get();
+  const user = userSnap.data();
+
+  if (!user || user.status !== "active") {
+    await admin.auth().revokeRefreshTokens(userId);
+    throw new HttpsError("permission-denied", "Ton compte a été désactivé.");
+  }
+
+  return { valid: true };
 });
 
 export const listAccessLinks = onCall(async (request) => {
@@ -361,8 +411,6 @@ export const listAccessLinks = onCall(async (request) => {
   const userIds = usersSnap.docs.map((d) => d.id);
   if (userIds.length === 0) return { links: [] };
 
-  // Limite Firestore : "in" accepte 30 valeurs max — largement suffisant
-  // pour une équipe (maxClosseuses/maxLivreurs = 10 chacun par défaut)
   const linksSnap = await db
     .collection("workspaces")
     .doc(workspaceId)
@@ -381,6 +429,161 @@ export const listAccessLinks = onCall(async (request) => {
   });
 
   return { links };
+});
+
+// Suppression définitive d'un employé — uniquement possible APRÈS révocation
+// de son accès (disabledAt non null), pour garder une trace/contrôle avant
+// toute suppression irréversible. Supprime l'utilisateur, son lien d'accès
+// et son secret associé.
+export const deleteEmployee = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { userId } = request.data as { userId: string };
+  if (!userId) {
+    throw new HttpsError("invalid-argument", "userId requis.");
+  }
+
+  const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "Employé introuvable.");
+  }
+
+  const linkSnap = await db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("accessLinks")
+    .where("userId", "==", userId)
+    .limit(1)
+    .get();
+
+  if (!linkSnap.empty) {
+    const link = linkSnap.docs[0];
+    if (!link.data().disabledAt) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Révoque l'accès de cet employé avant de le supprimer."
+      );
+    }
+    await db
+      .collection("workspaces")
+      .doc(workspaceId)
+      .collection("accessLinkSecrets")
+      .doc(link.id)
+      .delete();
+    await link.ref.delete();
+  }
+
+  try {
+    await admin.auth().deleteUser(userId);
+  } catch (err) {
+    // Compte Firebase Auth déjà absent/déjà supprimé — pas bloquant
+    console.warn("Suppression Firebase Auth ignorée :", err);
+  }
+
+  await userRef.delete();
+
+  return { success: true };
+});
+
+// ---------------------------------------------------------------------------
+// 1quater. Réception des nouvelles commandes depuis Google Sheets
+// ---------------------------------------------------------------------------
+
+interface IncomingSheetOrder {
+  sheetId: string;
+  rowNumber: number;
+  date: string;
+  orderNumber: string;
+  clientName: string;
+  phone: string;
+  city: string;
+  note: string;
+  product: string;
+  unitPrice: number;
+  quantity: number;
+  totalPrice: number;
+}
+
+export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).send("Method not allowed");
+    return;
+  }
+
+  const providedSecret = req.headers["x-webhook-secret"];
+  if (providedSecret !== sheetWebhookSecret.value()) {
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+  const body = req.body as IncomingSheetOrder;
+  if (!body.sheetId || !body.rowNumber || !body.clientName || !body.phone) {
+    res.status(400).send("Champs requis manquants.");
+    return;
+  }
+
+  const teamsSnap = await db
+    .collectionGroup("teams")
+    .where("sheetIds", "array-contains", body.sheetId)
+    .limit(1)
+    .get();
+
+  if (teamsSnap.empty) {
+    res.status(404).send("Aucune équipe connectée à ce Sheet.");
+    return;
+  }
+
+  const teamDoc = teamsSnap.docs[0];
+  const team = teamDoc.data();
+  const workspaceId = team.workspaceId as string;
+  const teamId = teamDoc.id;
+
+  const existingSnap = await db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("orders")
+    .where("sheetId", "==", body.sheetId)
+    .where("sourceRowId", "==", String(body.rowNumber))
+    .limit(1)
+    .get();
+  if (!existingSnap.empty) {
+    res.status(200).send({ skipped: true, reason: "already exists" });
+    return;
+  }
+
+  const phoneParsed = parsePhoneNumberFromString(body.phone, team.defaultCountry as never);
+  const clientPhoneFormatted = phoneParsed?.formatInternational() ?? body.phone;
+
+  const orderRef = db.collection("workspaces").doc(workspaceId).collection("orders").doc();
+  await orderRef.set({
+    workspaceId,
+    teamId,
+    sheetId: body.sheetId,
+    sourceRowId: String(body.rowNumber),
+    clientName: body.clientName,
+    clientPhoneRaw: body.phone,
+    clientPhoneFormatted,
+    product: body.product,
+    amount: body.totalPrice,
+    closeuseId: null,
+    livreurId: null,
+    statutCloseuse: "nouveau",
+    statutLivreur: null,
+    statutAdminOverride: null,
+    callInProgress: null,
+    timestamps: {
+      received: Date.now(),
+      assignedToCloseuse: null,
+      assignedToLivreur: null,
+      closeuseDecidedAt: null,
+      livreurRespondedAt: null,
+      delivered: null,
+    },
+    capiSent: false,
+    purgeAt: null,
+  });
+
+  res.status(200).send({ success: true, orderId: orderRef.id });
 });
 
 // ---------------------------------------------------------------------------
@@ -404,9 +607,8 @@ export const onOrderCreated = onDocumentCreated(
       .where("status", "==", "active")
       .get();
 
-    if (closeusesSnap.empty) return; // aucune closeuse active, laissée non assignée
+    if (closeusesSnap.empty) return;
 
-    // Charge active de chaque closeuse
     const loads = await Promise.all(
       closeusesSnap.docs.map(async (userDoc) => {
         const activeSnap = await db
@@ -429,7 +631,6 @@ export const onOrderCreated = onDocumentCreated(
 
     await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`);
 
-    // Alerte admin si surcharge, sans jamais bloquer l'assignation (section 8)
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
     if (chosen.count + 1 >= threshold) {
@@ -443,11 +644,11 @@ export const onOrderCreated = onDocumentCreated(
 );
 
 // ---------------------------------------------------------------------------
-// 3. Propagation de statut livreur → closeuse + rémunération (sections 6, 15)
+// 3. Propagation de statut livreur → closeuse + rémunération + sync Sheet
 // ---------------------------------------------------------------------------
 
 export const onOrderUpdated = onDocumentUpdated(
-  "workspaces/{workspaceId}/orders/{orderId}",
+  { document: "workspaces/{workspaceId}/orders/{orderId}", secrets: [sheetsServiceAccountKey] },
   async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
@@ -458,9 +659,6 @@ export const onOrderUpdated = onDocumentUpdated(
     const statutLivreurChanged = before.statutLivreur !== after.statutLivreur;
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
 
-    // Horodatage de réactivité réelle — base du module "Performance
-    // employés" (délai de traitement par closeuse, délai de réaction par
-    // livreur). Posé une seule fois, à la première sortie de l'état initial.
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
       await ref.update({ "timestamps.closeuseDecidedAt": Date.now() });
     }
@@ -477,10 +675,18 @@ export const onOrderUpdated = onDocumentUpdated(
     if (statutLivreurChanged && after.statutLivreur === "livre") {
       const purgeAt = Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000;
       await ref.update({
-        statutCloseuse: "livre", // visibilité instantanée chez la closeuse, section 6
+        statutCloseuse: "livre",
         "timestamps.delivered": Date.now(),
         purgeAt,
       });
+
+      // Sync directe vers le Sheet — ne dépend pas d'un second passage de
+      // la fonction (avant, on comptait sur before/after de l'événement,
+      // qui ne reflète pas cette écriture faite DANS cette même exécution ;
+      // corrige le bug "Livré ne remonte pas sur le Sheet").
+      if (after.sheetId && after.sourceRowId) {
+        await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "livre");
+      }
 
       const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(after.teamId).get();
       const team = teamSnap.data();
@@ -500,18 +706,34 @@ export const onOrderUpdated = onDocumentUpdated(
     }
 
     if (statutLivreurChanged && after.statutLivreur === "injoignable") {
-      // Remonte immédiatement dans le flux principal de la closeuse — pas
-      // caché dans le menu secondaire (demande explicite, section 6)
       await ref.update({ statutCloseuse: "injoignable" });
+
+      // Même correctif que ci-dessus, pour ce cas aussi.
+      if (after.sheetId && after.sourceRowId) {
+        await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "injoignable");
+      }
+
       if (after.closeuseId) {
         await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`);
       }
     }
 
-    // Purge programmée si la closeuse clôture elle-même une commande sans
-    // passage par le livreur (rejeté / injoignable direct)
     if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse) && !after.purgeAt) {
       await ref.update({ purgeAt: Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000 });
+    }
+
+    // Sync retour Firestore → Sheet pour tous les AUTRES changements de
+    // statutCloseuse (ceux décidés directement par la closeuse : en_cours,
+    // programme, rejete, indisponible — pas ceux forcés par le livreur,
+    // déjà gérés explicitement ci-dessus).
+    if (
+      statutCloseuseChanged &&
+      after.statutCloseuse !== "livre" &&
+      after.statutCloseuse !== "injoignable" &&
+      after.sheetId &&
+      after.sourceRowId
+    ) {
+      await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, after.statutCloseuse);
     }
   }
 );
@@ -588,10 +810,6 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
       );
     }
 
-    // Alerte agrégée pour l'admin — surveillance des retards par équipe,
-    // demandée explicitement pour suivre l'efficacité des employés.
-    // Anti-spam : au plus une alerte toutes les ~25 min tant que le retard
-    // persiste (sinon une notif identique toutes les 5 min, illisible).
     if (byCloseuse.size > 0) {
       const recentAlert = await wsDoc.ref
         .collection("notifications")
@@ -677,9 +895,6 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
 }
 
 async function notifyAdmins(workspaceId: string, title: string, body: string) {
-  // Persisté en Firestore (pas juste push FCM) pour que la cloche de
-  // l'app Admin ait un vrai historique consultable, même après coup —
-  // demande explicite : "des rappels notifs pour moi".
   await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
     title,
     body,

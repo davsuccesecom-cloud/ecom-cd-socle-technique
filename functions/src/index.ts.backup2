@@ -492,7 +492,6 @@ export const deleteEmployee = onCall(async (request) => {
 interface IncomingSheetOrder {
   sheetId: string;
   rowNumber: number;
-  orderUid?: string;
   date: string;
   orderNumber: string;
   clientName: string;
@@ -528,14 +527,6 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       return;
     }
 
-    // Identifiant unique stable : priorite a orderUid (genere par le Sheet
-    // et fige a la creation de la ligne), sinon repli sur le numero de
-    // ligne (ancien comportement, recycle si des lignes sont dupliquees
-    // ou supprimees dans le Sheet).
-    const uniqueSourceId = body.orderUid && String(body.orderUid).trim() !== ""
-      ? `uid:${String(body.orderUid).trim()}`
-      : `row:${String(body.rowNumber)}`;
-
     const teamsSnap = await db
       .collectionGroup("teams")
       .where("sheetIds", "array-contains", body.sheetId)
@@ -559,11 +550,11 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       .doc(workspaceId)
       .collection("orders")
       .where("sheetId", "==", body.sheetId)
-      .where("sourceRowId", "==", uniqueSourceId)
+      .where("sourceRowId", "==", String(body.rowNumber))
       .limit(1)
       .get();
     if (!existingSnap.empty) {
-      console.log(`receiveSheetOrder: commande deja existante (sourceRowId=${uniqueSourceId}), skip.`);
+      console.log("receiveSheetOrder: commande deja existante, skip.");
       res.status(200).send({ skipped: true, reason: "already exists" });
       return;
     }
@@ -576,7 +567,7 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       workspaceId,
       teamId,
       sheetId: body.sheetId,
-      sourceRowId: uniqueSourceId,
+      sourceRowId: String(body.rowNumber),
       clientName: body.clientName,
       clientPhoneRaw: body.phone,
       clientPhoneFormatted,
