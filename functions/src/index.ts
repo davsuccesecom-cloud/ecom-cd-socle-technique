@@ -679,6 +679,11 @@ export const onOrderUpdated = onDocumentUpdated(
 
     const statutLivreurChanged = before.statutLivreur !== after.statutLivreur;
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
+    const livreurAssigned = !before.livreurId && !!after.livreurId;
+
+    if (livreurAssigned) {
+      await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`);
+    }
 
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
       await ref.update({ "timestamps.closeuseDecidedAt": Date.now() });
@@ -905,7 +910,8 @@ export const scheduledDigest = onSchedule("every 30 minutes", async () => {
 // ---------------------------------------------------------------------------
 
 async function sendPushToUser(workspaceId: string, userId: string, title: string, body: string) {
-  const userSnap = await db.collection("workspaces").doc(workspaceId).collection("users").doc(userId).get();
+  const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+  const userSnap = await userRef.get();
   const tokens: string[] = userSnap.data()?.fcmTokens ?? [];
   if (tokens.length === 0) {
     console.log(`sendPushToUser: aucun token pour user ${userId}`);
@@ -918,11 +924,24 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
   });
 
   console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
+
+  const invalidTokens: string[] = [];
   response.responses.forEach((r, i) => {
     if (!r.success) {
+      const code = r.error?.code;
       console.error(`Token invalide/echec [${i}] pour user ${userId}:`, r.error?.message);
+      if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
+        invalidTokens.push(tokens[i]);
+      }
     }
   });
+
+  if (invalidTokens.length > 0) {
+    await userRef.update({
+      fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+    });
+    console.log(`sendPushToUser: ${invalidTokens.length} token(s) invalide(s) supprime(s) pour user ${userId}`);
+  }
 }
 
 async function notifyAdmins(workspaceId: string, title: string, body: string) {

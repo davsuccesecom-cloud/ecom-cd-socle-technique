@@ -571,6 +571,10 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     const ref = db.collection("workspaces").doc(workspaceId).collection("orders").doc(orderId);
     const statutLivreurChanged = before.statutLivreur !== after.statutLivreur;
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
+    const livreurAssigned = !before.livreurId && !!after.livreurId;
+    if (livreurAssigned) {
+        await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`);
+    }
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
         await ref.update({ "timestamps.closeuseDecidedAt": Date.now() });
     }
@@ -740,7 +744,8 @@ exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async 
 // Utilitaires de notification (section 3.2)
 // ---------------------------------------------------------------------------
 async function sendPushToUser(workspaceId, userId, title, body) {
-    const userSnap = await db.collection("workspaces").doc(workspaceId).collection("users").doc(userId).get();
+    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+    const userSnap = await userRef.get();
     const tokens = userSnap.data()?.fcmTokens ?? [];
     if (tokens.length === 0) {
         console.log(`sendPushToUser: aucun token pour user ${userId}`);
@@ -751,11 +756,22 @@ async function sendPushToUser(workspaceId, userId, title, body) {
         notification: { title, body },
     });
     console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
+    const invalidTokens = [];
     response.responses.forEach((r, i) => {
         if (!r.success) {
+            const code = r.error?.code;
             console.error(`Token invalide/echec [${i}] pour user ${userId}:`, r.error?.message);
+            if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
+                invalidTokens.push(tokens[i]);
+            }
         }
     });
+    if (invalidTokens.length > 0) {
+        await userRef.update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+        });
+        console.log(`sendPushToUser: ${invalidTokens.length} token(s) invalide(s) supprime(s) pour user ${userId}`);
+    }
 }
 async function notifyAdmins(workspaceId, title, body) {
     await db.collection("workspaces").doc(workspaceId).collection("notifications").add({

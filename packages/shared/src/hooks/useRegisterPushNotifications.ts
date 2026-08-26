@@ -10,30 +10,29 @@ export function useRegisterPushNotifications(
 ) {
   useEffect(() => {
     if (!("Notification" in window)) {
-      alert("DIAGNOSTIC: Notification non supportee par ce navigateur.");
+      console.warn("useRegisterPushNotifications: Notification non supportee par ce navigateur.");
       return;
     }
     if (!("serviceWorker" in navigator)) {
-      alert("DIAGNOSTIC: serviceWorker non supporte par ce navigateur.");
+      console.warn("useRegisterPushNotifications: serviceWorker non supporte par ce navigateur.");
       return;
     }
+
     let cancelled = false;
+
     (async () => {
       const messaging = await getFirebaseMessaging();
       if (!messaging || cancelled) {
-        alert("DIAGNOSTIC: getFirebaseMessaging() a retourne null. Arret ici.");
+        console.warn("useRegisterPushNotifications: messaging non disponible.");
         return;
       }
 
       let permission = Notification.permission;
-      alert("DIAGNOSTIC: permission actuelle = " + permission);
-
       if (permission === "default") {
         permission = await Notification.requestPermission();
-        alert("DIAGNOSTIC: permission apres demande = " + permission);
       }
       if (permission !== "granted") {
-        alert("DIAGNOSTIC: permission refusee, arret. Valeur = " + permission);
+        console.log("useRegisterPushNotifications: permission notification refusee.");
         return;
       }
 
@@ -42,7 +41,6 @@ export function useRegisterPushNotifications(
           "/firebase-messaging-sw.js",
           { scope: "/firebase-cloud-messaging-push-scope" }
         );
-        alert("DIAGNOSTIC: service worker enregistre avec succes.");
 
         if (cancelled) return;
 
@@ -51,17 +49,16 @@ export function useRegisterPushNotifications(
           serviceWorkerRegistration: swRegistration,
         });
 
-        alert("DIAGNOSTIC: token obtenu = " + (token ? token.substring(0, 20) + "..." : "NULL"));
-
         if (!token || cancelled) return;
 
         const userRef = doc(getDb(), "workspaces", workspaceId, "users", userId);
         await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
-        alert("DIAGNOSTIC: token sauvegarde dans Firestore avec succes !");
+        console.log("useRegisterPushNotifications: token FCM enregistre avec succes.");
       } catch (err) {
-        alert("DIAGNOSTIC: ERREUR = " + String(err));
+        console.error("useRegisterPushNotifications: erreur lors de l'enregistrement du token FCM:", err);
       }
     })();
+
     return () => {
       cancelled = true;
     };
