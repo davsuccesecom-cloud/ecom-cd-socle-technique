@@ -53,6 +53,25 @@ function getSheetsClient() {
  * correspondante du Sheet d'origine. Colonnes fixes selon le modèle
  * "MODEL TRACKING" validé : L = Statut, M = À rappeler.
  */
+async function resolveRowNumber(sheetId: string, sourceRowId: string): Promise<number | null> {
+  if (sourceRowId.startsWith("row:")) {
+    const n = Number(sourceRowId.slice(4));
+    return Number.isFinite(n) ? n : null;
+  }
+  if (sourceRowId.startsWith("uid:")) {
+    const uid = sourceRowId.slice(4);
+    const sheets = getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: "N:N",
+    });
+    const values = res.data.values ?? [];
+    const idx = values.findIndex((r) => r[0] === uid);
+    return idx === -1 ? null : idx + 1;
+  }
+  return null;
+}
+
 export async function writeOrderStatusToSheet(
   sheetId: string,
   rowNumber: string,
@@ -63,7 +82,11 @@ export async function writeOrderStatusToSheet(
   if (!label) return; // "nouveau" ou statut non mappé : on ne touche à rien
 
   const sheets = getSheetsClient();
-  const row = Number(rowNumber);
+  const row = await resolveRowNumber(sheetId, rowNumber);
+  if (row === null) {
+    console.error(`writeOrderStatusToSheet: impossible de resoudre la ligne pour sourceRowId=${rowNumber} sur ${sheetId}.`);
+    return;
+  }
 
   const data = [
     {
