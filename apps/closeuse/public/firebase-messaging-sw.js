@@ -15,7 +15,7 @@ firebase.initializeApp({
   projectId: "meta-capi-app",
   storageBucket: "meta-capi-app.firebasestorage.app",
   messagingSenderId: "972779076968",
-  appId: "1:972779076968:web:206a988757da4219a82add",
+  appId: "1:972779076968:web:5d27459e5bbb30dba82add",
 });
 
 const messaging = firebase.messaging();

@@ -742,11 +742,19 @@ exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async 
 async function sendPushToUser(workspaceId, userId, title, body) {
     const userSnap = await db.collection("workspaces").doc(workspaceId).collection("users").doc(userId).get();
     const tokens = userSnap.data()?.fcmTokens ?? [];
-    if (tokens.length === 0)
+    if (tokens.length === 0) {
+        console.log(`sendPushToUser: aucun token pour user ${userId}`);
         return;
-    await messaging.sendEachForMulticast({
+    }
+    const response = await messaging.sendEachForMulticast({
         tokens,
         notification: { title, body },
+    });
+    console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
+    response.responses.forEach((r, i) => {
+        if (!r.success) {
+            console.error(`Token invalide/echec [${i}] pour user ${userId}:`, r.error?.message);
+        }
     });
 }
 async function notifyAdmins(workspaceId, title, body) {
