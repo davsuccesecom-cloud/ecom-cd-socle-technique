@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNotifications } from "@ecomcod/shared";
+import { useNotifications } from "../hooks/useNotifications";
 
 function timeAgo(ts: number) {
   const diffMin = Math.round((Date.now() - ts) / 60000);

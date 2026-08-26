@@ -918,6 +918,14 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
     return;
   }
 
+  await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
+    userId,
+    title,
+    body,
+    read: false,
+    createdAt: Date.now(),
+  });
+
   const response = await messaging.sendEachForMulticast({
     tokens,
     notification: { title, body },

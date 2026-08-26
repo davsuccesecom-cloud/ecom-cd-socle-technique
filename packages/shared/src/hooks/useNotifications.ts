@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, doc, limit, onSnapshot, orderBy, query, updateDoc } from "firebase/firestore";
+import { collection, doc, limit, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
 import { getDb } from "../firebase";
 
 export interface AppNotification {
@@ -16,7 +16,7 @@ export interface AppNotification {
  * les Cloud Functions). Contrairement au push FCM seul, ça donne un vrai
  * historique consultable dans l'app, pas seulement au moment où ça arrive.
  */
-export function useNotifications(workspaceId: string | null, max = 30) {
+export function useNotifications(workspaceId: string | null, userId: string | null = null, max = 30) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +28,9 @@ export function useNotifications(workspaceId: string | null, max = 30) {
     }
     const db = getDb();
     const ref = collection(db, "workspaces", workspaceId, "notifications");
-    const q = query(ref, orderBy("createdAt", "desc"), limit(max));
+    const q = userId
+      ? query(ref, where("userId", "==", userId), orderBy("createdAt", "desc"), limit(max))
+      : query(ref, orderBy("createdAt", "desc"), limit(max));
 
     const unsubscribe = onSnapshot(
       q,
@@ -40,7 +42,7 @@ export function useNotifications(workspaceId: string | null, max = 30) {
     );
 
     return () => unsubscribe();
-  }, [workspaceId, max]);
+  }, [workspaceId, userId, max]);
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 

@@ -7,6 +7,7 @@ import {
   useRegisterPushNotifications,
   useTeamUsers,
   useUpdateOrderStatus,
+  NotificationBell,
   type CloseuseStatus,
 } from "@ecomcod/shared";
 import OrderCard from "../components/OrderCard";
@@ -46,6 +47,8 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
         <h1 className="text-base font-medium">
           {activeSecondary ? CLOSEUSE_STATUS_LABELS[activeSecondary] : "Mes commandes"}
         </h1>
+        <div className="flex items-center gap-2">
+        <NotificationBell workspaceId={workspaceId} userId={closeuseId} />
         <button
           onClick={() => {
             setActiveSecondary(null);
@@ -64,6 +67,7 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
             </span>
           )}
         </button>
+        </div>
       </header>
 
       {!activeSecondary && (

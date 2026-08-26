@@ -19,3 +19,4 @@ export * from "./hooks/useAdminEmailAuth";
 export * from "./hooks/useCallInProgress";
 export * from "./hooks/useUpdateOrderStatus";
 export * from "./hooks/useRegisterPushNotifications";
+export { default as NotificationBell } from "./components/NotificationBell";

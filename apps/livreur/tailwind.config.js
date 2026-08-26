@@ -4,6 +4,14 @@ export default {
   theme: {
     extend: {
       colors: {
+        surface: {
+          DEFAULT: "#FFFFFF",
+          raised: "#FFFFFF",
+          border: "#E5E7EB",
+        },
+        accent: {
+          red: "#EF4444",
+        },
         brand: {
           DEFAULT: "#0EA5E9",
           light: "#E0F2FE",

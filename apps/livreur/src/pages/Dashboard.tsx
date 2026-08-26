@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useOrders, useRegisterPushNotifications, useUpdateOrderStatus } from "@ecomcod/shared";
+import { useOrders, useRegisterPushNotifications, useUpdateOrderStatus, NotificationBell } from "@ecomcod/shared";
 import OrderCard from "../components/OrderCard";
 
 interface DashboardProps {
@@ -35,8 +35,9 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
 
   return (
     <div className="min-h-screen pb-6">
-      <header className="sticky top-0 z-10 border-b border-slate-100 bg-white px-4 py-3">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
         <h1 className="text-base font-medium">Mes livraisons</h1>
+        <NotificationBell workspaceId={workspaceId} userId={livreurId} />
       </header>
 
       <nav className="flex gap-1 overflow-x-auto px-4 py-3">
