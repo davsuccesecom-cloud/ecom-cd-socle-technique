@@ -146,7 +146,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
 
       <div className="flex items-center justify-between border-b border-surface-border px-4 py-3 md:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg">
             <LogoIcon />
           </div>
           <span className="text-base font-semibold text-slate-100">Ecom COD</span>
@@ -280,19 +280,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
 }
 
 function LogoIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <defs>
-        <linearGradient id="logoGradMobile" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#818CF8" />
-          <stop offset="100%" stopColor="#6366F1" />
-        </linearGradient>
-      </defs>
-      <path d="M6 8h12l-1 12a2 2 0 0 1-2 1.8H9A2 2 0 0 1 7 20L6 8Z" fill="url(#logoGradMobile)" />
-      <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="url(#logoGradMobile)" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M8.5 12.5 11 15l4.5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />;
 }
 
 function iconProps() {

@@ -25,7 +25,7 @@ export default function Sidebar({ active, userEmail, onLogout, onNavigate }: Sid
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-surface-border bg-surface px-4 py-6 md:flex">
       <div className="mb-8 flex items-center gap-2 px-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-white">
+        <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl">
           <LogoIcon />
         </div>
         <span className="text-lg font-semibold text-slate-100">Ecom COD</span>
@@ -87,19 +87,7 @@ export default function Sidebar({ active, userEmail, onLogout, onNavigate }: Sid
 }
 
 function LogoIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-      <defs>
-        <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#818CF8" />
-          <stop offset="100%" stopColor="#6366F1" />
-        </linearGradient>
-      </defs>
-      <path d="M6 8h12l-1 12a2 2 0 0 1-2 1.8H9A2 2 0 0 1 7 20L6 8Z" fill="url(#logoGrad)" />
-      <path d="M9 8V6a3 3 0 0 1 6 0v2" stroke="url(#logoGrad)" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M8.5 12.5 11 15l4.5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />;
 }
 
 function iconProps() {
