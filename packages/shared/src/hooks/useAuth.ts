@@ -46,10 +46,16 @@ export function useAccessLinkAuth() {
           "validateAccessSession"
         );
         await validateAccessSession();
-      } catch (err) {
-        console.warn("Session d'accès invalide :", err);
-        await signOut(auth);
-        setFirebaseUser(null);
+      } catch (err: any) {
+        console.warn("Vérification de session échouée :", err);
+
+        // Déconnexion uniquement lorsque le serveur refuse réellement
+        // l'accès. Les erreurs techniques ou réseau ne détruisent
+        // pas la session Firebase : la vérification suivante réessaiera.
+        if (err?.code === "functions/permission-denied") {
+          await signOut(auth);
+          setFirebaseUser(null);
+        }
       }
     };
     checkAccess();
