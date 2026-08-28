@@ -47,7 +47,11 @@ export function useUpdateOrderStatus(workspaceId: string) {
       const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
       // "recu" = statut initial livreur dès l'assignation, apparaît
       // immédiatement dans l'onglet "À livrer" côté app Livreur.
-      await updateDoc(ref, { livreurId, statutLivreur: "recu" });
+      await updateDoc(ref, {
+        livreurId,
+        statutLivreur: "recu",
+        "timestamps.assignedToLivreur": Date.now(),
+      });
     },
     [workspaceId]
   );
