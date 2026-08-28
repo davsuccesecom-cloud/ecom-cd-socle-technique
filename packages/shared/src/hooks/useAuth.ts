@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { signInWithCustomToken, onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { doc, arrayRemove, updateDoc } from "firebase/firestore";
+import { getDb } from "../firebase";
 import { useEffect } from "react";
 import { getFirebaseAuth } from "../firebase";
 
@@ -53,6 +55,22 @@ export function useAccessLinkAuth() {
         // l'accès. Les erreurs techniques ou réseau ne détruisent
         // pas la session Firebase : la vérification suivante réessaiera.
         if (err?.code === "functions/permission-denied") {
+          // Retire le token FCM de ce navigateur avant de couper la session,
+          // pour eviter qu'un appareil partage entre plusieurs employes
+          // continue de recevoir les notifications de la personne revoquee.
+          try {
+            const claims = (await user.getIdTokenResult()).claims;
+            const workspaceId = claims.workspaceId as string | undefined;
+            const storageKey = `ecomcod_last_fcm_token_${user.uid}`;
+            const lastToken = localStorage.getItem(storageKey);
+            if (workspaceId && lastToken) {
+              const userRef = doc(getDb(), "workspaces", workspaceId, "users", user.uid);
+              await updateDoc(userRef, { fcmTokens: arrayRemove(lastToken) });
+              localStorage.removeItem(storageKey);
+            }
+          } catch (cleanupErr) {
+            console.warn("Nettoyage du token FCM echoue (non bloquant) :", cleanupErr);
+          }
           await signOut(auth);
           setFirebaseUser(null);
         }
