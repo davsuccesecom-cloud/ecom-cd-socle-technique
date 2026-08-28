@@ -21,7 +21,8 @@ messaging.onBackgroundMessage((payload) => {
   const { title, body } = payload.data ?? {};
   self.registration.showNotification(title ?? "Ecom COD — Admin", {
     body: body ?? "",
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/badge-96.png",
+    image: "/icons/icon-512.png",
   });
 });
