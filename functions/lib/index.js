@@ -751,9 +751,16 @@ async function sendPushToUser(workspaceId, userId, title, body) {
         console.log(`sendPushToUser: aucun token pour user ${userId}`);
         return;
     }
+    await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
+        userId,
+        title,
+        body,
+        read: false,
+        createdAt: Date.now(),
+    });
     const response = await messaging.sendEachForMulticast({
         tokens,
-        notification: { title, body },
+        data: { title, body },
     });
     console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
     const invalidTokens = [];
@@ -791,6 +798,6 @@ async function notifyAdmins(workspaceId, title, body) {
         const tokens = adminDoc.data().fcmTokens ?? [];
         if (tokens.length === 0)
             return Promise.resolve();
-        return messaging.sendEachForMulticast({ tokens, notification: { title, body } });
+        return messaging.sendEachForMulticast({ tokens, data: { title, body } });
     }));
 }

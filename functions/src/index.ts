@@ -928,7 +928,7 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
 
   const response = await messaging.sendEachForMulticast({
     tokens,
-    notification: { title, body },
+    data: { title, body },
   });
 
   console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
@@ -972,7 +972,7 @@ async function notifyAdmins(workspaceId: string, title: string, body: string) {
     adminsSnap.docs.map((adminDoc) => {
       const tokens: string[] = adminDoc.data().fcmTokens ?? [];
       if (tokens.length === 0) return Promise.resolve();
-      return messaging.sendEachForMulticast({ tokens, notification: { title, body } });
+      return messaging.sendEachForMulticast({ tokens, data: { title, body } });
     })
   );
 }
