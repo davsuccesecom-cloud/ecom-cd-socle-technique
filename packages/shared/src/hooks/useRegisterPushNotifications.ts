@@ -4,6 +4,7 @@ import { getToken } from "firebase/messaging";
 import { getDb, getFirebaseMessaging } from "../firebase";
 
 const LAST_TOKEN_KEY_PREFIX = "ecomcod_last_fcm_token_";
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
 
 async function registerToken(
   workspaceId: string,
@@ -71,29 +72,52 @@ export function useRegisterPushNotifications(
     }
 
     const cancelledRef = { current: false };
+    let succeeded = false;
+    let retryIndex = 0;
+    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    (async () => {
+    const attempt = async (): Promise<void> => {
+      if (cancelledRef.current || succeeded) return;
       try {
         await registerToken(workspaceId, userId, vapidKey, cancelledRef);
+        succeeded = true;
+        if (retryTimeoutId) {
+          clearTimeout(retryTimeoutId);
+          retryTimeoutId = null;
+        }
       } catch (err) {
         console.error("useRegisterPushNotifications: erreur lors de l'enregistrement du token FCM:", err);
-        // Nouvelle tentative unique apres un court delai : certaines erreurs
-        // (ex. "installations/request-failed") sont transitoires (reseau,
-        // service temporairement indisponible) et reussissent au 2e essai
-        // sans attendre que l'utilisateur recharge la page manuellement.
-        setTimeout(async () => {
-          if (cancelledRef.current) return;
-          try {
-            await registerToken(workspaceId, userId, vapidKey, cancelledRef);
-          } catch (retryErr) {
-            console.error("useRegisterPushNotifications: echec de la 2e tentative:", retryErr);
-          }
-        }, 5000);
+        scheduleRetry();
       }
-    })();
+    };
+
+    const scheduleRetry = () => {
+      if (cancelledRef.current || succeeded) return;
+      const delay = RETRY_DELAYS_MS[Math.min(retryIndex, RETRY_DELAYS_MS.length - 1)];
+      retryIndex += 1;
+      retryTimeoutId = setTimeout(attempt, delay);
+    };
+
+    // Tentative immediate au chargement.
+    attempt();
+
+    // Si une coupure reseau a empeche l'enregistrement, on retente des
+    // que la connexion revient, sans attendre le prochain palier de retry.
+    const handleOnline = () => {
+      if (!succeeded) {
+        if (retryTimeoutId) {
+          clearTimeout(retryTimeoutId);
+          retryTimeoutId = null;
+        }
+        attempt();
+      }
+    };
+    window.addEventListener("online", handleOnline);
 
     return () => {
       cancelledRef.current = true;
+      window.removeEventListener("online", handleOnline);
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
     };
   }, [workspaceId, userId, vapidKey]);
 }
