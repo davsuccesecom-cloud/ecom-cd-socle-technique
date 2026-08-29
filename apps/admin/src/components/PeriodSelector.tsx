@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { DayPicker, type DateRange } from "react-day-picker";
 import { fr } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
@@ -49,6 +50,7 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const isCustom = period.type === "custom";
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) return;
@@ -111,7 +113,7 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
           <div className="fixed inset-0 z-10 bg-black/50" />
           <div
             ref={popoverRef}
-            className="ecomcod-daypicker absolute right-0 top-full z-20 mt-2 rounded-xl border border-surface-border bg-surface-raised p-4 shadow-xl"
+            className="ecomcod-daypicker fixed inset-x-4 top-24 z-20 mx-auto max-w-sm rounded-xl border border-surface-border bg-surface-raised p-4 shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:max-w-none sm:mx-0"
           >
           <p className="mb-2 text-sm font-medium text-slate-200">
             Choisis une date de début, puis une date de fin
@@ -120,7 +122,7 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
             mode="range"
             selected={range}
             onSelect={setRange}
-            numberOfMonths={2}
+            numberOfMonths={isMobile ? 1 : 2}
             defaultMonth={range?.from}
             showOutsideDays
             locale={fr}
