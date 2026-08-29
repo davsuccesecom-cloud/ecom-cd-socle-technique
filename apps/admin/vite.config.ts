@@ -26,9 +26,15 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Nécessaire pour recevoir les notifications FCM même app fermée
-        // (résumé périodique — section 5.1 / 3.2).
         globPatterns: ["**/*.{js,css,html,png,svg}"],
+        // Force le nouveau service worker a prendre le controle
+        // immediatement (sans attendre la fermeture complete de l'app,
+        // ce qui n'arrive quasiment jamais sur mobile) et nettoie les
+        // vieux caches. Corrige le probleme "il faut vider le cache
+        // pour voir les mises a jour".
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
     }),
   ],

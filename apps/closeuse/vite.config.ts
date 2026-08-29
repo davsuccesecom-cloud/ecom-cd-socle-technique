@@ -27,10 +27,15 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Nécessaire pour recevoir les notifications FCM même app fermée
-        // (section 3.2) — le service worker Firebase Messaging est séparé,
-        // voir public/firebase-messaging-sw.js
         globPatterns: ["**/*.{js,css,html,png,svg}"],
+        // Force le nouveau service worker a prendre le controle
+        // immediatement (sans attendre la fermeture complete de l'app,
+        // ce qui n'arrive quasiment jamais sur mobile) et nettoie les
+        // vieux caches. Corrige le probleme "il faut vider le cache
+        // pour voir les mises a jour".
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
     }),
   ],

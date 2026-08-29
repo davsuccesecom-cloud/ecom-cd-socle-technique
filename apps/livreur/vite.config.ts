@@ -25,6 +25,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,png,svg}"],
+        // Force le nouveau service worker a prendre le controle
+        // immediatement (sans attendre la fermeture complete de l'app,
+        // ce qui n'arrive quasiment jamais sur mobile) et nettoie les
+        // vieux caches. Corrige le probleme "il faut vider le cache
+        // pour voir les mises a jour".
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
     }),
   ],

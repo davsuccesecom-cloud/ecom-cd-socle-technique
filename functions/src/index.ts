@@ -942,9 +942,24 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
   });
 
   const response = await messaging.sendEachForMulticast({
-    tokens,
-    data: { title, body },
-  });
+      tokens,
+      data: { title, body },
+      // Priorite "high" cote Android : force la livraison immediate meme
+      // en mode economie de batterie / Doze, tres frequent sur les
+      // telephones d'entree de gamme utilises en Afrique de l'Ouest.
+      // ttl : inutile de livrer une notif "nouvelle livraison" vieille
+      // de plusieurs heures, autant liberer la file FCM.
+      android: {
+        priority: "high",
+        ttl: 24 * 60 * 60 * 1000,
+      },
+      // Meme logique cote iOS/Safari (APNs), au cas ou.
+      apns: {
+        headers: {
+          "apns-priority": "10",
+        },
+      },
+    });
 
   console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
 
