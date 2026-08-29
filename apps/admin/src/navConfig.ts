@@ -25,4 +25,4 @@ export const NAV_ITEMS: NavItem[] = [
 // Pages réellement construites — ajoute une clé ici dès qu'une nouvelle
 // page est branchée dans Dashboard.tsx, et elle apparaît automatiquement
 // activée à la fois sur Sidebar (desktop) et MobileNav (mobile).
-export const ENABLED_KEYS = ["overview", "performance", "users", "orders", "teams", "settings"];
+export const ENABLED_KEYS = ["overview", "performance", "users", "orders", "teams", "remuneration", "settings"];

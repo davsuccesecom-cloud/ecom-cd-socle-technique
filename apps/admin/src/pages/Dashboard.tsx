@@ -18,6 +18,7 @@ import Commandes from "./Commandes";
 import EquipesSheets from "./EquipesSheets";
 import Parametres from "./Parametres";
 import RevenueChart from "../components/RevenueChart";
+import Remuneration from "./Remuneration";
 
 interface DashboardProps {
   workspaceId: string;
@@ -44,6 +45,7 @@ const PAGE_TITLES: Record<string, string> = {
   users: "Utilisateurs & Accès 🔐",
   orders: "Commandes 🛒",
   teams: "Équipes & Sheets 📊",
+  remuneration: "Rémunération 💰",
   settings: "Paramètres ⚙️",
 };
 
@@ -121,7 +123,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   );
 
   const loading = teamsLoading || ordersLoading;
-  const showPeriodFilter = page === "overview";
+  const showPeriodFilter = page === "overview" || page === "remuneration";
 
   return (
     <div className="min-h-screen bg-surface md:flex">
@@ -176,6 +178,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           <Commandes workspaceId={workspaceId} team={activeTeam} orders={allOrders} closeuses={closeuses} livreurs={livreurs} />
         ) : page === "teams" ? (
           <EquipesSheets workspaceId={workspaceId} teams={teams} />
+        ) : page === "remuneration" ? (
+          <Remuneration team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={orders} />
         ) : page === "settings" ? (
           <Parametres workspaceId={workspaceId} team={activeTeam} />
         ) : (
