@@ -26,25 +26,8 @@ interface DashboardProps {
   adminId: string;
 }
 
-type Period = "jour" | "semaine" | "mois" | "tout";
+import PeriodSelector, { type Period, periodRangeMs, periodLabel } from "../components/PeriodSelector";
 
-const PERIOD_LABELS: Record<Period, string> = {
-  jour: "Jour",
-  semaine: "Semaine",
-  mois: "Mois",
-  tout: "Tout",
-};
-
-function periodStartMs(period: Period): number {
-  const now = new Date();
-  if (period === "tout") return 0;
-  if (period === "jour") {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return start.getTime();
-  }
-  if (period === "semaine") return Date.now() - 7 * 24 * 60 * 60 * 1000;
-  return Date.now() - 30 * 24 * 60 * 60 * 1000;
-}
 
 const EMPTY_COUNTS: Record<CloseuseStatus, number> = {
   nouveau: 0,
@@ -69,7 +52,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const [page, setPage] = useState<string>("overview");
   const { teams, loading: teamsLoading } = useTeams(workspaceId);
   const [teamId, setTeamId] = useState<string | null>(null);
-  const [period, setPeriod] = useState<Period>("jour");
+  const [period, setPeriod] = useState<Period>({ type: "preset", value: "jour" });
   const [showAddMarket, setShowAddMarket] = useState(false);
   const [showRevenueChart, setShowRevenueChart] = useState(false);
   const activeTeamId = teamId ?? teams[0]?.id ?? null;
@@ -83,8 +66,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const { users: livreurs } = useTeamUsers(workspaceId, activeTeamId, "livreur");
 
   const orders = useMemo(() => {
-    const start = periodStartMs(period);
-    return allOrders.filter((o) => o.timestamps.received >= start);
+    const { start, end } = periodRangeMs(period);
+    return allOrders.filter((o) => o.timestamps.received >= start && o.timestamps.received <= end);
   }, [allOrders, period]);
 
   const stats = useMemo(() => {
@@ -174,19 +157,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             )}
 
             {showPeriodFilter && (
-              <div className="flex rounded-xl border border-surface-border bg-surface-raised p-1">
-                {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                      period === p ? "bg-brand text-white" : "text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    {PERIOD_LABELS[p]}
-                  </button>
-                ))}
-              </div>
+              <PeriodSelector period={period} onChange={setPeriod} />
             )}
 
             <div className="hidden md:block">
@@ -255,7 +226,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       <MobileNav active={page} onNavigate={setPage} />
 
       {showRevenueChart && (
-        <RevenueChart orders={orders} periodLabel={PERIOD_LABELS[period]} onClose={() => setShowRevenueChart(false)} />
+        <RevenueChart orders={orders} periodLabel={periodLabel(period)} onClose={() => setShowRevenueChart(false)} />
       )}
 
       {showAddMarket && (
