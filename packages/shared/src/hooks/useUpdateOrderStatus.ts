@@ -47,10 +47,17 @@ export function useUpdateOrderStatus(workspaceId: string) {
       const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
       // "recu" = statut initial livreur dès l'assignation, apparaît
       // immédiatement dans l'onglet "À livrer" côté app Livreur.
+      // Note : pas de "timestamps.assignedToLivreur" ici -- les regles
+      // Firestore n'autorisent la closeuse qu'a modifier les cles
+      // top-level ['statutCloseuse','callInProgress','livreurId',
+      // 'statutLivreur']. Ecrire un champ nested "timestamps.xxx" fait
+      // apparaitre "timestamps" comme cle top-level modifiee dans
+      // affectedKeys(), ce qui fait echouer le hasOnly() et bloque
+      // TOUTE l'ecriture (livreurId inclus). Les timestamps restent
+      // geres cote Cloud Function, comme partout ailleurs dans le projet.
       await updateDoc(ref, {
         livreurId,
         statutLivreur: "recu",
-        "timestamps.assignedToLivreur": Date.now(),
       });
     },
     [workspaceId]

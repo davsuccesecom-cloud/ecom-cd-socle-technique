@@ -114,7 +114,19 @@ export const authenticateAccess = onCall(async (request) => {
     `${user.name} s'est connecté(e) depuis un nouvel appareil.`
   );
 
-  const customToken = await admin.auth().createCustomToken(link.userId, {
+  // Persiste les claims sur l'utilisateur Firebase Auth (pas seulement
+    // dans ce custom token) pour qu'ils survivent au rafraichissement
+    // automatique du ID token par le SDK. Sans ca, workspaceId/role/teamId
+    // disparaissent silencieusement apres le premier refresh, ce qui casse
+    // validateAccessSession (deconnexion + perte du token FCM) et les
+    // regles Firestore (isCloseuse/isLivreur/isSameTeam).
+    await admin.auth().setCustomUserClaims(link.userId, {
+      workspaceId: link.workspaceId,
+      teamId: user.teamId,
+      role: user.role,
+    });
+
+    const customToken = await admin.auth().createCustomToken(link.userId, {
     workspaceId: link.workspaceId,
     teamId: user.teamId,
     role: user.role,
@@ -683,6 +695,9 @@ export const onOrderUpdated = onDocumentUpdated(
 
     if (livreurAssigned) {
       await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`);
+      if (!after.timestamps?.assignedToLivreur) {
+        await ref.update({ "timestamps.assignedToLivreur": Date.now() });
+      }
     }
 
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
