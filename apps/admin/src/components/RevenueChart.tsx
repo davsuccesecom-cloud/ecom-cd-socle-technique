@@ -1,4 +1,13 @@
 import { useMemo } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { Order } from "@ecomcod/shared";
 
 interface RevenueChartProps {
@@ -17,6 +26,17 @@ function dayLabel(key: string) {
   return `${d}/${m}`;
 }
 
+function CustomTooltip({ active, payload }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const { key, total } = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 shadow-xl">
+      <p className="text-xs text-slate-500">{dayLabel(key)}</p>
+      <p className="text-sm font-semibold text-slate-100">{total.toLocaleString("fr-FR")} F</p>
+    </div>
+  );
+}
+
 export default function RevenueChart({ orders, periodLabel, onClose }: RevenueChartProps) {
   const buckets = useMemo(() => {
     const map = new Map<string, number>();
@@ -31,13 +51,7 @@ export default function RevenueChart({ orders, periodLabel, onClose }: RevenueCh
       .map(([key, total]) => ({ key, total }));
   }, [orders]);
 
-  const max = Math.max(...buckets.map((b) => b.total), 1);
   const total = buckets.reduce((sum, b) => sum + b.total, 0);
-
-  const chartW = 100; // % — dimensionné en viewBox relatif, s'adapte au conteneur
-  const chartH = 220;
-  const barGap = buckets.length > 0 ? chartW / buckets.length : chartW;
-  const barWidth = Math.max(barGap * 0.55, 2);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
@@ -64,48 +78,39 @@ export default function RevenueChart({ orders, periodLabel, onClose }: RevenueCh
           </p>
         ) : (
           <div className="rounded-xl border border-surface-border bg-surface p-4">
-            <svg viewBox={`0 0 ${chartW} ${chartH}`} className="w-full" style={{ height: chartH }} preserveAspectRatio="none">
-              {/* Lignes de repère horizontales */}
-              {[0.25, 0.5, 0.75, 1].map((f) => (
-                <line
-                  key={f}
-                  x1="0"
-                  x2={chartW}
-                  y1={chartH - f * (chartH - 24)}
-                  y2={chartH - f * (chartH - 24)}
-                  stroke="currentColor"
-                  className="text-surface-border"
-                  strokeWidth="0.3"
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={buckets} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0.03} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
+                <XAxis
+                  dataKey="key"
+                  tickFormatter={dayLabel}
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  axisLine={{ stroke: "var(--surface-border)" }}
+                  tickLine={false}
                 />
-              ))}
-
-              {buckets.map((b, i) => {
-                const x = i * barGap + (barGap - barWidth) / 2;
-                const h = (b.total / max) * (chartH - 24);
-                const y = chartH - 24 - h;
-                return (
-                  <g key={b.key}>
-                    <rect x={x} y={y} width={barWidth} height={h} rx="1" fill="url(#barGradient)" />
-                    <text
-                      x={x + barWidth / 2}
-                      y={chartH - 8}
-                      textAnchor="middle"
-                      fontSize="3.2"
-                      className="fill-slate-500"
-                    >
-                      {dayLabel(b.key)}
-                    </text>
-                  </g>
-                );
-              })}
-
-              <defs>
-                <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366F1" />
-                  <stop offset="100%" stopColor="#8B5CF6" />
-                </linearGradient>
-              </defs>
-            </svg>
+                <YAxis
+                  tick={{ fill: "#64748b", fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                  width={36}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#6366F1", strokeWidth: 1 }} />
+                <Area
+                  type="monotone"
+                  dataKey="total"
+                  stroke="#6366F1"
+                  strokeWidth={2.5}
+                  fill="url(#revenueFill)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         )}
 
