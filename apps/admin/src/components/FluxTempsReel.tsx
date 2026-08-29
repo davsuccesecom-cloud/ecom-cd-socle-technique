@@ -24,7 +24,7 @@ export default function FluxTempsReel({ orders }: FluxTempsReelProps) {
     .filter((o) => o.statutLivreur === "livre" || o.statutLivreur === "injoignable")
     .filter((o) => o.timestamps.delivered)
     .sort((a, b) => (b.timestamps.delivered ?? 0) - (a.timestamps.delivered ?? 0))
-    .slice(0, 8);
+    .slice(0, 30);
 
   return (
     <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
@@ -32,7 +32,7 @@ export default function FluxTempsReel({ orders }: FluxTempsReelProps) {
       {recent.length === 0 ? (
         <p className="py-6 text-center text-sm text-slate-500">Rien à afficher pour l'instant.</p>
       ) : (
-        <ul className="divide-y divide-surface-border">
+        <ul className="max-h-80 divide-y divide-surface-border overflow-y-auto">
           {recent.map((order) => {
             const delivered = order.statutLivreur === "livre";
             const ts = order.timestamps.delivered!;

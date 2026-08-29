@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { DayPicker, type DateRange } from "react-day-picker";
+import { fr } from "date-fns/locale";
+import "react-day-picker/dist/style.css";
 
 export type PeriodPreset = "jour" | "semaine" | "mois" | "tout";
 export type Period =
@@ -42,8 +45,7 @@ interface PeriodSelectorProps {
 
 export default function PeriodSelector({ period, onChange }: PeriodSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [draftStart, setDraftStart] = useState("");
-  const [draftEnd, setDraftEnd] = useState("");
+  const [range, setRange] = useState<DateRange | undefined>(undefined);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const isCustom = period.type === "custom";
@@ -61,22 +63,21 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
 
   const openCustomPanel = () => {
     if (isCustom) {
-      setDraftStart(new Date(period.start).toISOString().slice(0, 10));
-      setDraftEnd(new Date(period.end).toISOString().slice(0, 10));
+      setRange({ from: new Date(period.start), to: new Date(period.end) });
     } else {
       const { start, end } = periodRangeMs(period);
-      setDraftStart(new Date(start).toISOString().slice(0, 10));
-      setDraftEnd(new Date(end).toISOString().slice(0, 10));
+      setRange({ from: new Date(start), to: new Date(end) });
     }
     setOpen((v) => !v);
   };
 
   const applyCustom = () => {
-    if (!draftStart || !draftEnd) return;
-    const start = new Date(draftStart + "T00:00:00").getTime();
-    const end = new Date(draftEnd + "T23:59:59").getTime();
-    if (start > end) return;
-    onChange({ type: "custom", start, end });
+    if (!range?.from || !range?.to) return;
+    const start = new Date(range.from);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(range.to);
+    end.setHours(23, 59, 59, 999);
+    onChange({ type: "custom", start: start.getTime(), end: end.getTime() });
     setOpen(false);
   };
 
@@ -106,47 +107,50 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
       </button>
 
       {open && (
-        <div
-          ref={popoverRef}
-          className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-surface-border bg-surface-raised p-4 shadow-xl"
-        >
-          <p className="mb-3 text-sm font-medium text-slate-200">Choisir une plage de dates</p>
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs text-slate-500">Du</label>
-              <input
-                type="date"
-                value={draftStart}
-                onChange={(e) => setDraftStart(e.target.value)}
-                className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500">Au</label>
-              <input
-                type="date"
-                value={draftEnd}
-                onChange={(e) => setDraftEnd(e.target.value)}
-                className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand"
-              />
+        <>
+          <div className="fixed inset-0 z-10 bg-black/50" />
+          <div
+            ref={popoverRef}
+            className="ecomcod-daypicker absolute right-0 top-full z-20 mt-2 rounded-xl border border-surface-border bg-surface-raised p-4 shadow-xl"
+          >
+          <p className="mb-2 text-sm font-medium text-slate-200">
+            Choisis une date de début, puis une date de fin
+          </p>
+          <DayPicker
+            mode="range"
+            selected={range}
+            onSelect={setRange}
+            numberOfMonths={2}
+            defaultMonth={range?.from}
+            showOutsideDays
+            locale={fr}
+          />
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-slate-500">
+              {range?.from && range?.to
+                ? `${range.from.toLocaleDateString("fr-FR")} — ${range.to.toLocaleDateString("fr-FR")}`
+                : range?.from
+                  ? "Sélectionne la date de fin"
+                  : "Aucune plage sélectionnée"}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-slate-200"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={applyCustom}
+                disabled={!range?.from || !range?.to}
+                className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              >
+                Appliquer
+              </button>
             </div>
           </div>
-          <div className="mt-4 flex justify-end gap-2">
-            <button
-              onClick={() => setOpen(false)}
-              className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-slate-200"
-            >
-              Annuler
-            </button>
-            <button
-              onClick={applyCustom}
-              disabled={!draftStart || !draftEnd}
-              className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Appliquer
-            </button>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

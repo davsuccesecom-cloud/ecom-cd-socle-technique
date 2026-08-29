@@ -47,3 +47,36 @@ html.light .text-slate-600 {
 html.light .placeholder\:text-slate-600::placeholder {
   color: #94a3b8;
 }
+
+/* Calendrier react-day-picker (selecteur de periode personnalisee) —
+   mappe les variables CSS de la librairie sur notre design system,
+   pour qu'il s'adapte automatiquement au mode clair/sombre existant. */
+.ecomcod-daypicker .rdp-root {
+  --rdp-accent-color: var(--brand);
+  --rdp-accent-background-color: var(--brand-light);
+  --rdp-range_start-color: white;
+  --rdp-range_start-background: var(--brand);
+  --rdp-range_end-color: white;
+  --rdp-range_end-background: var(--brand);
+  --rdp-range_middle-color: var(--brand);
+  --rdp-range_middle-background-color: var(--brand-light);
+  --rdp-today-color: var(--brand);
+  --rdp-disabled-opacity: 0.35;
+  --rdp-outside-opacity: 0.4;
+  color: #e2e8f0;
+}
+html.light .ecomcod-daypicker .rdp-root {
+  color: #0f172a;
+}
+.ecomcod-daypicker .rdp-day_button:hover:not([disabled]) {
+  background-color: var(--surface-border);
+}
+.ecomcod-daypicker .rdp-weekday {
+  color: #64748b;
+}
+.ecomcod-daypicker .rdp-months {
+  display: flex;
+  flex-direction: row;
+  gap: 1.5rem;
+  flex-wrap: nowrap;
+}
