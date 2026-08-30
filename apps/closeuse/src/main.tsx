@@ -15,6 +15,16 @@ registerSW({
   onNeedRefresh() {
     window.location.reload();
   },
+  onRegisteredSW(_swUrl, registration) {
+    if (!registration) return;
+    // SPA : naviguer entre les pages ne declenche jamais de vrai
+    // rechargement, donc le navigateur ne revérifie jamais tout seul
+    // si une nouvelle version du service worker existe. On force ce
+    // check nous-memes, a intervalle regulier.
+    setInterval(() => {
+      registration.update();
+    }, 5 * 60 * 1000);
+  },
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
