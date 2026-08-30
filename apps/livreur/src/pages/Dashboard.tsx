@@ -37,7 +37,18 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
     <div className="min-h-screen pb-6">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
         <h1 className="text-base font-medium">Mes livraisons</h1>
-        <NotificationBell workspaceId={workspaceId} userId={livreurId} />
+        <NotificationBell
+          workspaceId={workspaceId}
+          userId={livreurId}
+          onNotificationClick={(orderId) => {
+            const target = orders.find((o) => o.id === orderId);
+            if (!target) return;
+            const status = target.statutLivreur ?? "recu";
+            if (status === "recu") setActiveTab("a_livrer");
+            else if (status === "en_route") setActiveTab("en_cours");
+            else setActiveTab("terminees");
+          }}
+        />
       </header>
 
       <nav className="flex gap-1 overflow-x-auto px-4 py-3">

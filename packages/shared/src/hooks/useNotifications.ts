@@ -8,6 +8,7 @@ export interface AppNotification {
   body: string;
   read: boolean;
   createdAt: number;
+  orderId?: string;
 }
 
 /**

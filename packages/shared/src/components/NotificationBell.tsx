@@ -10,7 +10,13 @@ function timeAgo(ts: number) {
   return `il y a ${Math.round(diffH / 24)} j`;
 }
 
-export default function NotificationBell({ workspaceId, userId }: { workspaceId: string; userId?: string }) {
+interface NotificationBellProps {
+  workspaceId: string;
+  userId?: string;
+  onNotificationClick?: (orderId: string) => void;
+}
+
+export default function NotificationBell({ workspaceId, userId, onNotificationClick }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(workspaceId, userId ?? null);
 
@@ -51,7 +57,13 @@ export default function NotificationBell({ workspaceId, userId }: { workspaceId:
                 {notifications.map((n) => (
                   <li key={n.id}>
                     <button
-                      onClick={() => !n.read && markAsRead(n.id)}
+                      onClick={() => {
+                        if (!n.read) markAsRead(n.id);
+                        if (n.orderId && onNotificationClick) {
+                          onNotificationClick(n.orderId);
+                          setOpen(false);
+                        }
+                      }}
                       className="flex w-full items-start gap-2 px-4 py-3 text-left hover:bg-surface"
                     >
                       {!n.read && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />}

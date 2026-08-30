@@ -48,7 +48,21 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
           {activeSecondary ? CLOSEUSE_STATUS_LABELS[activeSecondary] : "Mes commandes"}
         </h1>
         <div className="flex items-center gap-2">
-        <NotificationBell workspaceId={workspaceId} userId={closeuseId} />
+        <NotificationBell
+          workspaceId={workspaceId}
+          userId={closeuseId}
+          onNotificationClick={(orderId) => {
+            const target = orders.find((o) => o.id === orderId);
+            if (!target) return;
+            const isPrimary = (CLOSEUSE_PRIORITY_STATUSES as string[]).includes(target.statutCloseuse);
+            if (isPrimary) {
+              setActiveSecondary(null);
+              setActiveTab(target.statutCloseuse);
+            } else {
+              setActiveSecondary(target.statutCloseuse);
+            }
+          }}
+        />
         <button
           onClick={() => {
             setActiveSecondary(null);

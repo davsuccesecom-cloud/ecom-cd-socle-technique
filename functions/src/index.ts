@@ -662,7 +662,7 @@ export const onOrderCreated = onDocumentCreated(
       "timestamps.assignedToCloseuse": Date.now(),
     });
 
-    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`);
+    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`, snap.id);
 
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
@@ -694,7 +694,7 @@ export const onOrderUpdated = onDocumentUpdated(
     const livreurAssigned = !before.livreurId && !!after.livreurId;
 
     if (livreurAssigned) {
-      await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`);
+      await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`, orderId);
       if (!after.timestamps?.assignedToLivreur) {
         await ref.update({ "timestamps.assignedToLivreur": Date.now() });
       }
@@ -709,7 +709,7 @@ export const onOrderUpdated = onDocumentUpdated(
 
     if (statutLivreurChanged && after.statutLivreur === "en_route") {
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} — en cours de livraison`);
+        await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} — en cours de livraison`, orderId);
       }
     }
 
@@ -742,7 +742,7 @@ export const onOrderUpdated = onDocumentUpdated(
       ]);
 
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Commande livrée", `${after.clientName} — confirmé livré`);
+        await sendPushToUser(workspaceId, after.closeuseId, "Commande livrée", `${after.clientName} — confirmé livré`, orderId);
       }
     }
 
@@ -755,7 +755,7 @@ export const onOrderUpdated = onDocumentUpdated(
       }
 
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`);
+        await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`, orderId);
       }
     }
 
@@ -924,7 +924,7 @@ export const scheduledDigest = onSchedule("every 30 minutes", async () => {
 // Utilitaires de notification (section 3.2)
 // ---------------------------------------------------------------------------
 
-async function sendPushToUser(workspaceId: string, userId: string, title: string, body: string) {
+async function sendPushToUser(workspaceId: string, userId: string, title: string, body: string, orderId?: string) {
   const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
   const userSnap = await userRef.get();
   const tokens: string[] = userSnap.data()?.fcmTokens ?? [];
@@ -934,12 +934,13 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
   }
 
   await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
-    userId,
-    title,
-    body,
-    read: false,
-    createdAt: Date.now(),
-  });
+      userId,
+      title,
+      body,
+      read: false,
+      createdAt: Date.now(),
+      ...(orderId ? { orderId } : {}),
+    });
 
   const response = await messaging.sendEachForMulticast({
       tokens,
