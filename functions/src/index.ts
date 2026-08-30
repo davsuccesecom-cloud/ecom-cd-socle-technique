@@ -806,6 +806,48 @@ async function incrementRemuneration(
 }
 
 // ---------------------------------------------------------------------------
+// Marquer/annuler le paiement d'une remuneration (bouton "Payer" admin)
+// ---------------------------------------------------------------------------
+
+export const markRemunerationPaid = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { userId } = request.data as { userId: string };
+  if (!userId) {
+    throw new HttpsError("invalid-argument", "userId requis.");
+  }
+
+  const ref = db.collection("workspaces").doc(workspaceId).collection("remunerations").doc(userId);
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Aucune remuneration trouvee pour cet employe.");
+    }
+    const data = snap.data()!;
+    const totalAmount = data.totalAmount ?? 0;
+    tx.set(ref, { montantPaye: totalAmount, paidAt: Date.now() }, { merge: true });
+    return totalAmount;
+  });
+
+  return { montantPaye: result };
+});
+
+export const cancelRemunerationPayment = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { userId } = request.data as { userId: string };
+  if (!userId) {
+    throw new HttpsError("invalid-argument", "userId requis.");
+  }
+
+  const ref = db.collection("workspaces").doc(workspaceId).collection("remunerations").doc(userId);
+  await ref.set(
+    { montantPaye: 0, paidAt: admin.firestore.FieldValue.delete() },
+    { merge: true }
+  );
+
+  return { ok: true };
+});
+
+// ---------------------------------------------------------------------------
 // 4. Purge automatique des commandes traitées (section 15/16)
 // ---------------------------------------------------------------------------
 
