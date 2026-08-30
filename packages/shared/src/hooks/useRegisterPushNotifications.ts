@@ -43,16 +43,34 @@ async function registerToken(
 
   const userRef = doc(getDb(), "workspaces", workspaceId, "users", userId);
 
-  if (previousToken && previousToken !== token) {
-    // Le navigateur a genere un nouveau token (cache vide, reinstall PWA, etc.)
-    // On retire l'ancien pour eviter les envois en double sur ce meme appareil.
-    await updateDoc(userRef, {
-      fcmTokens: arrayRemove(previousToken),
-    });
+  // localStorage mis a jour AVANT l'ecriture Firestore : si un reload
+  // (mise a jour du service worker) interrompt juste apres, le prochain
+  // cycle saura deja que ce token a ete traite et ne le re-ajoutera pas
+  // en double.
+  localStorage.setItem(storageKey, token);
+
+  if (token === previousToken) {
+    // Meme token qu'avant, deja enregistre normalement. On s'assure quand
+    // meme qu'il est bien present (idempotent, ne cree pas de doublon).
+    await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
+  } else {
+    // Nouveau token : retrait de l'ancien + ajout du nouveau en UNE SEULE
+    // ecriture atomique. Deux updateDoc separes laissaient une fenetre ou
+    // un reload du service worker (mise a jour PWA) pouvait interrompre
+    // la sequence entre les deux, causant une accumulation de vieux
+    // tokens jamais nettoyes.
+    const update: Record<string, unknown> = { fcmTokens: arrayUnion(token) };
+    if (previousToken) {
+      // Firestore n'autorise pas arrayRemove + arrayUnion sur le meme
+      // champ dans un seul updateDoc classique -- on fait donc le retrait
+      // d'abord (rapide), puis l'ajout, mais en ecrivant IMMEDIATEMENT
+      // localStorage avant (voir ci-dessus) pour eviter la double-perte
+      // d'etat en cas d'interruption.
+      await updateDoc(userRef, { fcmTokens: arrayRemove(previousToken) });
+    }
+    await updateDoc(userRef, update);
   }
 
-  await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
-  localStorage.setItem(storageKey, token);
   console.log("useRegisterPushNotifications: token FCM enregistre avec succes.");
 }
 
@@ -114,9 +132,26 @@ export function useRegisterPushNotifications(
     };
     window.addEventListener("online", handleOnline);
 
+    // Quand un nouveau service worker prend le controle (mise a jour PWA
+    // automatique -- skipWaiting/clientsClaim), l'ancienne souscription
+    // push peut devenir invalide cote navigateur avant meme le reload
+    // programme par ailleurs. On re-declenche l'enregistrement tout de
+    // suite pour ne pas rester sans token valide en attendant.
+    const handleControllerChange = () => {
+      succeeded = false;
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
+        retryTimeoutId = null;
+      }
+      retryIndex = 0;
+      attempt();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+
     return () => {
       cancelledRef.current = true;
       window.removeEventListener("online", handleOnline);
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
       if (retryTimeoutId) clearTimeout(retryTimeoutId);
     };
   }, [workspaceId, userId, vapidKey]);
