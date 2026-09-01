@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
+exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -121,6 +121,17 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         .slice(0, MAX_SESSIONS_PER_ACCESS_LINK);
     await linkDoc.ref.update({ activeSessions: updatedSessions });
     await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connecté(e) depuis un nouvel appareil.`);
+    // Persiste les claims sur l'utilisateur Firebase Auth (pas seulement
+    // dans ce custom token) pour qu'ils survivent au rafraichissement
+    // automatique du ID token par le SDK. Sans ca, workspaceId/role/teamId
+    // disparaissent silencieusement apres le premier refresh, ce qui casse
+    // validateAccessSession (deconnexion + perte du token FCM) et les
+    // regles Firestore (isCloseuse/isLivreur/isSameTeam).
+    await admin.auth().setCustomUserClaims(link.userId, {
+        workspaceId: link.workspaceId,
+        teamId: user.teamId,
+        role: user.role,
+    });
     const customToken = await admin.auth().createCustomToken(link.userId, {
         workspaceId: link.workspaceId,
         teamId: user.teamId,
@@ -552,7 +563,7 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
         closeuseId: chosen.id,
         "timestamps.assignedToCloseuse": Date.now(),
     });
-    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`);
+    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`, snap.id);
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
     if (chosen.count + 1 >= threshold) {
@@ -573,7 +584,10 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
     const livreurAssigned = !before.livreurId && !!after.livreurId;
     if (livreurAssigned) {
-        await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`);
+        await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`, orderId);
+        if (!after.timestamps?.assignedToLivreur) {
+            await ref.update({ "timestamps.assignedToLivreur": Date.now() });
+        }
     }
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
         await ref.update({ "timestamps.closeuseDecidedAt": Date.now() });
@@ -583,7 +597,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     }
     if (statutLivreurChanged && after.statutLivreur === "en_route") {
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} — en cours de livraison`);
+            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} — en cours de livraison`, orderId);
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "livre") {
@@ -611,7 +625,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
                 : Promise.resolve(),
         ]);
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Commande livrée", `${after.clientName} — confirmé livré`);
+            await sendPushToUser(workspaceId, after.closeuseId, "Commande livrée", `${after.clientName} — confirmé livré`, orderId);
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "injoignable") {
@@ -621,7 +635,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             await (0, sheetsSync_1.writeOrderStatusToSheet)(after.sheetId, after.sourceRowId, "injoignable");
         }
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`);
+            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`, orderId);
         }
     }
     if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse) && !after.purgeAt) {
@@ -654,6 +668,38 @@ async function incrementRemuneration(workspaceId, userId, role, amountPerOrder, 
         }, { merge: true });
     });
 }
+// ---------------------------------------------------------------------------
+// Marquer/annuler le paiement d'une remuneration (bouton "Payer" admin)
+// ---------------------------------------------------------------------------
+exports.markRemunerationPaid = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { userId } = request.data;
+    if (!userId) {
+        throw new https_1.HttpsError("invalid-argument", "userId requis.");
+    }
+    const ref = db.collection("workspaces").doc(workspaceId).collection("remunerations").doc(userId);
+    const result = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) {
+            throw new https_1.HttpsError("not-found", "Aucune remuneration trouvee pour cet employe.");
+        }
+        const data = snap.data();
+        const totalAmount = data.totalAmount ?? 0;
+        tx.set(ref, { montantPaye: totalAmount, paidAt: Date.now() }, { merge: true });
+        return totalAmount;
+    });
+    return { montantPaye: result };
+});
+exports.cancelRemunerationPayment = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { userId } = request.data;
+    if (!userId) {
+        throw new https_1.HttpsError("invalid-argument", "userId requis.");
+    }
+    const ref = db.collection("workspaces").doc(workspaceId).collection("remunerations").doc(userId);
+    await ref.set({ montantPaye: 0, paidAt: admin.firestore.FieldValue.delete() }, { merge: true });
+    return { ok: true };
+});
 // ---------------------------------------------------------------------------
 // 4. Purge automatique des commandes traitées (section 15/16)
 // ---------------------------------------------------------------------------
@@ -743,7 +789,7 @@ exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async 
 // ---------------------------------------------------------------------------
 // Utilitaires de notification (section 3.2)
 // ---------------------------------------------------------------------------
-async function sendPushToUser(workspaceId, userId, title, body) {
+async function sendPushToUser(workspaceId, userId, title, body, orderId) {
     const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
     const userSnap = await userRef.get();
     const tokens = userSnap.data()?.fcmTokens ?? [];
@@ -757,10 +803,26 @@ async function sendPushToUser(workspaceId, userId, title, body) {
         body,
         read: false,
         createdAt: Date.now(),
+        ...(orderId ? { orderId } : {}),
     });
     const response = await messaging.sendEachForMulticast({
         tokens,
         data: { title, body },
+        // Priorite "high" cote Android : force la livraison immediate meme
+        // en mode economie de batterie / Doze, tres frequent sur les
+        // telephones d'entree de gamme utilises en Afrique de l'Ouest.
+        // ttl : inutile de livrer une notif "nouvelle livraison" vieille
+        // de plusieurs heures, autant liberer la file FCM.
+        android: {
+            priority: "high",
+            ttl: 24 * 60 * 60 * 1000,
+        },
+        // Meme logique cote iOS/Safari (APNs), au cas ou.
+        apns: {
+            headers: {
+                "apns-priority": "10",
+            },
+        },
     });
     console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
     const invalidTokens = [];

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getFirebaseAuth, useAccessLinkAuth } from "@ecomcod/shared";
+import { getFirebaseAuth, useAccessLinkAuth, ConnectionGuard } from "@ecomcod/shared";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 
@@ -17,7 +17,7 @@ function getAccessLinkIdFromUrl(): string | null {
 }
 
 export default function App() {
-  const { firebaseUser, authLoading } = useAccessLinkAuth();
+  const { firebaseUser, authLoading, verifySession } = useAccessLinkAuth();
   const [claims, setClaims] = useState<SessionClaims | null>(null);
   const accessLinkId = getAccessLinkIdFromUrl();
 
@@ -62,6 +62,8 @@ export default function App() {
   }
 
   return (
-    <Dashboard workspaceId={claims.workspaceId} teamId={claims.teamId} closeuseId={firebaseUser.uid} />
+    <ConnectionGuard onReconnect={verifySession} appName="Closeuse">
+      <Dashboard workspaceId={claims.workspaceId} teamId={claims.teamId} closeuseId={firebaseUser.uid} />
+    </ConnectionGuard>
   );
 }

@@ -1,0 +1,368 @@
+﻿
+===== GIT STATUS =====
+On branch master
+Your branch is up to date with 'origin/master'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   firestore.indexes.json
+	modified:   functions/lib/index.js
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	diagnostic-report.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+
+===== GIT - Derniers commits =====
+3e0b1dd feat: bouton Payer sur la page Remuneration avec confirmation, badge Paye et annulation
+8f42fdf fix: ecriture atomique du token FCM (evite l'accumulation lors d'interruptions par mise a jour du service worker) + re-enregistrement automatique sur controllerchange
+5ea9514 feat: clic sur une notification redirige vers l'onglet/statut de la commande concernee (Closeuse + Livreur)
+57c7d7d fix: force la verification periodique du service worker (registration.update toutes les 5min), necessaire car une SPA ne declenche jamais de vrai reload de page
+ba14c49 fix: priorite FCM high pour livraison rapide en zone reseau faible + skipWaiting/clientsClaim PWA pour eviter le vidage de cache manuel
+924c15b fix: persiste les custom claims au login + retire l'ecriture timestamps.assignedToLivreur cote client (bloquait l'assignation par les regles Firestore)
+6cf791e feat: page Remuneration (CA, remuneration par employe, historique a venir)
+dd05cc8 fix: agrandir le halo de pulsation sur l'icone analytique pour le rendre visible
+0407593 feat: courbe Recharts pour le CA (fix dates illisibles) + icone pulsante sur cards cliquables
+d945a84 fix: calendrier responsive sur mobile (1 mois, popover centre, plus de debordement)
+
+
+===== GIT - Fichiers non commit (diff stat) =====
+git : warning: in the working copy of 'firestore.indexes.json', 
+LF will be replaced by CRLF the next time Git touches it
+Au caractère Ligne:1 : 23
++ [void]$sb.AppendLine((git diff --stat 2>&1 | Out-String))
++                       ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: in the... 
+    Git touches it:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: in the working copy of 'functions/lib/index.js', LF 
+will be replaced by CRLF the next time Git touches it
+ firestore.indexes.json |  8 ++++++
+ functions/lib/index.js | 76 +++++++++++++++++++++++++++++++++++++++++++++-----
+ 2 files changed, 77 insertions(+), 7 deletions(-)
+
+
+===== BUILD - Admin =====
+
+> @ecomcod/admin@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mÔ£ô[39m 1739 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mmanifest.webmanifest                        [39m[1m[2m    0.34 kB[22m[1m[22m
+[2mdist/[22m[32mindex.html                                  [39m[1m[2m    0.87 kB[22m[1m[22m[2m Ôöé gzip:   0.43 kB[22m
+[2mdist/[22m[35massets/index-D_9VjYGP.css                   [39m[1m[2m   30.07 kB[22m[1m[22m[2m Ôöé gzip:   6.46 kB[22m
+[2mdist/[22m[36massets/workbox-window.prod.es5-BqEJf4Xk.js  [39m[1m[2m    5.71 kB[22m[1m[22m[2m Ôöé gzip:   2.34 kB[22m
+[2mdist/[22m[36massets/index-NhWHK3YY.js                    [39m[1m[33m1,196.38 kB[39m[22m[2m Ôöé gzip: 317.93 kB[22m
+node.exe : [33m
+Au caractère Ligne:1 : 1
++ & "D:\Program Files\nodejs/node.exe" "D:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo          : NotSpecified: ([33m:String) [],  
+   RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(!) Some chunks are larger than 500 kB after minification. 
+Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve 
+chunking: 
+https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via 
+build.chunkSizeWarningLimit.[39m
+[32mÔ£ô built in 8.66s[39m
+
+PWA v0.20.5
+mode      generateSW
+precache  18 entries (1680.28 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-9c191d2f.js
+
+
+===== BUILD - Closeuse =====
+
+> @ecomcod/closeuse@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mÔ£ô[39m 192 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mmanifest.webmanifest                        [39m[1m[2m  0.55 kB[22m[1m[22m
+[2mdist/[22m[32mindex.html                                  [39m[1m[2m  0.83 kB[22m[1m[22m[2m Ôöé gzip:   0.42 kB[22m
+[2mdist/[22m[35massets/index-CBq1X3fT.css                   [39m[1m[2m 13.09 kB[22m[1m[22m[2m Ôöé gzip:   3.28 kB[22m
+[2mdist/[22m[36massets/workbox-window.prod.es5-BqEJf4Xk.js  [39m[1m[2m  5.71 kB[22m[1m[22m[2m Ôöé gzip:   2.34 kB[22m
+[2mdist/[22m[36massets/index-CSttIIRG.js                    [39m[1m[33m658.24 kB[39m[22m[2m Ôöé gzip: 166.55 kB[22m
+node.exe : [33m
+Au caractère Ligne:1 : 1
++ & "D:\Program Files\nodejs/node.exe" "D:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo          : NotSpecified: ([33m:String) [],  
+   RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(!) Some chunks are larger than 500 kB after minification. 
+Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve 
+chunking: 
+https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via 
+build.chunkSizeWarningLimit.[39m
+[32mÔ£ô built in 3.68s[39m
+
+PWA v0.20.5
+mode      generateSW
+precache  20 entries (1284.98 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-9c191d2f.js
+
+
+===== BUILD - Livreur =====
+
+> @ecomcod/livreur@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32mÔ£ô[39m 190 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mmanifest.webmanifest                        [39m[1m[2m  0.54 kB[22m[1m[22m
+[2mdist/[22m[32mindex.html                                  [39m[1m[2m  0.82 kB[22m[1m[22m[2m Ôöé gzip:   0.42 kB[22m
+[2mdist/[22m[35massets/index-BRfuUzjh.css                   [39m[1m[2m 11.60 kB[22m[1m[22m[2m Ôöé gzip:   3.03 kB[22m
+[2mdist/[22m[36massets/workbox-window.prod.es5-BqEJf4Xk.js  [39m[1m[2m  5.71 kB[22m[1m[22m[2m Ôöé gzip:   2.34 kB[22m
+[2mdist/[22m[36massets/index-cQQ0ye4J.js                    [39m[1m[33m652.73 kB[39m[22m[2m Ôöé gzip: 165.26 kB[22m
+node.exe : [33m
+Au caractère Ligne:1 : 1
++ & "D:\Program Files\nodejs/node.exe" "D:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~
+    + CategoryInfo          : NotSpecified: ([33m:String) [],  
+   RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(!) Some chunks are larger than 500 kB after minification. 
+Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve 
+chunking: 
+https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via 
+build.chunkSizeWarningLimit.[39m
+[32mÔ£ô built in 3.56s[39m
+
+PWA v0.20.5
+mode      generateSW
+precache  20 entries (1346.08 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-9c191d2f.js
+
+
+===== FIREBASE - Liste des fonctions deployees =====
+[90mÔöîÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö¼ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö¼ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö¼ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö¼ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö¼ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÉ[39m
+[90mÔöé[39m[33m Function                  [39m[90mÔöé[39m[33m Version [39m[90mÔöé[39m[33m Trigger                                    [39m[90mÔöé[39m[33m Location     [39m[90mÔöé[39m[33m Memory [39m[90mÔöé[39m[33m Runtime  [39m[90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m onOrderCreated            [90mÔöé[39m v2      [90mÔöé[39m google.cloud.firestore.document.v1.created [90mÔöé[39m europe-west1 [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m onOrderUpdated            [90mÔöé[39m v2      [90mÔöé[39m google.cloud.firestore.document.v1.updated [90mÔöé[39m europe-west1 [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m authenticateAccess        [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m authenticateAdmin         [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m cancelRemunerationPayment [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m createAccessUser          [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m deleteEmployee            [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m listAccessLinks           [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m markRemunerationPaid      [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m receiveSheetOrder         [90mÔöé[39m v2      [90mÔöé[39m https                                      [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m regenerateAccessPassword  [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m scheduledDigest           [90mÔöé[39m v2      [90mÔöé[39m scheduled                                  [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m scheduledPurge            [90mÔöé[39m v2      [90mÔöé[39m scheduled                                  [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m scheduledReminders        [90mÔöé[39m v2      [90mÔöé[39m scheduled                                  [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m setAccessLinkStatus       [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔö£ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö╝ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöñ[39m
+[90mÔöé[39m validateAccessSession     [90mÔöé[39m v2      [90mÔöé[39m callable                                   [90mÔöé[39m us-central1  [90mÔöé[39m 256    [90mÔöé[39m nodejs22 [90mÔöé[39m
+[90mÔööÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö┤ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö┤ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö┤ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö┤ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ[39m[90mÔö┤ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÿ[39m
+
+
+===== FIREBASE - Logs recents (erreurs seulement, 50 dernieres lignes) =====
+2026-08-31T15:02:21.367017Z I validateaccesssession: 
+2026-08-31T15:02:21.550249Z I validateaccesssession: 
+2026-08-31T15:02:21.556872Z D validateaccesssession: {"message":"Callable request verification passed","verifications":{"auth":"VALID","app":"MISSING"}}
+2026-08-31T15:03:05.224329Z E scheduledreminders: 
+2026-08-31T15:03:06.110632Z E scheduledreminders: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/meta-capi-app/firestore/indexes?create_composite=Ckxwcm9qZWN0cy9tZXRhLWNhcGktYXBwL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9vcmRlcnMvaW5kZXhlcy9fEAEaEgoOc3RhdHV0Q2xvc2V1c2UQARoXChN0aW1lc3RhbXBzLnJlY2VpdmVkEAEaDAoIX19uYW1lX18QAQ
+    at entryFromArgs (/workspace/node_modules/firebase-functions/lib/logger/index.js:120:13)
+    at Object.error (/workspace/node_modules/firebase-functions/lib/logger/index.js:109:8)
+    at httpFunc (/workspace/node_modules/firebase-functions/lib/v2/providers/scheduler.js:65:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-08-31T15:03:21.308918Z I validateaccesssession: 
+2026-08-31T15:03:21.522447Z I validateaccesssession: 
+2026-08-31T15:03:21.528946Z D validateaccesssession: {"verifications":{"app":"MISSING","auth":"VALID"},"message":"Callable request verification passed"}
+2026-08-31T15:04:21.298684Z I validateaccesssession: 
+2026-08-31T15:04:21.488832Z I validateaccesssession: 
+2026-08-31T15:04:21.495712Z D validateaccesssession: {"message":"Callable request verification passed","verifications":{"app":"MISSING","auth":"VALID"}}
+2026-08-31T15:05:21.267563Z I validateaccesssession: 
+2026-08-31T15:05:21.468445Z I validateaccesssession: 
+2026-08-31T15:05:21.477065Z D validateaccesssession: {"message":"Callable request verification passed","verifications":{"app":"MISSING","auth":"VALID"}}
+2026-08-31T15:06:21.282101Z I validateaccesssession: 
+2026-08-31T15:06:21.481534Z I validateaccesssession: 
+2026-08-31T15:06:21.487443Z D validateaccesssession: {"message":"Callable request verification passed","verifications":{"auth":"VALID","app":"MISSING"}}
+2026-08-31T15:07:21.378458Z I validateaccesssession: 
+2026-08-31T15:07:21.565592Z I validateaccesssession: 
+2026-08-31T15:07:21.571074Z D validateaccesssession: {"message":"Callable request verification passed","verifications":{"auth":"VALID","app":"MISSING"}}
+2026-08-31T15:08:05.145233Z E scheduledreminders: 
+2026-08-31T15:08:06.005065Z E scheduledreminders: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/meta-capi-app/firestore/indexes?create_composite=Ckxwcm9qZWN0cy9tZXRhLWNhcGktYXBwL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9vcmRlcnMvaW5kZXhlcy9fEAEaEgoOc3RhdHV0Q2xvc2V1c2UQARoXChN0aW1lc3RhbXBzLnJlY2VpdmVkEAEaDAoIX19uYW1lX18QAQ
+    at entryFromArgs (/workspace/node_modules/firebase-functions/lib/logger/index.js:120:13)
+    at Object.error (/workspace/node_modules/firebase-functions/lib/logger/index.js:109:8)
+    at httpFunc (/workspace/node_modules/firebase-functions/lib/v2/providers/scheduler.js:65:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-08-31T15:08:21.255872Z I validateaccesssession: 
+2026-08-31T15:08:21.469307Z I validateaccesssession: 
+2026-08-31T15:08:21.482770Z D validateaccesssession: {"verifications":{"app":"MISSING","auth":"VALID"},"message":"Callable request verification passed"}
+2026-08-31T15:09:21.271967Z I validateaccesssession: 
+2026-08-31T15:09:21.625868Z I validateaccesssession: 
+2026-08-31T15:09:21.631250Z D validateaccesssession: {"verifications":{"app":"MISSING","auth":"VALID"},"message":"Callable request verification passed"}
+2026-08-31T15:10:21.250067Z I validateaccesssession: 
+2026-08-31T15:10:21.465117Z I validateaccesssession: 
+2026-08-31T15:10:21.472396Z D validateaccesssession: {"message":"Callable request verification passed","verifications":{"auth":"VALID","app":"MISSING"}}
+2026-08-31T15:11:21.269435Z I validateaccesssession: 
+2026-08-31T15:11:21.481429Z I validateaccesssession: 
+2026-08-31T15:11:21.487345Z D validateaccesssession: {"message":"Callable request verification passed","verifications":{"app":"MISSING","auth":"VALID"}}
+2026-08-31T15:12:21.376798Z I validateaccesssession: 
+2026-08-31T15:12:21.574199Z I validateaccesssession: 
+2026-08-31T15:12:21.580034Z D validateaccesssession: {"verifications":{"app":"MISSING","auth":"VALID"},"message":"Callable request verification passed"}
+2026-08-31T15:13:05.184313Z E scheduledreminders: 
+2026-08-31T15:13:06.052519Z E scheduledreminders: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/meta-capi-app/firestore/indexes?create_composite=Ckxwcm9qZWN0cy9tZXRhLWNhcGktYXBwL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9vcmRlcnMvaW5kZXhlcy9fEAEaEgoOc3RhdHV0Q2xvc2V1c2UQARoXChN0aW1lc3RhbXBzLnJlY2VpdmVkEAEaDAoIX19uYW1lX18QAQ
+    at entryFromArgs (/workspace/node_modules/firebase-functions/lib/logger/index.js:120:13)
+    at Object.error (/workspace/node_modules/firebase-functions/lib/logger/index.js:109:8)
+    at httpFunc (/workspace/node_modules/firebase-functions/lib/v2/providers/scheduler.js:65:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-08-31T15:13:21.284975Z I validateaccesssession: 
+2026-08-31T15:13:21.493256Z I validateaccesssession: 
+2026-08-31T15:13:21.498695Z D validateaccesssession: {"verifications":{"auth":"VALID","app":"MISSING"},"message":"Callable request verification passed"}
+2026-08-31T15:14:21.297054Z I validateaccesssession: 
+2026-08-31T15:14:21.504938Z I validateaccesssession: 
+2026-08-31T15:14:21.510745Z D validateaccesssession: {"verifications":{"app":"MISSING","auth":"VALID"},"message":"Callable request verification passed"}
+2026-08-31T15:15:21.286872Z I validateaccesssession: 
+2026-08-31T15:15:21.480112Z I validateaccesssession: 
+2026-08-31T15:15:21.485385Z D validateaccesssession: {"verifications":{"app":"MISSING","auth":"VALID"},"message":"Callable request verification passed"}
+2026-08-31T15:18:05.559551Z E scheduledreminders: 
+2026-08-31T15:18:06.391103Z E scheduledreminders: Error: 9 FAILED_PRECONDITION: The query requires an index. That index is currently building and cannot be used yet. See its status here: https://console.firebase.google.com/v1/r/project/meta-capi-app/firestore/indexes?create_composite=Cldwcm9qZWN0cy9tZXRhLWNhcGktYXBwL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9vcmRlcnMvaW5kZXhlcy9DSUNBZ09pM2tKQUsQARoSCg5zdGF0dXRDbG9zZXVzZRABGhcKE3RpbWVzdGFtcHMucmVjZWl2ZWQQARoMCghfX25hbWVfXxAB
+    at entryFromArgs (/workspace/node_modules/firebase-functions/lib/logger/index.js:120:13)
+    at Object.error (/workspace/node_modules/firebase-functions/lib/logger/index.js:109:8)
+    at httpFunc (/workspace/node_modules/firebase-functions/lib/v2/providers/scheduler.js:65:25)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+
+===== FIREBASE - Indexes Firestore configures =====
+{
+  "indexes": [
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teamId", "order": "ASCENDING" },
+        { "fieldPath": "timestamps.received", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teamId", "order": "ASCENDING" },
+        { "fieldPath": "closeuseId", "order": "ASCENDING" },
+        { "fieldPath": "timestamps.received", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teamId", "order": "ASCENDING" },
+        { "fieldPath": "livreurId", "order": "ASCENDING" },
+        { "fieldPath": "timestamps.received", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "statutCloseuse", "order": "ASCENDING" },
+        { "fieldPath": "timestamps.received", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "title", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "accessLinks",
+      "fieldPath": "id",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "teams",
+      "fieldPath": "sheetIds",
+      "indexes": [
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION" },
+        { "arrayConfig": "CONTAINS", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
+}
+
+
+===== SERVICE WORKERS - presence firebase-messaging-sw.js =====
+admin : True
+closeuse : True
+livreur : True
+
+===== ENV FILES - presence (sans contenu) =====
+admin\.env : False
+closeuse\.env : False
+livreur\.env : False

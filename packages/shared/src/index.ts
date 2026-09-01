@@ -1,4 +1,4 @@
-// Point d'entrée unique — chaque app importe depuis "@ecomcod/shared"
+﻿// Point d'entrée unique — chaque app importe depuis "@ecomcod/shared"
 // plutôt que depuis les fichiers internes, pour garder une frontière claire.
 
 export * from "./types";
@@ -22,3 +22,9 @@ export * from "./hooks/useUpdateOrderStatus";
 export * from "./hooks/useRegisterPushNotifications";
 export { default as NotificationBell } from "./components/NotificationBell";
 export { default as ConfirmDialog } from "./components/ConfirmDialog";
+
+export * from "./hooks/useConnectionGuard";
+export * from "./components/ConnectionGuard";
+
+export * from "./hooks/useConnectionGuard";
+export * from "./components/ConnectionGuard";
