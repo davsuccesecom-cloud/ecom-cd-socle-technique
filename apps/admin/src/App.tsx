@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { getFirebaseAuth, useAdminEmailAuth } from "@ecomcod/shared";
+﻿import { useCallback, useEffect, useState } from "react";
+import { getFirebaseAuth, useAdminEmailAuth, ConnectionGuard } from "@ecomcod/shared";
 import { useTheme } from "./hooks/useTheme";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -10,7 +10,7 @@ interface SessionClaims {
 }
 
 export default function App() {
-  // Appliqué le plus tôt possible dans le cycle de vie de l'app, avant
+  // Applique le plus tôt possible dans le cycle de vie de l'app, avant
   // même de savoir sur quelle page on atterrit — évite un flash visible du
   // mauvais thème au chargement si "clair" était déjà choisi.
   useTheme();
@@ -26,6 +26,7 @@ export default function App() {
     logout,
     error,
   } = useAdminEmailAuth();
+
   const [claims, setClaims] = useState<SessionClaims | null>(null);
   const [claimsLoading, setClaimsLoading] = useState(true);
 
@@ -39,13 +40,40 @@ export default function App() {
     getFirebaseAuth()
       .currentUser?.getIdTokenResult()
       .then((result) => {
+        console.log("DEBUG claims recus :", result.claims, "busy:", busy);
         setClaims({
           workspaceId: result.claims.workspaceId as string,
           role: result.claims.role as string,
         });
         setClaimsLoading(false);
       });
-  }, [firebaseUser, needsWorkspaceName]);
+  }, [firebaseUser, needsWorkspaceName, busy]);
+
+  // Revalidation au retour de connexion reseau : force le rafraichissement
+  // du token Firebase. Si le compte a ete desactive/supprime entre-temps
+  // (par exemple depuis un autre appareil), Firebase renvoie une erreur
+  // et on deconnecte immediatement plutot que de laisser une session admin
+  // hors-ligne reprendre la main sans verification.
+  const verifyAdminSession = useCallback(async (): Promise<boolean> => {
+    const user = getFirebaseAuth().currentUser;
+    if (!user) return true;
+    try {
+      await user.getIdTokenResult(true);
+      return true;
+    } catch (err: any) {
+      console.warn("Revalidation session admin echouee :", err);
+      if (
+        err?.code === "auth/user-disabled" ||
+        err?.code === "auth/user-token-expired" ||
+        err?.code === "auth/invalid-user-token"
+      ) {
+        await logout();
+        return false;
+      }
+      // Erreur technique/reseau : non concluant mais pas bloquant.
+      return true;
+    }
+  }, [logout]);
 
   if (authLoading || (firebaseUser && claimsLoading && !needsWorkspaceName)) {
     return <div className="flex min-h-screen items-center justify-center bg-surface text-slate-500">Chargement…</div>;
@@ -73,11 +101,13 @@ export default function App() {
   }
 
   return (
-    <Dashboard
-      workspaceId={claims.workspaceId}
-      onLogout={logout}
-      userEmail={firebaseUser.email}
-      adminId={firebaseUser.uid}
-    />
+    <ConnectionGuard appName="Admin">
+      <Dashboard
+        workspaceId={claims.workspaceId}
+        onLogout={logout}
+        userEmail={firebaseUser.email}
+        adminId={firebaseUser.uid}
+      />
+    </ConnectionGuard>
   );
 }

@@ -40,6 +40,10 @@ export function useAccessLinkAuth() {
     const auth = getFirebaseAuth();
     const user = auth.currentUser;
     if (!user) return true;
+    // Si l'appareil est hors-ligne, ne jamais tenter une validation réseau ni déconnecter
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return true;
+    }
     try {
       const functions = getFunctions();
       const validateAccessSession = httpsCallable(functions, "validateAccessSession");
@@ -48,6 +52,7 @@ export function useAccessLinkAuth() {
     } catch (err: any) {
       console.warn("Verification de session echouee :", err);
 
+      // Déconnexion uniquement sur permission-denied explicite (révocation admin)
       if (err?.code === "functions/permission-denied") {
         try {
           const claims = (await user.getIdTokenResult()).claims;
@@ -62,10 +67,12 @@ export function useAccessLinkAuth() {
         } catch (cleanupErr) {
           console.warn("Nettoyage du token FCM echoue (non bloquant) :", cleanupErr);
         }
+        localStorage.removeItem("ecomcod_session_claims");
         await signOut(auth);
         setFirebaseUser(null);
         return false;
       }
+      // En cas de micro-coupure réseau ou timeout, conserver la session active
       return true;
     }
   }, []);
@@ -102,6 +109,18 @@ export function useAccessLinkAuth() {
       const { data } = await authenticateAccess({ accessLinkId, password });
       const auth = getFirebaseAuth();
       await signInWithCustomToken(auth, data.customToken);
+
+      // Persiste l'accessLinkId et les claims pour survivre aux rechargements sans réseau
+      localStorage.setItem("ecomcod_last_access_link", accessLinkId);
+      localStorage.setItem(
+        "ecomcod_session_claims",
+        JSON.stringify({
+          workspaceId: data.workspaceId,
+          teamId: data.teamId,
+          role: data.role,
+        })
+      );
+
       return data;
     } catch (err) {
       setError(

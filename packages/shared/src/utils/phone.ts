@@ -33,3 +33,13 @@ export function formatClientPhone(
 export function buildTelLink(formattedPhone: string): string {
   return `tel:${formattedPhone}`;
 }
+
+/**
+ * Construit le lien wa.me cliquable pour contacter le client sur WhatsApp avec un message pré-rempli.
+ */
+export function buildWhatsAppLink(formattedPhone: string, message?: string): string {
+  const digitsOnly = formattedPhone.replace(/[^\d]/g, "");
+  const encodedMsg = message ? encodeURIComponent(message) : "";
+  return `https://wa.me/${digitsOnly}${encodedMsg ? `?text=${encodedMsg}` : ""}`;
+}
+

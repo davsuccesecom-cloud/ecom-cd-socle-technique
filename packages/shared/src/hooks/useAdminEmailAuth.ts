@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
   isSignInWithEmailLink,
@@ -19,11 +19,11 @@ interface AdminAuthResult {
 }
 
 /**
- * Connexion admin par lien magique — pas de mot de passe, pas de popup
- * Google (source du blocage CORS rencontré). L'admin saisit son email,
- * reçoit un lien, clique dessus, revient sur l'app déjà connecté.
- * Système multi-entreprises inchangé : chaque email obtient son propre
- * workspace isolé, la Cloud Function reste agnostique du fournisseur.
+ * Connexion admin par lien magique -- pas de mot de passe, pas de popup
+ * Google (source du blocage CORS rencontre). L'admin saisit son email,
+ * recoit un lien, clique dessus, revient sur l'app deja connecte.
+ * Systeme multi-entreprises inchange : chaque email obtient son propre
+ * workspace isole, la Cloud Function reste agnostique du fournisseur.
  */
 export function useAdminEmailAuth() {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -32,6 +32,12 @@ export function useAdminEmailAuth() {
   const [linkSent, setLinkSent] = useState(false);
   const [needsWorkspaceName, setNeedsWorkspaceName] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Empeche de traiter le lien de connexion deux fois (StrictMode en dev
+  // invoque les effets deux fois au montage) -- un lien magique est a
+  // usage unique, une deuxieme tentative echoue et peut declencher une
+  // deconnexion de la session qui vient tout juste de reussir.
+  const emailLinkProcessedRef = useRef(false);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -69,18 +75,23 @@ export function useAdminEmailAuth() {
   }, []);
 
   // Au chargement : si l'URL contient un lien magique (l'admin vient de
-  // cliquer sur le lien reçu par email), on termine la connexion.
+  // cliquer sur le lien recu par email), on termine la connexion.
   useEffect(() => {
     const auth = getFirebaseAuth();
     if (!isSignInWithEmailLink(auth, window.location.href)) return;
+    if (emailLinkProcessedRef.current) return;
+    emailLinkProcessedRef.current = true;
 
     let email = window.localStorage.getItem(STORAGE_KEY);
     if (!email) {
       // Cas rare : le lien est ouvert sur un autre appareil/navigateur que
-      // celui où l'email a été demandé — on redemande l'email pour confirmer.
+      // celui ou l'email a ete demande -- on redemande l'email pour confirmer.
       email = window.prompt("Confirme ton adresse email pour terminer la connexion :");
     }
-    if (!email) return;
+    if (!email) {
+      emailLinkProcessedRef.current = false;
+      return;
+    }
 
     setBusy(true);
     signInWithEmailLink(auth, email, window.location.href)
@@ -90,7 +101,7 @@ export function useAdminEmailAuth() {
         await provision();
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Lien invalide ou expiré.");
+        setError(err instanceof Error ? err.message : "Lien invalide ou expire.");
       })
       .finally(() => setBusy(false));
   }, [provision]);

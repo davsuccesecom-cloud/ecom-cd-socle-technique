@@ -18,13 +18,17 @@ import type { CloseuseStatus, LivreurStatus } from "../types";
  */
 export function useUpdateOrderStatus(workspaceId: string) {
   const updateCloseuseStatus = useCallback(
-    async (orderId: string, status: CloseuseStatus) => {
+    async (orderId: string, status: CloseuseStatus, reminderAt?: number | null) => {
       const db = getDb();
       const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
-      await updateDoc(ref, {
+      const payload: Record<string, unknown> = {
         statutCloseuse: status,
         callInProgress: null, // toute action ferme l'appel en cours (section 6)
-      });
+      };
+      if (reminderAt !== undefined) {
+        payload.reminderAt = reminderAt;
+      }
+      await updateDoc(ref, payload);
     },
     [workspaceId]
   );

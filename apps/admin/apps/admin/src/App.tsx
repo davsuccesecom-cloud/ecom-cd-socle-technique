@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getFirebaseAuth, useAdminEmailAuth } from "@ecomcod/shared";
+import { getFirebaseAuth, useAdminEmailAuth, ConnectionGuard } from "@ecomcod/shared";
 import { useTheme } from "./hooks/useTheme";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -10,7 +10,7 @@ interface SessionClaims {
 }
 
 export default function App() {
-  // Appliqué le plus tôt possible dans le cycle de vie de l'app, avant
+  // Applique le plus tôt possible dans le cycle de vie de l'app, avant
   // même de savoir sur quelle page on atterrit — évite un flash visible du
   // mauvais thème au chargement si "clair" était déjà choisi.
   useTheme();
@@ -26,6 +26,7 @@ export default function App() {
     logout,
     error,
   } = useAdminEmailAuth();
+
   const [claims, setClaims] = useState<SessionClaims | null>(null);
   const [claimsLoading, setClaimsLoading] = useState(true);
 
@@ -45,7 +46,7 @@ export default function App() {
         });
         setClaimsLoading(false);
       });
-  }, [firebaseUser, needsWorkspaceName]);
+  }, [firebaseUser, needsWorkspaceName, busy]);
 
   if (authLoading || (firebaseUser && claimsLoading && !needsWorkspaceName)) {
     return <div className="flex min-h-screen items-center justify-center bg-surface text-slate-500">Chargement…</div>;
@@ -72,5 +73,14 @@ export default function App() {
     );
   }
 
-  return <Dashboard workspaceId={claims.workspaceId} onLogout={logout} userEmail={firebaseUser.email} />;
+  return (
+    <ConnectionGuard appName="Admin">
+      <Dashboard
+        workspaceId={claims.workspaceId}
+        onLogout={logout}
+        userEmail={firebaseUser.email}
+        adminId={firebaseUser.uid}
+      />
+    </ConnectionGuard>
+  );
 }

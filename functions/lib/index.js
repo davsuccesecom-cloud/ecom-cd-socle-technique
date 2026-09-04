@@ -53,23 +53,23 @@ const FINAL_STATUSES = ["livre", "rejete", "injoignable"];
 const sheetWebhookSecret = (0, params_1.defineSecret)("SHEET_WEBHOOK_SECRET");
 const sheetsServiceAccountKey = (0, params_1.defineSecret)("GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY");
 // ---------------------------------------------------------------------------
-// 1. Authentification par lien d'accès + mot de passe simple (section 10)
+// 1. Authentification par lien d'acces + mot de passe simple (section 10)
 // ---------------------------------------------------------------------------
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
     const { accessLinkId, password } = request.data;
     if (!accessLinkId || !password) {
-        throw new https_1.HttpsError("invalid-argument", "Lien d'accès et mot de passe requis.");
+        throw new https_1.HttpsError("invalid-argument", "Lien d'acces et mot de passe requis.");
     }
     const linkSnap = await db.collectionGroup("accessLinks").where("id", "==", accessLinkId).limit(1).get();
     if (linkSnap.empty) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès invalide.");
+        throw new https_1.HttpsError("not-found", "Lien d'acces invalide.");
     }
     const linkDoc = linkSnap.docs[0];
     const link = linkDoc.data();
     if (link.disabledAt) {
-        throw new https_1.HttpsError("permission-denied", "Cet accès a été désactivé.");
+        throw new https_1.HttpsError("permission-denied", "Cet acces a ete desactive.");
     }
     const secretRef = db
         .collection("workspaces")
@@ -78,13 +78,13 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         .doc(linkDoc.id);
     const secretSnap = await secretRef.get();
     if (!secretSnap.exists) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès invalide.");
+        throw new https_1.HttpsError("not-found", "Lien d'acces invalide.");
     }
     const secret = secretSnap.data();
     const now = Date.now();
     if (secret.lockedUntil && secret.lockedUntil > now) {
         const minutesLeft = Math.ceil((secret.lockedUntil - now) / 60000);
-        throw new https_1.HttpsError("resource-exhausted", `Trop de tentatives. Réessaie dans ${minutesLeft} min.`);
+        throw new https_1.HttpsError("resource-exhausted", `Trop de tentatives. Reessaie dans ${minutesLeft} min.`);
     }
     const passwordOk = await bcrypt.compare(password, secret.passwordHash);
     if (!passwordOk) {
@@ -108,7 +108,7 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         .get();
     const user = userSnap.data();
     if (!user || user.status !== "active") {
-        throw new https_1.HttpsError("permission-denied", "Compte désactivé.");
+        throw new https_1.HttpsError("permission-denied", "Compte desactive.");
     }
     const sessions = link.activeSessions ?? [];
     const newSession = {
@@ -120,7 +120,7 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         .sort((a, b) => b.connectedAt - a.connectedAt)
         .slice(0, MAX_SESSIONS_PER_ACCESS_LINK);
     await linkDoc.ref.update({ activeSessions: updatedSessions });
-    await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connecté(e) depuis un nouvel appareil.`);
+    await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connecte(e) depuis un nouvel appareil.`);
     // Persiste les claims sur l'utilisateur Firebase Auth (pas seulement
     // dans ce custom token) pour qu'ils survivent au rafraichissement
     // automatique du ID token par le SDK. Sans ca, workspaceId/role/teamId
@@ -146,14 +146,14 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
     };
 });
 // ---------------------------------------------------------------------------
-// 1bis. Authentification admin — système multi-entreprises (SaaS)
+// 1bis. Authentification admin -- systeme multi-entreprises (SaaS)
 // ---------------------------------------------------------------------------
 exports.authenticateAdmin = (0, https_1.onCall)(async (request) => {
     const uid = request.auth?.uid;
     const email = request.auth?.token?.email?.toLowerCase();
     const name = request.auth?.token?.name;
     if (!uid || !email) {
-        throw new https_1.HttpsError("unauthenticated", "Connexion Google requise.");
+        throw new https_1.HttpsError("unauthenticated", "Connexion requise.");
     }
     const mappingRef = db.collection("adminsByEmail").doc(email);
     const mappingSnap = await mappingRef.get();
@@ -187,13 +187,13 @@ exports.authenticateAdmin = (0, https_1.onCall)(async (request) => {
     return { workspaceId: workspaceRef.id, role: "admin", isNewWorkspace: true };
 });
 // ---------------------------------------------------------------------------
-// 1ter. Gestion des accès
+// 1ter. Gestion des acces
 // ---------------------------------------------------------------------------
 function requireAdmin(request) {
     const workspaceId = request.auth?.token?.workspaceId;
     const role = request.auth?.token?.role;
     if (!workspaceId || role !== "admin") {
-        throw new https_1.HttpsError("permission-denied", "Accès réservé aux admins.");
+        throw new https_1.HttpsError("permission-denied", "Acces reserve aux admins.");
     }
     return workspaceId;
 }
@@ -208,11 +208,11 @@ exports.createAccessUser = (0, https_1.onCall)(async (request) => {
     const workspaceId = requireAdmin(request);
     const { name, phone, role, teamId } = request.data;
     if (!name?.trim() || !teamId || (role !== "closeuse" && role !== "livreur")) {
-        throw new https_1.HttpsError("invalid-argument", "Nom, rôle (closeuse/livreur) et équipe requis.");
+        throw new https_1.HttpsError("invalid-argument", "Nom, role (closeuse/livreur) et equipe requis.");
     }
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).get();
     if (!teamSnap.exists) {
-        throw new https_1.HttpsError("not-found", "Équipe introuvable.");
+        throw new https_1.HttpsError("not-found", "Equipe introuvable.");
     }
     const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc();
     await userRef.set({
@@ -263,7 +263,7 @@ exports.regenerateAccessPassword = (0, https_1.onCall)(async (request) => {
         .limit(1)
         .get();
     if (linkSnap.empty) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès introuvable.");
+        throw new https_1.HttpsError("not-found", "Lien d'acces introuvable.");
     }
     const linkDoc = linkSnap.docs[0];
     const password = generatePassword();
@@ -291,7 +291,7 @@ exports.setAccessLinkStatus = (0, https_1.onCall)(async (request) => {
         .limit(1)
         .get();
     if (linkSnap.empty) {
-        throw new https_1.HttpsError("not-found", "Lien d'accès introuvable.");
+        throw new https_1.HttpsError("not-found", "Lien d'acces introuvable.");
     }
     const linkDoc = linkSnap.docs[0];
     await linkDoc.ref.update({
@@ -304,17 +304,17 @@ exports.setAccessLinkStatus = (0, https_1.onCall)(async (request) => {
             await admin.auth().revokeRefreshTokens(linkData.userId);
         }
         catch (err) {
-            console.error("Impossible de révoquer les sessions Firebase :", err);
+            console.error("Impossible de revoquer les sessions Firebase :", err);
         }
     }
     return { success: true };
 });
-// Vérification stricte de révocation : `request.auth` (fourni automatiquement
-// par le framework Callable) vérifie seulement la SIGNATURE du token, pas
-// s'il a été révoqué entre-temps — un token déjà émis reste valide jusqu'à
-// ~1h après un revokeRefreshTokens() si on ne fait que ça. On extrait donc
-// le token brut depuis l'en-tête Authorization et on le revérifie nous-mêmes
-// avec `checkRevoked = true`, seule façon de forcer un rejet immédiat.
+// Verification stricte de revocation : `request.auth` (fourni automatiquement
+// par le framework Callable) verifie seulement la SIGNATURE du token, pas
+// s'il a ete revoque entre-temps -- un token deja emis reste valide jusqu'a
+// ~1h apres un revokeRefreshTokens() si on ne fait que ca. On extrait donc
+// le token brut depuis l'en-tete Authorization et on le reverifie nous-memes
+// avec `checkRevoked = true`, seule facon de forcer un rejet immediat.
 exports.validateAccessSession = (0, https_1.onCall)(async (request) => {
     const authHeader = request.rawRequest.headers.authorization;
     const rawToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -328,7 +328,7 @@ exports.validateAccessSession = (0, https_1.onCall)(async (request) => {
     catch (err) {
         const code = err.code;
         if (code === "auth/id-token-revoked") {
-            throw new https_1.HttpsError("permission-denied", "Session révoquée.");
+            throw new https_1.HttpsError("permission-denied", "Session revoquee.");
         }
         throw new https_1.HttpsError("unauthenticated", "Session invalide.");
     }
@@ -345,18 +345,18 @@ exports.validateAccessSession = (0, https_1.onCall)(async (request) => {
         .limit(1)
         .get();
     if (linkSnap.empty) {
-        throw new https_1.HttpsError("permission-denied", "Accès introuvable.");
+        throw new https_1.HttpsError("permission-denied", "Acces introuvable.");
     }
     const link = linkSnap.docs[0].data();
     if (link.disabledAt) {
         await admin.auth().revokeRefreshTokens(userId);
-        throw new https_1.HttpsError("permission-denied", "Ton accès a été désactivé par l'administrateur.");
+        throw new https_1.HttpsError("permission-denied", "Ton acces a ete desactive par l'administrateur.");
     }
     const userSnap = await db.collection("workspaces").doc(workspaceId).collection("users").doc(userId).get();
     const user = userSnap.data();
     if (!user || user.status !== "active") {
         await admin.auth().revokeRefreshTokens(userId);
-        throw new https_1.HttpsError("permission-denied", "Ton compte a été désactivé.");
+        throw new https_1.HttpsError("permission-denied", "Ton compte a ete desactive.");
     }
     return { valid: true };
 });
@@ -392,10 +392,10 @@ exports.listAccessLinks = (0, https_1.onCall)(async (request) => {
     });
     return { links };
 });
-// Suppression définitive d'un employé — uniquement possible APRÈS révocation
-// de son accès (disabledAt non null), pour garder une trace/contrôle avant
-// toute suppression irréversible. Supprime l'utilisateur, son lien d'accès
-// et son secret associé.
+// Suppression definitive d'un employe -- uniquement possible APRES revocation
+// de son acces (disabledAt non null), pour garder une trace/controle avant
+// toute suppression irreversible. Supprime l'utilisateur, son lien d'acces
+// et son secret associe.
 exports.deleteEmployee = (0, https_1.onCall)(async (request) => {
     const workspaceId = requireAdmin(request);
     const { userId } = request.data;
@@ -405,7 +405,7 @@ exports.deleteEmployee = (0, https_1.onCall)(async (request) => {
     const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
-        throw new https_1.HttpsError("not-found", "Employé introuvable.");
+        throw new https_1.HttpsError("not-found", "Employe introuvable.");
     }
     const linkSnap = await db
         .collection("workspaces")
@@ -417,7 +417,7 @@ exports.deleteEmployee = (0, https_1.onCall)(async (request) => {
     if (!linkSnap.empty) {
         const link = linkSnap.docs[0];
         if (!link.data().disabledAt) {
-            throw new https_1.HttpsError("failed-precondition", "Révoque l'accès de cet employé avant de le supprimer.");
+            throw new https_1.HttpsError("failed-precondition", "Revoque l'acces de cet employe avant de le supprimer.");
         }
         await db
             .collection("workspaces")
@@ -431,8 +431,8 @@ exports.deleteEmployee = (0, https_1.onCall)(async (request) => {
         await admin.auth().deleteUser(userId);
     }
     catch (err) {
-        // Compte Firebase Auth déjà absent/déjà supprimé — pas bloquant
-        console.warn("Suppression Firebase Auth ignorée :", err);
+        // Compte Firebase Auth deja absent/deja supprime -- pas bloquant
+        console.warn("Suppression Firebase Auth ignoree :", err);
     }
     await userRef.delete();
     return { success: true };
@@ -530,7 +530,7 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
     }
 });
 // ---------------------------------------------------------------------------
-// 2. Assignation automatique à la création d'une commande (section 8)
+// 2. Assignation automatique a la creation d'une commande (section 8)
 // ---------------------------------------------------------------------------
 exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspaceId}/orders/{orderId}", async (event) => {
     const snap = event.data;
@@ -563,15 +563,51 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
         closeuseId: chosen.id,
         "timestamps.assignedToCloseuse": Date.now(),
     });
-    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`, snap.id);
+    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} - ${order.product}`, snap.id);
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
     if (chosen.count + 1 >= threshold) {
-        await notifyAdmins(workspaceId, "Closeuse surchargée", `${chosen.data.name} a ${chosen.count + 1} commandes actives.`);
+        await notifyAdmins(workspaceId, "Closeuse surchargee", `${chosen.data.name} a ${chosen.count + 1} commandes actives.`);
     }
 });
 // ---------------------------------------------------------------------------
-// 3. Propagation de statut livreur → closeuse + rémunération + sync Sheet
+// 2bis. Statistiques journalieres persistantes (survivent a la purge)
+// ---------------------------------------------------------------------------
+// Cle de date au format "YYYY-MM-DD", calculee en UTC. Le workspace de
+// reference etant base au Togo (GMT, UTC+0, pas de changement d'heure),
+// cette cle correspond exactement a la date locale cote client -- aucune
+// conversion de fuseau horaire supplementaire n'est necessaire.
+function dayKeyFromMs(ts) {
+    const d = new Date(ts);
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+/**
+ * Incremente un compteur agrege, permanent, dans
+ * workspaces/{workspaceId}/teams/{teamId}/dailyStats/{YYYY-MM-DD}.
+ *
+ * Contrairement au calcul en direct sur la collection "orders" (utilise
+ * par le dashboard admin pour le CA, les livraisons, etc.), ce total
+ * survit a scheduledPurge -- qui supprime definitivement les commandes
+ * a statut final au bout de ORDER_PURGE_AFTER_DAYS jours. Sans cet
+ * agregat separe, le CA/les stats "Tout" retombent a zero des qu'une
+ * commande livree passe ce delai, meme si elle a bien ete payee/livree.
+ *
+ * Meme principe que incrementRemuneration (deja existant, jamais purge),
+ * applique ici au niveau equipe/jour plutot qu'au niveau employe.
+ */
+async function incrementDailyStat(workspaceId, teamId, field, amount) {
+    const dateKey = dayKeyFromMs(Date.now());
+    const ref = db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("teams")
+        .doc(teamId)
+        .collection("dailyStats")
+        .doc(dateKey);
+    await ref.set({ [field]: admin.firestore.FieldValue.increment(amount), updatedAt: Date.now() }, { merge: true });
+}
+// ---------------------------------------------------------------------------
+// 3. Propagation de statut livreur -> closeuse + remuneration + sync Sheet
 // ---------------------------------------------------------------------------
 exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspaces/{workspaceId}/orders/{orderId}", secrets: [sheetsServiceAccountKey] }, async (event) => {
     const before = event.data?.before.data();
@@ -584,7 +620,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
     const livreurAssigned = !before.livreurId && !!after.livreurId;
     if (livreurAssigned) {
-        await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`, orderId);
+        await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} - ${after.product}`, orderId);
         if (!after.timestamps?.assignedToLivreur) {
             await ref.update({ "timestamps.assignedToLivreur": Date.now() });
         }
@@ -597,7 +633,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     }
     if (statutLivreurChanged && after.statutLivreur === "en_route") {
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} — en cours de livraison`, orderId);
+            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} - en cours de livraison`, orderId);
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "livre") {
@@ -607,10 +643,10 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             "timestamps.delivered": Date.now(),
             purgeAt,
         });
-        // Sync directe vers le Sheet — ne dépend pas d'un second passage de
-        // la fonction (avant, on comptait sur before/after de l'événement,
-        // qui ne reflète pas cette écriture faite DANS cette même exécution ;
-        // corrige le bug "Livré ne remonte pas sur le Sheet").
+        // Sync directe vers le Sheet -- ne depend pas d'un second passage de
+        // la fonction (avant, on comptait sur before/after de l'evenement,
+        // qui ne reflete pas cette ecriture faite DANS cette meme execution ;
+        // corrige le bug "Livre ne remonte pas sur le Sheet").
         if (after.sheetId && after.sourceRowId) {
             await (0, sheetsSync_1.writeOrderStatusToSheet)(after.sheetId, after.sourceRowId, "livre");
         }
@@ -623,28 +659,48 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             after.livreurId
                 ? incrementRemuneration(workspaceId, after.livreurId, "livreur", team?.remunerationLivreurPerOrder ?? 0, after.amount)
                 : Promise.resolve(),
+            // Agrege le CA + le compteur de livraisons du jour, de facon
+            // permanente -- voir incrementDailyStat ci-dessus.
+            incrementDailyStat(workspaceId, after.teamId, "ca", after.amount),
+            incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
         ]);
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Commande livrée", `${after.clientName} — confirmé livré`, orderId);
+            await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "injoignable") {
         await ref.update({ statutCloseuse: "injoignable" });
-        // Même correctif que ci-dessus, pour ce cas aussi.
+        // Meme correctif que ci-dessus, pour ce cas aussi.
         if (after.sheetId && after.sourceRowId) {
             await (0, sheetsSync_1.writeOrderStatusToSheet)(after.sheetId, after.sourceRowId, "injoignable");
         }
+        // Injoignable declenche cote livreur (client ne repond pas a la
+        // livraison) -- comptabilise dans le meme compteur "injoignables"
+        // que le cas declenche cote closeuse ci-dessous, les deux chemins
+        // ne pouvant pas se declencher sur le meme evenement Firestore.
+        await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`, orderId);
+            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} - le livreur n'a pas pu joindre le client`, orderId);
         }
     }
     if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse) && !after.purgeAt) {
         await ref.update({ purgeAt: Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000 });
+        // Ce bloc capture les statuts finaux decides directement par la
+        // closeuse (rejete, ou injoignable des l'appel initial, sans jamais
+        // passer par un livreur) -- le cas "livre" ne peut pas arriver ici
+        // (statutCloseuse n'est jamais mis a "livre" ailleurs que dans le
+        // bloc statutLivreur === "livre" ci-dessus, deja comptabilise).
+        if (after.statutCloseuse === "rejete") {
+            await incrementDailyStat(workspaceId, after.teamId, "rejetees", 1);
+        }
+        else if (after.statutCloseuse === "injoignable") {
+            await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
+        }
     }
-    // Sync retour Firestore → Sheet pour tous les AUTRES changements de
-    // statutCloseuse (ceux décidés directement par la closeuse : en_cours,
-    // programme, rejete, indisponible — pas ceux forcés par le livreur,
-    // déjà gérés explicitement ci-dessus).
+    // Sync retour Firestore -> Sheet pour tous les AUTRES changements de
+    // statutCloseuse (ceux decides directement par la closeuse : en_cours,
+    // programme, rejete, indisponible -- pas ceux forces par le livreur,
+    // deja geres explicitement ci-dessus).
     if (statutCloseuseChanged &&
         after.statutCloseuse !== "livre" &&
         after.statutCloseuse !== "injoignable" &&
@@ -701,7 +757,7 @@ exports.cancelRemunerationPayment = (0, https_1.onCall)(async (request) => {
     return { ok: true };
 });
 // ---------------------------------------------------------------------------
-// 4. Purge automatique des commandes traitées (section 15/16)
+// 4. Purge automatique des commandes traitees (section 15/16)
 // ---------------------------------------------------------------------------
 exports.scheduledPurge = (0, scheduler_1.onSchedule)("every 24 hours", async () => {
     const now = Date.now();
@@ -750,7 +806,7 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
     }
 });
 // ---------------------------------------------------------------------------
-// 6. Résumé périodique admin (section 5.1)
+// 6. Resume periodique admin (section 5.1)
 // ---------------------------------------------------------------------------
 exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async () => {
     const now = Date.now();
@@ -781,7 +837,7 @@ exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async 
                 if (o.statutCloseuse === "injoignable")
                     injoignables++;
             });
-            await notifyAdmins(wsDoc.id, `Résumé — ${team.name}`, `${livrees} livrées, ${rejetees} rejetées, ${injoignables} injoignables — ${ca} F`);
+            await notifyAdmins(wsDoc.id, `Resume - ${team.name}`, `${livrees} livrees, ${rejetees} rejetees, ${injoignables} injoignables - ${ca} F`);
             await teamDoc.ref.update({ lastDigestAt: now });
         }
     }

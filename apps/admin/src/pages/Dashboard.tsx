@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useOrders, useTeams, useTeamUsers, useRegisterPushNotifications } from "@ecomcod/shared";
+import { useOrders, useTeams, useTeamUsers, useRegisterPushNotifications, useDailyStats, sumDailyStats, dailyStatDateToMs } from "@ecomcod/shared";
 import type { CloseuseStatus } from "@ecomcod/shared";
 import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
@@ -41,12 +41,12 @@ const EMPTY_COUNTS: Record<CloseuseStatus, number> = {
 };
 
 const PAGE_TITLES: Record<string, string> = {
-  performance: "Performance des employés 📊",
-  users: "Utilisateurs & Accès 🔐",
-  orders: "Commandes 🛒",
-  teams: "Équipes & Sheets 📊",
-  remuneration: "Rémunération 💰",
-  settings: "Paramètres ⚙️",
+  performance: "Performance des employÃ©s ðŸ“Š",
+  users: "Utilisateurs & AccÃ¨s ðŸ”",
+  orders: "Commandes ðŸ›’",
+  teams: "Ã‰quipes & Sheets ðŸ“Š",
+  remuneration: "RÃ©munÃ©ration ðŸ’°",
+  settings: "ParamÃ¨tres âš™ï¸",
 };
 
 export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }: DashboardProps) {
@@ -72,27 +72,44 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     return allOrders.filter((o) => o.timestamps.received >= start && o.timestamps.received <= end);
   }, [allOrders, period]);
 
+  // Marge de jours a recuperer sur dailyStats pour couvrir la periode
+  // selectionnee, meme si elle remonte plus loin que la purge de 3 jours
+  // des commandes brutes (orders). Toujours au moins 31 jours pour couvrir
+  // un mois calendaire.
+  const daysBack = useMemo(() => {
+    const { start } = periodRangeMs(period);
+    const diffDays = Math.ceil((Date.now() - start) / (24 * 60 * 60 * 1000));
+    return Math.max(diffDays + 1, 31);
+  }, [period]);
+
+  const { rows: dailyStatRows } = useDailyStats(workspaceId, activeTeamId, daysBack);
+
+  const dailyStatsInPeriod = useMemo(() => {
+    const { start, end } = periodRangeMs(period);
+    return dailyStatRows.filter((row) => {
+      const dayStart = dailyStatDateToMs(row.date);
+      const dayEnd = dayStart + 24 * 60 * 60 * 1000 - 1;
+      return dayEnd >= start && dayStart <= end;
+    });
+  }, [dailyStatRows, period]);
+
+  // CA / livraisons / injoignables / rejetees affiches viennent de
+  // dailyStats (jamais purge) plutot que d'un recalcul sur "orders"
+  // (purge apres 3 jours) -- c'est ce qui corrige la perte de donnees
+  // constatee sur le dashboard pour toute periode > 3 jours.
+  const periodTotals = useMemo(() => sumDailyStats(dailyStatsInPeriod), [dailyStatsInPeriod]);
+
   const stats = useMemo(() => {
     const statusCounts = { ...EMPTY_COUNTS };
-    let ca = 0;
-    let livraisonsReussies = 0;
-    let injoignables = 0;
-    let rejetees = 0;
     let closeuseFinal = 0;
     let closeuseConfirmees = 0;
+    let livraisonsReussies = 0;
 
     for (const order of orders) {
       statusCounts[order.statutCloseuse] = (statusCounts[order.statutCloseuse] ?? 0) + 1;
 
       if (order.statutLivreur === "livre") {
         livraisonsReussies += 1;
-        ca += order.amount;
-      }
-      if (order.statutLivreur === "injoignable" || order.statutCloseuse === "injoignable") {
-        injoignables += 1;
-      }
-      if (order.statutCloseuse === "rejete") {
-        rejetees += 1;
       }
       if (
         order.statutCloseuse === "livre" ||
@@ -108,7 +125,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     const tauxLivraisonReelle =
       closeuseConfirmees > 0 ? Math.round((livraisonsReussies / closeuseConfirmees) * 100) : 0;
 
-    return { statusCounts, ca, livraisonsReussies, injoignables, rejetees, tauxConfirmation, tauxLivraisonReelle };
+    return { statusCounts, tauxConfirmation, tauxLivraisonReelle };
   }, [orders]);
 
   const quickCounts = useMemo(
@@ -144,7 +161,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           <div>
             <p className="hidden text-sm text-slate-500 md:block">Tableau de bord</p>
             <h1 className="text-xl font-semibold text-slate-100 md:text-2xl">
-              {PAGE_TITLES[page] ?? "Vue globale du business 👋"}
+              {PAGE_TITLES[page] ?? "Vue globale du business ðŸ‘‹"}
             </h1>
           </div>
 
@@ -187,21 +204,21 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
               <StatCard
                 label="Chiffre d'affaires"
-                value={`${stats.ca.toLocaleString("fr-FR")}`}
+                value={`${periodTotals.ca.toLocaleString("fr-FR")}`}
                 icon={<CaIcon />}
                 accent="blue"
                 onClick={() => setShowRevenueChart(true)}
               />
-              <StatCard label="Livraisons réussies" value={String(stats.livraisonsReussies)} icon={<TruckIcon />} accent="green" />
-              <StatCard label="Injoignables" value={String(stats.injoignables)} icon={<XIcon />} accent="red" />
-              <StatCard label="Rejetées" value={String(stats.rejetees)} icon={<BanIcon />} accent="orange" />
+              <StatCard label="Livraisons rÃ©ussies" value={String(periodTotals.livraisons)} icon={<TruckIcon />} accent="green" />
+              <StatCard label="Injoignables" value={String(periodTotals.injoignables)} icon={<XIcon />} accent="red" />
+              <StatCard label="RejetÃ©es" value={String(periodTotals.rejetees)} icon={<BanIcon />} accent="orange" />
               <StatCard label="Taux de confirmation" value={`${stats.tauxConfirmation}%`} icon={<PhoneIcon />} accent="purple" />
-              <StatCard label="Taux de livraison réelle" value={`${stats.tauxLivraisonReelle}%`} icon={<TargetIcon />} accent="cyan" />
+              <StatCard label="Taux de livraison rÃ©elle" value={`${stats.tauxLivraisonReelle}%`} icon={<TargetIcon />} accent="cyan" />
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 lg:col-span-1">
-                <h3 className="mb-3 text-sm font-medium text-slate-200">Répartition des statuts</h3>
+                <h3 className="mb-3 text-sm font-medium text-slate-200">RÃ©partition des statuts</h3>
                 <StatusDonut counts={stats.statusCounts} />
               </div>
 
@@ -219,9 +236,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             </div>
             <QuickSummaryFab counts={quickCounts} />
 
-            {loading && <p className="mt-4 text-center text-xs text-slate-600">Mise à jour des données…</p>}
+            {loading && <p className="mt-4 text-center text-xs text-slate-600">Mise Ã  jour des donnÃ©esâ€¦</p>}
             {closeuses.length === 0 && livreurs.length === 0 && !loading && (
-              <p className="mt-4 text-center text-xs text-slate-600">Aucun employé sur cette équipe pour l'instant.</p>
+              <p className="mt-4 text-center text-xs text-slate-600">Aucun employÃ© sur cette Ã©quipe pour l'instant.</p>
             )}
           </>
         )}
@@ -230,7 +247,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       <MobileNav active={page} onNavigate={setPage} />
 
       {showRevenueChart && (
-        <RevenueChart orders={orders} periodLabel={periodLabel(period)} onClose={() => setShowRevenueChart(false)} />
+        <RevenueChart dailyStats={dailyStatsInPeriod} periodLabel={periodLabel(period)} onClose={() => setShowRevenueChart(false)} />
       )}
 
       {showAddMarket && (

@@ -9,31 +9,51 @@ interface SessionClaims {
   role: string;
 }
 
-// L'URL attendue est du type /c/{accessLinkId} — le lien unique généré
-// par l'admin (architecture section 11), rien d'autre à configurer.
-function getAccessLinkIdFromUrl(): string | null {
+function getAccessLinkId(): string | null {
   const match = window.location.pathname.match(/\/c\/([^/]+)/);
-  return match ? match[1] : null;
+  if (match) {
+    localStorage.setItem("ecomcod_last_access_link", match[1]);
+    return match[1];
+  }
+  return localStorage.getItem("ecomcod_last_access_link");
+}
+
+function getStoredClaims(): SessionClaims | null {
+  try {
+    const raw = localStorage.getItem("ecomcod_session_claims");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function App() {
   const { firebaseUser, authLoading, verifySession } = useAccessLinkAuth();
-  const [claims, setClaims] = useState<SessionClaims | null>(null);
-  const accessLinkId = getAccessLinkIdFromUrl();
+  const [claims, setClaims] = useState<SessionClaims | null>(() => getStoredClaims());
+  const accessLinkId = getAccessLinkId();
 
   useEffect(() => {
     if (!firebaseUser) {
       setClaims(null);
+      localStorage.removeItem("ecomcod_session_claims");
       return;
     }
+    // forceRefresh: false pour ne pas bloquer si la connexion mobile est coupée
     getFirebaseAuth()
-      .currentUser?.getIdTokenResult()
+      .currentUser?.getIdTokenResult(false)
       .then((result) => {
-        setClaims({
-          workspaceId: result.claims.workspaceId as string,
-          teamId: result.claims.teamId as string,
-          role: result.claims.role as string,
-        });
+        if (result.claims.workspaceId && result.claims.role) {
+          const newClaims = {
+            workspaceId: result.claims.workspaceId as string,
+            teamId: result.claims.teamId as string,
+            role: result.claims.role as string,
+          };
+          setClaims(newClaims);
+          localStorage.setItem("ecomcod_session_claims", JSON.stringify(newClaims));
+        }
+      })
+      .catch((err) => {
+        console.warn("getIdTokenResult hors-ligne ou erreur, repli sur le cache local :", err);
       });
   }, [firebaseUser]);
 
@@ -62,7 +82,7 @@ export default function App() {
   }
 
   return (
-    <ConnectionGuard onReconnect={verifySession} appName="Closeuse">
+    <ConnectionGuard appName="Closeuse">
       <Dashboard workspaceId={claims.workspaceId} teamId={claims.teamId} closeuseId={firebaseUser.uid} />
     </ConnectionGuard>
   );

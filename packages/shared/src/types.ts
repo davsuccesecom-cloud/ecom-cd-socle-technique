@@ -36,6 +36,13 @@ export interface Team {
   digestIntervalMinutes: number; // ex: 120 (résumé périodique admin)
   remunerationCloseusePerOrder?: number;
   remunerationLivreurPerOrder?: number;
+  metaCapiConfig?: {
+    enabled: boolean;
+    pixelId: string;
+    accessToken: string;
+    currency?: string;
+    testEventCode?: string;
+  };
   createdAt: number;
 }
 
@@ -55,8 +62,12 @@ export interface Order {
   clientName: string;
   clientPhoneRaw: string; // tel que reçu du Sheet
   clientPhoneFormatted: string; // formaté via libphonenumber-js
+  city?: string;
+  addressNote?: string;
   product: string;
+  quantity?: number;
   amount: number;
+  orderNumber?: string;
 
   closeuseId: string | null;
   livreurId: string | null;
@@ -68,6 +79,7 @@ export interface Order {
   statutAdminOverride: CloseuseStatus | null;
 
   callInProgress: CallInProgress | null; // barre bleue "appel en cours"
+  reminderAt?: number | null; // date/heure de rappel quand statutCloseuse === 'programme'
 
   timestamps: {
     received: number;

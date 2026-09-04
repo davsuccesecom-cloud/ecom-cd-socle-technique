@@ -7,6 +7,7 @@ import { defineSecret } from "firebase-functions/params";
 import * as bcrypt from "bcryptjs";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { writeOrderStatusToSheet } from "./sheetsSync";
+import { sendMetaPurchaseEvent } from "./metaCapi";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -21,7 +22,7 @@ const sheetWebhookSecret = defineSecret("SHEET_WEBHOOK_SECRET");
 const sheetsServiceAccountKey = defineSecret("GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY");
 
 // ---------------------------------------------------------------------------
-// 1. Authentification par lien d'accès + mot de passe simple (section 10)
+// 1. Authentification par lien d'acces + mot de passe simple (section 10)
 // ---------------------------------------------------------------------------
 
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -33,19 +34,19 @@ export const authenticateAccess = onCall(async (request) => {
     password: string;
   };
   if (!accessLinkId || !password) {
-    throw new HttpsError("invalid-argument", "Lien d'accès et mot de passe requis.");
+    throw new HttpsError("invalid-argument", "Lien d'acces et mot de passe requis.");
   }
 
   const linkSnap = await db.collectionGroup("accessLinks").where("id", "==", accessLinkId).limit(1).get();
   if (linkSnap.empty) {
-    throw new HttpsError("not-found", "Lien d'accès invalide.");
+    throw new HttpsError("not-found", "Lien d'acces invalide.");
   }
 
   const linkDoc = linkSnap.docs[0];
   const link = linkDoc.data();
 
   if (link.disabledAt) {
-    throw new HttpsError("permission-denied", "Cet accès a été désactivé.");
+    throw new HttpsError("permission-denied", "Cet acces a ete desactive.");
   }
 
   const secretRef = db
@@ -55,14 +56,14 @@ export const authenticateAccess = onCall(async (request) => {
     .doc(linkDoc.id);
   const secretSnap = await secretRef.get();
   if (!secretSnap.exists) {
-    throw new HttpsError("not-found", "Lien d'accès invalide.");
+    throw new HttpsError("not-found", "Lien d'acces invalide.");
   }
   const secret = secretSnap.data()!;
 
   const now = Date.now();
   if (secret.lockedUntil && secret.lockedUntil > now) {
     const minutesLeft = Math.ceil((secret.lockedUntil - now) / 60000);
-    throw new HttpsError("resource-exhausted", `Trop de tentatives. Réessaie dans ${minutesLeft} min.`);
+    throw new HttpsError("resource-exhausted", `Trop de tentatives. Reessaie dans ${minutesLeft} min.`);
   }
 
   const passwordOk = await bcrypt.compare(password, secret.passwordHash);
@@ -92,7 +93,7 @@ export const authenticateAccess = onCall(async (request) => {
     .get();
   const user = userSnap.data();
   if (!user || user.status !== "active") {
-    throw new HttpsError("permission-denied", "Compte désactivé.");
+    throw new HttpsError("permission-denied", "Compte desactive.");
   }
 
   const sessions: Array<{ sessionToken: string; deviceLabel: string; connectedAt: number }> =
@@ -111,22 +112,22 @@ export const authenticateAccess = onCall(async (request) => {
   await notifyAdmins(
     link.workspaceId,
     "Nouvelle connexion",
-    `${user.name} s'est connecté(e) depuis un nouvel appareil.`
+    `${user.name} s'est connecte(e) depuis un nouvel appareil.`
   );
 
   // Persiste les claims sur l'utilisateur Firebase Auth (pas seulement
-    // dans ce custom token) pour qu'ils survivent au rafraichissement
-    // automatique du ID token par le SDK. Sans ca, workspaceId/role/teamId
-    // disparaissent silencieusement apres le premier refresh, ce qui casse
-    // validateAccessSession (deconnexion + perte du token FCM) et les
-    // regles Firestore (isCloseuse/isLivreur/isSameTeam).
-    await admin.auth().setCustomUserClaims(link.userId, {
-      workspaceId: link.workspaceId,
-      teamId: user.teamId,
-      role: user.role,
-    });
+  // dans ce custom token) pour qu'ils survivent au rafraichissement
+  // automatique du ID token par le SDK. Sans ca, workspaceId/role/teamId
+  // disparaissent silencieusement apres le premier refresh, ce qui casse
+  // validateAccessSession (deconnexion + perte du token FCM) et les
+  // regles Firestore (isCloseuse/isLivreur/isSameTeam).
+  await admin.auth().setCustomUserClaims(link.userId, {
+    workspaceId: link.workspaceId,
+    teamId: user.teamId,
+    role: user.role,
+  });
 
-    const customToken = await admin.auth().createCustomToken(link.userId, {
+  const customToken = await admin.auth().createCustomToken(link.userId, {
     workspaceId: link.workspaceId,
     teamId: user.teamId,
     role: user.role,
@@ -142,7 +143,7 @@ export const authenticateAccess = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
-// 1bis. Authentification admin — système multi-entreprises (SaaS)
+// 1bis. Authentification admin -- systeme multi-entreprises (SaaS)
 // ---------------------------------------------------------------------------
 
 export const authenticateAdmin = onCall(async (request) => {
@@ -151,7 +152,7 @@ export const authenticateAdmin = onCall(async (request) => {
   const name = request.auth?.token?.name as string | undefined;
 
   if (!uid || !email) {
-    throw new HttpsError("unauthenticated", "Connexion Google requise.");
+    throw new HttpsError("unauthenticated", "Connexion requise.");
   }
 
   const mappingRef = db.collection("adminsByEmail").doc(email);
@@ -193,14 +194,14 @@ export const authenticateAdmin = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
-// 1ter. Gestion des accès
+// 1ter. Gestion des acces
 // ---------------------------------------------------------------------------
 
 function requireAdmin(request: { auth?: { token?: Record<string, unknown> } }): string {
   const workspaceId = request.auth?.token?.workspaceId as string | undefined;
   const role = request.auth?.token?.role as string | undefined;
   if (!workspaceId || role !== "admin") {
-    throw new HttpsError("permission-denied", "Accès réservé aux admins.");
+    throw new HttpsError("permission-denied", "Acces reserve aux admins.");
   }
   return workspaceId;
 }
@@ -224,12 +225,12 @@ export const createAccessUser = onCall(async (request) => {
   };
 
   if (!name?.trim() || !teamId || (role !== "closeuse" && role !== "livreur")) {
-    throw new HttpsError("invalid-argument", "Nom, rôle (closeuse/livreur) et équipe requis.");
+    throw new HttpsError("invalid-argument", "Nom, role (closeuse/livreur) et equipe requis.");
   }
 
   const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).get();
   if (!teamSnap.exists) {
-    throw new HttpsError("not-found", "Équipe introuvable.");
+    throw new HttpsError("not-found", "Equipe introuvable.");
   }
 
   const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc();
@@ -287,7 +288,7 @@ export const regenerateAccessPassword = onCall(async (request) => {
     .limit(1)
     .get();
   if (linkSnap.empty) {
-    throw new HttpsError("not-found", "Lien d'accès introuvable.");
+    throw new HttpsError("not-found", "Lien d'acces introuvable.");
   }
   const linkDoc = linkSnap.docs[0];
 
@@ -324,33 +325,42 @@ export const setAccessLinkStatus = onCall(async (request) => {
     .limit(1)
     .get();
   if (linkSnap.empty) {
-    throw new HttpsError("not-found", "Lien d'accès introuvable.");
+    throw new HttpsError("not-found", "Lien d'acces introuvable.");
   }
   const linkDoc = linkSnap.docs[0];
 
+  const linkData = linkDoc.data();
   await linkDoc.ref.update({
     disabledAt: disabled ? Date.now() : null,
-    activeSessions: disabled ? [] : linkDoc.data().activeSessions ?? [],
+    activeSessions: disabled ? [] : linkData.activeSessions ?? [],
   });
 
+  // Met également à jour le statut de l'utilisateur pour bloquer immédiatement
+  // l'attribution automatique de nouvelles commandes s'il est révoqué
+  await db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("users")
+    .doc(linkData.userId)
+    .update({ status: disabled ? "disabled" : "active" });
+
   if (disabled) {
-    const linkData = linkDoc.data();
     try {
       await admin.auth().revokeRefreshTokens(linkData.userId);
     } catch (err) {
-      console.error("Impossible de révoquer les sessions Firebase :", err);
+      console.error("Impossible de revoquer les sessions Firebase :", err);
     }
   }
 
   return { success: true };
 });
 
-// Vérification stricte de révocation : `request.auth` (fourni automatiquement
-// par le framework Callable) vérifie seulement la SIGNATURE du token, pas
-// s'il a été révoqué entre-temps — un token déjà émis reste valide jusqu'à
-// ~1h après un revokeRefreshTokens() si on ne fait que ça. On extrait donc
-// le token brut depuis l'en-tête Authorization et on le revérifie nous-mêmes
-// avec `checkRevoked = true`, seule façon de forcer un rejet immédiat.
+// Verification stricte de revocation : `request.auth` (fourni automatiquement
+// par le framework Callable) verifie seulement la SIGNATURE du token, pas
+// s'il a ete revoque entre-temps -- un token deja emis reste valide jusqu'a
+// ~1h apres un revokeRefreshTokens() si on ne fait que ca. On extrait donc
+// le token brut depuis l'en-tete Authorization et on le reverifie nous-memes
+// avec `checkRevoked = true`, seule facon de forcer un rejet immediat.
 export const validateAccessSession = onCall(async (request) => {
   const authHeader = request.rawRequest.headers.authorization;
   const rawToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -365,7 +375,7 @@ export const validateAccessSession = onCall(async (request) => {
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (code === "auth/id-token-revoked") {
-      throw new HttpsError("permission-denied", "Session révoquée.");
+      throw new HttpsError("permission-denied", "Session revoquee.");
     }
     throw new HttpsError("unauthenticated", "Session invalide.");
   }
@@ -386,14 +396,14 @@ export const validateAccessSession = onCall(async (request) => {
     .get();
 
   if (linkSnap.empty) {
-    throw new HttpsError("permission-denied", "Accès introuvable.");
+    throw new HttpsError("permission-denied", "Acces introuvable.");
   }
 
   const link = linkSnap.docs[0].data();
 
   if (link.disabledAt) {
     await admin.auth().revokeRefreshTokens(userId);
-    throw new HttpsError("permission-denied", "Ton accès a été désactivé par l'administrateur.");
+    throw new HttpsError("permission-denied", "Ton acces a ete desactive par l'administrateur.");
   }
 
   const userSnap = await db.collection("workspaces").doc(workspaceId).collection("users").doc(userId).get();
@@ -401,7 +411,7 @@ export const validateAccessSession = onCall(async (request) => {
 
   if (!user || user.status !== "active") {
     await admin.auth().revokeRefreshTokens(userId);
-    throw new HttpsError("permission-denied", "Ton compte a été désactivé.");
+    throw new HttpsError("permission-denied", "Ton compte a ete desactive.");
   }
 
   return { valid: true };
@@ -443,10 +453,10 @@ export const listAccessLinks = onCall(async (request) => {
   return { links };
 });
 
-// Suppression définitive d'un employé — uniquement possible APRÈS révocation
-// de son accès (disabledAt non null), pour garder une trace/contrôle avant
-// toute suppression irréversible. Supprime l'utilisateur, son lien d'accès
-// et son secret associé.
+// Suppression definitive d'un employe -- uniquement possible APRES revocation
+// de son acces (disabledAt non null), pour garder une trace/controle avant
+// toute suppression irreversible. Supprime l'utilisateur, son lien d'acces
+// et son secret associe.
 export const deleteEmployee = onCall(async (request) => {
   const workspaceId = requireAdmin(request);
   const { userId } = request.data as { userId: string };
@@ -457,7 +467,7 @@ export const deleteEmployee = onCall(async (request) => {
   const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
   const userSnap = await userRef.get();
   if (!userSnap.exists) {
-    throw new HttpsError("not-found", "Employé introuvable.");
+    throw new HttpsError("not-found", "Employe introuvable.");
   }
 
   const linkSnap = await db
@@ -473,7 +483,7 @@ export const deleteEmployee = onCall(async (request) => {
     if (!link.data().disabledAt) {
       throw new HttpsError(
         "failed-precondition",
-        "Révoque l'accès de cet employé avant de le supprimer."
+        "Revoque l'acces de cet employe avant de le supprimer."
       );
     }
     await db
@@ -488,8 +498,8 @@ export const deleteEmployee = onCall(async (request) => {
   try {
     await admin.auth().deleteUser(userId);
   } catch (err) {
-    // Compte Firebase Auth déjà absent/déjà supprimé — pas bloquant
-    console.warn("Suppression Firebase Auth ignorée :", err);
+    // Compte Firebase Auth deja absent/deja supprime -- pas bloquant
+    console.warn("Suppression Firebase Auth ignoree :", err);
   }
 
   await userRef.delete();
@@ -498,7 +508,7 @@ export const deleteEmployee = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
-// 1quater. Réception des nouvelles commandes depuis Google Sheets
+// 1quater. Reception des nouvelles commandes depuis Google Sheets
 // ---------------------------------------------------------------------------
 
 interface IncomingSheetOrder {
@@ -592,14 +602,19 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       clientName: body.clientName,
       clientPhoneRaw: body.phone,
       clientPhoneFormatted,
+      city: body.city || "",
+      addressNote: body.note || "",
       product: body.product,
+      quantity: body.quantity || 1,
       amount: body.totalPrice,
+      orderNumber: body.orderNumber || "",
       closeuseId: null,
       livreurId: null,
       statutCloseuse: "nouveau",
       statutLivreur: null,
       statutAdminOverride: null,
       callInProgress: null,
+      reminderAt: null,
       timestamps: {
         received: Date.now(),
         assignedToCloseuse: null,
@@ -620,7 +635,7 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
   }
 });
 // ---------------------------------------------------------------------------
-// 2. Assignation automatique à la création d'une commande (section 8)
+// 2. Assignation automatique a la creation d'une commande (section 8)
 // ---------------------------------------------------------------------------
 
 export const onOrderCreated = onDocumentCreated(
@@ -662,14 +677,14 @@ export const onOrderCreated = onDocumentCreated(
       "timestamps.assignedToCloseuse": Date.now(),
     });
 
-    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} — ${order.product}`, snap.id);
+    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} - ${order.product}`, snap.id);
 
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
     if (chosen.count + 1 >= threshold) {
       await notifyAdmins(
         workspaceId,
-        "Closeuse surchargée",
+        "Closeuse surchargee",
         `${chosen.data.name} a ${chosen.count + 1} commandes actives.`
       );
     }
@@ -677,7 +692,54 @@ export const onOrderCreated = onDocumentCreated(
 );
 
 // ---------------------------------------------------------------------------
-// 3. Propagation de statut livreur → closeuse + rémunération + sync Sheet
+// 2bis. Statistiques journalieres persistantes (survivent a la purge)
+// ---------------------------------------------------------------------------
+
+// Cle de date au format "YYYY-MM-DD", calculee en UTC. Le workspace de
+// reference etant base au Togo (GMT, UTC+0, pas de changement d'heure),
+// cette cle correspond exactement a la date locale cote client -- aucune
+// conversion de fuseau horaire supplementaire n'est necessaire.
+function dayKeyFromMs(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Incremente un compteur agrege, permanent, dans
+ * workspaces/{workspaceId}/teams/{teamId}/dailyStats/{YYYY-MM-DD}.
+ *
+ * Contrairement au calcul en direct sur la collection "orders" (utilise
+ * par le dashboard admin pour le CA, les livraisons, etc.), ce total
+ * survit a scheduledPurge -- qui supprime definitivement les commandes
+ * a statut final au bout de ORDER_PURGE_AFTER_DAYS jours. Sans cet
+ * agregat separe, le CA/les stats "Tout" retombent a zero des qu'une
+ * commande livree passe ce delai, meme si elle a bien ete payee/livree.
+ *
+ * Meme principe que incrementRemuneration (deja existant, jamais purge),
+ * applique ici au niveau equipe/jour plutot qu'au niveau employe.
+ */
+async function incrementDailyStat(
+  workspaceId: string,
+  teamId: string,
+  field: "ca" | "livraisons" | "rejetees" | "injoignables",
+  amount: number
+) {
+  const dateKey = dayKeyFromMs(Date.now());
+  const ref = db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("teams")
+    .doc(teamId)
+    .collection("dailyStats")
+    .doc(dateKey);
+  await ref.set(
+    { [field]: admin.firestore.FieldValue.increment(amount), updatedAt: Date.now() },
+    { merge: true }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3. Propagation de statut livreur -> closeuse + remuneration + sync Sheet
 // ---------------------------------------------------------------------------
 
 export const onOrderUpdated = onDocumentUpdated(
@@ -694,7 +756,7 @@ export const onOrderUpdated = onDocumentUpdated(
     const livreurAssigned = !before.livreurId && !!after.livreurId;
 
     if (livreurAssigned) {
-      await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} — ${after.product}`, orderId);
+      await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} - ${after.product}`, orderId);
       if (!after.timestamps?.assignedToLivreur) {
         await ref.update({ "timestamps.assignedToLivreur": Date.now() });
       }
@@ -709,7 +771,7 @@ export const onOrderUpdated = onDocumentUpdated(
 
     if (statutLivreurChanged && after.statutLivreur === "en_route") {
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} — en cours de livraison`, orderId);
+        await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} - en cours de livraison`, orderId);
       }
     }
 
@@ -721,10 +783,10 @@ export const onOrderUpdated = onDocumentUpdated(
         purgeAt,
       });
 
-      // Sync directe vers le Sheet — ne dépend pas d'un second passage de
-      // la fonction (avant, on comptait sur before/after de l'événement,
-      // qui ne reflète pas cette écriture faite DANS cette même exécution ;
-      // corrige le bug "Livré ne remonte pas sur le Sheet").
+      // Sync directe vers le Sheet -- ne depend pas d'un second passage de
+      // la fonction (avant, on comptait sur before/after de l'evenement,
+      // qui ne reflete pas cette ecriture faite DANS cette meme execution ;
+      // corrige le bug "Livre ne remonte pas sur le Sheet").
       if (after.sheetId && after.sourceRowId) {
         await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "livre");
       }
@@ -739,34 +801,79 @@ export const onOrderUpdated = onDocumentUpdated(
         after.livreurId
           ? incrementRemuneration(workspaceId, after.livreurId, "livreur", team?.remunerationLivreurPerOrder ?? 0, after.amount)
           : Promise.resolve(),
+        // Agrege le CA + le compteur de livraisons du jour, de facon
+        // permanente -- voir incrementDailyStat ci-dessus.
+        incrementDailyStat(workspaceId, after.teamId, "ca", after.amount),
+        incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
       ]);
 
+      // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI)
+      if (team?.metaCapiConfig?.enabled && team.metaCapiConfig.pixelId && team.metaCapiConfig.accessToken) {
+        try {
+          const capiRes = await sendMetaPurchaseEvent(team.metaCapiConfig, {
+            id: orderId,
+            sourceRowId: after.sourceRowId,
+            orderNumber: after.orderNumber,
+            clientName: after.clientName,
+            clientPhoneFormatted: after.clientPhoneFormatted,
+            clientPhoneRaw: after.clientPhoneRaw,
+            city: after.city,
+            country: team.defaultCountry,
+            product: after.product,
+            quantity: after.quantity,
+            amount: after.amount,
+          });
+          if (capiRes.success) {
+            await ref.update({ capiSent: true });
+          }
+        } catch (capiErr) {
+          console.error("Échec de l'envoi Meta CAPI lors de la livraison :", capiErr);
+        }
+      }
+
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Commande livrée", `${after.clientName} — confirmé livré`, orderId);
+        await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
       }
     }
 
     if (statutLivreurChanged && after.statutLivreur === "injoignable") {
       await ref.update({ statutCloseuse: "injoignable" });
 
-      // Même correctif que ci-dessus, pour ce cas aussi.
+      // Meme correctif que ci-dessus, pour ce cas aussi.
       if (after.sheetId && after.sourceRowId) {
         await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "injoignable");
       }
 
+      // Injoignable declenche cote livreur (client ne repond pas a la
+      // livraison) -- comptabilise dans le meme compteur "injoignables"
+      // que le cas declenche cote closeuse ci-dessous, les deux chemins
+      // ne pouvant pas se declencher sur le meme evenement Firestore.
+      await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
+
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} — le livreur n'a pas pu joindre le client`, orderId);
+        await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} - le livreur n'a pas pu joindre le client`, orderId);
       }
     }
 
     if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse) && !after.purgeAt) {
       await ref.update({ purgeAt: Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000 });
+
+      // Ce bloc capture les statuts finaux decides directement par la
+      // closeuse (rejete, ou injoignable des l'appel initial, sans jamais
+      // passer par un livreur) -- le cas "livre" ne peut pas arriver ici
+      // (statutCloseuse n'est jamais mis a "livre" ailleurs que dans le
+      // bloc statutLivreur === "livre" ci-dessus, deja comptabilise).
+      if (after.statutCloseuse === "rejete") {
+        await incrementDailyStat(workspaceId, after.teamId, "rejetees", 1);
+      } else if (after.statutCloseuse === "injoignable") {
+        await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
+      }
     }
 
-    // Sync retour Firestore → Sheet pour tous les AUTRES changements de
-    // statutCloseuse (ceux décidés directement par la closeuse : en_cours,
-    // programme, rejete, indisponible — pas ceux forcés par le livreur,
-    // déjà gérés explicitement ci-dessus).
+    // Sync retour Firestore -> Sheet pour tous les AUTRES changements de
+    // statutCloseuse (ceux decides directement par la closeuse : en_cours,
+    // programme, rejete, indisponible -- pas ceux forces par le livreur,
+    // deja geres explicitement ci-dessus).
     if (
       statutCloseuseChanged &&
       after.statutCloseuse !== "livre" &&
@@ -774,7 +881,7 @@ export const onOrderUpdated = onDocumentUpdated(
       after.sheetId &&
       after.sourceRowId
     ) {
-      await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, after.statutCloseuse);
+      await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, after.statutCloseuse, after.reminderAt);
     }
   }
 );
@@ -848,7 +955,7 @@ export const cancelRemunerationPayment = onCall(async (request) => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Purge automatique des commandes traitées (section 15/16)
+// 4. Purge automatique des commandes traitees (section 15/16)
 // ---------------------------------------------------------------------------
 
 export const scheduledPurge = onSchedule("every 24 hours", async () => {
@@ -910,11 +1017,32 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
         );
       }
     }
+
+    // Rappels des commandes programmées arrivées à échéance
+    const dueScheduled = await wsDoc.ref
+      .collection("orders")
+      .where("statutCloseuse", "==", "programme")
+      .where("reminderAt", "<=", Date.now())
+      .get();
+
+    for (const docSnap of dueScheduled.docs) {
+      const o = docSnap.data();
+      if (o.closeuseId && !o.reminderNotified) {
+        await sendPushToUser(
+          wsDoc.id,
+          o.closeuseId,
+          "⏰ C'est l'heure de rappeler !",
+          `Rappel programmé pour ${o.clientName} (${o.product})`,
+          docSnap.id
+        );
+        await docSnap.ref.update({ reminderNotified: true });
+      }
+    }
   }
 });
 
 // ---------------------------------------------------------------------------
-// 6. Résumé périodique admin (section 5.1)
+// 6. Resume periodique admin (section 5.1)
 // ---------------------------------------------------------------------------
 
 export const scheduledDigest = onSchedule("every 30 minutes", async () => {
@@ -953,8 +1081,8 @@ export const scheduledDigest = onSchedule("every 30 minutes", async () => {
 
       await notifyAdmins(
         wsDoc.id,
-        `Résumé — ${team.name}`,
-        `${livrees} livrées, ${rejetees} rejetées, ${injoignables} injoignables — ${ca} F`
+        `Resume - ${team.name}`,
+        `${livrees} livrees, ${rejetees} rejetees, ${injoignables} injoignables - ${ca} F`
       );
 
       await teamDoc.ref.update({ lastDigestAt: now });
@@ -976,33 +1104,33 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
   }
 
   await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
-      userId,
-      title,
-      body,
-      read: false,
-      createdAt: Date.now(),
-      ...(orderId ? { orderId } : {}),
-    });
+    userId,
+    title,
+    body,
+    read: false,
+    createdAt: Date.now(),
+    ...(orderId ? { orderId } : {}),
+  });
 
   const response = await messaging.sendEachForMulticast({
-      tokens,
-      data: { title, body },
-      // Priorite "high" cote Android : force la livraison immediate meme
-      // en mode economie de batterie / Doze, tres frequent sur les
-      // telephones d'entree de gamme utilises en Afrique de l'Ouest.
-      // ttl : inutile de livrer une notif "nouvelle livraison" vieille
-      // de plusieurs heures, autant liberer la file FCM.
-      android: {
-        priority: "high",
-        ttl: 24 * 60 * 60 * 1000,
+    tokens,
+    data: { title, body },
+    // Priorite "high" cote Android : force la livraison immediate meme
+    // en mode economie de batterie / Doze, tres frequent sur les
+    // telephones d'entree de gamme utilises en Afrique de l'Ouest.
+    // ttl : inutile de livrer une notif "nouvelle livraison" vieille
+    // de plusieurs heures, autant liberer la file FCM.
+    android: {
+      priority: "high",
+      ttl: 24 * 60 * 60 * 1000,
+    },
+    // Meme logique cote iOS/Safari (APNs), au cas ou.
+    apns: {
+      headers: {
+        "apns-priority": "10",
       },
-      // Meme logique cote iOS/Safari (APNs), au cas ou.
-      apns: {
-        headers: {
-          "apns-priority": "10",
-        },
-      },
-    });
+    },
+  });
 
   console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
 
@@ -1049,3 +1177,48 @@ async function notifyAdmins(workspaceId: string, title: string, body: string) {
     })
   );
 }
+
+// ---------------------------------------------------------------------------
+// 7. Test de connexion Meta Conversions API (CAPI) pour l'Admin
+// ---------------------------------------------------------------------------
+
+export const testMetaCapiConnection = onCall(async (request) => {
+  requireAdmin(request);
+  const { pixelId, accessToken, testEventCode } = request.data as {
+    pixelId: string;
+    accessToken: string;
+    testEventCode?: string;
+  };
+
+  if (!pixelId || !accessToken) {
+    throw new HttpsError("invalid-argument", "Pixel ID et Access Token requis.");
+  }
+
+  const result = await sendMetaPurchaseEvent(
+    {
+      enabled: true,
+      pixelId,
+      accessToken,
+      currency: "XOF",
+      testEventCode,
+    },
+    {
+      id: "TEST_ORDER_" + Date.now(),
+      orderNumber: "TEST-EASYSELL-001",
+      clientName: "Test Client",
+      clientPhoneFormatted: "+22890000000",
+      city: "Lome",
+      country: "TG",
+      product: "Produit Test COD",
+      quantity: 1,
+      amount: 15000,
+    }
+  );
+
+  if (!result.success) {
+    throw new HttpsError("internal", result.error || "Erreur lors du test Meta CAPI.");
+  }
+
+  return { success: true, metaResponse: result.data };
+});
+
