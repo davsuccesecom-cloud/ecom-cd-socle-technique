@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
+exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -43,6 +43,7 @@ const params_1 = require("firebase-functions/params");
 const bcrypt = __importStar(require("bcryptjs"));
 const libphonenumber_js_1 = require("libphonenumber-js");
 const sheetsSync_1 = require("./sheetsSync");
+const metaCapi_1 = require("./metaCapi");
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -294,12 +295,20 @@ exports.setAccessLinkStatus = (0, https_1.onCall)(async (request) => {
         throw new https_1.HttpsError("not-found", "Lien d'acces introuvable.");
     }
     const linkDoc = linkSnap.docs[0];
+    const linkData = linkDoc.data();
     await linkDoc.ref.update({
         disabledAt: disabled ? Date.now() : null,
-        activeSessions: disabled ? [] : linkDoc.data().activeSessions ?? [],
+        activeSessions: disabled ? [] : linkData.activeSessions ?? [],
     });
+    // Met également à jour le statut de l'utilisateur pour bloquer immédiatement
+    // l'attribution automatique de nouvelles commandes s'il est révoqué
+    await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("users")
+        .doc(linkData.userId)
+        .update({ status: disabled ? "disabled" : "active" });
     if (disabled) {
-        const linkData = linkDoc.data();
         try {
             await admin.auth().revokeRefreshTokens(linkData.userId);
         }
@@ -502,14 +511,19 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
             clientName: body.clientName,
             clientPhoneRaw: body.phone,
             clientPhoneFormatted,
+            city: body.city || "",
+            addressNote: body.note || "",
             product: body.product,
+            quantity: body.quantity || 1,
             amount: body.totalPrice,
+            orderNumber: body.orderNumber || "",
             closeuseId: null,
             livreurId: null,
             statutCloseuse: "nouveau",
             statutLivreur: null,
             statutAdminOverride: null,
             callInProgress: null,
+            reminderAt: null,
             timestamps: {
                 received: Date.now(),
                 assignedToCloseuse: null,
@@ -664,6 +678,30 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             incrementDailyStat(workspaceId, after.teamId, "ca", after.amount),
             incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
         ]);
+        // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI)
+        if (team?.metaCapiConfig?.enabled && team.metaCapiConfig.pixelId && team.metaCapiConfig.accessToken) {
+            try {
+                const capiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)(team.metaCapiConfig, {
+                    id: orderId,
+                    sourceRowId: after.sourceRowId,
+                    orderNumber: after.orderNumber,
+                    clientName: after.clientName,
+                    clientPhoneFormatted: after.clientPhoneFormatted,
+                    clientPhoneRaw: after.clientPhoneRaw,
+                    city: after.city,
+                    country: team.defaultCountry,
+                    product: after.product,
+                    quantity: after.quantity,
+                    amount: after.amount,
+                });
+                if (capiRes.success) {
+                    await ref.update({ capiSent: true });
+                }
+            }
+            catch (capiErr) {
+                console.error("Échec de l'envoi Meta CAPI lors de la livraison :", capiErr);
+            }
+        }
         if (after.closeuseId) {
             await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
         }
@@ -706,7 +744,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         after.statutCloseuse !== "injoignable" &&
         after.sheetId &&
         after.sourceRowId) {
-        await (0, sheetsSync_1.writeOrderStatusToSheet)(after.sheetId, after.sourceRowId, after.statutCloseuse);
+        await (0, sheetsSync_1.writeOrderStatusToSheet)(after.sheetId, after.sourceRowId, after.statutCloseuse, after.reminderAt);
     }
 });
 async function incrementRemuneration(workspaceId, userId, role, amountPerOrder, orderAmount) {
@@ -801,6 +839,19 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
             if (recentAlert.empty) {
                 const totalStale = [...byCloseuse.values()].reduce((a, b) => a + b, 0);
                 await notifyAdmins(wsDoc.id, "Commandes en retard", `${totalStale} commande(s) en attente depuis plus de ${REMINDER_DELAY_MINUTES} min, chez ${byCloseuse.size} closeuse(s)`);
+            }
+        }
+        // Rappels des commandes programmées arrivées à échéance
+        const dueScheduled = await wsDoc.ref
+            .collection("orders")
+            .where("statutCloseuse", "==", "programme")
+            .where("reminderAt", "<=", Date.now())
+            .get();
+        for (const docSnap of dueScheduled.docs) {
+            const o = docSnap.data();
+            if (o.closeuseId && !o.reminderNotified) {
+                await sendPushToUser(wsDoc.id, o.closeuseId, "⏰ C'est l'heure de rappeler !", `Rappel programmé pour ${o.clientName} (${o.product})`, docSnap.id);
+                await docSnap.ref.update({ reminderNotified: true });
             }
         }
     }
@@ -919,3 +970,34 @@ async function notifyAdmins(workspaceId, title, body) {
         return messaging.sendEachForMulticast({ tokens, data: { title, body } });
     }));
 }
+// ---------------------------------------------------------------------------
+// 7. Test de connexion Meta Conversions API (CAPI) pour l'Admin
+// ---------------------------------------------------------------------------
+exports.testMetaCapiConnection = (0, https_1.onCall)(async (request) => {
+    requireAdmin(request);
+    const { pixelId, accessToken, testEventCode } = request.data;
+    if (!pixelId || !accessToken) {
+        throw new https_1.HttpsError("invalid-argument", "Pixel ID et Access Token requis.");
+    }
+    const result = await (0, metaCapi_1.sendMetaPurchaseEvent)({
+        enabled: true,
+        pixelId,
+        accessToken,
+        currency: "XOF",
+        testEventCode,
+    }, {
+        id: "TEST_ORDER_" + Date.now(),
+        orderNumber: "TEST-EASYSELL-001",
+        clientName: "Test Client",
+        clientPhoneFormatted: "+22890000000",
+        city: "Lome",
+        country: "TG",
+        product: "Produit Test COD",
+        quantity: 1,
+        amount: 15000,
+    });
+    if (!result.success) {
+        throw new https_1.HttpsError("internal", result.error || "Erreur lors du test Meta CAPI.");
+    }
+    return { success: true, metaResponse: result.data };
+});
