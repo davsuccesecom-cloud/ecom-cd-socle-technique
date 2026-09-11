@@ -75,7 +75,7 @@ export default function OrderCard({ order, onChangeStatus }: OrderCardProps) {
 
       {/* Détails de livraison EasySell (Ville, Note/Quartier, Quantité) */}
       {(order.city || order.addressNote || (order.quantity && order.quantity > 1)) && (
-        <div className="mb-3 rounded-xl bg-slate-50 dark:bg-slate-750 p-3 text-xs text-slate-700 dark:text-slate-300 space-y-1.5 border border-slate-100 dark:border-slate-700/60">
+        <div className="mb-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 p-3 text-xs text-slate-700 dark:text-slate-300 space-y-2 border border-slate-200/80 dark:border-slate-700/60 transition-colors">
           {order.city && (
             <div className="flex items-center justify-between">
               <p className="flex items-center gap-1.5">

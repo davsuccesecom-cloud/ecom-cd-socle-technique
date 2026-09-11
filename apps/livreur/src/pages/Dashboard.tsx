@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useOrders, useRegisterPushNotifications, useUpdateOrderStatus, useTheme, NotificationBell } from "@ecomcod/shared";
 import OrderCard from "../components/OrderCard";
 
@@ -42,8 +42,41 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
         el.classList.add("ring-2", "ring-brand");
         setTimeout(() => el.classList.remove("ring-2", "ring-brand"), 3000);
       }
-    }, 200);
+    }, 250);
   };
+
+  const navigateToOrder = (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (target) {
+      const status = target.statutLivreur ?? "recu";
+      let tab: LivreurTab;
+      if (status === "recu") tab = "a_livrer";
+      else if (status === "en_route") tab = "en_cours";
+      else tab = "terminees";
+      setActiveTab(tab);
+    }
+    scrollToOrder(orderId);
+  };
+
+  // Deep-linking automatique lors de la réception d'une notification (clic push ou URL ?orderId=)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderIdFromUrl = urlParams.get("orderId");
+    if (orderIdFromUrl && orders.length > 0) {
+      navigateToOrder(orderIdFromUrl);
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "NAVIGATE_ORDER" && event.data?.orderId) {
+        navigateToOrder(event.data.orderId);
+      }
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", handleMessage);
+      return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
+    }
+  }, [orders]);
 
   return (
     <div className={`min-h-screen pb-6 ${theme === "dark" ? "dark bg-slate-900" : "bg-slate-50"}`}>
@@ -75,17 +108,7 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
           <NotificationBell
             workspaceId={workspaceId}
             userId={livreurId}
-            onNotificationClick={(orderId) => {
-              const target = orders.find((o) => o.id === orderId);
-              if (!target) return;
-              const status = target.statutLivreur ?? "recu";
-              let tab: LivreurTab;
-              if (status === "recu") tab = "a_livrer";
-              else if (status === "en_route") tab = "en_cours";
-              else tab = "terminees";
-              setActiveTab(tab);
-              scrollToOrder(orderId);
-            }}
+            onNotificationClick={(orderId) => navigateToOrder(orderId)}
           />
         </div>
       </header>

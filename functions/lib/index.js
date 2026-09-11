@@ -912,22 +912,50 @@ async function sendPushToUser(workspaceId, userId, title, body, orderId) {
         createdAt: Date.now(),
         ...(orderId ? { orderId } : {}),
     });
+    const clickUrl = orderId ? `/?orderId=${orderId}` : "/";
     const response = await messaging.sendEachForMulticast({
         tokens,
-        data: { title, body },
-        // Priorite "high" cote Android : force la livraison immediate meme
-        // en mode economie de batterie / Doze, tres frequent sur les
-        // telephones d'entree de gamme utilises en Afrique de l'Ouest.
-        // ttl : inutile de livrer une notif "nouvelle livraison" vieille
-        // de plusieurs heures, autant liberer la file FCM.
+        notification: {
+            title,
+            body,
+        },
+        data: {
+            title,
+            body,
+            ...(orderId ? { orderId } : {}),
+            url: clickUrl,
+        },
         android: {
             priority: "high",
             ttl: 24 * 60 * 60 * 1000,
+            notification: {
+                clickAction: clickUrl,
+                defaultSound: true,
+            },
         },
-        // Meme logique cote iOS/Safari (APNs), au cas ou.
         apns: {
             headers: {
                 "apns-priority": "10",
+            },
+            payload: {
+                aps: {
+                    sound: "default",
+                },
+            },
+        },
+        webpush: {
+            notification: {
+                title,
+                body,
+                icon: "/icons/icon-192.png",
+                badge: "/icons/badge-96.png",
+                data: {
+                    orderId: orderId ?? "",
+                    url: clickUrl,
+                },
+            },
+            fcmOptions: {
+                link: clickUrl,
             },
         },
     });
@@ -967,7 +995,12 @@ async function notifyAdmins(workspaceId, title, body) {
         const tokens = adminDoc.data().fcmTokens ?? [];
         if (tokens.length === 0)
             return Promise.resolve();
-        return messaging.sendEachForMulticast({ tokens, data: { title, body } });
+        return messaging.sendEachForMulticast({
+            tokens,
+            notification: { title, body },
+            data: { title, body },
+            android: { priority: "high" },
+        });
     }));
 }
 // ---------------------------------------------------------------------------

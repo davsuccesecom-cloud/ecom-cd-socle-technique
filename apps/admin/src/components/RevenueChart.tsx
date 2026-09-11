@@ -50,7 +50,7 @@ export default function RevenueChart({ dailyStats, periodLabel, onClose }: Reven
         className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised p-6"
       >
         <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-slate-100">Ã‰volution du chiffre d'affaires</h2>
+          <h2 className="text-lg font-medium text-slate-100">Évolution du chiffre d'affaires</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-300">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l12 12M18 6 6 18" />
@@ -58,13 +58,13 @@ export default function RevenueChart({ dailyStats, periodLabel, onClose }: Reven
           </button>
         </div>
         <p className="mb-6 text-sm text-slate-500">
-          PÃ©riode : {periodLabel} â€” {buckets.length} jour{buckets.length > 1 ? "s" : ""} avec des donnÃ©es, total{" "}
+          Période : {periodLabel} — {buckets.length} jour{buckets.length > 1 ? "s" : ""} avec des données, total{" "}
           {total.toLocaleString("fr-FR")} F
         </p>
 
         {buckets.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
-            Aucune donnÃ©e sur cette pÃ©riode pour tracer une courbe.
+            Aucune donnée sur cette période pour tracer une courbe.
           </p>
         ) : (
           <div className="rounded-xl border border-surface-border bg-surface p-4">
@@ -102,7 +102,7 @@ export default function RevenueChart({ dailyStats, periodLabel, onClose }: Reven
           <div className="mt-4 grid grid-cols-3 gap-3">
             <MiniStat label="Meilleur jour" value={`${Math.max(...buckets.map((b) => b.ca)).toLocaleString("fr-FR")} F`} />
             <MiniStat label="Moyenne / jour" value={`${Math.round(total / buckets.length).toLocaleString("fr-FR")} F`} />
-            <MiniStat label="Total pÃ©riode" value={`${total.toLocaleString("fr-FR")} F`} />
+            <MiniStat label="Total période" value={`${total.toLocaleString("fr-FR")} F`} />
           </div>
         )}
       </div>

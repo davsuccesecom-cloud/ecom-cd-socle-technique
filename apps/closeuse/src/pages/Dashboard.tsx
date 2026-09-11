@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   CLOSEUSE_PRIORITY_STATUSES,
   CLOSEUSE_STATUS_LABELS,
@@ -44,8 +44,42 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
         el.classList.add("ring-2", "ring-brand");
         setTimeout(() => el.classList.remove("ring-2", "ring-brand"), 3000);
       }
-    }, 200);
+    }, 250);
   };
+
+  const navigateToOrder = (orderId: string) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (target) {
+      const isPrimary = (CLOSEUSE_PRIORITY_STATUSES as string[]).includes(target.statutCloseuse);
+      if (isPrimary) {
+        setActiveSecondary(null);
+        setActiveTab(target.statutCloseuse);
+      } else {
+        setActiveSecondary(target.statutCloseuse);
+      }
+    }
+    scrollToOrder(orderId);
+  };
+
+  // Deep-linking automatique lors de la réception d'une notification (clic push ou URL ?orderId=)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderIdFromUrl = urlParams.get("orderId");
+    if (orderIdFromUrl && orders.length > 0) {
+      navigateToOrder(orderIdFromUrl);
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "NAVIGATE_ORDER" && event.data?.orderId) {
+        navigateToOrder(event.data.orderId);
+      }
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", handleMessage);
+      return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
+    }
+  }, [orders]);
 
   return (
     <div className="min-h-screen pb-6 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
@@ -73,18 +107,7 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
           <NotificationBell
             workspaceId={workspaceId}
             userId={closeuseId}
-            onNotificationClick={(orderId) => {
-              const target = orders.find((o) => o.id === orderId);
-              if (!target) return;
-              const isPrimary = (CLOSEUSE_PRIORITY_STATUSES as string[]).includes(target.statutCloseuse);
-              if (isPrimary) {
-                setActiveSecondary(null);
-                setActiveTab(target.statutCloseuse);
-              } else {
-                setActiveSecondary(target.statutCloseuse);
-              }
-              scrollToOrder(orderId);
-            }}
+            onNotificationClick={(orderId) => navigateToOrder(orderId)}
           />
 
           <button

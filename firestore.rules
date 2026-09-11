@@ -63,10 +63,11 @@ service cloud.firestore {
       }
 
       match /notifications/{notifId} {
-        allow read: if isAdmin(workspaceId);
+        allow read: if isAdmin(workspaceId)
+          || (isWorkspace(workspaceId) && resource.data.userId == auth_().uid);
         allow create: if false; // uniquement écrites par Cloud Functions
-        // L'admin peut seulement marquer comme lu, rien d'autre modifiable
-        allow update: if isAdmin(workspaceId)
+        // L'admin ou l'employé destinataire peut marquer comme lu
+        allow update: if (isAdmin(workspaceId) || (isWorkspace(workspaceId) && resource.data.userId == auth_().uid))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
         allow delete: if false;
       }

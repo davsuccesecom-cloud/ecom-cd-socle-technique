@@ -1,5 +1,5 @@
-// Point d'entrÃƒÆ’Ã‚Â©e unique ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â chaque app importe depuis "@ecomcod/shared"
-// plutÃƒÆ’Ã‚Â´t que depuis les fichiers internes, pour garder une frontiÃƒÆ’Ã‚Â¨re claire.
+// Point d'entrÃ©e unique â€â€Â chaque app importe depuis "@ecomcod/shared"
+// plutÃ´t que depuis les fichiers internes, pour garder une frontiÃ¨re claire.
 
 export * from "./types";
 export * from "./constants";
