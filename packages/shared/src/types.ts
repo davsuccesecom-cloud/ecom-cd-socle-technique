@@ -21,6 +21,24 @@ export interface Workspace {
   createdAt: number;
 }
 
+export interface MetaCapiConfig {
+  enabled: boolean;
+  pixelId: string;
+  accessToken: string;
+  currency?: string;
+  testEventCode?: string;
+  adAccountId?: string;
+  adAccountName?: string;
+  pixelName?: string;
+  businessId?: string;
+  businessName?: string;
+  systemUserId?: string;
+  connectedAt?: number;
+  isSystemUser?: boolean;
+  tokenExpiresAt?: number;
+  connectedUserName?: string;
+}
+
 export interface Team {
   id: string;
   workspaceId: string;
@@ -36,13 +54,7 @@ export interface Team {
   digestIntervalMinutes: number; // ex: 120 (résumé périodique admin)
   remunerationCloseusePerOrder?: number;
   remunerationLivreurPerOrder?: number;
-  metaCapiConfig?: {
-    enabled: boolean;
-    pixelId: string;
-    accessToken: string;
-    currency?: string;
-    testEventCode?: string;
-  };
+  metaCapiConfig?: MetaCapiConfig;
   createdAt: number;
 }
 
