@@ -57,6 +57,17 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
   const [manualPixelId, setManualPixelId] = useState(team.metaCapiConfig?.pixelId || "");
   const [manualToken, setManualToken] = useState(team.metaCapiConfig?.accessToken || "");
 
+  // Sync state whenever team changes (per-team isolation)
+  useEffect(() => {
+    setCurrency(team.metaCapiConfig?.currency || "XOF");
+    setTestCode(team.metaCapiConfig?.testEventCode || "");
+    setManualPixelId(team.metaCapiConfig?.pixelId || "");
+    setManualToken(team.metaCapiConfig?.accessToken || "");
+    setTestResult(null);
+    setError(null);
+    setSuccessMsg(null);
+  }, [team.id, team.metaCapiConfig]);
+
   // Load Facebook JS SDK dynamically
   useEffect(() => {
     if (window.FB) {
@@ -364,12 +375,17 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
             <button
               type="button"
               onClick={() => {
+                try {
+                  if (window.FB && window.FB.getAccessToken && window.FB.getAccessToken()) {
+                    window.FB.logout();
+                  }
+                } catch (e) {}
                 setFbUser(null);
                 setUserToken(null);
               }}
-              className="text-xs text-slate-400 hover:text-slate-200"
+              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
             >
-              Changer de compte
+              Changer de compte Facebook
             </button>
           </div>
 
