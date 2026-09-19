@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, doc, limit, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
 import { getDb } from "../firebase";
 
 export interface AppNotification {
@@ -12,10 +12,9 @@ export interface AppNotification {
 }
 
 /**
- * Écoute temps réel des notifications admin persistées côté serveur
- * (surcharge closeuse, retards, résumé périodique — voir notifyAdmins dans
- * les Cloud Functions). Contrairement au push FCM seul, ça donne un vrai
- * historique consultable dans l'app, pas seulement au moment où ça arrive.
+ * Écoute temps réel des notifications persistées côté serveur.
+ * Permet la suppression instantanée au clic pour faire disparaître
+ * immédiatement la notification de la liste.
  */
 export function useNotifications(workspaceId: string | null, userId: string | null = null, max = 30) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -57,5 +56,36 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
     await Promise.all(notifications.filter((n) => !n.read).map((n) => markAsRead(n.id)));
   };
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead };
+  // Fait disparaître la notification instantanément (optimiste) et la supprime en base
+  const dismissNotification = async (notifId: string) => {
+    if (!workspaceId) return;
+    setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    try {
+      const db = getDb();
+      await deleteDoc(doc(db, "workspaces", workspaceId, "notifications", notifId));
+    } catch (err) {
+      console.warn("dismissNotification: erreur suppression Firestore", err);
+    }
+  };
+
+  // Supprime toutes les notifications d'un coup
+  const clearAllNotifications = async () => {
+    if (!workspaceId) return;
+    const toDelete = [...notifications];
+    setNotifications([]);
+    const db = getDb();
+    await Promise.all(
+      toDelete.map((n) => deleteDoc(doc(db, "workspaces", workspaceId, "notifications", n.id)).catch(() => {}))
+    );
+  };
+
+  return {
+    notifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    dismissNotification,
+    clearAllNotifications,
+  };
 }
