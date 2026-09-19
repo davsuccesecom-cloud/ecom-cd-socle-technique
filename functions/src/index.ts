@@ -8,6 +8,11 @@ import * as bcrypt from "bcryptjs";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { writeOrderStatusToSheet } from "./sheetsSync";
 import { sendMetaPurchaseEvent } from "./metaCapi";
+import {
+  fetchMetaAdAccountsAndPixels,
+  setupMetaSystemUserAndPixel,
+  disconnectMetaCapiConfig,
+} from "./metaAuth";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1253,5 +1258,87 @@ export const testMetaCapiConnection = onCall(async (request) => {
   }
 
   return { success: true, metaResponse: result.data };
+});
+
+// ---------------------------------------------------------------------------
+// 8. Intégration Meta OAuth automatique (Business Manager + Système Utilisateur)
+// ---------------------------------------------------------------------------
+
+export const getMetaAccountsAndPixels = onCall(async (request) => {
+  requireAdmin(request);
+  const { userAccessToken } = request.data as { userAccessToken: string };
+  if (!userAccessToken) {
+    throw new HttpsError("invalid-argument", "userAccessToken requis.");
+  }
+  try {
+    return await fetchMetaAdAccountsAndPixels(userAccessToken);
+  } catch (err: any) {
+    throw new HttpsError("internal", err?.message || "Erreur Meta Graph API.");
+  }
+});
+
+export const connectMetaSystemUser = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const {
+    teamId,
+    userAccessToken,
+    businessId,
+    businessName,
+    adAccountId,
+    adAccountName,
+    pixelId,
+    pixelName,
+    currency,
+    connectedUserName,
+  } = request.data as {
+    teamId: string;
+    userAccessToken: string;
+    businessId?: string;
+    businessName?: string;
+    adAccountId: string;
+    adAccountName?: string;
+    pixelId: string;
+    pixelName?: string;
+    currency?: string;
+    connectedUserName?: string;
+  };
+
+  if (!teamId || !userAccessToken || !adAccountId || !pixelId) {
+    throw new HttpsError(
+      "invalid-argument",
+      "teamId, userAccessToken, adAccountId et pixelId requis."
+    );
+  }
+
+  try {
+    return await setupMetaSystemUserAndPixel({
+      workspaceId,
+      teamId,
+      userAccessToken,
+      businessId,
+      businessName,
+      adAccountId,
+      adAccountName,
+      pixelId,
+      pixelName,
+      currency,
+      connectedUserName,
+    });
+  } catch (err: any) {
+    throw new HttpsError("internal", err?.message || "Erreur lors de la configuration Meta.");
+  }
+});
+
+export const disconnectMetaCapi = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { teamId } = request.data as { teamId: string };
+  if (!teamId) {
+    throw new HttpsError("invalid-argument", "teamId requis.");
+  }
+  try {
+    return await disconnectMetaCapiConfig(workspaceId, teamId);
+  } catch (err: any) {
+    throw new HttpsError("internal", err?.message || "Erreur désactivation Meta.");
+  }
 });
 

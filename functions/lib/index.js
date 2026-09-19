@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
+exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -44,6 +44,7 @@ const bcrypt = __importStar(require("bcryptjs"));
 const libphonenumber_js_1 = require("libphonenumber-js");
 const sheetsSync_1 = require("./sheetsSync");
 const metaCapi_1 = require("./metaCapi");
+const metaAuth_1 = require("./metaAuth");
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -1033,4 +1034,58 @@ exports.testMetaCapiConnection = (0, https_1.onCall)(async (request) => {
         throw new https_1.HttpsError("internal", result.error || "Erreur lors du test Meta CAPI.");
     }
     return { success: true, metaResponse: result.data };
+});
+// ---------------------------------------------------------------------------
+// 8. Intégration Meta OAuth automatique (Business Manager + Système Utilisateur)
+// ---------------------------------------------------------------------------
+exports.getMetaAccountsAndPixels = (0, https_1.onCall)(async (request) => {
+    requireAdmin(request);
+    const { userAccessToken } = request.data;
+    if (!userAccessToken) {
+        throw new https_1.HttpsError("invalid-argument", "userAccessToken requis.");
+    }
+    try {
+        return await (0, metaAuth_1.fetchMetaAdAccountsAndPixels)(userAccessToken);
+    }
+    catch (err) {
+        throw new https_1.HttpsError("internal", err?.message || "Erreur Meta Graph API.");
+    }
+});
+exports.connectMetaSystemUser = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { teamId, userAccessToken, businessId, businessName, adAccountId, adAccountName, pixelId, pixelName, currency, connectedUserName, } = request.data;
+    if (!teamId || !userAccessToken || !adAccountId || !pixelId) {
+        throw new https_1.HttpsError("invalid-argument", "teamId, userAccessToken, adAccountId et pixelId requis.");
+    }
+    try {
+        return await (0, metaAuth_1.setupMetaSystemUserAndPixel)({
+            workspaceId,
+            teamId,
+            userAccessToken,
+            businessId,
+            businessName,
+            adAccountId,
+            adAccountName,
+            pixelId,
+            pixelName,
+            currency,
+            connectedUserName,
+        });
+    }
+    catch (err) {
+        throw new https_1.HttpsError("internal", err?.message || "Erreur lors de la configuration Meta.");
+    }
+});
+exports.disconnectMetaCapi = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { teamId } = request.data;
+    if (!teamId) {
+        throw new https_1.HttpsError("invalid-argument", "teamId requis.");
+    }
+    try {
+        return await (0, metaAuth_1.disconnectMetaCapiConfig)(workspaceId, teamId);
+    }
+    catch (err) {
+        throw new https_1.HttpsError("internal", err?.message || "Erreur désactivation Meta.");
+    }
 });
