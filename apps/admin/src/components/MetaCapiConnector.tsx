@@ -110,8 +110,8 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
 
     setLoggingIn(true);
     try {
-      window.FB.login(
-        async (response: any) => {
+      const onLoginResponse = (response: any) => {
+        void (async () => {
           if (response.authResponse && response.authResponse.accessToken) {
             const token = response.authResponse.accessToken;
             setUserToken(token);
@@ -151,12 +151,13 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
               setError("Connexion Facebook annulée ou non autorisée.");
             }
           }
-        },
-        {
-          scope: "ads_read,ads_management,business_management",
-          return_scopes: true,
-        }
-      );
+        })();
+      };
+
+      window.FB.login(onLoginResponse, {
+        scope: "ads_read,ads_management,business_management",
+        return_scopes: true,
+      });
     } catch (err: any) {
       setLoggingIn(false);
       setError(err?.message || "Erreur ouverture popup Facebook.");
