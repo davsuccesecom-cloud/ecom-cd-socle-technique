@@ -8,38 +8,73 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { DailyStatRow } from "@ecomcod/shared";
+import type { DailyStatRow, Order } from "@ecomcod/shared";
 
 interface RevenueChartProps {
   dailyStats: DailyStatRow[];
+  orders?: Order[];
+  currency?: string;
   periodLabel: string;
   onClose: () => void;
 }
 
 function dayLabel(key: string) {
-  const [, m, d] = key.split("-");
-  return `${d}/${m}`;
+  if (!key) return "";
+  const parts = key.split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}`;
+  }
+  return key;
 }
 
-function CustomTooltip({ active, payload }: any) {
+function CustomTooltip({ active, payload, currency = "XOF" }: any) {
   if (!active || !payload || !payload.length) return null;
   const { date, ca } = payload[0].payload;
   return (
     <div className="rounded-lg border border-surface-border bg-surface-raised px-3 py-2 shadow-xl">
-      <p className="text-xs text-slate-500">{dayLabel(date)}</p>
-      <p className="text-sm font-semibold text-slate-100">{ca.toLocaleString("fr-FR")} F</p>
+      <p className="text-xs text-slate-400">{dayLabel(date)}</p>
+      <p className="text-sm font-semibold text-slate-100">{Number(ca || 0).toLocaleString("fr-FR")} {currency}</p>
     </div>
   );
 }
 
-export default function RevenueChart({ dailyStats, periodLabel, onClose }: RevenueChartProps) {
-  const buckets = useMemo(
-    () =>
-      [...dailyStats]
-        .sort((a, b) => (a.date < b.date ? -1 : 1))
-        .map((row) => ({ date: row.date, ca: row.ca })),
-    [dailyStats]
-  );
+export default function RevenueChart({ dailyStats, orders = [], currency = "XOF", periodLabel, onClose }: RevenueChartProps) {
+  const buckets = useMemo(() => {
+    const map = new Map<string, number>();
+
+    const hasDailyStats = dailyStats.some((r) => (r.ca || 0) > 0);
+    if (hasDailyStats) {
+      for (const row of dailyStats) {
+        if (row.ca > 0) {
+          map.set(row.date, row.ca);
+        }
+      }
+    } else {
+      // Fallback sur les commandes en mémoire si dailyStats est vide
+      for (const o of orders) {
+        if (o.statutLivreur === "livre" || o.statutCloseuse === "livre") {
+          const ts = o.timestamps?.delivered || o.timestamps?.received;
+          if (ts) {
+            const dateKey = new Date(ts).toISOString().slice(0, 10);
+            const current = map.get(dateKey) ?? 0;
+            map.set(dateKey, current + (o.amount || 0));
+          }
+        }
+      }
+    }
+
+    let list = Array.from(map.entries())
+      .map(([date, ca]) => ({ date, ca }))
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+    // Si on a un seul point (ex: aujourd'hui), ajouter la veille à 0 pour tracer une vraie courbe
+    if (list.length === 1) {
+      const prevDate = new Date(Date.parse(`${list[0].date}T00:00:00.000Z`) - 86400000).toISOString().slice(0, 10);
+      list = [{ date: prevDate, ca: 0 }, list[0]];
+    }
+
+    return list;
+  }, [dailyStats, orders]);
 
   const total = buckets.reduce((sum, b) => sum + b.ca, 0);
 
@@ -59,7 +94,7 @@ export default function RevenueChart({ dailyStats, periodLabel, onClose }: Reven
         </div>
         <p className="mb-6 text-sm text-slate-500">
           Période : {periodLabel} — {buckets.length} jour{buckets.length > 1 ? "s" : ""} avec des données, total{" "}
-          {total.toLocaleString("fr-FR")} F
+          {total.toLocaleString("fr-FR")} {currency}
         </p>
 
         {buckets.length === 0 ? (
@@ -91,7 +126,7 @@ export default function RevenueChart({ dailyStats, periodLabel, onClose }: Reven
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                   width={36}
                 />
-                <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#6366F1", strokeWidth: 1 }} />
+                <Tooltip content={<CustomTooltip currency={currency} />} cursor={{ stroke: "#6366F1", strokeWidth: 1 }} />
                 <Area type="monotone" dataKey="ca" stroke="#6366F1" strokeWidth={2.5} fill="url(#revenueFill)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -100,9 +135,9 @@ export default function RevenueChart({ dailyStats, periodLabel, onClose }: Reven
 
         {buckets.length > 0 && (
           <div className="mt-4 grid grid-cols-3 gap-3">
-            <MiniStat label="Meilleur jour" value={`${Math.max(...buckets.map((b) => b.ca)).toLocaleString("fr-FR")} F`} />
-            <MiniStat label="Moyenne / jour" value={`${Math.round(total / buckets.length).toLocaleString("fr-FR")} F`} />
-            <MiniStat label="Total période" value={`${total.toLocaleString("fr-FR")} F`} />
+            <MiniStat label="Meilleur jour" value={`${Math.max(...buckets.map((b) => b.ca)).toLocaleString("fr-FR")} ${currency}`} />
+            <MiniStat label="Moyenne / jour" value={`${Math.round(total / buckets.length).toLocaleString("fr-FR")} ${currency}`} />
+            <MiniStat label="Total période" value={`${total.toLocaleString("fr-FR")} ${currency}`} />
           </div>
         )}
       </div>

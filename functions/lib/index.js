@@ -652,11 +652,9 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "livre") {
-        const purgeAt = Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000;
         await ref.update({
             statutCloseuse: "livre",
             "timestamps.delivered": Date.now(),
-            purgeAt,
         });
         // Sync directe vers le Sheet -- ne depend pas d'un second passage de
         // la fonction (avant, on comptait sur before/after de l'evenement,
@@ -722,8 +720,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} - le livreur n'a pas pu joindre le client`, orderId);
         }
     }
-    if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse) && !after.purgeAt) {
-        await ref.update({ purgeAt: Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000 });
+    if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse)) {
+        // Conservation permanente : aucune purge des commandes
         // Ce bloc capture les statuts finaux decides directement par la
         // closeuse (rejete, ou injoignable des l'appel initial, sans jamais
         // passer par un livreur) -- le cas "livre" ne peut pas arriver ici
@@ -799,15 +797,9 @@ exports.cancelRemunerationPayment = (0, https_1.onCall)(async (request) => {
 // 4. Purge automatique des commandes traitees (section 15/16)
 // ---------------------------------------------------------------------------
 exports.scheduledPurge = (0, scheduler_1.onSchedule)("every 24 hours", async () => {
-    const now = Date.now();
-    const workspacesSnap = await db.collection("workspaces").get();
-    for (const wsDoc of workspacesSnap.docs) {
-        const toPurge = await wsDoc.ref.collection("orders").where("purgeAt", "<=", now).get();
-        const batch = db.batch();
-        toPurge.docs.forEach((d) => batch.delete(d.ref));
-        if (!toPurge.empty)
-            await batch.commit();
-    }
+    // Purge désactivée définitivement à la demande du client :
+    // Toutes les commandes et données restent 100% permanentes dans Firestore pour l'historique complet.
+    console.log("scheduledPurge: conservation permanente activée, aucune commande supprimée.");
 });
 // ---------------------------------------------------------------------------
 // 5. Rappels automatiques 15-20 min sans action sur "Nouveau" (section 6)

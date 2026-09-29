@@ -228,7 +228,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
               <StatCard
                 label="Chiffre d'affaires"
-                value={`${displayTotals.ca.toLocaleString("fr-FR")}`}
+                value={`${displayTotals.ca.toLocaleString("fr-FR")} ${activeTeam?.metaCapiConfig?.currency || "XOF"}`}
                 icon={<CaIcon />}
                 accent="blue"
                 onClick={() => setShowRevenueChart(true)}
@@ -271,7 +271,13 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       <MobileNav active={page} onNavigate={setPage} />
 
       {showRevenueChart && (
-        <RevenueChart dailyStats={dailyStatsInPeriod} periodLabel={periodLabel(period)} onClose={() => setShowRevenueChart(false)} />
+        <RevenueChart
+          dailyStats={dailyStatsInPeriod}
+          orders={orders}
+          currency={activeTeam?.metaCapiConfig?.currency || "XOF"}
+          periodLabel={periodLabel(period)}
+          onClose={() => setShowRevenueChart(false)}
+        />
       )}
 
       {showAddMarket && (

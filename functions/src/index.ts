@@ -781,11 +781,9 @@ export const onOrderUpdated = onDocumentUpdated(
     }
 
     if (statutLivreurChanged && after.statutLivreur === "livre") {
-      const purgeAt = Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000;
       await ref.update({
         statutCloseuse: "livre",
         "timestamps.delivered": Date.now(),
-        purgeAt,
       });
 
       // Sync directe vers le Sheet -- ne depend pas d'un second passage de
@@ -860,8 +858,8 @@ export const onOrderUpdated = onDocumentUpdated(
       }
     }
 
-    if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse) && !after.purgeAt) {
-      await ref.update({ purgeAt: Date.now() + ORDER_PURGE_AFTER_DAYS * 24 * 60 * 60 * 1000 });
+    if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse)) {
+      // Conservation permanente : aucune purge des commandes
 
       // Ce bloc capture les statuts finaux decides directement par la
       // closeuse (rejete, ou injoignable des l'appel initial, sans jamais
@@ -964,15 +962,9 @@ export const cancelRemunerationPayment = onCall(async (request) => {
 // ---------------------------------------------------------------------------
 
 export const scheduledPurge = onSchedule("every 24 hours", async () => {
-  const now = Date.now();
-  const workspacesSnap = await db.collection("workspaces").get();
-
-  for (const wsDoc of workspacesSnap.docs) {
-    const toPurge = await wsDoc.ref.collection("orders").where("purgeAt", "<=", now).get();
-    const batch = db.batch();
-    toPurge.docs.forEach((d) => batch.delete(d.ref));
-    if (!toPurge.empty) await batch.commit();
-  }
+  // Purge désactivée définitivement à la demande du client :
+  // Toutes les commandes et données restent 100% permanentes dans Firestore pour l'historique complet.
+  console.log("scheduledPurge: conservation permanente activée, aucune commande supprimée.");
 });
 
 // ---------------------------------------------------------------------------
