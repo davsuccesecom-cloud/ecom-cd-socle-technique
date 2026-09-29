@@ -42,7 +42,7 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
   // Selection state
   const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>("");
   const [selectedPixelId, setSelectedPixelId] = useState<string>("");
-  const [currency, setCurrency] = useState(team.metaCapiConfig?.currency || "XOF");
+  const [currency, setCurrency] = useState(team.metaCapiConfig?.currency || team.currency || "XOF");
   const [testCode, setTestCode] = useState(team.metaCapiConfig?.testEventCode || "");
 
   // Status
@@ -59,7 +59,7 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
 
   // Sync state whenever team changes (per-team isolation)
   useEffect(() => {
-    setCurrency(team.metaCapiConfig?.currency || "XOF");
+    setCurrency(team.metaCapiConfig?.currency || team.currency || "XOF");
     setTestCode(team.metaCapiConfig?.testEventCode || "");
     setManualPixelId(team.metaCapiConfig?.pixelId || "");
     setManualToken(team.metaCapiConfig?.accessToken || "");

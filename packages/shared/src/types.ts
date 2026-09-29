@@ -45,6 +45,7 @@ export interface Team {
   name: string;
   sheetIds: string[]; // max 5, voir architecture section 4
   defaultCountry: string; // code ISO ex: "TG", "SN", "CI" — pour l'indicatif auto
+  currency: string; // ex: "XOF", "GNF", "MAD" — devise locale de l'équipe
   mergedFrom?: string[]; // équipes fusionnées dans celle-ci, historique
   maxClosseuses: number; // fixe: 10
   maxLivreurs: number; // fixe: 10

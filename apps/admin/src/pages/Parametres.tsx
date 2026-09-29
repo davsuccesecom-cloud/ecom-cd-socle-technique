@@ -141,12 +141,11 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
   const [digestInterval, setDigestInterval] = useState(String(team.digestIntervalMinutes));
   const [remunCloseuse, setRemunCloseuse] = useState(String(team.remunerationCloseusePerOrder ?? ""));
   const [remunLivreur, setRemunLivreur] = useState(String(team.remunerationLivreurPerOrder ?? ""));
+  const [currency, setCurrency] = useState(team.currency || team.metaCapiConfig?.currency || "XOF");
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const teamCurrency = team.metaCapiConfig?.currency || "XOF";
 
   const handleSave = async () => {
     setSaving(true);
@@ -161,6 +160,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
         digestIntervalMinutes: Number(digestInterval) || 0,
         remunerationCloseusePerOrder: Number(remunCloseuse) || 0,
         remunerationLivreurPerOrder: Number(remunLivreur) || 0,
+        currency,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -225,10 +225,35 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
           </select>
         </div>
 
+        {/* Devise de l'équipe — indépendante de Meta CAPI */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-400">Devise locale de l'équipe</label>
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+          >
+            <option value="XOF">XOF — Franc CFA (UEMOA : SN, CI, BF, ML, TG, BJ, NE, GW)</option>
+            <option value="XAF">XAF — Franc CFA (CEMAC : CM, CG, GA, TD, CF, GQ)</option>
+            <option value="GNF">GNF — Franc Guinéen (GN)</option>
+            <option value="MAD">MAD — Dirham Marocain (MA)</option>
+            <option value="DZD">DZD — Dinar Algérien (DZ)</option>
+            <option value="TND">TND — Dinar Tunisien (TN)</option>
+            <option value="NGN">NGN — Naira Nigérian (NG)</option>
+            <option value="GHS">GHS — Cédi Ghanéen (GH)</option>
+            <option value="KES">KES — Shilling Kényan (KE)</option>
+            <option value="EUR">EUR — Euro (€)</option>
+            <option value="USD">USD — Dollar US (\$)</option>
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            Utilisée pour le chiffre d'affaires, les graphes et les barèmes de rémunération.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-400">
-              Rémun. closeuse / commande ({teamCurrency})
+              Rémun. closeuse / commande ({currency})
             </label>
             <input
               type="number"
@@ -241,7 +266,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-400">
-              Rémun. livreur / commande ({teamCurrency})
+              Rémun. livreur / commande ({currency})
             </label>
             <input
               type="number"
