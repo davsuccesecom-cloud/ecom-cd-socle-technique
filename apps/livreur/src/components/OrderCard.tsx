@@ -22,7 +22,8 @@ export default function OrderCard({ order, onChangeStatus }: OrderCardProps) {
     "fr-FR"
   )} F. Êtes-vous disponible à ${order.city || "votre adresse"} ?`;
 
-  const mapsQuery = order.city ? encodeURIComponent(`${order.city} ${order.addressNote || ""}`) : null;
+  const displayLocation = order.shopifyData?.locationHint || order.city || "";
+  const mapsQuery = displayLocation ? encodeURIComponent(`${displayLocation} ${order.addressNote || ""}`) : null;
 
   return (
     <div id={`order-${order.id}`} className="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-slate-100 dark:border-slate-700 transition-all">
@@ -73,14 +74,19 @@ export default function OrderCard({ order, onChangeStatus }: OrderCardProps) {
         )}
       </div>
 
-      {/* Détails de livraison EasySell (Ville, Note/Quartier, Quantité) */}
-      {(order.city || order.addressNote || (order.quantity && order.quantity > 1)) && (
+      {/* Détails de localisation & Champs EasySell */}
+      {(displayLocation || order.addressNote || (order.quantity && order.quantity > 1) || (order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0)) && (
         <div className="mb-3 rounded-xl bg-slate-50 dark:bg-slate-900/70 p-3 text-xs text-slate-700 dark:text-slate-300 space-y-2 border border-slate-200/80 dark:border-slate-700/60 transition-colors">
-          {order.city && (
+          {displayLocation && (
             <div className="flex items-center justify-between">
               <p className="flex items-center gap-1.5">
                 <span className="text-base">📍</span>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">{order.city}</span>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{displayLocation}</span>
+                {order.sourceType === "shopify" && (
+                  <span className="text-[10px] bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">
+                    Indice Shopify
+                  </span>
+                )}
               </p>
               {mapsQuery && (
                 <a
@@ -103,6 +109,18 @@ export default function OrderCard({ order, onChangeStatus }: OrderCardProps) {
             <p className="pl-5 text-slate-600 dark:text-slate-400">
               Quantité à livrer : <span className="font-semibold text-brand">{order.quantity}</span>
             </p>
+          )}
+
+          {/* Attributs personnalisés EasySell (ex: créneau horaire, instructions spécifiques) */}
+          {order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0 && (
+            <div className="pt-1.5 border-t border-slate-200/60 dark:border-slate-800 space-y-1">
+              {order.shopifyData.noteAttributes.map((attr, idx) => (
+                <div key={idx} className="flex justify-between text-[11px]">
+                  <span className="text-slate-500">{attr.name} :</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{attr.value}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

@@ -7,12 +7,13 @@ import { defineSecret } from "firebase-functions/params";
 import * as bcrypt from "bcryptjs";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import { writeOrderStatusToSheet } from "./sheetsSync";
-import { sendMetaPurchaseEvent } from "./metaCapi";
+import { sendMetaPurchaseEvent, sendMetaConfirmedEvent } from "./metaCapi";
 import {
   fetchMetaAdAccountsAndPixels,
   setupMetaSystemUserAndPixel,
   disconnectMetaCapiConfig,
 } from "./metaAuth";
+export { trackSession, shopifyWebhook, getStorefrontTrackerScript } from "./shopifyTracking";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -126,6 +127,16 @@ export const authenticateAccess = onCall(async (request) => {
   // disparaissent silencieusement apres le premier refresh, ce qui casse
   // validateAccessSession (deconnexion + perte du token FCM) et les
   // regles Firestore (isCloseuse/isLivreur/isSameTeam).
+  try {
+    await admin.auth().getUser(link.userId);
+  } catch (e) {
+    if ((e as { code?: string }).code === "auth/user-not-found") {
+      await admin.auth().createUser({ uid: link.userId });
+    } else {
+      throw e;
+    }
+  }
+
   await admin.auth().setCustomUserClaims(link.userId, {
     workspaceId: link.workspaceId,
     teamId: user.teamId,
@@ -238,7 +249,29 @@ export const createAccessUser = onCall(async (request) => {
     throw new HttpsError("not-found", "Equipe introuvable.");
   }
 
-  const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc();
+  // Creer l'utilisateur dans Firebase Auth (necessaire pour setCustomUserClaims
+  // et createCustomToken dans authenticateAccess)
+  let firebaseUser: admin.auth.UserRecord;
+  try {
+    firebaseUser = await admin.auth().createUser({
+      displayName: name.trim(),
+      phoneNumber: phone?.trim() || undefined,
+    });
+  } catch (err: any) {
+    // Si l'utilisateur existe deja (par exemple si le numero de telephone est
+    // deja utilise), on essaie de le recuperer
+    if (err?.code === "auth/phone-number-already-exists" && phone?.trim()) {
+      try {
+        firebaseUser = await admin.auth().getUserByPhoneNumber(phone.trim());
+      } catch {
+        throw new HttpsError("internal", "Impossible de creer ou recuperer l'utilisateur Firebase Auth.");
+      }
+    } else {
+      throw new HttpsError("internal", "Impossible de creer l'utilisateur Firebase Auth.");
+    }
+  }
+
+  const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(firebaseUser.uid);
   await userRef.set({
     workspaceId,
     teamId,
@@ -810,7 +843,7 @@ export const onOrderUpdated = onDocumentUpdated(
         incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
       ]);
 
-      // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI)
+      // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI) enrichi
       if (team?.metaCapiConfig?.enabled && team.metaCapiConfig.pixelId && team.metaCapiConfig.accessToken) {
         try {
           const capiRes = await sendMetaPurchaseEvent(team.metaCapiConfig, {
@@ -825,6 +858,10 @@ export const onOrderUpdated = onDocumentUpdated(
             product: after.product,
             quantity: after.quantity,
             amount: after.amount,
+            fbp: after.shopifyData?.fbp,
+            fbc: after.shopifyData?.fbc,
+            browserIp: after.shopifyData?.browserIp,
+            temperature: after.temperature,
           });
           if (capiRes.success) {
             await ref.update({ capiSent: true });
@@ -836,6 +873,46 @@ export const onOrderUpdated = onDocumentUpdated(
 
       if (after.closeuseId) {
         await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
+      }
+    }
+
+    // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse
+    if (
+      statutCloseuseChanged &&
+      (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme") &&
+      !after.capiConfirmedSent
+    ) {
+      const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(after.teamId).get();
+      const team = teamSnap.data();
+      if (
+        team?.metaCapiConfig?.enabled &&
+        team.metaCapiConfig.pixelId &&
+        team.metaCapiConfig.accessToken
+      ) {
+        try {
+          const confRes = await sendMetaConfirmedEvent(team.metaCapiConfig, {
+            id: orderId,
+            sourceRowId: after.sourceRowId,
+            orderNumber: after.orderNumber,
+            clientName: after.clientName,
+            clientPhoneFormatted: after.clientPhoneFormatted,
+            clientPhoneRaw: after.clientPhoneRaw,
+            city: after.city,
+            country: team.defaultCountry,
+            product: after.product,
+            quantity: after.quantity,
+            amount: after.amount,
+            fbp: after.shopifyData?.fbp,
+            fbc: after.shopifyData?.fbc,
+            browserIp: after.shopifyData?.browserIp,
+            temperature: after.temperature || "hot",
+          });
+          if (confRes.success) {
+            await ref.update({ capiConfirmedSent: true });
+          }
+        } catch (confErr) {
+          console.error("Échec de l'envoi Meta CommandeConfirmee :", confErr);
+        }
       }
     }
 
@@ -1332,5 +1409,57 @@ export const disconnectMetaCapi = onCall(async (request) => {
   } catch (err: any) {
     throw new HttpsError("internal", err?.message || "Erreur désactivation Meta.");
   }
+});
+
+// ---------------------------------------------------------------------------
+// 9. Migration : cree les utilisateurs Firebase Auth manquants pour tous les
+// employes existants dans Firestore (correction du bug d'authentification)
+// ---------------------------------------------------------------------------
+
+export const migrateUsers = onCall(async (request) => {
+  requireAdmin(request);
+
+  const workspacesSnap = await db.collection("workspaces").get();
+  let totalUsers = 0;
+  let created = 0;
+  let alreadyExists = 0;
+  let errors = 0;
+  const details: Array<{ name: string; userId: string; status: string }> = [];
+
+  for (const wsDoc of workspacesSnap.docs) {
+    const usersSnap = await wsDoc.ref.collection("users").get();
+    if (usersSnap.empty) continue;
+
+    for (const userDoc of usersSnap.docs) {
+      totalUsers++;
+      const userData = userDoc.data();
+      const userId = userDoc.id;
+
+      try {
+        try {
+          await admin.auth().getUser(userId);
+          alreadyExists++;
+          details.push({ name: userData.name || userId, userId, status: "existe_deja" });
+        } catch (authErr: any) {
+          if (authErr.code === "auth/user-not-found") {
+            await admin.auth().createUser({
+              uid: userId,
+              displayName: userData.name || undefined,
+              phoneNumber: userData.phone || undefined,
+            });
+            created++;
+            details.push({ name: userData.name || userId, userId, status: "cree" });
+          } else {
+            throw authErr;
+          }
+        }
+      } catch (err: any) {
+        errors++;
+        details.push({ name: userData.name || userId, userId, status: `erreur: ${err.message}` });
+      }
+    }
+  }
+
+  return { totalUsers, created, alreadyExists, errors, details };
 });
 

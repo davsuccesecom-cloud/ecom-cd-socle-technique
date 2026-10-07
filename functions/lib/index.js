@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = void 0;
+exports.migrateUsers = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -45,6 +45,10 @@ const libphonenumber_js_1 = require("libphonenumber-js");
 const sheetsSync_1 = require("./sheetsSync");
 const metaCapi_1 = require("./metaCapi");
 const metaAuth_1 = require("./metaAuth");
+var shopifyTracking_1 = require("./shopifyTracking");
+Object.defineProperty(exports, "trackSession", { enumerable: true, get: function () { return shopifyTracking_1.trackSession; } });
+Object.defineProperty(exports, "shopifyWebhook", { enumerable: true, get: function () { return shopifyTracking_1.shopifyWebhook; } });
+Object.defineProperty(exports, "getStorefrontTrackerScript", { enumerable: true, get: function () { return shopifyTracking_1.getStorefrontTrackerScript; } });
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -129,6 +133,17 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
     // disparaissent silencieusement apres le premier refresh, ce qui casse
     // validateAccessSession (deconnexion + perte du token FCM) et les
     // regles Firestore (isCloseuse/isLivreur/isSameTeam).
+    try {
+        await admin.auth().getUser(link.userId);
+    }
+    catch (e) {
+        if (e.code === "auth/user-not-found") {
+            await admin.auth().createUser({ uid: link.userId });
+        }
+        else {
+            throw e;
+        }
+    }
     await admin.auth().setCustomUserClaims(link.userId, {
         workspaceId: link.workspaceId,
         teamId: user.teamId,
@@ -216,7 +231,31 @@ exports.createAccessUser = (0, https_1.onCall)(async (request) => {
     if (!teamSnap.exists) {
         throw new https_1.HttpsError("not-found", "Equipe introuvable.");
     }
-    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc();
+    // Creer l'utilisateur dans Firebase Auth (necessaire pour setCustomUserClaims
+    // et createCustomToken dans authenticateAccess)
+    let firebaseUser;
+    try {
+        firebaseUser = await admin.auth().createUser({
+            displayName: name.trim(),
+            phoneNumber: phone?.trim() || undefined,
+        });
+    }
+    catch (err) {
+        // Si l'utilisateur existe deja (par exemple si le numero de telephone est
+        // deja utilise), on essaie de le recuperer
+        if (err?.code === "auth/phone-number-already-exists" && phone?.trim()) {
+            try {
+                firebaseUser = await admin.auth().getUserByPhoneNumber(phone.trim());
+            }
+            catch {
+                throw new https_1.HttpsError("internal", "Impossible de creer ou recuperer l'utilisateur Firebase Auth.");
+            }
+        }
+        else {
+            throw new https_1.HttpsError("internal", "Impossible de creer l'utilisateur Firebase Auth.");
+        }
+    }
+    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(firebaseUser.uid);
     await userRef.set({
         workspaceId,
         teamId,
@@ -677,7 +716,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             incrementDailyStat(workspaceId, after.teamId, "ca", after.amount),
             incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
         ]);
-        // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI)
+        // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI) enrichi
         if (team?.metaCapiConfig?.enabled && team.metaCapiConfig.pixelId && team.metaCapiConfig.accessToken) {
             try {
                 const capiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)(team.metaCapiConfig, {
@@ -692,6 +731,10 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
                     product: after.product,
                     quantity: after.quantity,
                     amount: after.amount,
+                    fbp: after.shopifyData?.fbp,
+                    fbc: after.shopifyData?.fbc,
+                    browserIp: after.shopifyData?.browserIp,
+                    temperature: after.temperature,
                 });
                 if (capiRes.success) {
                     await ref.update({ capiSent: true });
@@ -703,6 +746,42 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         }
         if (after.closeuseId) {
             await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
+        }
+    }
+    // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse
+    if (statutCloseuseChanged &&
+        (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme") &&
+        !after.capiConfirmedSent) {
+        const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(after.teamId).get();
+        const team = teamSnap.data();
+        if (team?.metaCapiConfig?.enabled &&
+            team.metaCapiConfig.pixelId &&
+            team.metaCapiConfig.accessToken) {
+            try {
+                const confRes = await (0, metaCapi_1.sendMetaConfirmedEvent)(team.metaCapiConfig, {
+                    id: orderId,
+                    sourceRowId: after.sourceRowId,
+                    orderNumber: after.orderNumber,
+                    clientName: after.clientName,
+                    clientPhoneFormatted: after.clientPhoneFormatted,
+                    clientPhoneRaw: after.clientPhoneRaw,
+                    city: after.city,
+                    country: team.defaultCountry,
+                    product: after.product,
+                    quantity: after.quantity,
+                    amount: after.amount,
+                    fbp: after.shopifyData?.fbp,
+                    fbc: after.shopifyData?.fbc,
+                    browserIp: after.shopifyData?.browserIp,
+                    temperature: after.temperature || "hot",
+                });
+                if (confRes.success) {
+                    await ref.update({ capiConfirmedSent: true });
+                }
+            }
+            catch (confErr) {
+                console.error("Échec de l'envoi Meta CommandeConfirmee :", confErr);
+            }
         }
     }
     if (statutLivreurChanged && after.statutLivreur === "injoignable") {
@@ -1080,4 +1159,53 @@ exports.disconnectMetaCapi = (0, https_1.onCall)(async (request) => {
     catch (err) {
         throw new https_1.HttpsError("internal", err?.message || "Erreur désactivation Meta.");
     }
+});
+// ---------------------------------------------------------------------------
+// 9. Migration : cree les utilisateurs Firebase Auth manquants pour tous les
+// employes existants dans Firestore (correction du bug d'authentification)
+// ---------------------------------------------------------------------------
+exports.migrateUsers = (0, https_1.onCall)(async (request) => {
+    requireAdmin(request);
+    const workspacesSnap = await db.collection("workspaces").get();
+    let totalUsers = 0;
+    let created = 0;
+    let alreadyExists = 0;
+    let errors = 0;
+    const details = [];
+    for (const wsDoc of workspacesSnap.docs) {
+        const usersSnap = await wsDoc.ref.collection("users").get();
+        if (usersSnap.empty)
+            continue;
+        for (const userDoc of usersSnap.docs) {
+            totalUsers++;
+            const userData = userDoc.data();
+            const userId = userDoc.id;
+            try {
+                try {
+                    await admin.auth().getUser(userId);
+                    alreadyExists++;
+                    details.push({ name: userData.name || userId, userId, status: "existe_deja" });
+                }
+                catch (authErr) {
+                    if (authErr.code === "auth/user-not-found") {
+                        await admin.auth().createUser({
+                            uid: userId,
+                            displayName: userData.name || undefined,
+                            phoneNumber: userData.phone || undefined,
+                        });
+                        created++;
+                        details.push({ name: userData.name || userId, userId, status: "cree" });
+                    }
+                    else {
+                        throw authErr;
+                    }
+                }
+            }
+            catch (err) {
+                errors++;
+                details.push({ name: userData.name || userId, userId, status: `erreur: ${err.message}` });
+            }
+        }
+    }
+    return { totalUsers, created, alreadyExists, errors, details };
 });

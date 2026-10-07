@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import { useState, useEffect } from "react";
+import { doc, updateDoc, collection, onSnapshot } from "firebase/firestore";
 import { getDb, AFRICA_COUNTRIES } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
 import CreateTeamForm from "../components/CreateTeamForm";
@@ -104,10 +104,40 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
   const [sheetInput, setSheetInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shopifyActiveInfo, setShopifyActiveInfo] = useState<string | null>(null);
+
+  // Vérifier si cette équipe est connectée à une boutique Shopify (propriétaire ou emprunteuse de flux)
+  useEffect(() => {
+    const db = getDb();
+    const connCol = collection(db, "workspaces", workspaceId, "shopifyConnections");
+    const unsub = onSnapshot(connCol, (snap) => {
+      let matchedShop: string | null = null;
+      snap.forEach((d) => {
+        const c = d.data();
+        if (c.status === "active") {
+          if (c.ownerTeamId === team.id) {
+            matchedShop = `${c.shopDomain} (Administrateur du flux)`;
+          } else if (c.countryRoutes) {
+            Object.values(c.countryRoutes).forEach((r: any) => {
+              if (r.assignedTeamId === team.id && r.status === "active") {
+                matchedShop = `${c.shopDomain} (Flux pays délégué)`;
+              }
+            });
+          }
+        }
+      });
+      setShopifyActiveInfo(matchedShop);
+    });
+    return () => unsub();
+  }, [workspaceId, team.id]);
 
   const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
 
   const handleAddSheet = async () => {
+    if (shopifyActiveInfo) {
+      setError("La source Shopify est active pour cette équipe. La synchronisation Google Sheet est désactivée.");
+      return;
+    }
     const id = extractSheetId(sheetInput);
     if (!id) {
       setError("ID ou lien Google Sheets invalide.");
@@ -147,9 +177,37 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
 
   return (
     <div className="space-y-4">
+      {/* Alerte si Shopify est actif sur cette équipe */}
+      {shopifyActiveInfo && (
+        <div className="rounded-2xl border border-indigo-500/40 bg-indigo-950/30 p-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xl">🛍️</span>
+            <div>
+              <h4 className="text-xs font-bold text-indigo-200">
+                Source Shopify Active — {shopifyActiveInfo}
+              </h4>
+              <p className="mt-1 text-xs text-indigo-300/80 leading-relaxed">
+                Cette équipe reçoit directement ses commandes en temps réel depuis Shopify. La liaison Google Sheets est temporairement grisée et désactivée du processus pour éviter les doublons de commandes.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sheets connectés */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-        <h3 className="mb-1 text-sm font-medium text-slate-200">Google Sheets connectés</h3>
+      <div
+        className={`rounded-2xl border border-surface-border bg-surface-raised p-4 transition-opacity ${
+          shopifyActiveInfo ? "opacity-60" : ""
+        }`}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-medium text-slate-200">Google Sheets connectés</h3>
+          {shopifyActiveInfo && (
+            <span className="rounded-full bg-slate-800 border border-slate-700 px-2.5 py-0.5 text-[10px] font-semibold text-slate-400">
+              Désactivé (Source Shopify)
+            </span>
+          )}
+        </div>
         <p className="mb-4 text-xs text-slate-500">
           Colle l'ID ou le lien complet du Sheet. Pense à le partager au préalable, en Éditeur, avec le compte de
           service (demande l'adresse à l'équipe technique si besoin).
@@ -188,12 +246,13 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
           <div className="flex gap-2">
             <input
               value={sheetInput}
+              disabled={busy || !!shopifyActiveInfo}
               onChange={(e) => setSheetInput(e.target.value)}
-              placeholder="ID ou lien du Sheet…"
-              className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+              placeholder={shopifyActiveInfo ? "Désactivé (Source Shopify active)" : "ID ou lien du Sheet…"}
+              className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand disabled:opacity-50"
             />
             <button
-              disabled={busy || !sheetInput.trim()}
+              disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo}
               onClick={handleAddSheet}
               className="shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
             >

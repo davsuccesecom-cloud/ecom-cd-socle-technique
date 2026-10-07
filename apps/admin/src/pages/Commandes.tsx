@@ -316,6 +316,23 @@ function OrderDetail({
               <Row label="Produit" value={order.product} />
               <Row label="Montant" value={`${order.amount.toLocaleString("fr-FR")} FCFA`} />
               <Row label="Reçue le" value={formatDate(order.timestamps.received)} />
+              {order.sourceType === "shopify" && (
+                <Row label="Source" value={`🛍️ Shopify (${order.shopifyData?.shopDomain || ""})`} />
+              )}
+              {order.shopifyData?.locationHint && (
+                <Row label="Indice Localisation" value={`📍 ${order.shopifyData.locationHint}`} />
+              )}
+              {order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0 && (
+                <div className="rounded-lg bg-surface/50 border border-surface-border p-3 space-y-1.5 mt-2">
+                  <p className="text-xs font-semibold text-slate-300">Détails EasySell / Formulaire :</p>
+                  {order.shopifyData.noteAttributes.map((attr, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span className="text-slate-400">{attr.name} :</span>
+                      <span className="text-slate-200 font-medium">{attr.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {order.statutLivreur && (
                 <Row label="Statut livreur" value={LIVREUR_LABELS[order.statutLivreur]} />
               )}

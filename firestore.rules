@@ -37,6 +37,13 @@ service cloud.firestore {
       match /teams/{teamId} {
         allow read: if isWorkspace(workspaceId);
         allow write: if isAdmin(workspaceId);
+
+        // Stats journalieres : lecture admin uniquement, ecriture par
+        // Cloud Functions (Admin SDK) seulement.
+        match /dailyStats/{dateKey} {
+          allow read: if isAdmin(workspaceId);
+          allow write: if false;
+        }
       }
 
       match /users/{userId} {
@@ -103,6 +110,24 @@ service cloud.firestore {
 
         // Admin : accès complet, y compris statutAdminOverride
         allow update, delete: if isAdmin(workspaceId);
+      }
+
+      // Connexions aux boutiques Shopify pour synchronisation des commandes
+      match /shopifyConnections/{connectionId} {
+        allow read: if isWorkspace(workspaceId);
+        allow write: if isAdmin(workspaceId);
+      }
+
+      // Commandes Shopify non routées (sans correspondance de produit/variante)
+      match /shopifyUnroutedOrders/{unroutedId} {
+        allow read: if isWorkspace(workspaceId);
+        allow write: if isAdmin(workspaceId);
+      }
+
+      // Sessions de tracking (fbp, fbc, UTM, IP, UA)
+      // Gérées exclusivement côté serveur via Cloud Functions (Admin SDK)
+      match /trackingSessions/{sessionId} {
+        allow read, write: if false;
       }
     }
   }

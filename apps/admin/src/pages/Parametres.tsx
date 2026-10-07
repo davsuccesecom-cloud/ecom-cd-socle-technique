@@ -4,15 +4,17 @@ import { getDb } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
 import { useTheme } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
+import ShopifyFluxManager from "../components/ShopifyFluxManager";
 
 interface ParametresProps {
   workspaceId: string;
   team: Team | null;
+  teams?: Team[];
 }
 
 const SOUND_KEY = "ecomcod-sound-notifications";
 
-export default function Parametres({ workspaceId, team }: ParametresProps) {
+export default function Parametres({ workspaceId, team, teams = [] }: ParametresProps) {
   const { theme, setTheme } = useTheme();
   const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -119,13 +121,20 @@ export default function Parametres({ workspaceId, team }: ParametresProps) {
           )}
         </div>
 
-        {/* Colonne droite (7 colonnes sur PC) : Meta Conversions API (CAPI) */}
+        {/* Colonne droite (7 colonnes sur PC) : Flux Shopify & Meta Conversions API */}
         <div className="lg:col-span-7 space-y-6">
           {team ? (
-            <MetaCapiConnector workspaceId={workspaceId} team={team} />
+            <>
+              <ShopifyFluxManager
+                workspaceId={workspaceId}
+                team={team}
+                allTeams={teams}
+              />
+              <MetaCapiConnector workspaceId={workspaceId} team={team} />
+            </>
           ) : (
             <div className="rounded-2xl border border-surface-border bg-surface-raised p-6 text-center text-sm text-slate-400">
-              Veuillez sélectionner une équipe pour configurer la liaison Meta Conversions API.
+              Veuillez sélectionner une équipe pour configurer Shopify et Meta CAPI.
             </div>
           )}
         </div>

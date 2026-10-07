@@ -222,7 +222,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         ) : page === "remuneration" ? (
           <Remuneration team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={orders} />
         ) : page === "settings" ? (
-          <Parametres workspaceId={workspaceId} team={activeTeam} />
+          <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} />
         ) : (
           <>
             <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">

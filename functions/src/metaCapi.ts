@@ -20,6 +20,13 @@ export interface MetaOrderData {
   product?: string;
   quantity?: number;
   amount: number;
+  // Tracking réel enrichi (fbp, fbc, IP, UA)
+  fbp?: string;
+  fbc?: string;
+  browserIp?: string;
+  userAgent?: string;
+  pageUrl?: string;
+  temperature?: "hot" | "medium" | "cold";
 }
 
 function sha256(str: string): string {
@@ -32,7 +39,6 @@ function sha256(str: string): string {
 
 function cleanPhoneForMeta(phone: string): string {
   if (!phone) return "";
-  // Meta attend un numéro au format E.164 sans espaces, tirets ou signe +
   return phone.replace(/[^\d]/g, "");
 }
 
@@ -44,6 +50,32 @@ function splitName(fullName: string): { firstName: string; lastName: string } {
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
+function buildUserData(order: MetaOrderData): Record<string, unknown> {
+  const { firstName, lastName } = splitName(order.clientName || "");
+  const phone = cleanPhoneForMeta(order.clientPhoneFormatted || order.clientPhoneRaw || "");
+
+  const userData: Record<string, unknown> = {};
+  if (phone) userData.ph = [sha256(phone)];
+  if (firstName) userData.fn = [sha256(firstName)];
+  if (lastName) userData.ln = [sha256(lastName)];
+  if (order.city) userData.ct = [sha256(order.city)];
+  if (order.country) userData.country = [sha256(order.country)];
+
+  // Identifiant externe stable
+  userData.external_id = [sha256(order.orderNumber || order.id)];
+
+  // Signaux réels du navigateur (en clair selon spécification Meta CAPI)
+  if (order.fbp) userData.fbp = order.fbp;
+  if (order.fbc) userData.fbc = order.fbc;
+  if (order.browserIp) userData.client_ip_address = order.browserIp;
+  if (order.userAgent) userData.client_user_agent = order.userAgent;
+
+  return userData;
+}
+
+/**
+ * Envoi de l'événement "Purchase" lors de la livraison réelle encaissée par le livreur
+ */
 export async function sendMetaPurchaseEvent(
   config: MetaCapiConfig,
   order: MetaOrderData
@@ -52,29 +84,23 @@ export async function sendMetaPurchaseEvent(
     return { success: false, error: "Meta CAPI non activé ou identifiants manquants." };
   }
 
-  const { firstName, lastName } = splitName(order.clientName || "");
-  const phone = cleanPhoneForMeta(order.clientPhoneFormatted || order.clientPhoneRaw || "");
   const currency = (config.currency || "XOF").toUpperCase();
-  const eventId = order.orderNumber || order.sourceRowId || order.id;
-
-  const userData: Record<string, string[]> = {};
-  if (phone) userData.ph = [sha256(phone)];
-  if (firstName) userData.fn = [sha256(firstName)];
-  if (lastName) userData.ln = [sha256(lastName)];
-  if (order.city) userData.ct = [sha256(order.city)];
-  if (order.country) userData.country = [sha256(order.country)];
+  const eventId = `${order.orderNumber || order.sourceRowId || order.id}_purchase`;
+  const userData = buildUserData(order);
+  const actionSource = (order.fbp || order.fbc || order.browserIp) ? "website" : "physical_store";
 
   const eventPayload = {
     event_name: "Purchase",
     event_time: Math.floor(Date.now() / 1000),
     event_id: eventId,
-    event_source_url: "https://easysell.app",
-    action_source: "physical_store",
+    event_source_url: order.pageUrl || "https://easysell.app",
+    action_source: actionSource,
     user_data: userData,
     custom_data: {
       currency,
       value: order.amount,
       content_name: order.product || "Produit",
+      lead_quality: order.temperature || "medium",
       contents: [
         {
           id: order.product || "produit_cod",
@@ -85,6 +111,48 @@ export async function sendMetaPurchaseEvent(
     },
   };
 
+  return executeMetaApiCall(config, eventPayload, `Purchase (${order.id})`);
+}
+
+/**
+ * Envoi de l'événement personnalisé "CommandeConfirmee" lors de la confirmation par la closeuse
+ */
+export async function sendMetaConfirmedEvent(
+  config: MetaCapiConfig,
+  order: MetaOrderData
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  if (!config.enabled || !config.pixelId || !config.accessToken) {
+    return { success: false, error: "Meta CAPI non activé ou identifiants manquants." };
+  }
+
+  const currency = (config.currency || "XOF").toUpperCase();
+  const eventId = `${order.orderNumber || order.sourceRowId || order.id}_confirmed`;
+  const userData = buildUserData(order);
+  const actionSource = (order.fbp || order.fbc || order.browserIp) ? "website" : "physical_store";
+
+  const eventPayload = {
+    event_name: "CommandeConfirmee",
+    event_time: Math.floor(Date.now() / 1000),
+    event_id: eventId,
+    event_source_url: order.pageUrl || "https://easysell.app",
+    action_source: actionSource,
+    user_data: userData,
+    custom_data: {
+      currency,
+      value: order.amount,
+      content_name: order.product || "Produit",
+      lead_quality: order.temperature || "hot",
+    },
+  };
+
+  return executeMetaApiCall(config, eventPayload, `CommandeConfirmee (${order.id})`);
+}
+
+async function executeMetaApiCall(
+  config: MetaCapiConfig,
+  eventPayload: Record<string, unknown>,
+  label: string
+): Promise<{ success: boolean; data?: unknown; error?: string }> {
   const body: Record<string, unknown> = {
     data: [eventPayload],
   };
@@ -104,15 +172,15 @@ export async function sendMetaPurchaseEvent(
 
     const resJson = await response.json();
     if (!response.ok) {
-      console.error("Erreur Meta CAPI :", JSON.stringify(resJson));
+      console.error(`Erreur Meta CAPI ${label}:`, JSON.stringify(resJson));
       return { success: false, error: JSON.stringify(resJson) };
     }
 
-    console.log(`Meta CAPI succès pour commande ${order.id} :`, JSON.stringify(resJson));
+    console.log(`Meta CAPI succès pour ${label}:`, JSON.stringify(resJson));
     return { success: true, data: resJson };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("Exception Meta CAPI :", msg);
+    console.error(`Exception Meta CAPI ${label}:`, msg);
     return { success: false, error: msg };
   }
 }

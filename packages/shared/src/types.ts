@@ -108,6 +108,113 @@ export interface Order {
 
   capiSent: boolean;
   purgeAt: number | null; // calculé = statut final + 3 jours
+
+  // Intégration Shopify & Tracking Réel
+  sourceType?: "sheet" | "shopify";
+  shopifyOrderId?: string;
+  sessionId?: string;
+  temperature?: "hot" | "medium" | "cold";
+  shopifyData?: ShopifyOrderData;
+}
+
+export interface ShopifyNoteAttribute {
+  name: string;
+  value: string;
+}
+
+export interface ShopifyOrderData {
+  shopifyOrderId: string;
+  orderNumber?: string;
+  shopDomain: string;
+  countryCode?: string;
+  city?: string;
+  province?: string;
+  zip?: string;
+  locationHint?: string;
+  browserIp?: string;
+  noteAttributes: ShopifyNoteAttribute[];
+  fbp?: string;
+  fbc?: string;
+  fbclid?: string;
+  utm?: {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+    content?: string;
+    term?: string;
+  };
+  rawCustomerNotes?: string;
+}
+
+export interface ShopifyCountryRoute {
+  countryCode: string; // ISO 2 lettres : "TG", "BJ", "CI", "SN"
+  assignedTeamId: string;
+  assignedTeamName?: string;
+  assignedAt: number;
+  assignedBy?: string;
+  status: "active" | "revoked";
+}
+
+export interface ShopifyConnection {
+  id: string; // connectionId
+  workspaceId: string;
+  ownerTeamId: string; // L'équipe administratrice/propriétaire du flux
+  ownerTeamName: string;
+  shopDomain: string; // ex: "montreshop.myshopify.com"
+  shopName?: string;
+  status: "active" | "revoked";
+  connectedAt: number;
+  accessToken?: string;
+  countryRoutes: Record<string, ShopifyCountryRoute>; // "TG" -> route
+}
+
+export interface ShopifyUnroutedOrder {
+  id: string;
+  workspaceId: string;
+  connectionId: string;
+  shopDomain: string;
+  shopifyOrderId: string;
+  orderNumber?: string;
+  clientName?: string;
+  clientPhone?: string;
+  amount: number;
+  currency: string;
+  countryCode: string;
+  createdAt: number;
+}
+
+export interface TrackingSession {
+  id: string;
+  workspaceId: string;
+  teamId?: string;
+  shopDomain: string;
+  phoneNormalized: string;
+  phoneHash: string;
+  fbp?: string;
+  fbc?: string;
+  fbclid?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  pageUrl?: string;
+  ip?: string;
+  userAgent?: string;
+  createdAt: number;
+  linkedOrderId?: string;
+}
+
+export interface MetaEventLog {
+  id: string;
+  workspaceId: string;
+  orderId: string;
+  eventName: "CommandeConfirmee" | "Purchase";
+  status: "sent" | "failed" | "retrying";
+  response?: string;
+  attempts: number;
+  sentAt: number;
+  eventId: string;
 }
 
 export interface AppUser {
