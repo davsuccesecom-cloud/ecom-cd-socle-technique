@@ -35,18 +35,19 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
 export const authenticateAccess = onCall(async (request) => {
-  const { accessLinkId, password } = request.data as {
-    accessLinkId: string;
-    password: string;
-  };
-  if (!accessLinkId || !password) {
-    throw new HttpsError("invalid-argument", "Lien d'acces et mot de passe requis.");
-  }
+  try {
+    const { accessLinkId, password } = request.data as {
+      accessLinkId: string;
+      password: string;
+    };
+    if (!accessLinkId || !password) {
+      throw new HttpsError("invalid-argument", "Lien d'acces et mot de passe requis.");
+    }
 
-  const linkSnap = await db.collectionGroup("accessLinks").where("id", "==", accessLinkId).limit(1).get();
-  if (linkSnap.empty) {
-    throw new HttpsError("not-found", "Lien d'acces invalide.");
-  }
+    const linkSnap = await db.collectionGroup("accessLinks").where("id", "==", accessLinkId).limit(1).get();
+    if (linkSnap.empty) {
+      throw new HttpsError("not-found", "Lien d'acces invalide.");
+    }
 
   const linkDoc = linkSnap.docs[0];
   const link = linkDoc.data();
@@ -102,18 +103,18 @@ export const authenticateAccess = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Compte desactive.");
   }
 
-  const sessions: Array<{ sessionToken: string; deviceLabel: string; connectedAt: number }> =
-    link.activeSessions ?? [];
-  const newSession = {
-    sessionToken: db.collection("_").doc().id,
-    deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
-    connectedAt: Date.now(),
-  };
-  const updatedSessions = [...sessions, newSession]
-    .sort((a, b) => b.connectedAt - a.connectedAt)
-    .slice(0, MAX_SESSIONS_PER_ACCESS_LINK);
-
-  await linkDoc.ref.update({ activeSessions: updatedSessions });
+  // Transaction Firestore pour éviter les conditions de course
+  // Un seul appareil par employé : la nouvelle connexion remplace l'ancienne
+  await db.runTransaction(async (tx) => {
+    const linkSnap = await tx.get(linkDoc.ref);
+    const newSession = {
+      sessionToken: db.collection("_").doc().id,
+      deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
+      connectedAt: Date.now(),
+    };
+    // Un seul appareil actif par employé (sécurité)
+    tx.update(linkDoc.ref, { activeSessions: [newSession] });
+  });
 
   await notifyAdmins(
     link.workspaceId,
@@ -156,6 +157,10 @@ export const authenticateAccess = onCall(async (request) => {
     userId: link.userId,
     role: user.role,
   };
+  } catch (err) {
+    console.error("authenticateAccess error:", err);
+    throw new HttpsError("internal", "Erreur de connexion. Réessaie dans quelques secondes.");
+  }
 });
 
 // ---------------------------------------------------------------------------

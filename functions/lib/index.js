@@ -64,103 +64,111 @@ const sheetsServiceAccountKey = (0, params_1.defineSecret)("GOOGLE_SHEETS_SERVIC
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
-    const { accessLinkId, password } = request.data;
-    if (!accessLinkId || !password) {
-        throw new https_1.HttpsError("invalid-argument", "Lien d'acces et mot de passe requis.");
-    }
-    const linkSnap = await db.collectionGroup("accessLinks").where("id", "==", accessLinkId).limit(1).get();
-    if (linkSnap.empty) {
-        throw new https_1.HttpsError("not-found", "Lien d'acces invalide.");
-    }
-    const linkDoc = linkSnap.docs[0];
-    const link = linkDoc.data();
-    if (link.disabledAt) {
-        throw new https_1.HttpsError("permission-denied", "Cet acces a ete desactive.");
-    }
-    const secretRef = db
-        .collection("workspaces")
-        .doc(link.workspaceId)
-        .collection("accessLinkSecrets")
-        .doc(linkDoc.id);
-    const secretSnap = await secretRef.get();
-    if (!secretSnap.exists) {
-        throw new https_1.HttpsError("not-found", "Lien d'acces invalide.");
-    }
-    const secret = secretSnap.data();
-    const now = Date.now();
-    if (secret.lockedUntil && secret.lockedUntil > now) {
-        const minutesLeft = Math.ceil((secret.lockedUntil - now) / 60000);
-        throw new https_1.HttpsError("resource-exhausted", `Trop de tentatives. Reessaie dans ${minutesLeft} min.`);
-    }
-    const passwordOk = await bcrypt.compare(password, secret.passwordHash);
-    if (!passwordOk) {
-        const failedAttempts = (secret.failedAttempts ?? 0) + 1;
-        const update = { failedAttempts };
-        if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
-            update.lockedUntil = now + LOCKOUT_DURATION_MS;
-            update.failedAttempts = 0;
-        }
-        await secretRef.set(update, { merge: true });
-        throw new https_1.HttpsError("permission-denied", "Mot de passe incorrect.");
-    }
-    if (secret.failedAttempts || secret.lockedUntil) {
-        await secretRef.set({ failedAttempts: 0, lockedUntil: admin.firestore.FieldValue.delete() }, { merge: true });
-    }
-    const userSnap = await db
-        .collection("workspaces")
-        .doc(link.workspaceId)
-        .collection("users")
-        .doc(link.userId)
-        .get();
-    const user = userSnap.data();
-    if (!user || user.status !== "active") {
-        throw new https_1.HttpsError("permission-denied", "Compte desactive.");
-    }
-    const sessions = link.activeSessions ?? [];
-    const newSession = {
-        sessionToken: db.collection("_").doc().id,
-        deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
-        connectedAt: Date.now(),
-    };
-    const updatedSessions = [...sessions, newSession]
-        .sort((a, b) => b.connectedAt - a.connectedAt)
-        .slice(0, MAX_SESSIONS_PER_ACCESS_LINK);
-    await linkDoc.ref.update({ activeSessions: updatedSessions });
-    await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connecte(e) depuis un nouvel appareil.`);
-    // Persiste les claims sur l'utilisateur Firebase Auth (pas seulement
-    // dans ce custom token) pour qu'ils survivent au rafraichissement
-    // automatique du ID token par le SDK. Sans ca, workspaceId/role/teamId
-    // disparaissent silencieusement apres le premier refresh, ce qui casse
-    // validateAccessSession (deconnexion + perte du token FCM) et les
-    // regles Firestore (isCloseuse/isLivreur/isSameTeam).
     try {
-        await admin.auth().getUser(link.userId);
-    }
-    catch (e) {
-        if (e.code === "auth/user-not-found") {
-            await admin.auth().createUser({ uid: link.userId });
+        const { accessLinkId, password } = request.data;
+        if (!accessLinkId || !password) {
+            throw new https_1.HttpsError("invalid-argument", "Lien d'acces et mot de passe requis.");
         }
-        else {
-            throw e;
+        const linkSnap = await db.collectionGroup("accessLinks").where("id", "==", accessLinkId).limit(1).get();
+        if (linkSnap.empty) {
+            throw new https_1.HttpsError("not-found", "Lien d'acces invalide.");
         }
+        const linkDoc = linkSnap.docs[0];
+        const link = linkDoc.data();
+        if (link.disabledAt) {
+            throw new https_1.HttpsError("permission-denied", "Cet acces a ete desactive.");
+        }
+        const secretRef = db
+            .collection("workspaces")
+            .doc(link.workspaceId)
+            .collection("accessLinkSecrets")
+            .doc(linkDoc.id);
+        const secretSnap = await secretRef.get();
+        if (!secretSnap.exists) {
+            throw new https_1.HttpsError("not-found", "Lien d'acces invalide.");
+        }
+        const secret = secretSnap.data();
+        const now = Date.now();
+        if (secret.lockedUntil && secret.lockedUntil > now) {
+            const minutesLeft = Math.ceil((secret.lockedUntil - now) / 60000);
+            throw new https_1.HttpsError("resource-exhausted", `Trop de tentatives. Reessaie dans ${minutesLeft} min.`);
+        }
+        const passwordOk = await bcrypt.compare(password, secret.passwordHash);
+        if (!passwordOk) {
+            const failedAttempts = (secret.failedAttempts ?? 0) + 1;
+            const update = { failedAttempts };
+            if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
+                update.lockedUntil = now + LOCKOUT_DURATION_MS;
+                update.failedAttempts = 0;
+            }
+            await secretRef.set(update, { merge: true });
+            throw new https_1.HttpsError("permission-denied", "Mot de passe incorrect.");
+        }
+        if (secret.failedAttempts || secret.lockedUntil) {
+            await secretRef.set({ failedAttempts: 0, lockedUntil: admin.firestore.FieldValue.delete() }, { merge: true });
+        }
+        const userSnap = await db
+            .collection("workspaces")
+            .doc(link.workspaceId)
+            .collection("users")
+            .doc(link.userId)
+            .get();
+        const user = userSnap.data();
+        if (!user || user.status !== "active") {
+            throw new https_1.HttpsError("permission-denied", "Compte desactive.");
+        }
+        // Transaction Firestore pour éviter les conditions de course
+        // Un seul appareil par employé : la nouvelle connexion remplace l'ancienne
+        await db.runTransaction(async (tx) => {
+            const linkSnap = await tx.get(linkDoc.ref);
+            const newSession = {
+                sessionToken: db.collection("_").doc().id,
+                deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
+                connectedAt: Date.now(),
+            };
+            // Un seul appareil actif par employé (sécurité)
+            tx.update(linkDoc.ref, { activeSessions: [newSession] });
+        });
+        await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connecte(e) depuis un nouvel appareil.`);
+        // Persiste les claims sur l'utilisateur Firebase Auth (pas seulement
+        // dans ce custom token) pour qu'ils survivent au rafraichissement
+        // automatique du ID token par le SDK. Sans ca, workspaceId/role/teamId
+        // disparaissent silencieusement apres le premier refresh, ce qui casse
+        // validateAccessSession (deconnexion + perte du token FCM) et les
+        // regles Firestore (isCloseuse/isLivreur/isSameTeam).
+        try {
+            await admin.auth().getUser(link.userId);
+        }
+        catch (e) {
+            if (e.code === "auth/user-not-found") {
+                await admin.auth().createUser({ uid: link.userId });
+            }
+            else {
+                throw e;
+            }
+        }
+        await admin.auth().setCustomUserClaims(link.userId, {
+            workspaceId: link.workspaceId,
+            teamId: user.teamId,
+            role: user.role,
+        });
+        const customToken = await admin.auth().createCustomToken(link.userId, {
+            workspaceId: link.workspaceId,
+            teamId: user.teamId,
+            role: user.role,
+        });
+        return {
+            customToken,
+            workspaceId: link.workspaceId,
+            teamId: user.teamId,
+            userId: link.userId,
+            role: user.role,
+        };
     }
-    await admin.auth().setCustomUserClaims(link.userId, {
-        workspaceId: link.workspaceId,
-        teamId: user.teamId,
-        role: user.role,
-    });
-    const customToken = await admin.auth().createCustomToken(link.userId, {
-        workspaceId: link.workspaceId,
-        teamId: user.teamId,
-        role: user.role,
-    });
-    return {
-        customToken,
-        workspaceId: link.workspaceId,
-        teamId: user.teamId,
-        userId: link.userId,
-        role: user.role,
-    };
+    catch (err) {
+        console.error("authenticateAccess error:", err);
+        throw new https_1.HttpsError("internal", "Erreur de connexion. Réessaie dans quelques secondes.");
+    }
 });
 // ---------------------------------------------------------------------------
 // 1bis. Authentification admin -- systeme multi-entreprises (SaaS)
