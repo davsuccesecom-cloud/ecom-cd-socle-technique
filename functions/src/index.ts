@@ -103,18 +103,13 @@ export const authenticateAccess = onCall(async (request) => {
     throw new HttpsError("permission-denied", "Compte desactive.");
   }
 
-  // Transaction Firestore pour éviter les conditions de course
-  // Un seul appareil par employé : la nouvelle connexion remplace l'ancienne
-  await db.runTransaction(async (tx) => {
-    const linkSnap = await tx.get(linkDoc.ref);
-    const newSession = {
-      sessionToken: db.collection("_").doc().id,
-      deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
-      connectedAt: Date.now(),
-    };
-    // Un seul appareil actif par employé (sécurité)
-    tx.update(linkDoc.ref, { activeSessions: [newSession] });
-  });
+  // Un seul appareil actif par employe : la nouvelle connexion remplace les anciennes
+  const newSession = {
+    sessionToken: db.collection("_").doc().id,
+    deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
+    connectedAt: Date.now(),
+  };
+  await linkDoc.ref.update({ activeSessions: [newSession] });
 
   await notifyAdmins(
     link.workspaceId,
@@ -138,6 +133,8 @@ export const authenticateAccess = onCall(async (request) => {
     }
   }
 
+  // Un seul appareil par employe : revoque les sessions deja ouvertes
+  await admin.auth().revokeRefreshTokens(link.userId);
   await admin.auth().setCustomUserClaims(link.userId, {
     workspaceId: link.workspaceId,
     teamId: user.teamId,
@@ -158,6 +155,7 @@ export const authenticateAccess = onCall(async (request) => {
     role: user.role,
   };
   } catch (err) {
+    if (err instanceof HttpsError) throw err;
     console.error("authenticateAccess error:", err);
     throw new HttpsError("internal", "Erreur de connexion. Réessaie dans quelques secondes.");
   }

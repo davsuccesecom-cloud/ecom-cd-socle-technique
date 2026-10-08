@@ -117,18 +117,13 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         if (!user || user.status !== "active") {
             throw new https_1.HttpsError("permission-denied", "Compte desactive.");
         }
-        // Transaction Firestore pour éviter les conditions de course
-        // Un seul appareil par employé : la nouvelle connexion remplace l'ancienne
-        await db.runTransaction(async (tx) => {
-            const linkSnap = await tx.get(linkDoc.ref);
-            const newSession = {
-                sessionToken: db.collection("_").doc().id,
-                deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
-                connectedAt: Date.now(),
-            };
-            // Un seul appareil actif par employé (sécurité)
-            tx.update(linkDoc.ref, { activeSessions: [newSession] });
-        });
+        // Un seul appareil actif par employe : la nouvelle connexion remplace les anciennes
+        const newSession = {
+            sessionToken: db.collection("_").doc().id,
+            deviceLabel: request.rawRequest.headers["user-agent"]?.slice(0, 80) ?? "Appareil inconnu",
+            connectedAt: Date.now(),
+        };
+        await linkDoc.ref.update({ activeSessions: [newSession] });
         await notifyAdmins(link.workspaceId, "Nouvelle connexion", `${user.name} s'est connecte(e) depuis un nouvel appareil.`);
         // Persiste les claims sur l'utilisateur Firebase Auth (pas seulement
         // dans ce custom token) pour qu'ils survivent au rafraichissement
@@ -147,6 +142,8 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
                 throw e;
             }
         }
+        // Un seul appareil par employe : revoque les sessions deja ouvertes
+        await admin.auth().revokeRefreshTokens(link.userId);
         await admin.auth().setCustomUserClaims(link.userId, {
             workspaceId: link.workspaceId,
             teamId: user.teamId,
@@ -166,6 +163,8 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         };
     }
     catch (err) {
+        if (err instanceof https_1.HttpsError)
+            throw err;
         console.error("authenticateAccess error:", err);
         throw new https_1.HttpsError("internal", "Erreur de connexion. Réessaie dans quelques secondes.");
     }
