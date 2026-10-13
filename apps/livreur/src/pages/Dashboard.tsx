@@ -113,7 +113,7 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
         </div>
       </header>
 
-      <nav className="flex gap-1 overflow-x-auto px-4 py-3">
+      <nav className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar">
         {TABS.map((tab) => {
           const count = countFor(tab.key);
           const active = activeTab === tab.key;
@@ -121,13 +121,24 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              className={`relative shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-all ${
                 active
-                  ? "bg-brand text-white"
-                  : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                  ? "bg-brand text-white shadow-sm"
+                  : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-slate-300"
               }`}
             >
-              {tab.label} {count > 0 && <span className="opacity-70">· {count}</span>}
+              <span>{tab.label}</span>
+              {count > 0 && (
+                <span
+                  className={`ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.2 text-[11px] font-bold tracking-tight ${
+                    active
+                      ? "bg-white text-brand"
+                      : "bg-red-500 text-white shadow-sm animate-pulse"
+                  }`}
+                >
+                  {count > 99 ? "99+" : count}
+                </span>
+              )}
             </button>
           );
         })}
