@@ -137,9 +137,29 @@ ${context.topProducts.map((p) => `- ${p.name} : ${p.count} vendus (${p.revenue.t
 
     const messages = [
       { role: "system", content: systemPrompt },
-      ...history.slice(-10), // Garde les 10 derniers tours pour préserver le contexte et la mémoire
+      ...history.slice(-10),
       { role: "user", content: userPrompt },
     ];
+
+    // Appel prioritaire via notre Cloud Function Proxy (contourne tout blocage CORS de navigateur)
+    try {
+      const proxyRes = await fetch("https://us-central1-meta-capi-app.cloudfunctions.net/aiChatProxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: this.config.provider,
+          messages,
+          model: this.config.model,
+        }),
+      });
+
+      if (proxyRes.ok) {
+        const data = await proxyRes.json();
+        if (data.text) return data.text;
+      }
+    } catch (e) {
+      console.warn("Proxy Cloud Function unreachable, trying direct fallback:", e);
+    }
 
     if (this.config.provider === "groq") {
       return this.callGroq(messages);
@@ -154,7 +174,32 @@ ${context.topProducts.map((p) => `- ${p.name} : ${p.count} vendus (${p.revenue.t
     const key = this.config.groqApiKey || DEFAULT_GROQ_KEY;
     const model = this.config.model || "llama-3.3-70b-versatile";
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    // 1. Tenter via le proxy Vercel sans CORS
+    try {
+      const res = await fetch("/api/groq-proxy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.6,
+          max_tokens: 1500,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content || "Analyse terminée.";
+      }
+    } catch {
+      // Fallback
+    }
+
+    // 2. Appel direct Groq
+    const directRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -168,21 +213,43 @@ ${context.topProducts.map((p) => `- ${p.name} : ${p.count} vendus (${p.revenue.t
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      // En cas de panne de Groq, basculer automatiquement sur NVIDIA en fallback
-      console.warn("Groq API error, attempting fallback to NVIDIA:", err);
+    if (!directRes.ok) {
       return this.callNvidia(messages);
     }
 
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || "Aucune réponse générée.";
+    const data = await directRes.json();
+    return data.choices?.[0]?.message?.content || "Analyse terminée.";
   }
 
   private async callNvidia(messages: { role: string; content: string }[]): Promise<string> {
     const key = this.config.nvidiaApiKey || DEFAULT_NVIDIA_KEY;
 
-    const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    // 1. Tenter via le proxy Vercel sans CORS
+    try {
+      const res = await fetch("/api/nvidia-proxy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: "meta/llama-3.1-70b-instruct",
+          messages,
+          temperature: 0.6,
+          max_tokens: 1500,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return data.choices?.[0]?.message?.content || "Analyse terminée.";
+      }
+    } catch {
+      // Fallback
+    }
+
+    // 2. Appel direct NVIDIA
+    const directRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -196,13 +263,13 @@ ${context.topProducts.map((p) => `- ${p.name} : ${p.count} vendus (${p.revenue.t
       }),
     });
 
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Erreur API NVIDIA (${res.status}): ${err}`);
+    if (!directRes.ok) {
+      const err = await directRes.text();
+      throw new Error(`Erreur API NVIDIA (${directRes.status}): ${err}`);
     }
 
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || "Aucune réponse générée.";
+    const data = await directRes.json();
+    return data.choices?.[0]?.message?.content || "Analyse terminée.";
   }
 
   private async callCustom(messages: { role: string; content: string }[]): Promise<string> {

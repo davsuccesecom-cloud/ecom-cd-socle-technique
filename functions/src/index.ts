@@ -14,6 +14,7 @@ import {
   disconnectMetaCapiConfig,
 } from "./metaAuth";
 export { trackSession, shopifyWebhook, getStorefrontTrackerScript } from "./shopifyTracking";
+export { aiChatProxy } from "./aiProxy";
 
 admin.initializeApp();
 const db = admin.firestore();
