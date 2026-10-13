@@ -129,6 +129,11 @@ service cloud.firestore {
       match /trackingSessions/{sessionId} {
         allow read, write: if false;
       }
+
+      // Historique des échanges avec l'analyste IA (accessible par les admins du workspace)
+      match /aiAssistantChats/{chatId} {
+        allow read, write: if isAdmin(workspaceId);
+      }
     }
   }
 }
