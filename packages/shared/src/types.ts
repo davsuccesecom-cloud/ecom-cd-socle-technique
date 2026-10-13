@@ -56,6 +56,15 @@ export interface Team {
   remunerationCloseusePerOrder?: number;
   remunerationLivreurPerOrder?: number;
   metaCapiConfig?: MetaCapiConfig;
+  printReceiptConfig?: {
+    enabled: boolean;
+    autoPrintOnDelivery: boolean;
+    companyName: string;
+    companyPhone: string;
+    companyAddress: string;
+    footerNote: string;
+    paperWidth: "58mm" | "80mm";
+  };
   createdAt: number;
 }
 

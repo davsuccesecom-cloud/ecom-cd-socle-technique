@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
-import { useOrders, useRegisterPushNotifications, useUpdateOrderStatus, useTheme, NotificationBell } from "@ecomcod/shared";
+import { doc, onSnapshot } from "firebase/firestore";
+import { useOrders, useRegisterPushNotifications, useUpdateOrderStatus, useTheme, NotificationBell, getDb } from "@ecomcod/shared";
+import type { Team } from "@ecomcod/shared";
 import OrderCard from "../components/OrderCard";
 
 interface DashboardProps {
@@ -20,7 +22,19 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
   const { orders, loading } = useOrders({ workspaceId, teamId, livreurId });
   const { updateLivreurStatus } = useUpdateOrderStatus(workspaceId);
   const { theme, toggleTheme } = useTheme("light");
+  const [team, setTeam] = useState<Team | null>(null);
   useRegisterPushNotifications(workspaceId, livreurId, import.meta.env.VITE_FIREBASE_VAPID_KEY);
+
+  useEffect(() => {
+    if (!workspaceId || !teamId) return;
+    const db = getDb();
+    const unsub = onSnapshot(doc(db, "workspaces", workspaceId, "teams", teamId), (snap) => {
+      if (snap.exists()) {
+        setTeam({ id: snap.id, ...snap.data() } as Team);
+      }
+    });
+    return () => unsub();
+  }, [workspaceId, teamId]);
 
   const [activeTab, setActiveTab] = useState<LivreurTab>("a_livrer");
 
@@ -155,6 +169,7 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
           <OrderCard
             key={order.id}
             order={order}
+            team={team}
             onChangeStatus={(status) => updateLivreurStatus(order.id, status)}
           />
         ))}

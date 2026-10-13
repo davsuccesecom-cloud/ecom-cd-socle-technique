@@ -5,6 +5,7 @@ import type { Team } from "@ecomcod/shared";
 import { useTheme } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import ShopifyFluxManager from "../components/ShopifyFluxManager";
+import PrintReceiptConfig from "../components/PrintReceiptConfig";
 
 interface ParametresProps {
   workspaceId: string;
@@ -130,6 +131,7 @@ export default function Parametres({ workspaceId, team, teams = [] }: Parametres
                 team={team}
                 allTeams={teams}
               />
+              <PrintReceiptConfig workspaceId={workspaceId} team={team} />
               <MetaCapiConnector workspaceId={workspaceId} team={team} />
             </>
           ) : (

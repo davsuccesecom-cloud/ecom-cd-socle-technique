@@ -19,6 +19,7 @@ import EquipesSheets from "./EquipesSheets";
 import Parametres from "./Parametres";
 import RevenueChart from "../components/RevenueChart";
 import Remuneration from "./Remuneration";
+import AiAssistant from "./AiAssistant";
 
 interface DashboardProps {
   workspaceId: string;
@@ -41,6 +42,7 @@ const EMPTY_COUNTS: Record<CloseuseStatus, number> = {
 };
 
 const PAGE_TITLES: Record<string, string> = {
+  ai_assistant: "Analyste IA & Secrétaire de Direction ⭐",
   performance: "Performance des employés 📊",
   users: "Utilisateurs & Accès 👥",
   orders: "Commandes 🛒",
@@ -183,8 +185,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       <main className="flex-1 px-5 py-6 pb-24 md:px-8 md:pb-6">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="hidden text-sm text-slate-500 md:block">Tableau de bord</p>
-            <h1 className="text-xl font-semibold text-slate-100 md:text-2xl">
+            <h1 className="text-xl font-bold text-slate-100 md:text-2xl">
               {PAGE_TITLES[page] ?? "Vue globale du business 👋"}
             </h1>
           </div>
@@ -211,6 +212,15 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
 
         {teams.length === 0 && !teamsLoading ? (
           <CreateTeamForm workspaceId={workspaceId} onCreated={(newTeamId) => setTeamId(newTeamId)} />
+        ) : page === "ai_assistant" ? (
+          <AiAssistant
+            workspaceId={workspaceId}
+            team={activeTeam}
+            allTeams={teams}
+            orders={allOrders}
+            closeuses={closeuses}
+            livreurs={livreurs}
+          />
         ) : page === "performance" ? (
           <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
         ) : page === "users" ? (
@@ -254,11 +264,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 <FluxTempsReel orders={orders} />
               </div>
             </div>
-
-            <div className="mt-4 hidden md:block">
-              <QuickSummary counts={quickCounts} />
-            </div>
-            <QuickSummaryFab counts={quickCounts} />
 
             {loading && <p className="mt-4 text-center text-xs text-slate-600">Mise à jour des données…</p>}
             {closeuses.length === 0 && livreurs.length === 0 && !loading && (

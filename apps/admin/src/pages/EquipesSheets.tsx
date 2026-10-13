@@ -60,13 +60,20 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
               <button
                 key={team.id}
                 onClick={() => setSelectedTeamId(team.id)}
-                className={`flex w-full items-center gap-2.5 border-b border-surface-border px-4 py-3 text-left text-sm last:border-0 ${
-                  active ? "bg-brand-light text-brand" : "text-slate-300 hover:bg-surface"
+                className={`flex w-full items-center justify-between border-b border-surface-border px-4 py-3.5 text-left text-sm last:border-0 transition-colors ${
+                  active ? "bg-brand/10 border-l-4 border-l-brand text-slate-100 font-semibold" : "text-slate-300 hover:bg-surface"
                 }`}
               >
-                {country && <img src={flagUrl(country.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover" />}
-                <span className="flex-1 truncate">{team.name}</span>
-                <span className="shrink-0 text-xs text-slate-500">{team.sheetIds.length}/{MAX_SHEETS_PER_TEAM}</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {country && <img src={flagUrl(country.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover shadow-sm" />}
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-slate-100">{team.name}</p>
+                    <p className="text-[10px] text-slate-500 font-mono">{team.currency || "XOF"}</p>
+                  </div>
+                </div>
+                <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[10px] font-mono text-slate-400 border border-surface-border">
+                  {team.sheetIds.length}/{MAX_SHEETS_PER_TEAM} Sheets
+                </span>
               </button>
             );
           })}

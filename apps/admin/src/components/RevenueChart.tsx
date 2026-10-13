@@ -79,36 +79,73 @@ export default function RevenueChart({ dailyStats, orders = [], currency = "XOF"
   const total = buckets.reduce((sum, b) => sum + b.ca, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md px-4 py-6" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised p-6"
+        className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-surface-border bg-surface-raised p-6 md:p-8 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
       >
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-slate-100">Évolution du chiffre d'affaires</h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-300">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold">
+              📈
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-100">Performance & Dynamique des Ventes</h2>
+              <p className="text-xs text-slate-400">
+                Période active : <span className="font-semibold text-slate-200">{periodLabel}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-surface-border p-2 text-slate-400 hover:bg-surface hover:text-white transition-colors"
+          >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M6 6l12 12M18 6 6 18" />
             </svg>
           </button>
         </div>
-        <p className="mb-6 text-sm text-slate-500">
-          Période : {periodLabel} — {buckets.length} jour{buckets.length > 1 ? "s" : ""} avec des données, total{" "}
-          {total.toLocaleString("fr-FR")} {currency}
-        </p>
+
+        <div className="my-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-surface-border bg-surface p-4">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Chiffre d'Affaires Total</span>
+            <div className="text-2xl font-black text-indigo-400 mt-1">
+              {total.toLocaleString("fr-FR")} {currency}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-surface-border bg-surface p-4">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Meilleure Journée</span>
+            <div className="text-2xl font-black text-emerald-400 mt-1">
+              {buckets.length > 0 ? Math.max(...buckets.map((b) => b.ca)).toLocaleString("fr-FR") : 0} {currency}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-surface-border bg-surface p-4">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Moyenne Journalière</span>
+            <div className="text-2xl font-black text-cyan-400 mt-1">
+              {buckets.length > 0 ? Math.round(total / buckets.length).toLocaleString("fr-FR") : 0} {currency}
+            </div>
+          </div>
+        </div>
 
         {buckets.length === 0 ? (
-          <p className="py-12 text-center text-sm text-slate-500">
-            Aucune donnée sur cette période pour tracer une courbe.
+          <p className="py-16 text-center text-sm text-slate-500">
+            Aucune commande livrée sur cette période pour tracer une courbe.
           </p>
         ) : (
-          <div className="rounded-xl border border-surface-border bg-surface p-4">
-            <ResponsiveContainer width="100%" height={260}>
+          <div className="rounded-2xl border border-surface-border bg-surface p-5">
+            <div className="mb-4 flex items-center justify-between text-xs font-semibold text-slate-400">
+              <span>Évolution du chiffre d'affaires</span>
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                Live Shopify Style
+              </span>
+            </div>
+            <ResponsiveContainer width="100%" height={320}>
               <AreaChart data={buckets} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0.03} />
+                    <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.6} />
+                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--surface-border)" vertical={false} />
@@ -124,20 +161,20 @@ export default function RevenueChart({ dailyStats, orders = [], currency = "XOF"
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  width={36}
+                  width={42}
                 />
-                <Tooltip content={<CustomTooltip currency={currency} />} cursor={{ stroke: "#6366F1", strokeWidth: 1 }} />
-                <Area type="monotone" dataKey="ca" stroke="#6366F1" strokeWidth={2.5} fill="url(#revenueFill)" />
+                <Tooltip content={<CustomTooltip currency={currency} />} cursor={{ stroke: "#4F46E5", strokeWidth: 1.5 }} />
+                <Area
+                  type="monotone"
+                  dataKey="ca"
+                  stroke="#4F46E5"
+                  strokeWidth={3}
+                  dot={{ r: 4, fill: "#4F46E5" }}
+                  activeDot={{ r: 6, fill: "#818CF8" }}
+                  fill="url(#revenueFill)"
+                />
               </AreaChart>
             </ResponsiveContainer>
-          </div>
-        )}
-
-        {buckets.length > 0 && (
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <MiniStat label="Meilleur jour" value={`${Math.max(...buckets.map((b) => b.ca)).toLocaleString("fr-FR")} ${currency}`} />
-            <MiniStat label="Moyenne / jour" value={`${Math.round(total / buckets.length).toLocaleString("fr-FR")} ${currency}`} />
-            <MiniStat label="Total période" value={`${total.toLocaleString("fr-FR")} ${currency}`} />
           </div>
         )}
       </div>

@@ -14,6 +14,7 @@ const PRIMARY_KEYS = ["overview", "orders", "teams"];
 const ICONS: Record<string, () => JSX.Element> = {
   overview: OverviewIcon,
   orders: OrdersIcon,
+  ai_assistant: AiAssistantIcon,
   deliveries: DeliveriesIcon,
   performance: PerformanceIcon,
   teams: TeamsIcon,
@@ -128,6 +129,20 @@ function OrdersIcon() {
     </svg>
   );
 }
+function AiAssistantIcon() {
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg {...iconProps()} className="text-amber-400">
+        <path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6.4-4.8-6.4 4.8 2.4-7.2-6-4.8h7.6z" fill="#F59E0B" stroke="#D97706" />
+      </svg>
+      <span className="absolute -top-1 -right-1 flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+      </span>
+    </div>
+  );
+}
+
 function DeliveriesIcon() {
   return (
     <svg {...iconProps()}>
