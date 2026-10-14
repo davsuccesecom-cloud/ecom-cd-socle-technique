@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy } from "firebase/firestore";
 import { getDb } from "@ecomcod/shared";
 import type { Team, Order } from "@ecomcod/shared";
@@ -101,19 +101,79 @@ const DARK: typeof LIGHT = {
 };
 type Theme = typeof LIGHT;
 
-function readIsDark(): boolean {
-  if (typeof document === "undefined") return false;
-  const el = document.documentElement;
-  return el.classList.contains("dark") || el.dataset.theme === "dark";
+let colorCanvas: HTMLCanvasElement | null = null;
+
+/** Convertit n'importe quelle couleur CSS (rgb, oklch, hsl...) en [r, g, b, alpha]. */
+function toRgba(color: string): [number, number, number, number] | null {
+  try {
+    if (!colorCanvas) {
+      colorCanvas = document.createElement("canvas");
+      colorCanvas.width = 1;
+      colorCanvas.height = 1;
+    }
+    const ctx = colorCanvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = "#000";
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 1, 1);
+    const d = ctx.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2], d[3] / 255];
+  } catch {
+    return null;
+  }
 }
 
-function useIsDark(): boolean {
-  const [dark, setDark] = useState(readIsDark);
-  useEffect(() => {
-    const obs = new MutationObserver(() => setDark(readIsDark()));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
-    return () => obs.disconnect();
-  }, []);
+/**
+ * Détecte si la page est réellement sombre en lisant la couleur de fond de l'app
+ * (fonctionne quelle que soit la façon dont ton thème sombre est activé).
+ */
+function detectDark(root: HTMLElement | null): boolean {
+  if (typeof document === "undefined") return false;
+  let node: HTMLElement | null = root?.parentElement ?? document.body;
+  while (node) {
+    const rgba = toRgba(getComputedStyle(node).backgroundColor);
+    if (rgba && rgba[3] > 0.05) {
+      const lum = (0.2126 * rgba[0] + 0.7152 * rgba[1] + 0.0722 * rgba[2]) / 255;
+      return lum < 0.5;
+    }
+    node = node.parentElement;
+  }
+  const html = document.documentElement;
+  return html.classList.contains("dark") || html.dataset.theme === "dark";
+}
+
+function useIsDark(rootRef: { current: HTMLElement | null }): boolean {
+  const [dark, setDark] = useState(false);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    let timers: number[] = [];
+
+    const update = () => setDark(detectDark(root));
+    // Le thème peut avoir une transition : on revérifie un peu plus tard
+    const schedule = () => {
+      update();
+      timers.forEach((id) => window.clearTimeout(id));
+      timers = [window.setTimeout(update, 120), window.setTimeout(update, 450)];
+    };
+
+    update();
+
+    const obs = new MutationObserver(schedule);
+    for (let n: HTMLElement | null = root?.parentElement ?? null; n; n = n.parentElement) {
+      obs.observe(n, { attributes: true, attributeFilter: ["class", "data-theme", "data-mode", "style"] });
+    }
+    const mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+    mq?.addEventListener?.("change", schedule);
+
+    return () => {
+      obs.disconnect();
+      mq?.removeEventListener?.("change", schedule);
+      timers.forEach((id) => window.clearTimeout(id));
+    };
+  }, [rootRef]);
+
   return dark;
 }
 
@@ -355,8 +415,13 @@ const IconSpark = () => (
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-const formatTime = (ts: number) =>
-  new Date(ts).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+const formatTime = (ts: unknown) => {
+  const d =
+    typeof ts === "object" && ts !== null && "toDate" in ts && typeof (ts as { toDate: unknown }).toDate === "function"
+      ? (ts as { toDate: () => Date }).toDate()
+      : new Date(ts as number | string);
+  return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+};
 
 /* -------------------------------------------------------------------------- */
 /*  Composant principal                                                        */
@@ -377,7 +442,8 @@ export default function AiAssistant({
   closeuses,
   livreurs,
 }: AiAssistantProps) {
-  const isDark = useIsDark();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isDark = useIsDark(rootRef);
   const t = isDark ? DARK : LIGHT;
 
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
@@ -385,6 +451,7 @@ export default function AiAssistant({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [showJump, setShowJump] = useState(false);
   const [provider, setProvider] = useState<ProviderKey>(() => {
     try {
@@ -410,8 +477,7 @@ export default function AiAssistant({
 
   useEffect(() => {
     aiService.setProvider(provider);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [provider]);
 
   /* 1. Métriques business réelles ---------------------------------------- */
   const context: BusinessMetricsContext = (() => {
@@ -496,17 +562,26 @@ export default function AiAssistant({
   /* 2. Écoute Firestore --------------------------------------------------- */
   useEffect(() => {
     if (!workspaceId) return;
+    setHistoryLoaded(false);
     const db = getDb();
     const chatCol = collection(db, "workspaces", workspaceId, "aiAssistantChats");
     const q = query(chatCol, orderBy("timestamp", "asc"));
 
-    const unsub = onSnapshot(q, (snap) => {
-      const list: AiChatMessage[] = [];
-      snap.forEach((d) => {
-        list.push({ id: d.id, ...d.data() } as AiChatMessage);
-      });
-      setMessages(list);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: AiChatMessage[] = [];
+        snap.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as AiChatMessage);
+        });
+        setMessages(list);
+        setHistoryLoaded(true);
+      },
+      () => {
+        setHistoryLoaded(true);
+        setErrorMsg("Impossible de charger l'historique de la conversation.");
+      }
+    );
     return () => unsub();
   }, [workspaceId]);
 
@@ -693,7 +768,7 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
   /*  Rendu                                                                    */
   /* ------------------------------------------------------------------------ */
   return (
-    <div className="mx-auto w-full max-w-4xl">
+    <div ref={rootRef} className="mx-auto w-full max-w-4xl">
       <div
         className={`flex h-[calc(100dvh-9rem)] min-h-[480px] flex-col overflow-hidden rounded-2xl border shadow-sm ${t.card}`}
       >
@@ -752,7 +827,9 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
         <div className="relative min-h-0 flex-1">
           <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto overscroll-contain">
             <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-6 sm:px-6">
-              {isEmpty && !loading ? (
+              {!historyLoaded ? (
+                <div className={`my-auto py-10 text-center text-sm ${t.muted}`}>Chargement de la conversation…</div>
+              ) : isEmpty && !loading ? (
                 <div className="my-auto py-6">
                   <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-md">
