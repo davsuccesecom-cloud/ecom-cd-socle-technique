@@ -5,6 +5,7 @@ import {
   setDoc,
   deleteDoc,
   updateDoc,
+  deleteField,
   onSnapshot,
 } from "firebase/firestore";
 import { getDb, AFRICA_COUNTRIES } from "@ecomcod/shared";
@@ -19,6 +20,89 @@ interface ShopifyFluxManagerProps {
   workspaceId: string;
   team: Team;
   allTeams: Team[];
+}
+
+// Champs de preuve écrits par les fonctions serveur (webhook / script de suivi)
+type ConnExtra = {
+  verifyToken?: string;
+  trackerVerifiedAt?: number;
+  webhookVerifiedAt?: number;
+  lastOrderAt?: number;
+  ordersCount?: number;
+};
+type Conn = ShopifyConnection & ConnExtra;
+
+const isPending = (c: ShopifyConnection) => (c.status as string) === "pending";
+
+const generateToken = (): string => {
+  try {
+    return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+  } catch {
+    return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+  }
+};
+
+const timeAgo = (ts: number): string => {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `il y a ${h} h`;
+  return `il y a ${Math.floor(h / 24)} j`;
+};
+
+/** État réel d'une boutique, déduit des preuves reçues (jamais d'un simple lien). */
+function getShopHealth(conn: Conn): {
+  label: string;
+  detail: string;
+  badgeClass: string;
+  dotClass: string;
+  needsVerification: boolean;
+} {
+  const DAY = 24 * 60 * 60 * 1000;
+  if (isPending(conn)) {
+    return {
+      label: "En attente de vérification",
+      detail: "Boutique non activée : aucune commande n'est importée pour le moment.",
+      badgeClass: "bg-amber-500/10 text-amber-400",
+      dotClass: "bg-amber-400",
+      needsVerification: true,
+    };
+  }
+  if (conn.lastOrderAt && Date.now() - conn.lastOrderAt < 2 * DAY) {
+    return {
+      label: "En direct",
+      detail: `Dernière commande reçue ${timeAgo(conn.lastOrderAt)}.`,
+      badgeClass: "bg-emerald-500/10 text-emerald-400",
+      dotClass: "bg-emerald-400",
+      needsVerification: false,
+    };
+  }
+  if (conn.lastOrderAt) {
+    return {
+      label: "Connectée",
+      detail: `Aucune commande récente (dernière ${timeAgo(conn.lastOrderAt)}).`,
+      badgeClass: "bg-sky-500/10 text-sky-400",
+      dotClass: "bg-sky-400",
+      needsVerification: false,
+    };
+  }
+  if (conn.webhookVerifiedAt) {
+    return {
+      label: "Connectée",
+      detail: "Webhook validé, en attente de la première commande.",
+      badgeClass: "bg-sky-500/10 text-sky-400",
+      dotClass: "bg-sky-400",
+      needsVerification: false,
+    };
+  }
+  return {
+    label: "Non vérifiée",
+    detail: "Cette connexion n'a jamais été testée : vérifiez qu'elle reçoit bien les commandes.",
+    badgeClass: "bg-amber-500/10 text-amber-400",
+    dotClass: "bg-amber-400",
+    needsVerification: true,
+  };
 }
 
 function getCountryMeta(code: string) {
@@ -63,8 +147,6 @@ export default function ShopifyFluxManager({
   const [isValidDomain, setIsValidDomain] = useState(false);
   const [wizardBusy, setWizardBusy] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
-  const [testBotStatus, setTestBotStatus] = useState<"idle" | "testing" | "success" | "error">("idle");
-  const [testBotLog, setTestBotLog] = useState<string[]>([]);
 
   // Routes configurées dans l'assistant
   const [configuredRoutes, setConfiguredRoutes] = useState<Record<string, { teamId: string; teamName: string }>>({});
@@ -119,18 +201,6 @@ export default function ShopifyFluxManager({
     return () => unsub();
   }, [workspaceId]);
 
-  // Vérification de l'existence réelle du site via l'API Google DNS publique (dns.google)
-  const verifyDomainWithGoogle = async (domainToTest: string): Promise<boolean> => {
-    try {
-      const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(domainToTest)}&type=A`);
-      if (!res.ok) return false;
-      const data = await res.json();
-      return Array.isArray(data.Answer) && data.Answer.length > 0;
-    } catch {
-      return true; // Tolérance réseau si indisponible
-    }
-  };
-
   // Analyse et validation de l'URL Shopify
   useEffect(() => {
     const trimmed = shopUrlInput.trim().toLowerCase();
@@ -152,10 +222,8 @@ export default function ShopifyFluxManager({
     if (domainRegex.test(clean) || isMyshopify) {
       setDetectedDomain(clean);
       setStoreFavicon(`https://www.google.com/s2/favicons?domain=${clean}&sz=64`);
-      // Vérification asynchrone DNS Google
-      verifyDomainWithGoogle(clean).then((exists) => {
-        setIsValidDomain(exists);
-      });
+      // Simple contrôle de format : la vraie vérification se fait à l'étape 4
+      setIsValidDomain(true);
     } else {
       setDetectedDomain("");
       setStoreFavicon(null);
@@ -175,84 +243,138 @@ export default function ShopifyFluxManager({
     setTimeout(() => setCopiedKey(null), 2500);
   };
 
-  // Robot de vérification en direct : vérifie la réception réelle de cookies fbp ou de requêtes
-  const runVerificationBot = async (domain: string) => {
-    setTestBotStatus("testing");
-    setTestBotLog([
-      `1. Recherche DNS Google effectuée sur ${domain} : Domaine actif et joignable.`,
-      `2. Mise en écoute des flux entrants pour ${domain}...`,
-      `3. Veuillez ouvrir votre boutique ou soumettre un formulaire test EasySell avec le script installé.`,
-    ]);
+  // Connexion en cours d'assistant (suivie en direct via Firestore)
+  const wizardConnId = detectedDomain ? detectedDomain.replace(/[^a-z0-9]/gi, "_") : "";
+  const wizardConn = connections.find((c) => c.id === wizardConnId) as Conn | undefined;
+  const verifyUrl =
+    wizardConn?.verifyToken && detectedDomain
+      ? `https://${detectedDomain}/?ecomcod_verify=${wizardConn.verifyToken}`
+      : "";
 
-    // Attente et vérification d'un signal
-    setTimeout(() => {
-      setTestBotLog((prev) => [
-        ...prev,
-        `✓ Passerelle prête : Dès que vos premières visites ou commandes arrivent, les balises Meta CAPI (fbp/fbc) seront automatiquement réconciliées.`,
-      ]);
-      setTestBotStatus("success");
-    }, 2000);
+  const closeWizard = () => {
+    setShowWizard(false);
+    setWizardStep(1);
+    setShopUrlInput("");
+    setDetectedDomain("");
+    setConfiguredRoutes({});
+    setWizardError(null);
   };
 
-  // Finaliser la création de la boutique via l'assistant
-  const handleFinalizeConnection = async () => {
+  const buildRoutesToSave = (): Record<string, ShopifyCountryRoute> => {
+    const routes: Record<string, ShopifyCountryRoute> = {};
+    Object.entries(configuredRoutes).forEach(([countryCode, dest]) => {
+      routes[countryCode] = {
+        countryCode,
+        assignedTeamId: dest.teamId,
+        assignedTeamName: dest.teamName,
+        assignedAt: Date.now(),
+        status: "active",
+      };
+    });
+
+    // Si aucun pays sélectionné, on initialise avec le pays de l'équipe
+    const defaultCountry = (team.defaultCountry || "BJ").toUpperCase();
+    if (Object.keys(routes).length === 0) {
+      routes[defaultCountry] = {
+        countryCode: defaultCountry,
+        assignedTeamId: team.id,
+        assignedTeamName: team.name,
+        assignedAt: Date.now(),
+        status: "active",
+      };
+    }
+    return routes;
+  };
+
+  // Étape 2 → 3 : la boutique est créée EN ATTENTE. Elle ne devient active qu'avec une vraie preuve.
+  const createPendingConnection = async () => {
     if (!detectedDomain) return;
     setWizardBusy(true);
     setWizardError(null);
 
     try {
       const db = getDb();
-      const connectionId = detectedDomain.replace(/[^a-z0-9]/gi, "_");
+      const ref = doc(db, "workspaces", workspaceId, "shopifyConnections", wizardConnId);
+      const routes = buildRoutesToSave();
 
-      const routesToSave: Record<string, ShopifyCountryRoute> = {};
-      Object.entries(configuredRoutes).forEach(([countryCode, dest]) => {
-        routesToSave[countryCode] = {
-          countryCode,
-          assignedTeamId: dest.teamId,
-          assignedTeamName: dest.teamName,
-          assignedAt: Date.now(),
-          status: "active",
-        };
-      });
-
-      // Si aucun pays sélectionné, on initialise avec le pays de l'équipe
-      const defaultCountry = (team.defaultCountry || "BJ").toUpperCase();
-      if (Object.keys(routesToSave).length === 0) {
-        routesToSave[defaultCountry] = {
-          countryCode: defaultCountry,
-          assignedTeamId: team.id,
-          assignedTeamName: team.name,
-          assignedAt: Date.now(),
-          status: "active",
-        };
+      if (wizardConn) {
+        if (wizardConn.ownerTeamId !== team.id) {
+          throw new Error("Cette boutique est déjà connectée par une autre équipe.");
+        }
+        if (!isPending(wizardConn)) {
+          throw new Error("Cette boutique est déjà connectée. Déconnectez-la d'abord pour la reconfigurer.");
+        }
+        await updateDoc(ref, { countryRoutes: routes });
+      } else {
+        const connDoc = {
+          id: wizardConnId,
+          workspaceId,
+          ownerTeamId: team.id,
+          ownerTeamName: team.name,
+          shopDomain: detectedDomain,
+          shopName: detectedDomain.replace(".myshopify.com", ""),
+          status: "pending",
+          connectedAt: Date.now(),
+          countryRoutes: routes,
+          verifyToken: generateToken(),
+        } as unknown as ShopifyConnection;
+        await setDoc(ref, connDoc);
       }
 
-      const connDoc: ShopifyConnection = {
-        id: connectionId,
-        workspaceId,
-        ownerTeamId: team.id,
-        ownerTeamName: team.name,
-        shopDomain: detectedDomain,
-        shopName: detectedDomain.replace(".myshopify.com", ""),
-        status: "active",
-        connectedAt: Date.now(),
-        countryRoutes: routesToSave,
-      };
-
-      await setDoc(
-        doc(db, "workspaces", workspaceId, "shopifyConnections", connectionId),
-        connDoc
-      );
-
-      // Réinitialiser le Wizard
-      setShowWizard(false);
-      setWizardStep(1);
-      setShopUrlInput("");
-      setDetectedDomain("");
-      setConfiguredRoutes({});
-      setTestBotStatus("idle");
+      setWizardStep(3);
     } catch (err) {
-      setWizardError(err instanceof Error ? err.message : "Erreur lors de l'enregistrement de la boutique.");
+      setWizardError(err instanceof Error ? err.message : "Impossible de préparer la connexion.");
+    } finally {
+      setWizardBusy(false);
+    }
+  };
+
+  // Ouvrir la vérification d'une boutique existante (en attente ou jamais testée)
+  const openVerification = async (conn: Conn) => {
+    try {
+      if (!conn.verifyToken) {
+        await updateDoc(doc(getDb(), "workspaces", workspaceId, "shopifyConnections", conn.id), {
+          verifyToken: generateToken(),
+        });
+      }
+    } catch {
+      // L'écoute en direct affichera l'état réel
+    }
+
+    const routes: Record<string, { teamId: string; teamName: string }> = {};
+    Object.entries(conn.countryRoutes || {}).forEach(([code, r]) => {
+      routes[code] = { teamId: r.assignedTeamId, teamName: r.assignedTeamName };
+    });
+    setConfiguredRoutes(routes);
+    setShopUrlInput(conn.shopDomain);
+    setWizardError(null);
+    setWizardStep(4);
+    setShowWizard(true);
+  };
+
+  // Activation : impossible tant que Shopify n'a pas réellement joint le webhook
+  const handleFinalizeConnection = async () => {
+    if (!wizardConn) return;
+    if (!isPending(wizardConn)) {
+      closeWizard();
+      return;
+    }
+    if (!wizardConn.webhookVerifiedAt) {
+      setWizardError("Aucun signal reçu de Shopify pour l'instant : le webhook doit être validé avant l'activation.");
+      return;
+    }
+
+    setWizardBusy(true);
+    setWizardError(null);
+    try {
+      await updateDoc(doc(getDb(), "workspaces", workspaceId, "shopifyConnections", wizardConn.id), {
+        status: "active",
+        activatedAt: Date.now(),
+        verifyToken: deleteField(),
+      });
+      closeWizard();
+    } catch (err) {
+      setWizardError(err instanceof Error ? err.message : "Erreur lors de l'activation de la boutique.");
     } finally {
       setWizardBusy(false);
     }
@@ -358,6 +480,7 @@ export default function ShopifyFluxManager({
 
   // Séparer les boutiques possédées et les flux empruntés
   const myConnections = connections.filter((c) => c.ownerTeamId === team.id);
+  const gatewayOk = myConnections.some((c) => !isPending(c) && !!(c as Conn).webhookVerifiedAt);
   const borrowedFlux: {
     connection: ShopifyConnection;
     countryCode: string;
@@ -404,10 +527,18 @@ export default function ShopifyFluxManager({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-slate-100">Boutiques & Flux Shopify</h2>
-                <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400 border border-emerald-500/30">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  Passerelle Active
-                </span>
+                {myConnections.length > 0 &&
+                  (gatewayOk ? (
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400 border border-emerald-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      Passerelle active
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400 border border-amber-500/30">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                      Passerelle non vérifiée
+                    </span>
+                  ))}
               </div>
               <p className="text-xs text-slate-400">
                 Centralisez vos boutiques Shopify, routez les pays vers vos équipes locales et enrichissez Meta CAPI.
@@ -456,6 +587,7 @@ export default function ShopifyFluxManager({
             {myConnections.map((conn) => {
               const routes = conn.countryRoutes || {};
               const routeEntries = Object.entries(routes);
+              const health = getShopHealth(conn as Conn);
 
               return (
                 <div
@@ -476,16 +608,27 @@ export default function ShopifyFluxManager({
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-bold text-slate-100">{conn.shopName}</h3>
-                          <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                            En direct
+                          <span
+                            className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${health.badgeClass}`}
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full ${health.dotClass}`} />
+                            {health.label}
                           </span>
                         </div>
                         <p className="text-xs font-mono text-slate-400">{conn.shopDomain}</p>
+                        <p className="text-[11px] text-slate-500">{health.detail}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 self-end sm:self-auto">
+                      {health.needsVerification && (
+                        <button
+                          onClick={() => openVerification(conn as Conn)}
+                          className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors"
+                        >
+                          {isPending(conn) ? "Reprendre la vérification" : "Vérifier"}
+                        </button>
+                      )}
                       <button
                         onClick={() => setAddCountryModal({ connectionId: conn.id })}
                         className="rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:border-slate-500 transition-colors"
@@ -662,7 +805,7 @@ export default function ShopifyFluxManager({
                 </h3>
               </div>
               <button
-                onClick={() => setShowWizard(false)}
+                onClick={closeWizard}
                 className="text-slate-400 hover:text-white text-lg font-bold p-1"
               >
                 ✕
@@ -724,10 +867,10 @@ export default function ShopifyFluxManager({
                 </div>
 
                 {isValidDomain && (
-                  <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
-                    <span>✓</span>
+                  <div className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface p-3 text-xs text-slate-300">
+                    <span>🔎</span>
                     <span>
-                      Domaine valide détecté : <strong>{detectedDomain}</strong>
+                      Adresse détectée : <strong>{detectedDomain}</strong>. Elle sera réellement testée à l'étape 4.
                     </span>
                   </div>
                 )}
@@ -835,6 +978,8 @@ export default function ShopifyFluxManager({
                   💡 <strong>Besoin de vendre dans un autre pays ?</strong> Créez d'abord une équipe pour ce pays dans l'application Admin afin d'y affecter vos closeuses et livreurs.
                 </div>
 
+                {wizardError && <p className="text-xs text-red-400">{wizardError}</p>}
+
                 <div className="pt-2 flex justify-between">
                   <button
                     onClick={() => setWizardStep(1)}
@@ -843,11 +988,11 @@ export default function ShopifyFluxManager({
                     ← Retour
                   </button>
                   <button
-                    disabled={Object.keys(configuredRoutes).length === 0}
-                    onClick={() => setWizardStep(3)}
+                    disabled={Object.keys(configuredRoutes).length === 0 || wizardBusy}
+                    onClick={createPendingConnection}
                     className="rounded-xl bg-[#5E8E3E] px-5 py-2.5 text-xs font-bold text-white disabled:opacity-40 hover:bg-[#5E8E3E]/90 transition-all"
                   >
-                    Suivant : Scripts d'intégration →
+                    {wizardBusy ? "Préparation..." : "Suivant : Scripts d'intégration →"}
                   </button>
                 </div>
               </div>
@@ -919,47 +1064,119 @@ export default function ShopifyFluxManager({
                     ← Retour
                   </button>
                   <button
-                    onClick={() => {
-                      setWizardStep(4);
-                      runVerificationBot(detectedDomain);
-                    }}
+                    onClick={() => setWizardStep(4)}
                     className="rounded-xl bg-[#5E8E3E] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#5E8E3E]/90 transition-all"
                   >
-                    Tester la connexion avec le robot →
+                    Vérifier la connexion →
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ÉTAPE 4 : Vérification robot et finalisation */}
+            {/* ÉTAPE 4 : Vérification réelle (preuves reçues en direct) */}
             {wizardStep === 4 && (
               <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-200">
-                    Vérification du flux de données
+                    Vérification réelle de la connexion
                   </label>
                   <p className="text-xs text-slate-400">
-                    Notre robot effectue un test pour confirmer que les données et les identifiants Facebook (fbp) sont prêts.
+                    La boutique ne sera activée qu'après une vraie preuve reçue de Shopify. Les coches se mettent à jour en direct.
                   </p>
                 </div>
 
-                {/* Journal de test */}
-                <div className="rounded-xl border border-surface-border bg-surface p-3 font-mono text-[11px] space-y-1 text-slate-300 min-h-28">
-                  {testBotLog.map((log, idx) => (
-                    <div key={idx} className="leading-relaxed">
-                      {log}
+                {!wizardConn ? (
+                  <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                    Connexion introuvable. Revenez à l'étape 2 pour la préparer.
+                  </p>
+                ) : (
+                  <>
+                    {/* Contrôle 1 : webhook de commandes (obligatoire) */}
+                    <div
+                      className={`rounded-xl border p-3 space-y-1.5 ${
+                        wizardConn.webhookVerifiedAt
+                          ? "border-emerald-500/30 bg-emerald-500/10"
+                          : "border-surface-border bg-surface"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                        <span>{wizardConn.webhookVerifiedAt ? "✅" : "⏳"}</span>
+                        <span>1. Webhook de commandes {wizardConn.webhookVerifiedAt ? "reçu" : "en attente"}</span>
+                        <span className="ml-auto text-[10px] font-normal text-slate-400">obligatoire</span>
+                      </div>
+                      {wizardConn.webhookVerifiedAt ? (
+                        <p className="text-[11px] text-emerald-300/80">
+                          Dernier signal de Shopify : {timeAgo(wizardConn.webhookVerifiedAt)}.
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-slate-400 leading-relaxed">
+                          Dans Shopify : Paramètres → Notifications → Webhooks → votre webhook « Création de commande » →{" "}
+                          <strong>Envoyer une notification de test</strong>. Cette notification n'est pas importée comme une commande.
+                        </p>
+                      )}
                     </div>
-                  ))}
-                  {testBotStatus === "testing" && (
-                    <div className="text-indigo-400 animate-pulse">Test en cours...</div>
-                  )}
-                </div>
 
-                {testBotStatus === "success" && (
-                  <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
-                    <span>✓</span>
-                    <span>Configuration validée avec succès ! Vous pouvez maintenant activer la boutique.</span>
-                  </div>
+                    {/* Contrôle 2 : script de suivi (recommandé) */}
+                    <div
+                      className={`rounded-xl border p-3 space-y-1.5 ${
+                        wizardConn.trackerVerifiedAt
+                          ? "border-emerald-500/30 bg-emerald-500/10"
+                          : "border-surface-border bg-surface"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                        <span>{wizardConn.trackerVerifiedAt ? "✅" : "⏳"}</span>
+                        <span>2. Script de suivi {wizardConn.trackerVerifiedAt ? "détecté" : "en attente"}</span>
+                        <span className="ml-auto text-[10px] font-normal text-slate-400">recommandé</span>
+                      </div>
+                      {wizardConn.trackerVerifiedAt ? (
+                        <p className="text-[11px] text-emerald-300/80">
+                          Le script tourne sur votre vraie boutique ({timeAgo(wizardConn.trackerVerifiedAt)}).
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            Une fois le script collé dans <code>theme.liquid</code>, ouvrez cette adresse dans votre navigateur.
+                            Le script la reconnaît et confirme l'installation.
+                          </p>
+                          {verifyUrl && (
+                            <>
+                              <input
+                                readOnly
+                                value={verifyUrl}
+                                className="w-full rounded-lg border border-surface-border bg-surface-raised px-3 py-2 text-[11px] font-mono text-slate-300 select-all"
+                              />
+                              <div className="flex gap-3">
+                                <button
+                                  onClick={() => copyToClipboard(verifyUrl, "verify")}
+                                  className="text-xs text-[#5E8E3E] hover:underline font-semibold"
+                                >
+                                  {copiedKey === "verify" ? "✓ Copié !" : "Copier"}
+                                </button>
+                                <a
+                                  href={verifyUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs text-[#5E8E3E] hover:underline font-semibold"
+                                >
+                                  Ouvrir ↗
+                                </a>
+                              </div>
+                            </>
+                          )}
+                          <p className="text-[11px] text-slate-500">
+                            Si la boutique est protégée par un mot de passe, le script ne peut pas être détecté.
+                          </p>
+                        </>
+                      )}
+                    </div>
+
+                    {isPending(wizardConn) && wizardConn.webhookVerifiedAt && !wizardConn.trackerVerifiedAt && (
+                      <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] text-amber-300">
+                        Le script n'a pas été détecté : la boutique recevra bien les commandes, mais sans enrichissement Meta (fbp/fbc).
+                      </p>
+                    )}
+                  </>
                 )}
 
                 {wizardError && <p className="text-xs text-red-400">{wizardError}</p>}
@@ -972,11 +1189,17 @@ export default function ShopifyFluxManager({
                     ← Retour
                   </button>
                   <button
-                    disabled={wizardBusy || testBotStatus === "testing"}
+                    disabled={
+                      wizardBusy || !wizardConn || (isPending(wizardConn) && !wizardConn.webhookVerifiedAt)
+                    }
                     onClick={handleFinalizeConnection}
-                    className="rounded-xl bg-[#5E8E3E] px-6 py-2.5 text-xs font-bold text-white hover:bg-[#5E8E3E]/90 transition-all disabled:opacity-50"
+                    className="rounded-xl bg-[#5E8E3E] px-6 py-2.5 text-xs font-bold text-white hover:bg-[#5E8E3E]/90 transition-all disabled:opacity-40"
                   >
-                    {wizardBusy ? "Enregistrement..." : "Terminer et activer la boutique"}
+                    {wizardBusy
+                      ? "Activation..."
+                      : wizardConn && !isPending(wizardConn)
+                      ? "Terminer"
+                      : "Terminer et activer la boutique"}
                   </button>
                 </div>
               </div>

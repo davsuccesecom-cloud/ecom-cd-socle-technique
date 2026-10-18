@@ -39,6 +39,45 @@ function normalizePhoneE164(raw: string, defaultCountry = "TG"): { normalized: s
   return { normalized: digits ? `+${digits}` : "", hash: sha256(digits) };
 }
 
+type ConnectionStatus = "active" | "pending";
+
+/**
+ * Retrouve la connexion Shopify d'un domaine (active d'abord, puis en attente).
+ * Réutilise le même index composite (shopDomain + status) que l'ancien code.
+ */
+async function findConnection(
+  db: admin.firestore.Firestore,
+  shopDomain: string
+): Promise<{ doc: admin.firestore.QueryDocumentSnapshot; status: ConnectionStatus } | null> {
+  const statuses: ConnectionStatus[] = ["active", "pending"];
+  for (const status of statuses) {
+    const snap = await db
+      .collectionGroup("shopifyConnections")
+      .where("shopDomain", "==", shopDomain)
+      .where("status", "==", status)
+      .limit(1)
+      .get();
+    if (!snap.empty) return { doc: snap.docs[0], status };
+  }
+  return null;
+}
+
+/**
+ * navigator.sendBeacon envoie du texte brut : Firebase fournit alors req.body
+ * sous forme de chaîne. On accepte donc objet, chaîne et Buffer.
+ */
+function parseJsonBody(raw: unknown): any {
+  if (raw && typeof raw === "object" && !Buffer.isBuffer(raw)) return raw;
+  const text = Buffer.isBuffer(raw) ? raw.toString("utf8") : typeof raw === "string" ? raw : "";
+  if (!text) return {};
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 // ===========================================================================
 // 1. trackSession : Capture fbp, fbc, UTM, IP, UA et téléphone du visiteur
 // ===========================================================================
@@ -60,9 +99,9 @@ export const trackSession = onRequest(
     }
 
     try {
-      const body = req.body || {};
-      const shopDomain = (body.shopDomain || "").trim().toLowerCase();
-      const phoneRaw = (body.phone || "").trim();
+      const body = parseJsonBody(req.body);
+      const shopDomain = String(body.shopDomain || "").trim().toLowerCase();
+      const phoneRaw = String(body.phone || "").trim();
 
       if (!shopDomain) {
         res.status(400).json({ error: "shopDomain requis." });
@@ -79,31 +118,27 @@ export const trackSession = onRequest(
 
       const db = getDb();
 
-      // Rechercher la connexion Shopify pour identifier le workspaceId
-      let workspaceId = body.workspaceId || "";
-      let teamId = body.teamId || "";
-
-      if (!workspaceId) {
-        const connSnap = await db
-          .collectionGroup("shopifyConnections")
-          .where("shopDomain", "==", shopDomain)
-          .where("status", "==", "active")
-          .limit(1)
-          .get();
-
-        if (!connSnap.empty) {
-          const connData = connSnap.docs[0].data();
-          workspaceId = connData.workspaceId;
-          teamId = connData.ownerTeamId;
-        }
+      // Le workspace vient UNIQUEMENT de la connexion enregistrée (jamais du navigateur)
+      const found = await findConnection(db, shopDomain);
+      if (!found) {
+        res.status(200).json({ success: true, matched: false });
+        return;
       }
 
-      if (!workspaceId) {
-        // Fallback : rechercher dans le premier workspace disponible
-        const wsSnap = await db.collection("workspaces").limit(1).get();
-        if (!wsSnap.empty) {
-          workspaceId = wsSnap.docs[0].id;
-        }
+      const connData = found.doc.data();
+      const workspaceId = String(connData.workspaceId || "");
+      const teamId = String(connData.ownerTeamId || "");
+
+      // Preuve d'installation du script : le jeton de vérification a été lu sur la vraie boutique
+      const verifyToken = String(body.verifyToken || "");
+      if (verifyToken && connData.verifyToken && verifyToken === connData.verifyToken) {
+        await found.doc.ref.update({ trackerVerifiedAt: Date.now() });
+      }
+
+      // Boutique pas encore activée : on ne stocke aucune session
+      if (found.status !== "active" || !workspaceId) {
+        res.status(200).json({ success: true, matched: true, stored: false });
+        return;
       }
 
       const sessionId = db.collection("_").doc().id;
@@ -129,19 +164,18 @@ export const trackSession = onRequest(
         linkedOrderId: null,
       };
 
-      if (workspaceId) {
-        await db
-          .collection("workspaces")
-          .doc(workspaceId)
-          .collection("trackingSessions")
-          .doc(sessionId)
-          .set(sessionDoc);
-      }
+      await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("trackingSessions")
+        .doc(sessionId)
+        .set(sessionDoc);
 
       res.status(200).json({
         success: true,
         sessionId,
-        matched: !!workspaceId,
+        matched: true,
+        stored: true,
       });
     } catch (err) {
       console.error("trackSession error:", err);
@@ -179,23 +213,35 @@ export const shopifyWebhook = onRequest(
       const db = getDb();
 
       // Rechercher la connexion Shopify correspondante (Multi-boutique / Flux)
-      const connSnap = await db
-        .collectionGroup("shopifyConnections")
-        .where("shopDomain", "==", shopDomain)
-        .where("status", "==", "active")
-        .limit(1)
-        .get();
+      const found = await findConnection(db, shopDomain);
 
-      if (connSnap.empty) {
+      if (!found) {
         console.warn(`shopifyWebhook: boutique non trouvée ou inactive: ${shopDomain}`);
         // Répondre 200 à Shopify pour éviter qu'il retente en boucle indéfiniment
         res.status(200).json({ received: true, warning: "Boutique non connectée dans l'application." });
         return;
       }
 
-      const connDoc = connSnap.docs[0];
+      const connDoc = found.doc;
       const connection = connDoc.data();
       const workspaceId = connection.workspaceId;
+
+      // Preuve de réception : Shopify a bien joint le webhook.
+      // Pendant la configuration (statut "pending") ou pour une notification de test,
+      // on enregistre la preuve mais on n'importe AUCUNE commande.
+      const isShopifyTest = String(req.headers["x-shopify-test"] || "").toLowerCase() === "true";
+      if (isShopifyTest || found.status !== "active") {
+        await connDoc.ref.update({ webhookVerifiedAt: Date.now() });
+        res.status(200).json({
+          received: true,
+          verified: true,
+          imported: false,
+          reason: isShopifyTest
+            ? "Notification de test Shopify (non importée)."
+            : "Boutique en attente d'activation (commande non importée).",
+        });
+        return;
+      }
 
       // Idempotence : vérifier si la commande existe déjà
       const existingSnap = await db
@@ -402,6 +448,13 @@ export const shopifyWebhook = onRequest(
 
       await newOrderRef.set(orderDoc);
 
+      // Preuve de fonctionnement continue : sert au badge « En direct » de l'interface
+      await connDoc.ref.update({
+        webhookVerifiedAt: connection.webhookVerifiedAt || Date.now(),
+        lastOrderAt: Date.now(),
+        ordersCount: admin.firestore.FieldValue.increment(1),
+      });
+
       res.status(200).json({
         success: true,
         orderId: shopifyOrderId,
@@ -424,7 +477,7 @@ export const getStorefrontTrackerScript = onRequest(
   { cors: true },
   (req, res): void => {
     res.set("Content-Type", "application/javascript");
-    res.set("Cache-Control", "public, max-age=3600");
+    res.set("Cache-Control", "public, max-age=300");
 
     const trackEndpoint = `https://${req.hostname}/trackSession`;
 
@@ -435,7 +488,8 @@ export const getStorefrontTrackerScript = onRequest(
  */
 (function() {
   var ENDPOINT = "${trackEndpoint}";
-  var SHOP_DOMAIN = window.location.hostname;
+  // Domaine myshopify.com réel (fonctionne aussi avec un domaine personnalisé)
+  var SHOP_DOMAIN = String((window.Shopify && window.Shopify.shop) || window.location.hostname || '').toLowerCase();
 
   function getCookie(name) {
     var match = document.cookie.match(new RegExp('(^|;\\\\s*)(' + name + ')=([^;]*)'));
@@ -450,7 +504,8 @@ export const getStorefrontTrackerScript = onRequest(
       utm_medium: params.get('utm_medium') || '',
       utm_campaign: params.get('utm_campaign') || '',
       utm_content: params.get('utm_content') || '',
-      utm_term: params.get('utm_term') || ''
+      utm_term: params.get('utm_term') || '',
+      ecomcod_verify: params.get('ecomcod_verify') || ''
     };
   }
 
@@ -468,6 +523,7 @@ export const getStorefrontTrackerScript = onRequest(
         utm_campaign: p.utm_campaign,
         utm_content: p.utm_content,
         utm_term: p.utm_term,
+        verifyToken: p.ecomcod_verify,
         pageUrl: window.location.href
       };
 
