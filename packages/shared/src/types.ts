@@ -169,12 +169,21 @@ export interface ShopifyConnection {
   workspaceId: string;
   ownerTeamId: string; // L'équipe administratrice/propriétaire du flux
   ownerTeamName: string;
-  shopDomain: string; // ex: "montreshop.myshopify.com"
+  shopDomain: string; // ex: "montreshop.myshopify.com" ou "maboutique.com"
+  myshopifyDomain?: string; // Domaine technique permanent (ex: "montreshop.myshopify.com")
+  customDomain?: string; // Domaine personnalisé (ex: "maboutique.com")
+  domains?: string[]; // Tous les alias de domaines connus pour cette boutique
   shopName?: string;
-  status: "active" | "revoked";
+  status: "active" | "pending" | "revoked";
   connectedAt: number;
+  activatedAt?: number;
   accessToken?: string;
   countryRoutes: Record<string, ShopifyCountryRoute>; // "TG" -> route
+  verifyToken?: string;
+  trackerVerifiedAt?: number;
+  webhookVerifiedAt?: number;
+  lastOrderAt?: number;
+  ordersCount?: number;
 }
 
 export interface ShopifyUnroutedOrder {

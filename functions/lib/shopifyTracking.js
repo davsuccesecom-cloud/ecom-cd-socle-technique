@@ -72,6 +72,100 @@ function normalizePhoneE164(raw, defaultCountry = "TG") {
     const digits = cleaned.replace(/[^\d]/g, "");
     return { normalized: digits ? `+${digits}` : "", hash: sha256(digits) };
 }
+function cleanDomain(d) {
+    if (!d)
+        return "";
+    return d
+        .toLowerCase()
+        .trim()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "")
+        .replace(/:\d+$/, "");
+}
+/**
+ * Retrouve la connexion Shopify d'une boutique en tolérant les domaines personnalisés,
+ * sous-domaines .myshopify.com, préfixes www et alias enregistrés.
+ */
+async function findConnection(db, rawDomain) {
+    const clean = cleanDomain(rawDomain);
+    if (!clean)
+        return null;
+    const withoutWww = clean.replace(/^www\./, "");
+    const withWww = `www.${withoutWww}`;
+    const candidates = Array.from(new Set([clean, withoutWww, withWww])).filter(Boolean);
+    // 1. Recherche par shopDomain principal
+    for (const cand of candidates) {
+        const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cand).limit(5).get();
+        if (!snap.empty) {
+            const active = snap.docs.find((d) => d.data().status === "active");
+            const chosen = active || snap.docs[0];
+            return { doc: chosen, status: chosen.data().status || "active" };
+        }
+    }
+    // 2. Recherche par myshopifyDomain
+    for (const cand of candidates) {
+        const snap = await db.collectionGroup("shopifyConnections").where("myshopifyDomain", "==", cand).limit(5).get();
+        if (!snap.empty) {
+            const active = snap.docs.find((d) => d.data().status === "active");
+            const chosen = active || snap.docs[0];
+            return { doc: chosen, status: chosen.data().status || "active" };
+        }
+    }
+    // 3. Recherche par customDomain
+    for (const cand of candidates) {
+        const snap = await db.collectionGroup("shopifyConnections").where("customDomain", "==", cand).limit(5).get();
+        if (!snap.empty) {
+            const active = snap.docs.find((d) => d.data().status === "active");
+            const chosen = active || snap.docs[0];
+            return { doc: chosen, status: chosen.data().status || "active" };
+        }
+    }
+    // 4. Recherche par alias dans le tableau domains
+    for (const cand of candidates) {
+        try {
+            const snap = await db.collectionGroup("shopifyConnections").where("domains", "array-contains", cand).limit(5).get();
+            if (!snap.empty) {
+                const active = snap.docs.find((d) => d.data().status === "active");
+                const chosen = active || snap.docs[0];
+                return { doc: chosen, status: chosen.data().status || "active" };
+            }
+        }
+        catch {
+            // Ignorer si index absent
+        }
+    }
+    // 5. Recherche par shopName si cand se termine par .myshopify.com
+    for (const cand of candidates) {
+        if (cand.endsWith(".myshopify.com")) {
+            const prefix = cand.replace(".myshopify.com", "");
+            const snap = await db.collectionGroup("shopifyConnections").where("shopName", "==", prefix).limit(5).get();
+            if (!snap.empty) {
+                const active = snap.docs.find((d) => d.data().status === "active");
+                const chosen = active || snap.docs[0];
+                return { doc: chosen, status: chosen.data().status || "active" };
+            }
+        }
+    }
+    return null;
+}
+/**
+ * navigator.sendBeacon envoie du texte brut : Firebase fournit alors req.body
+ * sous forme de chaîne. On accepte donc objet, chaîne et Buffer.
+ */
+function parseJsonBody(raw) {
+    if (raw && typeof raw === "object" && !Buffer.isBuffer(raw))
+        return raw;
+    const text = Buffer.isBuffer(raw) ? raw.toString("utf8") : typeof raw === "string" ? raw : "";
+    if (!text)
+        return {};
+    try {
+        const parsed = JSON.parse(text);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    }
+    catch {
+        return {};
+    }
+}
 // ===========================================================================
 // 1. trackSession : Capture fbp, fbc, UTM, IP, UA et téléphone du visiteur
 // ===========================================================================
@@ -88,9 +182,9 @@ exports.trackSession = (0, https_1.onRequest)({ cors: true }, async (req, res) =
         return;
     }
     try {
-        const body = req.body || {};
-        const shopDomain = (body.shopDomain || "").trim().toLowerCase();
-        const phoneRaw = (body.phone || "").trim();
+        const body = parseJsonBody(req.body);
+        const shopDomain = String(body.shopDomain || "").trim().toLowerCase();
+        const phoneRaw = String(body.phone || "").trim();
         if (!shopDomain) {
             res.status(400).json({ error: "shopDomain requis." });
             return;
@@ -102,28 +196,62 @@ exports.trackSession = (0, https_1.onRequest)({ cors: true }, async (req, res) =
         // Normalisation du téléphone
         const { normalized: phoneNormalized, hash: phoneHash } = normalizePhoneE164(phoneRaw);
         const db = getDb();
-        // Rechercher la connexion Shopify pour identifier le workspaceId
-        let workspaceId = body.workspaceId || "";
-        let teamId = body.teamId || "";
-        if (!workspaceId) {
-            const connSnap = await db
+        // Le workspace vient UNIQUEMENT de la connexion enregistrée (jamais du navigateur)
+        const verifyToken = String(body.verifyToken || "").trim();
+        let found = await findConnection(db, shopDomain);
+        if (!found && body.customDomain) {
+            found = await findConnection(db, String(body.customDomain));
+        }
+        if (!found && body.myshopifyDomain) {
+            found = await findConnection(db, String(body.myshopifyDomain));
+        }
+        // Si pas encore trouvé mais qu'un verifyToken est présent (validation de l'assistant)
+        if (!found && verifyToken) {
+            const tokenSnap = await db
                 .collectionGroup("shopifyConnections")
-                .where("shopDomain", "==", shopDomain)
-                .where("status", "==", "active")
+                .where("verifyToken", "==", verifyToken)
                 .limit(1)
                 .get();
-            if (!connSnap.empty) {
-                const connData = connSnap.docs[0].data();
-                workspaceId = connData.workspaceId;
-                teamId = connData.ownerTeamId;
+            if (!tokenSnap.empty) {
+                const doc = tokenSnap.docs[0];
+                found = { doc, status: doc.data().status || "pending" };
             }
         }
-        if (!workspaceId) {
-            // Fallback : rechercher dans le premier workspace disponible
-            const wsSnap = await db.collection("workspaces").limit(1).get();
-            if (!wsSnap.empty) {
-                workspaceId = wsSnap.docs[0].id;
+        if (!found) {
+            res.status(200).json({ success: true, matched: false });
+            return;
+        }
+        const connData = found.doc.data();
+        const workspaceId = String(connData.workspaceId || "");
+        const teamId = String(connData.ownerTeamId || "");
+        // Preuve d'installation du script & apprentissage automatique des domaines
+        if (verifyToken && connData.verifyToken && verifyToken === connData.verifyToken) {
+            const updateData = {
+                trackerVerifiedAt: Date.now(),
+            };
+            const incomingMyshopify = String(body.myshopifyDomain || (shopDomain.endsWith(".myshopify.com") ? shopDomain : "")).trim().toLowerCase();
+            const incomingCustom = String(body.customDomain || (!shopDomain.endsWith(".myshopify.com") ? shopDomain : "")).trim().toLowerCase();
+            if (incomingMyshopify && !connData.myshopifyDomain) {
+                updateData.myshopifyDomain = incomingMyshopify;
             }
+            if (incomingCustom && !connData.customDomain) {
+                updateData.customDomain = incomingCustom;
+            }
+            const existingDomains = Array.isArray(connData.domains) ? connData.domains : [connData.shopDomain];
+            const mergedDomains = Array.from(new Set([
+                ...existingDomains,
+                connData.shopDomain,
+                shopDomain,
+                incomingMyshopify,
+                incomingCustom,
+            ].filter(Boolean)));
+            updateData.domains = mergedDomains;
+            await found.doc.ref.update(updateData);
+        }
+        // Boutique pas encore activée : on ne stocke aucune session
+        if (found.status !== "active" || !workspaceId) {
+            res.status(200).json({ success: true, matched: true, stored: false });
+            return;
         }
         const sessionId = db.collection("_").doc().id;
         const sessionDoc = {
@@ -147,18 +275,17 @@ exports.trackSession = (0, https_1.onRequest)({ cors: true }, async (req, res) =
             createdAt: Date.now(),
             linkedOrderId: null,
         };
-        if (workspaceId) {
-            await db
-                .collection("workspaces")
-                .doc(workspaceId)
-                .collection("trackingSessions")
-                .doc(sessionId)
-                .set(sessionDoc);
-        }
+        await db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("trackingSessions")
+            .doc(sessionId)
+            .set(sessionDoc);
         res.status(200).json({
             success: true,
             sessionId,
-            matched: !!workspaceId,
+            matched: true,
+            stored: true,
         });
     }
     catch (err) {
@@ -187,21 +314,65 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
         const orderNumber = orderPayload.order_number ? `#${orderPayload.order_number}` : (orderPayload.name || "");
         const db = getDb();
         // Rechercher la connexion Shopify correspondante (Multi-boutique / Flux)
-        const connSnap = await db
-            .collectionGroup("shopifyConnections")
-            .where("shopDomain", "==", shopDomain)
-            .where("status", "==", "active")
-            .limit(1)
-            .get();
-        if (connSnap.empty) {
+        let found = await findConnection(db, shopDomain);
+        // Si non trouvé via l'en-tête (cas où la boutique a été créée avec son domaine personnalisé),
+        // chercher dans les métadonnées de commande
+        if (!found && orderPayload) {
+            const candidatesFromPayload = [];
+            if (orderPayload.order_status_url) {
+                try {
+                    candidatesFromPayload.push(new URL(orderPayload.order_status_url).hostname);
+                }
+                catch { }
+            }
+            if (orderPayload.landing_site) {
+                try {
+                    candidatesFromPayload.push(new URL(orderPayload.landing_site, "https://dummy.local").hostname);
+                }
+                catch { }
+            }
+            if (orderPayload.domain) {
+                candidatesFromPayload.push(String(orderPayload.domain));
+            }
+            for (const cand of candidatesFromPayload) {
+                found = await findConnection(db, cand);
+                if (found) {
+                    // Lier le myshopifyDomain pour les prochains webhooks
+                    if (shopDomain.endsWith(".myshopify.com") && !found.doc.data().myshopifyDomain) {
+                        await found.doc.ref.update({
+                            myshopifyDomain: shopDomain,
+                            domains: admin.firestore.FieldValue.arrayUnion(shopDomain),
+                        });
+                    }
+                    break;
+                }
+            }
+        }
+        if (!found) {
             console.warn(`shopifyWebhook: boutique non trouvée ou inactive: ${shopDomain}`);
             // Répondre 200 à Shopify pour éviter qu'il retente en boucle indéfiniment
             res.status(200).json({ received: true, warning: "Boutique non connectée dans l'application." });
             return;
         }
-        const connDoc = connSnap.docs[0];
+        const connDoc = found.doc;
         const connection = connDoc.data();
         const workspaceId = connection.workspaceId;
+        // Preuve de réception : Shopify a bien joint le webhook.
+        // Pendant la configuration (statut "pending") ou pour une notification de test,
+        // on enregistre la preuve mais on n'importe AUCUNE commande.
+        const isShopifyTest = String(req.headers["x-shopify-test"] || "").toLowerCase() === "true";
+        if (isShopifyTest || found.status !== "active") {
+            await connDoc.ref.update({ webhookVerifiedAt: Date.now() });
+            res.status(200).json({
+                received: true,
+                verified: true,
+                imported: false,
+                reason: isShopifyTest
+                    ? "Notification de test Shopify (non importée)."
+                    : "Boutique en attente d'activation (commande non importée).",
+            });
+            return;
+        }
         // Idempotence : vérifier si la commande existe déjà
         const existingSnap = await db
             .collection("workspaces")
@@ -381,6 +552,12 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             isUnrouted,
         };
         await newOrderRef.set(orderDoc);
+        // Preuve de fonctionnement continue : sert au badge « En direct » de l'interface
+        await connDoc.ref.update({
+            webhookVerifiedAt: connection.webhookVerifiedAt || Date.now(),
+            lastOrderAt: Date.now(),
+            ordersCount: admin.firestore.FieldValue.increment(1),
+        });
         res.status(200).json({
             success: true,
             orderId: shopifyOrderId,
@@ -399,7 +576,7 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
 // ===========================================================================
 exports.getStorefrontTrackerScript = (0, https_1.onRequest)({ cors: true }, (req, res) => {
     res.set("Content-Type", "application/javascript");
-    res.set("Cache-Control", "public, max-age=3600");
+    res.set("Cache-Control", "public, max-age=300");
     const trackEndpoint = `https://${req.hostname}/trackSession`;
     const scriptCode = `
 /**
@@ -408,7 +585,9 @@ exports.getStorefrontTrackerScript = (0, https_1.onRequest)({ cors: true }, (req
  */
 (function() {
   var ENDPOINT = "${trackEndpoint}";
-  var SHOP_DOMAIN = window.location.hostname;
+  var myshopify = String((window.Shopify && window.Shopify.shop) || '').toLowerCase();
+  var hostname = String(window.location.hostname || '').toLowerCase();
+  var SHOP_DOMAIN = myshopify || hostname;
 
   function getCookie(name) {
     var match = document.cookie.match(new RegExp('(^|;\\\\s*)(' + name + ')=([^;]*)'));
@@ -423,7 +602,8 @@ exports.getStorefrontTrackerScript = (0, https_1.onRequest)({ cors: true }, (req
       utm_medium: params.get('utm_medium') || '',
       utm_campaign: params.get('utm_campaign') || '',
       utm_content: params.get('utm_content') || '',
-      utm_term: params.get('utm_term') || ''
+      utm_term: params.get('utm_term') || '',
+      ecomcod_verify: params.get('ecomcod_verify') || ''
     };
   }
 
@@ -432,6 +612,8 @@ exports.getStorefrontTrackerScript = (0, https_1.onRequest)({ cors: true }, (req
       var p = getParams();
       var data = {
         shopDomain: SHOP_DOMAIN,
+        myshopifyDomain: myshopify,
+        customDomain: hostname,
         phone: phone || '',
         fbp: getCookie('_fbp'),
         fbc: getCookie('_fbc') || (p.fbclid ? 'fb.1.' + Date.now() + '.' + p.fbclid : ''),
@@ -441,6 +623,7 @@ exports.getStorefrontTrackerScript = (0, https_1.onRequest)({ cors: true }, (req
         utm_campaign: p.utm_campaign,
         utm_content: p.utm_content,
         utm_term: p.utm_term,
+        verifyToken: p.ecomcod_verify,
         pageUrl: window.location.href
       };
 

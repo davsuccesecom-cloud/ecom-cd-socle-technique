@@ -142,6 +142,7 @@ export default function ShopifyFluxManager({
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
   const [shopUrlInput, setShopUrlInput] = useState("");
+  const [myshopifyInput, setMyshopifyInput] = useState("");
   const [detectedDomain, setDetectedDomain] = useState("");
   const [storeFavicon, setStoreFavicon] = useState<string | null>(null);
   const [isValidDomain, setIsValidDomain] = useState(false);
@@ -255,6 +256,7 @@ export default function ShopifyFluxManager({
     setShowWizard(false);
     setWizardStep(1);
     setShopUrlInput("");
+    setMyshopifyInput("");
     setDetectedDomain("");
     setConfiguredRoutes({});
     setWizardError(null);
@@ -297,6 +299,22 @@ export default function ShopifyFluxManager({
       const ref = doc(db, "workspaces", workspaceId, "shopifyConnections", wizardConnId);
       const routes = buildRoutesToSave();
 
+      const cleanMyshopify = myshopifyInput
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "");
+      const finalMyshopify = cleanMyshopify
+        ? (cleanMyshopify.endsWith(".myshopify.com") ? cleanMyshopify : `${cleanMyshopify}.myshopify.com`)
+        : (detectedDomain.endsWith(".myshopify.com") ? detectedDomain : "");
+
+      const aliasDomains = Array.from(new Set([
+        detectedDomain,
+        finalMyshopify,
+        detectedDomain.replace(/^www\./, ""),
+        `www.${detectedDomain.replace(/^www\./, "")}`
+      ].filter(Boolean)));
+
       if (wizardConn) {
         if (wizardConn.ownerTeamId !== team.id) {
           throw new Error("Cette boutique est déjà connectée par une autre équipe.");
@@ -304,7 +322,11 @@ export default function ShopifyFluxManager({
         if (!isPending(wizardConn)) {
           throw new Error("Cette boutique est déjà connectée. Déconnectez-la d'abord pour la reconfigurer.");
         }
-        await updateDoc(ref, { countryRoutes: routes });
+        await updateDoc(ref, {
+          countryRoutes: routes,
+          ...(finalMyshopify ? { myshopifyDomain: finalMyshopify } : {}),
+          domains: aliasDomains,
+        });
       } else {
         const connDoc = {
           id: wizardConnId,
@@ -312,7 +334,10 @@ export default function ShopifyFluxManager({
           ownerTeamId: team.id,
           ownerTeamName: team.name,
           shopDomain: detectedDomain,
-          shopName: detectedDomain.replace(".myshopify.com", ""),
+          myshopifyDomain: finalMyshopify,
+          customDomain: !detectedDomain.endsWith(".myshopify.com") ? detectedDomain : "",
+          domains: aliasDomains,
+          shopName: (finalMyshopify || detectedDomain).replace(".myshopify.com", ""),
           status: "pending",
           connectedAt: Date.now(),
           countryRoutes: routes,
@@ -343,7 +368,7 @@ export default function ShopifyFluxManager({
 
     const routes: Record<string, { teamId: string; teamName: string }> = {};
     Object.entries(conn.countryRoutes || {}).forEach(([code, r]) => {
-      routes[code] = { teamId: r.assignedTeamId, teamName: r.assignedTeamName };
+      routes[code] = { teamId: r.assignedTeamId, teamName: r.assignedTeamName || "" };
     });
     setConfiguredRoutes(routes);
     setShopUrlInput(conn.shopDomain);
@@ -872,6 +897,30 @@ export default function ShopifyFluxManager({
                     <span>
                       Adresse détectée : <strong>{detectedDomain}</strong>. Elle sera réellement testée à l'étape 4.
                     </span>
+                  </div>
+                )}
+
+                {isValidDomain && !detectedDomain.endsWith(".myshopify.com") && (
+                  <div className="space-y-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-sky-300">
+                      <span>🏷️</span>
+                      <span>Domaine personnalisé détecté</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Shopify utilise votre sous-domaine technique d'origine pour router les notifications de webhook. Si vous le connaissez, renseignez-le ci-dessous pour accélérer la vérification à l'étape 4 (sinon le script de suivi s'en chargera automatiquement).
+                    </p>
+                    <div>
+                      <label className="text-[11px] font-medium text-slate-300">
+                        Sous-domaine technique Shopify (optionnel mais conseillé)
+                      </label>
+                      <input
+                        type="text"
+                        value={myshopifyInput}
+                        onChange={(e) => setMyshopifyInput(e.target.value)}
+                        placeholder="ex: ma-boutique.myshopify.com"
+                        className="mt-1 w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-[#5E8E3E]"
+                      />
+                    </div>
                   </div>
                 )}
 
