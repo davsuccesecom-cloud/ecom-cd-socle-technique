@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateUsers = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.migrateUsers = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -51,6 +51,7 @@ Object.defineProperty(exports, "shopifyWebhook", { enumerable: true, get: functi
 Object.defineProperty(exports, "getStorefrontTrackerScript", { enumerable: true, get: function () { return shopifyTracking_1.getStorefrontTrackerScript; } });
 var aiProxy_1 = require("./aiProxy");
 Object.defineProperty(exports, "aiChatProxy", { enumerable: true, get: function () { return aiProxy_1.aiChatProxy; } });
+Object.defineProperty(exports, "aiProviders", { enumerable: true, get: function () { return aiProxy_1.aiProviders; } });
 admin.initializeApp();
 const db = admin.firestore();
 const messaging = admin.messaging();

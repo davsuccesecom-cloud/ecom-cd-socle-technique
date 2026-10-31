@@ -8,6 +8,7 @@ export interface DailyStatRow {
   livraisons: number;
   rejetees: number;
   injoignables: number;
+  commandes?: number;
 }
 
 /**
@@ -34,12 +35,13 @@ function dayKeyFromMsUTC(ms: number): string {
 export function sumDailyStats(rows: DailyStatRow[]): Omit<DailyStatRow, "date"> {
   return rows.reduce(
     (acc, row) => ({
-      ca: acc.ca + row.ca,
-      livraisons: acc.livraisons + row.livraisons,
-      rejetees: acc.rejetees + row.rejetees,
-      injoignables: acc.injoignables + row.injoignables,
+      ca: acc.ca + (row.ca || 0),
+      livraisons: acc.livraisons + (row.livraisons || 0),
+      rejetees: acc.rejetees + (row.rejetees || 0),
+      injoignables: acc.injoignables + (row.injoignables || 0),
+      commandes: (acc.commandes || 0) + (row.commandes || 0),
     }),
-    { ca: 0, livraisons: 0, rejetees: 0, injoignables: 0 }
+    { ca: 0, livraisons: 0, rejetees: 0, injoignables: 0, commandes: 0 }
   );
 }
 
@@ -87,6 +89,7 @@ export function useDailyStats(
             livraisons: data.livraisons ?? 0,
             rejetees: data.rejetees ?? 0,
             injoignables: data.injoignables ?? 0,
+            commandes: data.commandes ?? 0,
           };
         });
         setRows(next);

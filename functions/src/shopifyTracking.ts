@@ -130,80 +130,120 @@ async function findConnection(
  * navigator.sendBeacon envoie du texte brut : Firebase fournit alors req.body
  * sous forme de chaîne. On accepte donc objet, chaîne et Buffer.
  */
-function parseJsonBody(raw: unknown): any {
-  if (raw && typeof raw === "object" && !Buffer.isBuffer(raw)) return raw;
-  const text = Buffer.isBuffer(raw) ? raw.toString("utf8") : typeof raw === "string" ? raw : "";
-  if (!text) return {};
-  try {
-    const parsed = JSON.parse(text);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
+function parseJsonBody(req: any): any {
+  if (!req) return {};
+  const body = req.body;
+
+  // 1. Objet JS deja parse et non vide
+  if (body && typeof body === 'object' && !Buffer.isBuffer(body) && Object.keys(body).length > 0) {
+    return body;
   }
+
+  // 2. Chaine de caracteres
+  if (typeof body === 'string' && body.trim()) {
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+  }
+
+  // 3. Buffer dans req.body
+  if (body && Buffer.isBuffer(body)) {
+    try {
+      const text = body.toString('utf8').trim();
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+  }
+
+  // 4. req.rawBody (fourni par Cloud Functions / Cloud Run)
+  const raw = req.rawBody;
+  if (raw && Buffer.isBuffer(raw)) {
+    try {
+      const text = raw.toString('utf8').trim();
+      if (text) {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+  } else if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {}
+  }
+
+  return (body && typeof body === 'object' && !Buffer.isBuffer(body)) ? body : {};
 }
 
 // ===========================================================================
-// 1. trackSession : Capture fbp, fbc, UTM, IP, UA et téléphone du visiteur
+// 1. trackSession : Capture fbp, fbc, UTM, IP, UA et telephone du visiteur
 // ===========================================================================
 
 export const trackSession = onRequest(
   { cors: true },
   async (req, res): Promise<void> => {
-    if (req.method === "OPTIONS") {
-      res.set("Access-Control-Allow-Origin", "*");
-      res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-      res.set("Access-Control-Allow-Headers", "Content-Type");
-      res.status(204).send("");
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type');
+      res.status(204).send('');
       return;
     }
 
-    if (req.method !== "POST") {
-      res.status(405).json({ error: "Méthode non autorisée. Utilisez POST." });
+    if (req.method !== 'POST' && req.method !== 'GET') {
+      res.status(405).json({ error: 'Methode non autorisee. Utilisez POST ou GET.' });
       return;
     }
 
     try {
-      const body = parseJsonBody(req.body);
-      const shopDomain = String(body.shopDomain || "").trim().toLowerCase();
-      const phoneRaw = String(body.phone || "").trim();
+      const body = req.method === 'GET' ? (req.query || {}) : parseJsonBody(req);
+      const verifyToken = String(body.verifyToken || body.ecomcod_verify || (req.query && req.query.ecomcod_verify) || '').trim();
+      const shopDomain = String(body.shopDomain || body.myshopifyDomain || body.customDomain || (req.query && req.query.shopDomain) || '').trim().toLowerCase();
+      const phoneRaw = String(body.phone || '').trim();
 
-      if (!shopDomain) {
-        res.status(400).json({ error: "shopDomain requis." });
+      if (!shopDomain && !verifyToken) {
+        res.status(400).json({ error: 'shopDomain ou verifyToken requis.' });
         return;
       }
 
-      // Récupérer l'IP et le User Agent depuis les en-têtes
-      const forwarded = req.headers["x-forwarded-for"];
-      const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.ip || "";
-      const userAgent = (req.headers["user-agent"] || "").slice(0, 300);
+      // Recuperer l'IP et le User Agent depuis les en-tetes
+      const forwarded = req.headers['x-forwarded-for'];
+      const clientIp = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.ip || '';
+      const userAgent = (req.headers['user-agent'] || '').slice(0, 300);
 
-      // Normalisation du téléphone
+      // Normalisation du telephone
       const { normalized: phoneNormalized, hash: phoneHash } = normalizePhoneE164(phoneRaw);
 
       const db = getDb();
 
-      // Le workspace vient UNIQUEMENT de la connexion enregistrée (jamais du navigateur)
-      const verifyToken = String(body.verifyToken || "").trim();
-      let found = await findConnection(db, shopDomain);
+      // Le workspace vient UNIQUEMENT de la connexion enregistree (jamais du navigateur)
+      let found: { doc: admin.firestore.QueryDocumentSnapshot; status: ConnectionStatus } | null = null;
 
+      // 1. Recherche directe et immediate par verifyToken en priorite absolue si present
+      if (verifyToken) {
+        const tokenSnap = await db
+          .collectionGroup('shopifyConnections')
+          .where('verifyToken', '==', verifyToken)
+          .limit(1)
+          .get();
+        if (!tokenSnap.empty) {
+          const doc = tokenSnap.docs[0];
+          found = { doc, status: (doc.data().status as ConnectionStatus) || 'pending' };
+        }
+      }
+
+      // 2. Recherche par les differents domaines
+      if (!found && shopDomain) {
+        found = await findConnection(db, shopDomain);
+      }
       if (!found && body.customDomain) {
         found = await findConnection(db, String(body.customDomain));
       }
       if (!found && body.myshopifyDomain) {
         found = await findConnection(db, String(body.myshopifyDomain));
-      }
-
-      // Si pas encore trouvé mais qu'un verifyToken est présent (validation de l'assistant)
-      if (!found && verifyToken) {
-        const tokenSnap = await db
-          .collectionGroup("shopifyConnections")
-          .where("verifyToken", "==", verifyToken)
-          .limit(1)
-          .get();
-        if (!tokenSnap.empty) {
-          const doc = tokenSnap.docs[0];
-          found = { doc, status: (doc.data().status as ConnectionStatus) || "pending" };
-        }
       }
 
       if (!found) {
@@ -212,8 +252,8 @@ export const trackSession = onRequest(
       }
 
       const connData = found.doc.data();
-      const workspaceId = String(connData.workspaceId || "");
-      const teamId = String(connData.ownerTeamId || "");
+      const workspaceId = String(connData.workspaceId || '');
+      const teamId = String(connData.ownerTeamId || '');
 
       // Preuve d'installation du script & apprentissage automatique des domaines
       if (verifyToken && connData.verifyToken && verifyToken === connData.verifyToken) {
@@ -618,15 +658,20 @@ export const shopifyWebhook = onRequest(
 export const getStorefrontTrackerScript = onRequest(
   { cors: true },
   (req, res): void => {
-    res.set("Content-Type", "application/javascript");
-    res.set("Cache-Control", "public, max-age=300");
+    res.set('Content-Type', 'application/javascript');
+    res.set('Cache-Control', 'public, max-age=300');
 
-    const trackEndpoint = `https://${req.hostname}/trackSession`;
+    // Assurer que le endpoint pointe vers us-central1-meta-capi-app.cloudfunctions.net
+    const defaultHost = 'us-central1-meta-capi-app.cloudfunctions.net';
+    const host = req.hostname && req.hostname.includes('cloudfunctions.net')
+      ? req.hostname
+      : defaultHost;
+    const trackEndpoint = `https://${host}/trackSession`;
 
     const scriptCode = `
 /**
  * Ecom COD Real Tracking - Storefront & EasySell Interceptor
- * Capture fbp, fbc, UTM et téléphone avant validation pour CAPI enrichi
+ * Capture fbp, fbc, UTM et telephone avant validation pour CAPI enrichi
  */
 (function() {
   var ENDPOINT = "${trackEndpoint}";
@@ -635,7 +680,7 @@ export const getStorefrontTrackerScript = onRequest(
   var SHOP_DOMAIN = myshopify || hostname;
 
   function getCookie(name) {
-    var match = document.cookie.match(new RegExp('(^|;\\\\s*)(' + name + ')=([^;]*)'));
+    var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
     return match ? decodeURIComponent(match[3]) : '';
   }
 
@@ -672,23 +717,45 @@ export const getStorefrontTrackerScript = onRequest(
         pageUrl: window.location.href
       };
 
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(ENDPOINT, JSON.stringify(data));
-      } else {
-        fetch(ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-          keepalive: true
-        }).catch(function() {});
+      var payload = JSON.stringify(data);
+      var sent = false;
+
+      // Priorite au Blob JSON avec sendBeacon pour preserver Content-Type application/json
+      if (window.Blob && navigator.sendBeacon) {
+        try {
+          var blob = new Blob([payload], { type: 'application/json' });
+          sent = navigator.sendBeacon(ENDPOINT, blob);
+        } catch (e) {
+          sent = false;
+        }
+      }
+
+      // Repli sur fetch keepalive avec Content-Type explicite
+      if (!sent) {
+        try {
+          fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+            mode: 'cors'
+          }).catch(function() {});
+        } catch (e) {}
       }
     } catch (e) {}
   }
 
-  // Envoi initial dès l'arrivée sur la page produit (sans téléphone pour lier la session)
+  // 1. Envoi initial immediat
   sendTracking('');
 
-  // Interception continue : écouter les saisies sur les champs téléphones
+  // 2. Deuxieme envoi 2 secondes plus tard :
+  // - Laisse le temps au Pixel Meta de poser le cookie _fbp
+  // - Securise la detection de verification sans surcharger
+  setTimeout(function() {
+    sendTracking('');
+  }, 2000);
+
+  // 3. Interception continue : ecouter les saisies sur les champs telephones
   document.addEventListener('input', function(e) {
     var target = e.target;
     if (!target) return;
@@ -697,7 +764,6 @@ export const getStorefrontTrackerScript = onRequest(
     if (type === 'tel' || name.indexOf('phone') !== -1 || name.indexOf('tel') !== -1) {
       var val = (target.value || '').trim();
       if (val.length >= 8) {
-        // Débrouiller après 1 seconde sans frappe
         clearTimeout(window.__ecomCodTimer);
         window.__ecomCodTimer = setTimeout(function() {
           sendTracking(val);
@@ -706,7 +772,7 @@ export const getStorefrontTrackerScript = onRequest(
     }
   }, true);
 
-  // Écouter la soumission du formulaire EasySell
+  // 4. Ecouter la soumission du formulaire EasySell
   document.addEventListener('submit', function(e) {
     try {
       var form = e.target;

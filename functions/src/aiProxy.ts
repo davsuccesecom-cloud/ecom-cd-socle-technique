@@ -1,8 +1,16 @@
 import { onRequest } from "firebase-functions/v2/https";
+import { chatCompletion, AiGatewayError, configuredProviderIds, AI_PROVIDERS, type AiMessage } from "./aiGateway";
 
-const DEFAULT_GROQ_KEY = ["gsk_", "b9pe3NB32psW90RrIxgnWGdyb3FYGmCKJO7PNLnLLMNY2UBsHtM7"].join("");
-const DEFAULT_NVIDIA_KEY = ["nvapi-", "adICadv97jvmGUFHgAcGOXTawV7Xq7Bvajr3Lss2x4kalKURNauHIK1xpoI7CUE7goq"].join("");
-
+/**
+ * Proxy IA du cote serveur.
+ *
+ * Toutes les cles vivent dans l'environnement de la fonction (functions/.env en
+ * local, variables d'environnement ou secrets en prod) : aucune n'est exposee au
+ * navigateur. Le proxy enchaine les fournisseurs gratuits : en cas de quota
+ * epuise (429) ou de cle refusee (401), il passe au suivant.
+ *
+ * Reponse : { text, provider, model, attempts }
+ */
 export const aiChatProxy = onRequest(
   { cors: true },
   async (req, res): Promise<void> => {
@@ -20,71 +28,52 @@ export const aiChatProxy = onRequest(
     }
 
     try {
-      const { provider = "groq", messages = [], model } = req.body || {};
+      const { provider = "auto", messages = [], model, temperature, maxTokens } = req.body || {};
 
-      let responseText = "";
+      const result = await chatCompletion({
+        provider: provider === "auto" ? null : provider,
+        model: model || undefined,
+        temperature: typeof temperature === "number" ? temperature : undefined,
+        maxTokens: typeof maxTokens === "number" ? maxTokens : undefined,
+        messages: (Array.isArray(messages) ? messages : []) as AiMessage[],
+      });
 
-      if (provider === "groq") {
-        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${DEFAULT_GROQ_KEY}`,
-          },
-          body: JSON.stringify({
-            model: model || "llama-3.3-70b-versatile",
-            messages,
-            temperature: 0.6,
-            max_tokens: 1500,
-          }),
-        });
-
-        if (groqRes.ok) {
-          const data = (await groqRes.json()) as any;
-          responseText = data.choices?.[0]?.message?.content || "";
-        } else {
-          // Fallback sur NVIDIA si Groq échoue
-          const err = await groqRes.text();
-          console.warn("Groq failed, fallback to NVIDIA:", err);
-          const nvRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${DEFAULT_NVIDIA_KEY}`,
-            },
-            body: JSON.stringify({
-              model: "meta/llama-3.1-70b-instruct",
-              messages,
-              temperature: 0.6,
-              max_tokens: 1500,
-            }),
-          });
-          const nvData = (await nvRes.json()) as any;
-          responseText = nvData.choices?.[0]?.message?.content || "";
-        }
-      } else {
-        // NVIDIA Provider
-        const nvRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${DEFAULT_NVIDIA_KEY}`,
-          },
-          body: JSON.stringify({
-            model: model || "meta/llama-3.1-70b-instruct",
-            messages,
-            temperature: 0.6,
-            max_tokens: 1500,
-          }),
-        });
-        const nvData = (await nvRes.json()) as any;
-        responseText = nvData.choices?.[0]?.message?.content || "";
-      }
-
-      res.status(200).json({ text: responseText });
+      res.status(200).json({
+        text: result.text,
+        provider: result.provider,
+        model: result.model,
+      });
     } catch (err) {
-      console.error("AI Proxy Error:", err);
+      if (err instanceof AiGatewayError) {
+        console.error("aiChatProxy: aucun fournisseur disponible.", err.attempts);
+        res.status(503).json({ error: err.message, attempts: err.attempts });
+        return;
+      }
+      console.error("aiChatProxy: erreur inattendue.", err);
       res.status(500).json({ error: err instanceof Error ? err.message : "Erreur proxy IA" });
     }
+  }
+);
+
+/**
+ * Liste des fournisseurs et de leur etat de configuration.
+ * Permet a l'admin d'afficher les moteurs reellement disponibles (et ceux dont
+ * la cle manque) au lieu de deviner.
+ */
+export const aiProviders = onRequest(
+  { cors: true },
+  async (_req, res): Promise<void> => {
+    const configured = new Set(configuredProviderIds());
+    res.status(200).json({
+      providers: AI_PROVIDERS.map((p) => ({
+        id: p.id,
+        label: p.label,
+        model: p.defaultModel,
+        models: p.models,
+        freeTier: p.freeTier,
+        docsUrl: p.docsUrl,
+        configured: configured.has(p.id),
+      })),
+    });
   }
 );

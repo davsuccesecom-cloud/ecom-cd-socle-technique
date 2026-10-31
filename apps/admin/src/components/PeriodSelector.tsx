@@ -21,15 +21,17 @@ export function periodRangeMs(period: Period): { start: number; end: number } {
     return { start: period.start, end: period.end };
   }
   const now = Date.now();
+  const bufferEnd = now + 10 * 60 * 1000;
   const preset = period.value;
-  if (preset === "tout") return { start: 0, end: now };
+  if (preset === "tout") return { start: 0, end: bufferEnd + 365 * 86400000 };
   if (preset === "jour") {
     const d = new Date();
-    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-    return { start, end: now };
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
+    const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime() + 10 * 60 * 1000;
+    return { start, end };
   }
-  if (preset === "semaine") return { start: now - 7 * 24 * 60 * 60 * 1000, end: now };
-  return { start: now - 30 * 24 * 60 * 60 * 1000, end: now };
+  if (preset === "semaine") return { start: now - 7 * 24 * 60 * 60 * 1000, end: bufferEnd };
+  return { start: now - 30 * 24 * 60 * 60 * 1000, end: bufferEnd };
 }
 
 export function periodLabel(period: Period): string {

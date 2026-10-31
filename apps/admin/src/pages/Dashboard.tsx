@@ -69,9 +69,25 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const { users: closeuses } = useTeamUsers(workspaceId, activeTeamId, "closeuse");
   const { users: livreurs } = useTeamUsers(workspaceId, activeTeamId, "livreur");
 
+  const getReceivedTs = (o: any): number => {
+    if (!o) return 0;
+    const r = o.timestamps?.received ?? o.received ?? o.createdAt;
+    if (typeof r === "number") return r;
+    if (r && typeof r.toMillis === "function") return r.toMillis();
+    if (r && typeof r.seconds === "number") return r.seconds * 1000;
+    if (typeof r === "string") {
+      const parsed = Date.parse(r);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    return 0;
+  };
+
   const orders = useMemo(() => {
     const { start, end } = periodRangeMs(period);
-    return allOrders.filter((o) => o.timestamps.received >= start && o.timestamps.received <= end);
+    return allOrders.filter((o) => {
+      const ts = getReceivedTs(o);
+      return ts >= start && ts <= end;
+    });
   }, [allOrders, period]);
 
   // Marge de jours a recuperer sur dailyStats pour couvrir la periode
@@ -106,25 +122,33 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     let rejeteesOrders = 0;
 
     for (const order of orders) {
-      statusCounts[order.statutCloseuse] = (statusCounts[order.statutCloseuse] ?? 0) + 1;
+      if (order.statutCloseuse && order.statutCloseuse in statusCounts) {
+        statusCounts[order.statutCloseuse] = (statusCounts[order.statutCloseuse] ?? 0) + 1;
+      }
 
-      if (order.statutLivreur === "livre") {
+      const isDelivered = order.statutLivreur === "livre" || order.statutCloseuse === "livre";
+      const isConfirmed = order.statutCloseuse === "en_cours" || order.statutCloseuse === "programme" || order.statutCloseuse === "livre";
+      const isInjoignable = order.statutLivreur === "injoignable" || order.statutCloseuse === "injoignable";
+      const isRejected = order.statutCloseuse === "rejete";
+
+      if (isDelivered) {
         livraisonsReussies += 1;
         caOrders += order.amount ?? 0;
       }
-      if (order.statutLivreur === "injoignable" || order.statutCloseuse === "injoignable") {
+      if (isInjoignable) {
         injoignablesOrders += 1;
       }
-      if (order.statutCloseuse === "rejete") {
+      if (isRejected) {
         rejeteesOrders += 1;
       }
       if (
-        order.statutCloseuse === "livre" ||
-        order.statutCloseuse === "rejete" ||
-        order.statutCloseuse === "injoignable"
+        isConfirmed ||
+        isRejected ||
+        isInjoignable ||
+        order.statutCloseuse === "indisponible"
       ) {
         closeuseFinal += 1;
-        if (order.statutCloseuse === "livre") closeuseConfirmees += 1;
+        if (isConfirmed) closeuseConfirmees += 1;
       }
     }
 
@@ -144,25 +168,26 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   }, [orders]);
 
   // Fusionne les totaux : prend le maximum entre dailyStats (qui persiste les
-  // commandes après leur purge à 3 jours) et les commandes réelles en mémoire.
+  // commandes après leur purge) et les commandes réelles en mémoire.
   const displayTotals = useMemo(() => {
     return {
-      ca: Math.max(periodTotals.ca, stats.caOrders),
-      livraisons: Math.max(periodTotals.livraisons, stats.livraisonsReussies),
-      injoignables: Math.max(periodTotals.injoignables, stats.injoignablesOrders),
-      rejetees: Math.max(periodTotals.rejetees, stats.rejeteesOrders),
+      ca: Math.max(periodTotals.ca || 0, stats.caOrders || 0),
+      livraisons: Math.max(periodTotals.livraisons || 0, stats.livraisonsReussies || 0),
+      injoignables: Math.max(periodTotals.injoignables || 0, stats.injoignablesOrders || 0),
+      rejetees: Math.max(periodTotals.rejetees || 0, stats.rejeteesOrders || 0),
+      commandes: Math.max(periodTotals.commandes || 0, orders.length),
     };
-  }, [periodTotals, stats]);
+  }, [periodTotals, stats, orders.length]);
 
   const quickCounts = useMemo(
     () => ({
-      total: orders.length,
-      enAttente: stats.statusCounts.nouveau + stats.statusCounts.programme,
-      enCours: stats.statusCounts.en_cours,
-      livrees: stats.statusCounts.livre,
-      rejetees: stats.statusCounts.rejete + stats.statusCounts.injoignable,
+      total: displayTotals.commandes,
+      enAttente: (stats.statusCounts.nouveau || 0) + (stats.statusCounts.programme || 0),
+      enCours: stats.statusCounts.en_cours || 0,
+      livrees: stats.statusCounts.livre || 0,
+      rejetees: (stats.statusCounts.rejete || 0) + (stats.statusCounts.injoignable || 0) + (stats.statusCounts.indisponible || 0),
     }),
-    [orders.length, stats.statusCounts]
+    [displayTotals.commandes, stats.statusCounts]
   );
 
   const loading = teamsLoading || ordersLoading;

@@ -262,6 +262,36 @@ export default function ShopifyFluxManager({
     setWizardError(null);
   };
 
+  const [manualPingBusy, setManualPingBusy] = useState(false);
+  const [manualPingMsg, setManualPingMsg] = useState<string | null>(null);
+
+  const handleManualPingTracker = async () => {
+    if (!wizardConn) return;
+    setManualPingBusy(true);
+    setManualPingMsg(null);
+    try {
+      const res = await fetch("https://us-central1-meta-capi-app.cloudfunctions.net/trackSession", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopDomain: wizardConn.shopDomain,
+          customDomain: wizardConn.customDomain,
+          myshopifyDomain: wizardConn.myshopifyDomain,
+          verifyToken: wizardConn.verifyToken,
+        }),
+      });
+      if (res.ok) {
+        setManualPingMsg("✓ Signal de détection confirmé avec succès !");
+      } else {
+        setManualPingMsg("Signal envoyé, vérification en cours...");
+      }
+    } catch {
+      setManualPingMsg("Erreur réseau vers le serveur de tracking.");
+    } finally {
+      setManualPingBusy(false);
+    }
+  };
+
   const buildRoutesToSave = (): Record<string, ShopifyCountryRoute> => {
     const routes: Record<string, ShopifyCountryRoute> = {};
     Object.entries(configuredRoutes).forEach(([countryCode, dest]) => {
@@ -1210,7 +1240,18 @@ export default function ShopifyFluxManager({
                                 >
                                   Ouvrir ↗
                                 </a>
+                                <button
+                                  type="button"
+                                  disabled={manualPingBusy}
+                                  onClick={handleManualPingTracker}
+                                  className="text-xs text-blue-400 hover:underline font-semibold disabled:opacity-50"
+                                >
+                                  {manualPingBusy ? "Vérification..." : "⚡ Tester la détection maintenant"}
+                                </button>
                               </div>
+                              {manualPingMsg && (
+                                <p className="text-[11px] text-emerald-400 font-medium">{manualPingMsg}</p>
+                              )}
                             </>
                           )}
                           <p className="text-[11px] text-slate-500">

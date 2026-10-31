@@ -1,5 +1,12 @@
-// Service d'IA Agnostique et Modulaire pour Ecom COD Admin
-// Supporte Groq (Llama-3), NVIDIA (Nemotron/Llama) et extensible à tout autre modèle sans modification du reste du code.
+import { COD_AFRIQUE_PLAYBOOK } from "../lib/codAfriquePlaybook";
+import { buildChartPrompt } from "../lib/aiChart";
+
+// Service d'IA Agnostique et Modulaire pour Ecom COD Admin.
+//
+// Les appels passent par la Cloud Function `aiChatProxy` (serveur) : les cles
+// fournisseurs restent cote serveur et ne sont jamais livrees au navigateur.
+// Le proxy enchaine les fournisseurs gratuits (Groq, Gemini, NVIDIA, OpenRouter,
+// Cloudflare, Pollinations) et bascule automatiquement en cas de quota epuise.
 
 export interface BusinessMetricsContext {
   teamName: string;
@@ -32,76 +39,68 @@ export interface AiChatMessage {
   };
 }
 
-export type AiProviderType = "groq" | "nvidia" | "custom";
+/**
+ * Identifiants de fournisseurs. "auto" laisse le proxy choisir et basculer
+ * entre les moteurs disponibles (recommande : le quota d'un seul moteur ne
+ * peut plus casser l'assistant).
+ */
+export type AiProviderType =
+  | "auto"
+  | "groq"
+  | "gemini"
+  | "nvidia"
+  | "openrouter"
+  | "cloudflare"
+  | "pollinations";
 
 export interface AiConfig {
   provider: AiProviderType;
-  groqApiKey?: string;
-  nvidiaApiKey?: string;
-  customEndpoint?: string;
-  customApiKey?: string;
   model?: string;
 }
 
-// Clés injectées dynamiquement via l'environnement ou configurables dans l'interface
-const getStoredKey = (storageKey: string, envVar?: string): string => {
-  if (typeof window !== "undefined") {
-    const fromStorage = localStorage.getItem(storageKey);
-    if (fromStorage) return fromStorage;
-  }
-  return envVar || "";
-};
-
-const DEFAULT_GROQ_KEY = getStoredKey(
-  "ecomcod_groq_key",
-  (import.meta as any).env?.VITE_GROQ_API_KEY || ["gsk_", "b9pe3NB32psW90RrIxgnWGdyb3FYGmCKJO7PNLnLLMNY2UBsHtM7"].join("")
-);
-const DEFAULT_NVIDIA_KEY = getStoredKey(
-  "ecomcod_nvidia_key",
-  (import.meta as any).env?.VITE_NVIDIA_API_KEY || ["nvapi-", "adICadv97jvmGUFHgAcGOXTawV7Xq7Bvajr3Lss2x4kalKURNauHIK1xpoI7CUE7goq"].join("")
-);
+/** Endpoint de la passerelle IA (Firebase Functions, projet meta-capi-app). */
+const AI_PROXY_URL = "https://us-central1-meta-capi-app.cloudfunctions.net/aiChatProxy";
 
 class AiServiceAdapter {
   private config: AiConfig;
 
   constructor() {
     this.config = {
-      provider: "groq",
-      groqApiKey: DEFAULT_GROQ_KEY,
-      nvidiaApiKey: DEFAULT_NVIDIA_KEY,
-      model: "llama-3.3-70b-versatile",
+      provider: "auto",
     };
   }
 
-  public setProvider(provider: AiProviderType, customKey?: string, customModel?: string) {
+  public setProvider(provider: AiProviderType) {
     this.config.provider = provider;
-    if (customKey) {
-      if (provider === "groq") this.config.groqApiKey = customKey;
-      else if (provider === "nvidia") this.config.nvidiaApiKey = customKey;
-      else this.config.customApiKey = customKey;
-    }
-    if (customModel) {
-      this.config.model = customModel;
-    }
   }
 
   public getProvider(): AiProviderType {
     return this.config.provider;
   }
 
+  public setModel(model?: string) {
+    this.config.model = model;
+  }
+
   /**
-   * Construit un prompt système strict : l'IA est une Secrétaire de Direction & Analyste E-commerce COD.
-   * Aucune donnée technique (tokens, DB ids, fbp) n'est fournie, uniquement les métriques business.
+   * Construit un prompt systeme complet et enrichi : l'IA est une Secretaire de Direction & Analyste E-commerce COD.
+   * Injecte le Playbook COD Afrique, le formatage strict des dates (UTC Lomé/Dakar/Abidjan),
+   * et les instructions pour générer des courbes d'analyse interactives.
    */
-  private buildSystemPrompt(context: BusinessMetricsContext): string {
+  public buildSystemPrompt(context: BusinessMetricsContext): string {
+    const today = new Date().toISOString().slice(0, 10);
     return `Tu es l'Assistante Secrétaire de Direction et Cheffe Analyste Opérationnelle E-commerce Cash On Delivery (COD).
-Ton rôle est d'analyser les performances du business, d'identifier les goulets d'étranglement (livreurs, closeuses, taux de rejet, villes rentables), et de proposer des plans d'action concrets pour maximiser les profits et la rentabilité.
+Ton rôle est d'analyser les performances du business, d'identifier les goulots d'étranglement (livreurs, closeuses, taux de rejet, villes rentables), et de proposer des plans d'action concrets pour maximiser les profits et la rentabilité.
+
+${COD_AFRIQUE_PLAYBOOK}
+
+${buildChartPrompt(today)}
 
 RÈGLES STRICTES DE SÉCURITÉ ET DE PERTINENCE :
 1. Tu ne traites QUE des sujets liés au business e-commerce COD, à la gestion d'équipe (closeuses, livreurs), à la rentabilité et aux opérations logistiques.
-2. Si l'utilisateur te pose une question hors-sujet (politique, cuisine, code informatique général, etc.), réponds courtoisement que ta fonction exclusive est la direction des opérations et l'optimisation financière de cette entreprise COD.
-3. Sois directe, percutante, avec des chiffres clairs, des pourcentages et des recommandations concrètes (ex: qui promouvoir, quelle offre arrêter, sur quelle zone concentrer les livreurs).
-4. Lorsque l'analyse comporte une évolution ou une comparaison de statuts (confirmés, livrés, rejetés), structure une partie visuelle ou un tableau de bord textuel clair.
+2. Si l'utilisateur te pose une question hors-sujet, réponds courtoisement que ta fonction exclusive est la direction des opérations et l'optimisation financière de cette entreprise COD.
+3. Sois directe, percutante, avec des chiffres clairs, des pourcentages et des recommandations concrètes.
+4. Lorsque l'analyse comporte une évolution ou une comparaison de statuts (confirmés, livrés, rejetés), ajoute systématiquement un bloc de graphique interactif (\`\`\`chart ... \`\`\`) pour visualiser la tendance.
 
 DONNÉES BUSINESS DU COMPTE ET DE L'ÉQUIPE :
 - Équipe : ${context.teamName} (Pays : ${context.country})
@@ -113,6 +112,9 @@ DONNÉES BUSINESS DU COMPTE ET DE L'ÉQUIPE :
 - Injoignables : ${context.injoignableOrders}
 - Rejetées / Refusées : ${context.rejectedOrders}
 - Chiffre d'Affaires Encaissé : ${context.revenue.toLocaleString()} ${context.currency}
+
+ÉVOLUTION DES TENDANCES JOURNALIÈRES :
+${context.dailyTrends?.length ? context.dailyTrends.map(t => `- ${t.date} : ${t.confirmed} confirmées, ${t.delivered} livrées, ${t.rejected} rejetées/injoignables, CA: ${t.revenue.toLocaleString()} ${context.currency}`).join("\n") : "Pas d'historique journalier suffisant sur cette période."}
 
 TOP CLOSEUSES :
 ${context.topCloseuses.map((c) => `- ${c.name} : ${c.confirmed}/${c.total} confirmées (${c.rate}%)`).join("\n") || "Aucune closeuse active sur la période."}
@@ -126,7 +128,38 @@ ${context.topProducts.map((p) => `- ${p.name} : ${p.count} vendus (${p.revenue.t
   }
 
   /**
-   * Envoie le message au modèle configuré (Groq ou NVIDIA)
+   * Envoie une conversation deja constituee au proxy serveur, sans injecting
+   * de prompt systeme. Utilise par l'assistant admin qui construit son propre
+   * prompt a partir des metriques live.
+   */
+  public async sendRaw(messages: { role: string; content: string }[]): Promise<string> {
+    const res = await fetch(AI_PROXY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        provider: this.config.provider,
+        model: this.config.model,
+        messages,
+        temperature: 0.6,
+        maxTokens: 4000,
+      }),
+    });
+
+    const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+
+    if (!res.ok) {
+      throw new Error(data.error || `Erreur ${res.status} du proxy IA.`);
+    }
+
+    if (!data.text) {
+      throw new Error("Le proxy IA a renvoyé une réponse vide.");
+    }
+
+    return data.text;
+  }
+
+  /**
+   * Envoie le message au proxy serveur, qui redistribue vers les fournisseurs.
    */
   public async sendMessage(
     userPrompt: string,
@@ -141,161 +174,29 @@ ${context.topProducts.map((p) => `- ${p.name} : ${p.count} vendus (${p.revenue.t
       { role: "user", content: userPrompt },
     ];
 
-    // Appel prioritaire via notre Cloud Function Proxy (contourne tout blocage CORS de navigateur)
-    try {
-      const proxyRes = await fetch("https://us-central1-meta-capi-app.cloudfunctions.net/aiChatProxy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: this.config.provider,
-          messages,
-          model: this.config.model,
-        }),
-      });
-
-      if (proxyRes.ok) {
-        const data = await proxyRes.json();
-        if (data.text) return data.text;
-      }
-    } catch (e) {
-      console.warn("Proxy Cloud Function unreachable, trying direct fallback:", e);
-    }
-
-    if (this.config.provider === "groq") {
-      return this.callGroq(messages);
-    } else if (this.config.provider === "nvidia") {
-      return this.callNvidia(messages);
-    } else {
-      return this.callCustom(messages);
-    }
-  }
-
-  private async callGroq(messages: { role: string; content: string }[]): Promise<string> {
-    const key = this.config.groqApiKey || DEFAULT_GROQ_KEY;
-    const model = this.config.model || "llama-3.3-70b-versatile";
-
-    // 1. Tenter via le proxy Vercel sans CORS
-    try {
-      const res = await fetch("/api/groq-proxy", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.6,
-          max_tokens: 1500,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        return data.choices?.[0]?.message?.content || "Analyse terminée.";
-      }
-    } catch {
-      // Fallback
-    }
-
-    // 2. Appel direct Groq
-    const directRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const res = await fetch(AI_PROXY_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model,
+        provider: this.config.provider,
+        model: this.config.model,
         messages,
         temperature: 0.6,
-        max_tokens: 1500,
+        maxTokens: 4000,
       }),
     });
 
-    if (!directRes.ok) {
-      return this.callNvidia(messages);
-    }
-
-    const data = await directRes.json();
-    return data.choices?.[0]?.message?.content || "Analyse terminée.";
-  }
-
-  private async callNvidia(messages: { role: string; content: string }[]): Promise<string> {
-    const key = this.config.nvidiaApiKey || DEFAULT_NVIDIA_KEY;
-
-    // 1. Tenter via le proxy Vercel sans CORS
-    try {
-      const res = await fetch("/api/nvidia-proxy", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: "meta/llama-3.1-70b-instruct",
-          messages,
-          temperature: 0.6,
-          max_tokens: 1500,
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        return data.choices?.[0]?.message?.content || "Analyse terminée.";
-      }
-    } catch {
-      // Fallback
-    }
-
-    // 2. Appel direct NVIDIA
-    const directRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "meta/llama-3.1-70b-instruct",
-        messages,
-        temperature: 0.6,
-        max_tokens: 1500,
-      }),
-    });
-
-    if (!directRes.ok) {
-      const err = await directRes.text();
-      throw new Error(`Erreur API NVIDIA (${directRes.status}): ${err}`);
-    }
-
-    const data = await directRes.json();
-    return data.choices?.[0]?.message?.content || "Analyse terminée.";
-  }
-
-  private async callCustom(messages: { role: string; content: string }[]): Promise<string> {
-    const endpoint = this.config.customEndpoint || "https://api.groq.com/openai/v1/chat/completions";
-    const key = this.config.customApiKey || "";
-
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: this.config.model || "default",
-        messages,
-        temperature: 0.6,
-        max_tokens: 1500,
-      }),
-    });
+    const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
 
     if (!res.ok) {
-      throw new Error(`Erreur Custom Provider: ${res.statusText}`);
+      throw new Error(data.error || `Erreur ${res.status} du proxy IA.`);
     }
 
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || "Aucune réponse reçue.";
+    if (!data.text) {
+      throw new Error("Le proxy IA a renvoyé une réponse vide.");
+    }
+
+    return data.text;
   }
 }
 

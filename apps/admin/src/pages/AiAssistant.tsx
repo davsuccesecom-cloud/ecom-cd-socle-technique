@@ -3,29 +3,61 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy } from "
 import { getDb } from "@ecomcod/shared";
 import type { Team, Order } from "@ecomcod/shared";
 import { aiService, type BusinessMetricsContext, type AiChatMessage } from "../services/aiService";
+import { splitMessage } from "../lib/aiChart";
+import ProChart from "../components/ProChart";
+import { fetchDailyStats } from "../lib/dailyStatsSeries";
+import ExportMenu from "../components/ExportMenu";
+import { makeKpis, type BilanReport, type BilanEmployee, type BilanProduct, type BilanDay } from "../lib/bilan/types";
 
 /* -------------------------------------------------------------------------- */
-/*  Moteurs IA : modifier ici uniquement si un modèle est retiré               */
+/*  Moteurs IA                                                                */
+/*                                                                             */
+/*  "auto" laisse le proxy serveur choisir et basculer entre les fournisseurs  */
+/*  gratuits : si un moteur est a court de quota (429) ou indisponible, le     */
+/*  suivant prend le relais sans interrompre la reponse.                       */
+/*  Les modeles par defaut sont geres cote serveur (functions/src/aiGateway.ts)*/
+/*  -- ici on ne fait que le libelle et l'identifiant envoye au proxy.         */
 /* -------------------------------------------------------------------------- */
-type ProviderKey = "groq" | "nvidia";
+type ProviderKey = "auto" | "groq" | "gemini" | "nvidia" | "openrouter" | "cloudflare" | "pollinations";
 
 const PROVIDERS: Record<
   ProviderKey,
-  { label: string; modelName: string; modelId: string; endpoint: string; hint: string }
+  { label: string; modelName: string; hint: string }
 > = {
+  auto: {
+    label: "Auto",
+    modelName: "Rotation",
+    hint: "Bascule entre les moteurs disponibles",
+  },
   groq: {
     label: "Groq",
     modelName: "GPT-OSS 120B",
-    modelId: "openai/gpt-oss-120b",
-    endpoint: "/api/chat-groq",
-    hint: "Réponses rapides",
+    hint: "Tres rapide",
+  },
+  gemini: {
+    label: "Gemini",
+    modelName: "3.8 Flash",
+    hint: "Contexte long",
   },
   nvidia: {
     label: "NVIDIA",
-    modelName: "Nemotron 70B",
-    modelId: "nvidia/llama-3.1-nemotron-70b-instruct",
-    endpoint: "/api/chat-nvidia",
+    modelName: "Nemotron 120B",
     hint: "Analyse approfondie",
+  },
+  openrouter: {
+    label: "OpenRouter",
+    modelName: "Free router",
+    hint: "Modeles gratuits",
+  },
+  cloudflare: {
+    label: "Cloudflare",
+    modelName: "GPT-OSS 120B",
+    hint: "10k neurones/jour",
+  },
+  pollinations: {
+    label: "Pollinations",
+    modelName: "GPT-OSS 20B",
+    hint: "Bonus quota",
   },
 };
 
@@ -455,9 +487,10 @@ export default function AiAssistant({
   const [showJump, setShowJump] = useState(false);
   const [provider, setProvider] = useState<ProviderKey>(() => {
     try {
-      return localStorage.getItem("aiAssistantProvider") === "nvidia" ? "nvidia" : "groq";
+      const saved = localStorage.getItem("aiAssistantProvider") as ProviderKey | null;
+      return saved && saved in PROVIDERS ? saved : "auto";
     } catch {
-      return "groq";
+      return "auto";
     }
   });
 
@@ -539,11 +572,38 @@ export default function AiAssistant({
       .map(([name, data]) => ({ name, count: data.count, revenue: data.revenue }))
       .sort((a, b) => b.count - a.count);
 
+    const trendsMap: Record<string, { date: string; confirmed: number; delivered: number; rejected: number; revenue: number }> = {};
+    orders.forEach((o) => {
+      const ts = o.timestamps?.received;
+      if (!ts) return;
+      const d = new Date(ts);
+      const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      if (!trendsMap[dateKey]) {
+        trendsMap[dateKey] = { date: dateKey, confirmed: 0, delivered: 0, rejected: 0, revenue: 0 };
+      }
+      if (o.statutCloseuse === "en_cours" || o.statutCloseuse === "programme" || o.statutCloseuse === "livre") {
+        trendsMap[dateKey].confirmed += 1;
+      }
+      if (o.statutLivreur === "livre") {
+        trendsMap[dateKey].delivered += 1;
+        trendsMap[dateKey].revenue += o.amount || 0;
+      }
+      if (o.statutCloseuse === "rejete" || o.statutLivreur === "injoignable" || o.statutCloseuse === "injoignable") {
+        trendsMap[dateKey].rejected += 1;
+      }
+    });
+    const dailyTrends = Object.values(trendsMap).sort((a, b) => a.date.localeCompare(b.date));
+
+    const timestamps = orders.map((o) => o.timestamps?.received).filter((t): t is number => typeof t === "number" && t > 0);
+    const periodLabel = timestamps.length > 0
+      ? `Du ${new Date(Math.min(...timestamps)).toLocaleDateString("fr-FR")} au ${new Date(Math.max(...timestamps)).toLocaleDateString("fr-FR")}`
+      : "Période active";
+
     return {
       teamName: team?.name || "Toutes les équipes",
       country: team?.defaultCountry || "Général",
       currency: team?.currency || "XOF",
-      periodLabel: "Période active",
+      periodLabel,
       totalOrders,
       confirmedOrders,
       deliveredOrders,
@@ -555,7 +615,7 @@ export default function AiAssistant({
       topCloseuses,
       topLivreurs,
       topProducts,
-      dailyTrends: [],
+      dailyTrends,
     };
   })();
 
@@ -639,51 +699,17 @@ export default function AiAssistant({
         content: m.content,
       }));
 
-      const active = PROVIDERS[provider];
-
-      const systemPrompt = `Tu es l'Analyste Business & Secrétaire de Direction E-commerce Cash On Delivery (COD) de l'entreprise.
-Ton objectif est d'analyser la rentabilité, les performances des employés et d'orienter les décisions stratégiques.
-RÈGLES : Sois percutant, chiffre tes réponses, donne des conseils concrets (promotions, optimisation des rejets, zones de livraison). Refuse poliment tout sujet hors-business.
-N'INVENTE JAMAIS de données absentes des métriques ci-dessous (motifs de rejet, marges, coûts, dépenses publicitaires). Si une donnée manque, dis-le clairement et indique quelle donnée il faudrait suivre. Réponds en français, de façon structurée et concise (titres courts, listes, tableaux si utile).
-
-MÉTRIQUES OPÉRATIONNELLES EN DIRECT :
-- Équipe : ${context.teamName} (${context.country})
-- Chiffre d'Affaires Livré : ${context.revenue.toLocaleString()} ${context.currency}
-- Total Commandes : ${context.totalOrders}
-- Confirmées : ${context.confirmedOrders} (${context.confirmationRate}%)
-- Livrées et Encaissées : ${context.deliveredOrders} (${context.deliveryRate}%)
-- Injoignables : ${context.injoignableOrders} | Rejetées : ${context.rejectedOrders}
-TOP CLOSEUSES : ${context.topCloseuses.map((c) => `${c.name}: ${c.confirmed}/${c.total} (${c.rate}%)`).join(", ") || "Aucune"}
-TOP LIVREURS : ${context.topLivreurs.map((l) => `${l.name}: ${l.delivered}/${l.total} (${l.rate}%)`).join(", ") || "Aucun"}
-PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).join(", ") || "Aucun"}`;
+      const systemPrompt = aiService.buildSystemPrompt(context);
 
       let reply = "";
       let apiError = "";
       try {
-        const res = await fetch(active.endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: active.modelId,
-            messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: prompt }],
-            temperature: 0.6,
-            max_tokens: 4000,
-            ...(provider === "groq" ? { reasoning_effort: "low" } : {}),
-          }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          reply = data.choices?.[0]?.message?.content || "";
-          if (!reply) apiError = "Le modèle a renvoyé une réponse vide. Réessaie ou change de moteur.";
-        } else {
-          const detail =
-            data.error?.message ||
-            (typeof data.error === "string" ? data.error : "") ||
-            data.detail ||
-            "réponse invalide";
-          apiError = `Erreur ${res.status} : ${detail}`;
-        }
+        reply = await aiService.sendRaw([
+          { role: "system", content: systemPrompt },
+          ...history,
+          { role: "user", content: prompt },
+        ]);
+        if (!reply) apiError = "Le modèle a renvoyé une réponse vide. Réessaie ou change de moteur.";
       } catch (e) {
         apiError = e instanceof Error ? e.message : "Connexion impossible";
       }
@@ -727,6 +753,69 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
     }
   };
 
+  const buildBilanReport = async (): Promise<BilanReport> => {
+    const lastAssistant = [...messages].reverse().find((m) => m.sender === "assistant");
+    const analysisMarkdown = lastAssistant ? lastAssistant.content : "Bilan récapitulatif des performances.";
+
+    const kpis = makeKpis({
+      ca: context.revenue,
+      recues: context.totalOrders,
+      confirmees: context.confirmedOrders,
+      livrees: context.deliveredOrders,
+      injoignables: context.injoignableOrders,
+      rejetees: context.rejectedOrders,
+      currency: context.currency,
+    });
+
+    const funnel = [
+      { label: "Commandes reçues", value: context.totalOrders },
+      { label: "Confirmées", value: context.confirmedOrders },
+      { label: "Livrées et payées", value: context.deliveredOrders },
+    ];
+
+    const employees: BilanEmployee[] = [
+      ...context.topCloseuses.map((c) => ({
+        name: c.name,
+        role: "closeuse" as const,
+        done: c.confirmed,
+        total: c.total,
+      })),
+      ...context.topLivreurs.map((l) => ({
+        name: l.name,
+        role: "livreur" as const,
+        done: l.delivered,
+        total: l.total,
+      })),
+    ];
+
+    const products: BilanProduct[] = context.topProducts.map((p) => ({
+      name: p.name,
+      sales: p.count,
+    }));
+
+    const days: BilanDay[] = (context.dailyTrends || []).map((d) => ({
+      date: d.date,
+      ca: d.revenue,
+      livraisons: d.delivered,
+      rejetees: d.rejected,
+      injoignables: 0,
+    }));
+
+    return {
+      title: `Bilan Opérationnel & Stratégique - ${context.teamName}`,
+      team: context.teamName,
+      periodLabel: context.periodLabel,
+      generatedAt: new Date().toISOString(),
+      currency: context.currency,
+      kpis,
+      funnel,
+      employees,
+      products,
+      days,
+      analysisMarkdown,
+    };
+  };
+
   const handleExportWord = () => {
     const title = `Bilan_Analyste_IA_${team?.name || "Business"}_${new Date().toISOString().slice(0, 10)}`;
     const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -768,7 +857,7 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
   /*  Rendu                                                                    */
   /* ------------------------------------------------------------------------ */
   return (
-    <div ref={rootRef} className="mx-auto w-full max-w-4xl">
+    <div ref={rootRef} className="mx-auto w-full max-w-6xl">
       <div
         className={`flex h-[calc(100dvh-9rem)] min-h-[480px] flex-col overflow-hidden rounded-2xl border shadow-sm ${t.card}`}
       >
@@ -777,7 +866,7 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
           <div
             role="radiogroup"
             aria-label="Choisir le moteur d'IA"
-            className={`inline-flex rounded-xl p-1 ${t.seg}`}
+            className={`inline-flex max-w-full overflow-x-auto rounded-xl p-1 ${t.seg}`}
           >
             {(Object.keys(PROVIDERS) as ProviderKey[]).map((key) => {
               const p = PROVIDERS[key];
@@ -788,8 +877,9 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
                   type="button"
                   role="radio"
                   aria-checked={active}
+                  title={p.hint}
                   onClick={() => chooseProvider(key)}
-                  className={`rounded-lg px-3 py-1.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                  className={`shrink-0 rounded-lg px-3 py-1.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                     active ? t.segActive : t.segIdle
                   }`}
                 >
@@ -801,15 +891,7 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleExportWord}
-              disabled={isEmpty}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${t.ghostBtn}`}
-            >
-              <IconDownload />
-              <span className="hidden sm:inline">Exporter Word</span>
-            </button>
+            <ExportMenu getReport={buildBilanReport} />
             {!isEmpty && (
               <button
                 type="button"
@@ -874,17 +956,26 @@ PRODUITS : ${context.topProducts.map((p) => `${p.name} (${p.count} ventes)`).joi
                       </div>
                     ) : (
                       <div key={m.id} className="flex gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-white">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-md">
                           <IconSpark />
                         </div>
                         <div className={`min-w-0 flex-1 text-[15px] leading-7 ${t.text}`}>
-                          <Markdown content={m.content} t={t} />
+                          {splitMessage(m.content).map((part, pIdx) => {
+                            if (part.kind === "text") {
+                              return <Markdown key={pIdx} content={part.text} t={t} />;
+                            }
+                            return (
+                              <div key={pIdx} className="my-4 overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/60 p-4 shadow-xl">
+                                <ProChart spec={part.spec} load={(p) => fetchDailyStats(getDb(), workspaceId, team?.id || "", p)} />
+                              </div>
+                            );
+                          })}
                           <div className={`mt-2 flex items-center gap-3 text-[11px] ${t.muted}`}>
                             <span>{formatTime(m.timestamp)}</span>
                             <button
                               type="button"
                               onClick={() => handleCopy(m)}
-                              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 transition-colors hover:text-indigo-500"
+                              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 transition-colors hover:text-indigo-400"
                               aria-label="Copier la réponse"
                             >
                               {copiedId === m.id ? <IconCheck /> : <IconCopy />}
