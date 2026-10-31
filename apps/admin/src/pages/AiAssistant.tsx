@@ -711,7 +711,10 @@ export default function AiAssistant({
         ]);
         if (!reply) apiError = "Le modèle a renvoyé une réponse vide. Réessaie ou change de moteur.";
       } catch (e) {
-        apiError = e instanceof Error ? e.message : "Connexion impossible";
+        const rawErr = e instanceof Error ? e.message : "Connexion impossible";
+        apiError = rawErr.includes("variable d'environnement")
+          ? "Le service d'analyse IA est temporairement indisponible. Veuillez réessayer dans quelques instants."
+          : rawErr;
       }
 
       if (apiError) {
@@ -863,31 +866,20 @@ export default function AiAssistant({
       >
         {/* Barre du haut : choix du modèle + actions */}
         <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5 sm:px-4 ${t.bar}`}>
-          <div
-            role="radiogroup"
-            aria-label="Choisir le moteur d'IA"
-            className={`inline-flex max-w-full overflow-x-auto rounded-xl p-1 ${t.seg}`}
-          >
-            {(Object.keys(PROVIDERS) as ProviderKey[]).map((key) => {
-              const p = PROVIDERS[key];
-              const active = provider === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  title={p.hint}
-                  onClick={() => chooseProvider(key)}
-                  className={`shrink-0 rounded-lg px-3 py-1.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                    active ? t.segActive : t.segIdle
-                  }`}
-                >
-                  <span className="block text-sm font-semibold leading-tight">{p.label}</span>
-                  <span className="block text-[11px] leading-tight opacity-70">{p.modelName}</span>
-                </button>
-              );
-            })}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md">
+              <IconSpark />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-100">Secrétaire & Analyste Direction Ecom COD</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Actif
+                </span>
+              </div>
+              <span className="text-[11px] text-slate-400">Analyses opérationnelles & bilans stratégiques</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

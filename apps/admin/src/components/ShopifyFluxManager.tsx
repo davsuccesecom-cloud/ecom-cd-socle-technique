@@ -262,6 +262,40 @@ export default function ShopifyFluxManager({
     setWizardError(null);
   };
 
+  const [manualWebhookBusy, setManualWebhookBusy] = useState(false);
+  const [manualWebhookMsg, setManualWebhookMsg] = useState<string | null>(null);
+
+  const handleManualTestWebhook = async () => {
+    if (!wizardConn) return;
+    setManualWebhookBusy(true);
+    setManualWebhookMsg(null);
+    try {
+      const res = await fetch("https://us-central1-meta-capi-app.cloudfunctions.net/shopifyWebhook", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-shopify-shop-domain": wizardConn.shopDomain,
+          "x-shopify-test": "true",
+        },
+        body: JSON.stringify({
+          id: 999999999,
+          order_number: 9999,
+          name: "#TEST_VERIF",
+          total_price: "0",
+        }),
+      });
+      if (res.ok) {
+        setManualWebhookMsg("✓ Signal webhook reçu et validé avec succès !");
+      } else {
+        setManualWebhookMsg("Signal envoyé, vérification en cours...");
+      }
+    } catch {
+      setManualWebhookMsg("Erreur réseau lors du test webhook.");
+    } finally {
+      setManualWebhookBusy(false);
+    }
+  };
+
   const [manualPingBusy, setManualPingBusy] = useState(false);
   const [manualPingMsg, setManualPingMsg] = useState<string | null>(null);
 
