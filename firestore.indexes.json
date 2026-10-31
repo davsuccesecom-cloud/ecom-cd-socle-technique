@@ -49,6 +49,15 @@
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "trackingSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "phoneNormalized", "order": "ASCENDING" },
+        { "fieldPath": "shopDomain", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
