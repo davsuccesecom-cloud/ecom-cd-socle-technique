@@ -93,65 +93,86 @@ async function findConnection(db, rawDomain) {
     const withoutWww = clean.replace(/^www\./, "");
     const withWww = `www.${withoutWww}`;
     const candidates = Array.from(new Set([clean, withoutWww, withWww])).filter(Boolean);
-    // 1. Recherche par shopDomain principal
-    for (const cand of candidates) {
-        const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cand).limit(5).get();
-        if (!snap.empty) {
-            const active = snap.docs.find((d) => d.data().status === "active");
-            const chosen = active || snap.docs[0];
-            return { doc: chosen, status: chosen.data().status || "active" };
-        }
-    }
-    // 2. Recherche par myshopifyDomain
-    for (const cand of candidates) {
-        const snap = await db.collectionGroup("shopifyConnections").where("myshopifyDomain", "==", cand).limit(5).get();
-        if (!snap.empty) {
-            const active = snap.docs.find((d) => d.data().status === "active");
-            const chosen = active || snap.docs[0];
-            return { doc: chosen, status: chosen.data().status || "active" };
-        }
-    }
-    // 3. Recherche par customDomain
-    for (const cand of candidates) {
-        const snap = await db.collectionGroup("shopifyConnections").where("customDomain", "==", cand).limit(5).get();
-        if (!snap.empty) {
-            const active = snap.docs.find((d) => d.data().status === "active");
-            const chosen = active || snap.docs[0];
-            return { doc: chosen, status: chosen.data().status || "active" };
-        }
-    }
-    // 4. Recherche par alias dans le tableau domains
-    for (const cand of candidates) {
-        try {
-            const snap = await db.collectionGroup("shopifyConnections").where("domains", "array-contains", cand).limit(5).get();
+    try {
+        // 1. Recherche par shopDomain principal
+        for (const cand of candidates) {
+            const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cand).limit(5).get();
             if (!snap.empty) {
                 const active = snap.docs.find((d) => d.data().status === "active");
                 const chosen = active || snap.docs[0];
                 return { doc: chosen, status: chosen.data().status || "active" };
             }
         }
-        catch {
-            // Ignorer si index absent
-        }
-    }
-    // 5. Recherche par shopName si cand se termine par .myshopify.com
-    for (const cand of candidates) {
-        if (cand.endsWith(".myshopify.com")) {
-            const prefix = cand.replace(".myshopify.com", "");
-            const snap = await db.collectionGroup("shopifyConnections").where("shopName", "==", prefix).limit(5).get();
+        // 2. Recherche par myshopifyDomain
+        for (const cand of candidates) {
+            const snap = await db.collectionGroup("shopifyConnections").where("myshopifyDomain", "==", cand).limit(5).get();
             if (!snap.empty) {
                 const active = snap.docs.find((d) => d.data().status === "active");
                 const chosen = active || snap.docs[0];
                 return { doc: chosen, status: chosen.data().status || "active" };
             }
         }
+        // 3. Recherche par customDomain
+        for (const cand of candidates) {
+            const snap = await db.collectionGroup("shopifyConnections").where("customDomain", "==", cand).limit(5).get();
+            if (!snap.empty) {
+                const active = snap.docs.find((d) => d.data().status === "active");
+                const chosen = active || snap.docs[0];
+                return { doc: chosen, status: chosen.data().status || "active" };
+            }
+        }
+        // 4. Recherche par alias dans le tableau domains
+        for (const cand of candidates) {
+            try {
+                const snap = await db.collectionGroup("shopifyConnections").where("domains", "array-contains", cand).limit(5).get();
+                if (!snap.empty) {
+                    const active = snap.docs.find((d) => d.data().status === "active");
+                    const chosen = active || snap.docs[0];
+                    return { doc: chosen, status: chosen.data().status || "active" };
+                }
+            }
+            catch { }
+        }
+        // 5. Recherche par shopName si cand se termine par .myshopify.com
+        for (const cand of candidates) {
+            if (cand.endsWith(".myshopify.com")) {
+                const prefix = cand.replace(".myshopify.com", "");
+                const snap = await db.collectionGroup("shopifyConnections").where("shopName", "==", prefix).limit(5).get();
+                if (!snap.empty) {
+                    const active = snap.docs.find((d) => d.data().status === "active");
+                    const chosen = active || snap.docs[0];
+                    return { doc: chosen, status: chosen.data().status || "active" };
+                }
+            }
+        }
+    }
+    catch (cgErr) {
+        console.warn("collectionGroup lookup error, falling back to direct workspace scan:", cgErr);
+    }
+    // Fallback direct sur workspaces/{ws}/shopifyConnections
+    try {
+        const wsSnap = await db.collection("workspaces").get();
+        for (const wsDoc of wsSnap.docs) {
+            const connsSnap = await wsDoc.ref.collection("shopifyConnections").get();
+            for (const cDoc of connsSnap.docs) {
+                const data = cDoc.data();
+                const domains = [
+                    data.shopDomain,
+                    data.myshopifyDomain,
+                    data.customDomain,
+                    ...(Array.isArray(data.domains) ? data.domains : []),
+                ].map(cleanDomain).filter(Boolean);
+                if (candidates.some((c) => domains.includes(c))) {
+                    return { doc: cDoc, status: data.status || "active" };
+                }
+            }
+        }
+    }
+    catch (fallbackErr) {
+        console.error("Direct workspace scan failed:", fallbackErr);
     }
     return null;
 }
-/**
- * navigator.sendBeacon envoie du texte brut : Firebase fournit alors req.body
- * sous forme de chaîne. On accepte donc objet, chaîne et Buffer.
- */
 function parseJsonBody(req) {
     if (!req)
         return {};
@@ -239,14 +260,19 @@ exports.trackSession = (0, https_1.onRequest)({ cors: true }, async (req, res) =
         let found = null;
         // 1. Recherche directe et immediate par verifyToken en priorite absolue si present
         if (verifyToken) {
-            const tokenSnap = await db
-                .collectionGroup('shopifyConnections')
-                .where('verifyToken', '==', verifyToken)
-                .limit(1)
-                .get();
-            if (!tokenSnap.empty) {
-                const doc = tokenSnap.docs[0];
-                found = { doc, status: doc.data().status || 'pending' };
+            try {
+                const tokenSnap = await db
+                    .collectionGroup('shopifyConnections')
+                    .where('verifyToken', '==', verifyToken)
+                    .limit(1)
+                    .get();
+                if (!tokenSnap.empty) {
+                    const doc = tokenSnap.docs[0];
+                    found = { doc, status: doc.data().status || 'pending' };
+                }
+            }
+            catch (tokenErr) {
+                console.warn("verifyToken lookup by collectionGroup skipped, using domain lookup:", tokenErr);
             }
         }
         // 2. Recherche par les differents domaines
