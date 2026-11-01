@@ -5,21 +5,23 @@
 /* ==========================================================================
    1. PALETTE PAR DÉFAUT (INDIGO & ARDOISE)
    ========================================================================== */
-:root {
+:root,
+html[data-accent="indigo"] {
   color-scheme: dark;
-  --surface: #090b10;
-  --surface-raised: #111520;
-  --surface-subtle: #0d1018;
-  --surface-border: #1e2436;
-  --surface-border-strong: #2b334b;
+  --surface: #090c15;
+  --surface-raised: #111626;
+  --surface-subtle: #0d1220;
+  --surface-border: #1e2640;
+  --surface-border-strong: #2c3759;
   --brand: #6366f1;
   --brand-hover: #4f46e5;
-  --brand-light: rgba(99, 102, 241, 0.14);
+  --brand-light: rgba(99, 102, 241, 0.15);
   --brand-ring: rgba(99, 102, 241, 0.35);
   accent-color: var(--brand);
 }
 
-html.light {
+html.light,
+html.light[data-accent="indigo"] {
   color-scheme: light;
   --surface: #f3f5f9;
   --surface-raised: #ffffff;
@@ -33,20 +35,20 @@ html.light {
 }
 
 /* ==========================================================================
-   2. CACAO & LATTE (Fond crème / marron clair & barre marron chaud)
+   2. CACAO & LATTE (Expresso & Moka en sombre / Crème & Cacao en clair)
    ========================================================================== */
-:where([data-accent="cacao"]) {
-  --surface: #120c08;
-  --surface-raised: #1c140e;
-  --surface-subtle: #17100b;
-  --surface-border: #332319;
-  --surface-border-strong: #473123;
-  --brand: #c87d46;
-  --brand-hover: #b06834;
-  --brand-light: rgba(200, 125, 70, 0.16);
-  --brand-ring: rgba(200, 125, 70, 0.35);
+html[data-accent="cacao"] {
+  --surface: #18110c;
+  --surface-raised: #241912;
+  --surface-subtle: #2c1e15;
+  --surface-border: #422e21;
+  --surface-border-strong: #593e2d;
+  --brand: #d4874d;
+  --brand-hover: #bd7138;
+  --brand-light: rgba(212, 135, 77, 0.18);
+  --brand-ring: rgba(212, 135, 77, 0.38);
 }
-html.light:where([data-accent="cacao"]) {
+html.light[data-accent="cacao"] {
   --surface: #f6efe7;
   --surface-raised: #fdfaf6;
   --surface-subtle: #e6d5c3;
@@ -59,20 +61,20 @@ html.light:where([data-accent="cacao"]) {
 }
 
 /* ==========================================================================
-   3. ÉMERAUDE & SAUGE (Teinte forêt / menthe douce)
+   3. ÉMERAUDE & SAUGE (Forêt boréale en sombre / Sauge & Menthe en clair)
    ========================================================================== */
-:where([data-accent="emerald"]) {
-  --surface: #07110d;
-  --surface-raised: #0e1e17;
-  --surface-subtle: #0a1712;
-  --surface-border: #1a3328;
-  --surface-border-strong: #254738;
+html[data-accent="emerald"] {
+  --surface: #081510;
+  --surface-raised: #10231b;
+  --surface-subtle: #142c22;
+  --surface-border: #204536;
+  --surface-border-strong: #2d5e4a;
   --brand: #10b981;
   --brand-hover: #059669;
-  --brand-light: rgba(16, 185, 129, 0.14);
+  --brand-light: rgba(16, 185, 129, 0.16);
   --brand-ring: rgba(16, 185, 129, 0.35);
 }
-html.light:where([data-accent="emerald"]) {
+html.light[data-accent="emerald"] {
   --surface: #eef5f1;
   --surface-raised: #fbfdfc;
   --surface-subtle: #dfece5;
@@ -85,20 +87,20 @@ html.light:where([data-accent="emerald"]) {
 }
 
 /* ==========================================================================
-   4. OCÉAN & GLACIER (Bleu polaire & abyssal)
+   4. OCÉAN & GLACIER (Bleu abyssal en sombre / Bleu polaire en clair)
    ========================================================================== */
-:where([data-accent="blue"]) {
-  --surface: #070d14;
-  --surface-raised: #0e1826;
-  --surface-subtle: #0a121d;
-  --surface-border: #1b2b42;
-  --surface-border-strong: #263d5d;
+html[data-accent="blue"] {
+  --surface: #07121e;
+  --surface-raised: #0f2034;
+  --surface-subtle: #132840;
+  --surface-border: #213e60;
+  --surface-border-strong: #2e5480;
   --brand: #0ea5e9;
   --brand-hover: #0284c7;
-  --brand-light: rgba(14, 165, 233, 0.14);
+  --brand-light: rgba(14, 165, 233, 0.16);
   --brand-ring: rgba(14, 165, 233, 0.35);
 }
-html.light:where([data-accent="blue"]) {
+html.light[data-accent="blue"] {
   --surface: #edf4fb;
   --surface-raised: #fafdff;
   --surface-subtle: #dce9f7;
@@ -111,20 +113,20 @@ html.light:where([data-accent="blue"]) {
 }
 
 /* ==========================================================================
-   5. AMBRE & IVOIRE (Sable chaud & obsidienne dorée)
+   5. AMBRE & SABLE (Obsidienne dorée en sombre / Sable chaud en clair)
    ========================================================================== */
-:where([data-accent="amber"]) {
-  --surface: #120f08;
-  --surface-raised: #1d170c;
-  --surface-subtle: #161209;
-  --surface-border: #332917;
-  --surface-border-strong: #473920;
+html[data-accent="amber"] {
+  --surface: #171208;
+  --surface-raised: #241c0d;
+  --surface-subtle: #2d2210;
+  --surface-border: #45351a;
+  --surface-border-strong: #5e4823;
   --brand: #f59e0b;
   --brand-hover: #d97706;
-  --brand-light: rgba(245, 158, 11, 0.14);
+  --brand-light: rgba(245, 158, 11, 0.16);
   --brand-ring: rgba(245, 158, 11, 0.35);
 }
-html.light:where([data-accent="amber"]) {
+html.light[data-accent="amber"] {
   --surface: #f9f4e8;
   --surface-raised: #fffdf8;
   --surface-subtle: #ede2c8;
@@ -137,20 +139,20 @@ html.light:where([data-accent="amber"]) {
 }
 
 /* ==========================================================================
-   6. VELOURS & QUARTZ (Rose poudré & bordeaux nuit)
+   6. VELOURS & QUARTZ (Bordeaux nuit en sombre / Rose poudré en clair)
    ========================================================================== */
-:where([data-accent="rose"]) {
-  --surface: #13090c;
-  --surface-raised: #200f15;
-  --surface-subtle: #180b10;
-  --surface-border: #361b24;
-  --surface-border-strong: #4d2633;
+html[data-accent="rose"] {
+  --surface: #180a0f;
+  --surface-raised: #261119;
+  --surface-subtle: #30151f;
+  --surface-border: #4a2130;
+  --surface-border-strong: #632c40;
   --brand: #f43f5e;
   --brand-hover: #e11d48;
-  --brand-light: rgba(244, 63, 94, 0.14);
+  --brand-light: rgba(244, 63, 94, 0.16);
   --brand-ring: rgba(244, 63, 94, 0.35);
 }
-html.light:where([data-accent="rose"]) {
+html.light[data-accent="rose"] {
   --surface: #f9eff2;
   --surface-raised: #fffbfc;
   --surface-subtle: #eedce2;
@@ -163,20 +165,20 @@ html.light:where([data-accent="rose"]) {
 }
 
 /* ==========================================================================
-   7. CARBONE & CRAIE (Monochrome architectural)
+   7. CARBONE & CRAIE (Monochrome graphite en sombre / Craie en clair)
    ========================================================================== */
-:where([data-accent="slate"]) {
-  --surface: #0a0a0c;
-  --surface-raised: #131418;
-  --surface-subtle: #0e0f12;
-  --surface-border: #24262c;
-  --surface-border-strong: #343740;
+html[data-accent="slate"] {
+  --surface: #0e0f12;
+  --surface-raised: #17191e;
+  --surface-subtle: #1d2026;
+  --surface-border: #2e323b;
+  --surface-border-strong: #404652;
   --brand: #94a3b8;
   --brand-hover: #64748b;
-  --brand-light: rgba(148, 163, 184, 0.14);
+  --brand-light: rgba(148, 163, 184, 0.16);
   --brand-ring: rgba(148, 163, 184, 0.35);
 }
-html.light:where([data-accent="slate"]) {
+html.light[data-accent="slate"] {
   --surface: #f1f3f5;
   --surface-raised: #ffffff;
   --surface-subtle: #e2e6ea;

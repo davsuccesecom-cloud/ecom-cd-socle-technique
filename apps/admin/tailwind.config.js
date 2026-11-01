@@ -10,10 +10,12 @@ export default {
         surface: {
           DEFAULT: "var(--surface)",
           raised: "var(--surface-raised)",
+          subtle: "var(--surface-subtle)",
           border: "var(--surface-border)",
         },
         brand: {
           DEFAULT: "var(--brand)",
+          hover: "var(--brand-hover)",
           light: "var(--brand-light)",
         },
         // Palette alignée sur la charte visuelle de référence.
