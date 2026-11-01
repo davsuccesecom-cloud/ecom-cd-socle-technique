@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { ConfirmDialog } from "@ecomcod/shared";
 import type { Team, MetaCapiConfig } from "@ecomcod/shared";
+import { Share2 } from "lucide-react";
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 declare global {
   interface Window {
@@ -52,6 +55,7 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showManual, setShowManual] = useState(false);
+  const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
 
   // Manual fallback state
   const [manualPixelId, setManualPixelId] = useState(team.metaCapiConfig?.pixelId || "");
@@ -235,7 +239,6 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Voulez-vous vraiment déconnecter le Pixel Meta pour cette équipe ?")) return;
     setSaving(true);
     try {
       const functions = getFunctions();
@@ -243,6 +246,7 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
       await disconnFn({ teamId: team.id });
       setUserToken(null);
       setFbUser(null);
+      setConfirmDisconnectOpen(false);
       setSuccessMsg("Meta CAPI déconnecté.");
       if (onConfigSaved) {
         onConfigSaved({
@@ -252,7 +256,8 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
         });
       }
     } catch (err: any) {
-      setError(err?.message || "Erreur lors de la déconnexion.");
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
     } finally {
       setSaving(false);
     }
@@ -265,7 +270,7 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-lg">⚡</span>
+            <Share2 className="h-4 w-4 text-brand" />
             <h4 className="text-sm font-semibold text-slate-200">Meta Conversions API (CAPI) Automatique</h4>
             {isAlreadyConfigured && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
@@ -322,7 +327,7 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
             <button
               type="button"
               disabled={saving}
-              onClick={handleDisconnect}
+              onClick={() => setConfirmDisconnectOpen(true)}
               className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors ml-auto"
             >
               Désactiver
@@ -556,6 +561,17 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDisconnectOpen}
+        title="Désactiver Meta CAPI"
+        message="Voulez-vous vraiment déconnecter le Pixel Meta pour cette équipe ?"
+        confirmLabel="Désactiver"
+        danger
+        loading={saving}
+        onConfirm={handleDisconnect}
+        onCancel={() => setConfirmDisconnectOpen(false)}
+      />
     </div>
   );
 }

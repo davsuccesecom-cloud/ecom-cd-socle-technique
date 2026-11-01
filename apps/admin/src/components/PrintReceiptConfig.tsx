@@ -2,6 +2,8 @@ import { useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { getDb } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
+import { Printer } from "lucide-react";
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface PrintReceiptConfigProps {
   workspaceId: string;
@@ -50,7 +52,8 @@ export default function PrintReceiptConfig({ workspaceId, team }: PrintReceiptCo
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur de sauvegarde");
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
     } finally {
       setSaving(false);
     }
@@ -118,8 +121,8 @@ export default function PrintReceiptConfig({ workspaceId, team }: PrintReceiptCo
       {/* En-tête */}
       <div className="flex items-center justify-between pb-3 border-b border-surface-border">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-            🧾
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 border border-brand/20 text-brand">
+            <Printer className="h-4 w-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-100">Bons de Commande & Reçus Thermiques</h3>
@@ -245,9 +248,10 @@ export default function PrintReceiptConfig({ workspaceId, team }: PrintReceiptCo
             <button
               type="button"
               onClick={handleTestPrint}
-              className="w-full rounded-xl border border-surface-border py-2 text-xs font-medium text-slate-300 hover:bg-surface transition-colors"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-surface-border py-2 text-xs font-medium text-slate-300 hover:bg-surface transition-colors"
             >
-              🖨️ Tester l'impression thermique (Aperçu)
+              <Printer className="h-3.5 w-3.5 text-brand" />
+              <span>Tester l'impression thermique (Aperçu)</span>
             </button>
           </>
         )}

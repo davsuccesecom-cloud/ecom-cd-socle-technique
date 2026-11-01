@@ -120,10 +120,9 @@ html.light .surface-popover {
   box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.14);
 }
 
-/* Mode clair — adaptation globale des nuances de texte slate */
+/* Mode clair — adaptation globale des nuances de texte slate et badges */
 html.light .text-slate-100,
-html.light .text-slate-200,
-html.light .text-white:not(.bg-brand *):not(.bg-emerald-600 *):not(.bg-red-600 *):not(.bg-indigo-600 *) {
+html.light .text-slate-200 {
   color: #0f172a;
 }
 html.light .text-slate-300 {
@@ -135,6 +134,28 @@ html.light .text-slate-500 {
 }
 html.light .text-slate-600 {
   color: #64748b;
+}
+html.light .text-emerald-400,
+html.light .text-emerald-300 {
+  color: #047857;
+}
+html.light .text-amber-400,
+html.light .text-amber-300,
+html.light .text-amber-200 {
+  color: #b45309;
+}
+html.light .text-rose-400,
+html.light .text-rose-300,
+html.light .text-rose-200,
+html.light .text-red-400 {
+  color: #be123c;
+}
+html.light .text-sky-400,
+html.light .text-sky-300 {
+  color: #0369a1;
+}
+html.light .text-purple-300 {
+  color: #6d28d9;
 }
 html.light .placeholder\:text-slate-600::placeholder,
 html.light .placeholder\:text-slate-500::placeholder {

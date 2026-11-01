@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy } from "firebase/firestore";
-import { getDb } from "@ecomcod/shared";
+import { getDb, ConfirmDialog } from "@ecomcod/shared";
 import type { Team, Order } from "@ecomcod/shared";
 import {
   BarChart3,
@@ -270,6 +270,8 @@ export default function AiAssistant({
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [showJump, setShowJump] = useState(false);
   const [showArtifactsPanel, setShowArtifactsPanel] = useState(true);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [clearingBusy, setClearingBusy] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -531,10 +533,15 @@ export default function AiAssistant({
   };
 
   const handleClearHistory = async () => {
-    if (!window.confirm("Réinitialiser l'historique de cette session d'analyse ?")) return;
-    const db = getDb();
-    for (const m of messages) {
-      await deleteDoc(doc(db, "workspaces", workspaceId, "aiAssistantChats", m.id));
+    setClearingBusy(true);
+    try {
+      const db = getDb();
+      for (const m of messages) {
+        await deleteDoc(doc(db, "workspaces", workspaceId, "aiAssistantChats", m.id));
+      }
+      setConfirmClearOpen(false);
+    } finally {
+      setClearingBusy(false);
     }
   };
 
@@ -647,7 +654,7 @@ export default function AiAssistant({
               {!isEmpty && (
                 <button
                   type="button"
-                  onClick={handleClearHistory}
+                  onClick={() => setConfirmClearOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -970,6 +977,17 @@ export default function AiAssistant({
           </aside>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmClearOpen}
+        title="Réinitialiser la session d'analyse"
+        message="Voulez-vous vraiment effacer l'historique de cette conversation avec l'Analyste Direction ?"
+        confirmLabel="Effacer l'historique"
+        danger
+        loading={clearingBusy}
+        onConfirm={handleClearHistory}
+        onCancel={() => setConfirmClearOpen(false)}
+      />
     </div>
   );
 }

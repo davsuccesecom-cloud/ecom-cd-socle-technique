@@ -142,7 +142,7 @@ export default function Parametres({ workspaceId, team, teams = [] }: Parametres
         </nav>
 
         {/* Right Content Area */}
-        <div className="lg:col-span-8">
+        <div className="min-w-0 lg:col-span-8">
           {activeTab === "general" && (
             <div className="space-y-5">
               {/* Theme & Accent Card */}
