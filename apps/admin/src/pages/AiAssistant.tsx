@@ -1,218 +1,60 @@
-import { useState, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy } from "firebase/firestore";
 import { getDb } from "@ecomcod/shared";
 import type { Team, Order } from "@ecomcod/shared";
+import {
+  BarChart3,
+  Award,
+  ShieldAlert,
+  TrendingUp,
+  Send,
+  Copy,
+  Check,
+  Trash2,
+  ArrowDown,
+  PanelRightOpen,
+  PanelRightClose,
+  RotateCcw,
+  AlertTriangle,
+  Sparkles,
+  Layers,
+} from "lucide-react";
 import { aiService, type BusinessMetricsContext, type AiChatMessage } from "../services/aiService";
-import { splitMessage } from "../lib/aiChart";
+import { splitMessage, type ChartSpec } from "../lib/aiChart";
 import ProChart from "../components/ProChart";
 import { fetchDailyStats } from "../lib/dailyStatsSeries";
 import ExportMenu from "../components/ExportMenu";
 import { makeKpis, type BilanReport, type BilanEmployee, type BilanProduct, type BilanDay } from "../lib/bilan/types";
-
-/* -------------------------------------------------------------------------- */
-/*  Moteurs IA                                                                */
-/*                                                                             */
-/*  "auto" laisse le proxy serveur choisir et basculer entre les fournisseurs  */
-/*  gratuits : si un moteur est a court de quota (429) ou indisponible, le     */
-/*  suivant prend le relais sans interrompre la reponse.                       */
-/*  Les modeles par defaut sont geres cote serveur (functions/src/aiGateway.ts)*/
-/*  -- ici on ne fait que le libelle et l'identifiant envoye au proxy.         */
-/* -------------------------------------------------------------------------- */
-type ProviderKey = "auto" | "groq" | "gemini" | "nvidia" | "openrouter" | "cloudflare" | "pollinations";
-
-const PROVIDERS: Record<
-  ProviderKey,
-  { label: string; modelName: string; hint: string }
-> = {
-  auto: {
-    label: "Auto",
-    modelName: "Rotation",
-    hint: "Bascule entre les moteurs disponibles",
-  },
-  groq: {
-    label: "Groq",
-    modelName: "GPT-OSS 120B",
-    hint: "Tres rapide",
-  },
-  gemini: {
-    label: "Gemini",
-    modelName: "3.8 Flash",
-    hint: "Contexte long",
-  },
-  nvidia: {
-    label: "NVIDIA",
-    modelName: "Nemotron 120B",
-    hint: "Analyse approfondie",
-  },
-  openrouter: {
-    label: "OpenRouter",
-    modelName: "Free router",
-    hint: "Modeles gratuits",
-  },
-  cloudflare: {
-    label: "Cloudflare",
-    modelName: "GPT-OSS 120B",
-    hint: "10k neurones/jour",
-  },
-  pollinations: {
-    label: "Pollinations",
-    modelName: "GPT-OSS 20B",
-    hint: "Bonus quota",
-  },
-};
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 const SUGGESTIONS = [
   {
-    icon: "📊",
+    icon: BarChart3,
     title: "Bilan global",
-    desc: "Chiffres clés, points forts et points à améliorer.",
-    prompt: "Fais-moi le bilan complet de la période : chiffres clés, points forts et points d'amélioration.",
+    desc: "Synthèse chiffrée, points forts et axes d'amélioration.",
+    prompt: "Fais-moi le bilan complet de la période : chiffres clés, points forts, courbe d'évolution et points d'amélioration.",
   },
   {
-    icon: "🏆",
-    title: "Meilleurs employés",
-    desc: "Qui mérite une prime ou une promotion.",
-    prompt: "Quelle closeuse ou quel livreur mérite une prime ou une promotion ? Justifie avec les chiffres.",
+    icon: Award,
+    title: "Audit des opérateurs",
+    desc: "Classement closeuses et livreurs par rendement.",
+    prompt: "Analyse la performance de mes closeuses et livreurs. Qui mérite une prime et qui doit être recadré ? Justifie avec les chiffres.",
   },
   {
-    icon: "⚠️",
-    title: "Réduire les rejets",
-    desc: "Plan d'actions sur rejets et injoignables.",
-    prompt: "Analyse mes rejets et mes injoignables, et propose un plan d'action concret pour les réduire.",
+    icon: ShieldAlert,
+    title: "Plan anti-rejets",
+    desc: "Réduire les annulations et clients injoignables.",
+    prompt: "Analyse mes rejets et mes injoignables sur cette équipe et propose un plan d'action opérationnel immédiat.",
+  },
+  {
+    icon: TrendingUp,
+    title: "Projection & Courbe CA",
+    desc: "Visualiser la dynamique d'encaissement COD.",
+    prompt: "Trace la courbe du chiffre d'affaires et des livraisons sur la période et commente la tendance.",
   },
 ];
 
-/* -------------------------------------------------------------------------- */
-/*  Thème clair / sombre (clair par défaut, sombre si <html class="dark">)     */
-/* -------------------------------------------------------------------------- */
-const LIGHT = {
-  card: "bg-white border-slate-200",
-  bar: "border-slate-200 bg-white",
-  seg: "bg-slate-100",
-  segActive: "bg-white text-slate-900 shadow-sm",
-  segIdle: "text-slate-500 hover:text-slate-800",
-  text: "text-slate-800",
-  strong: "text-slate-900",
-  muted: "text-slate-500",
-  ghostBtn: "border-slate-200 text-slate-600 hover:bg-slate-50",
-  dangerBtn: "border-red-200 text-red-600 hover:bg-red-50",
-  inputWrap:
-    "border-slate-300 bg-white focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10",
-  placeholder: "placeholder-slate-400",
-  chip: "border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700",
-  suggest: "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/50",
-  errorBox: "border-red-200 bg-red-50 text-red-700",
-  jump: "border-slate-200 bg-white text-slate-600 shadow-md hover:bg-slate-50",
-  code: "bg-slate-100 text-slate-800",
-  tableBorder: "border-slate-200",
-  tableHead: "bg-slate-50 text-slate-700",
-  tableRow: "border-slate-100",
-};
-const DARK: typeof LIGHT = {
-  card: "bg-slate-900 border-slate-800",
-  bar: "border-slate-800 bg-slate-900",
-  seg: "bg-slate-800",
-  segActive: "bg-slate-700 text-white shadow-sm",
-  segIdle: "text-slate-400 hover:text-slate-200",
-  text: "text-slate-200",
-  strong: "text-white",
-  muted: "text-slate-400",
-  ghostBtn: "border-slate-700 text-slate-300 hover:bg-slate-800",
-  dangerBtn: "border-red-500/40 text-red-400 hover:bg-red-500/10",
-  inputWrap:
-    "border-slate-700 bg-slate-800/60 focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-400/10",
-  placeholder: "placeholder-slate-500",
-  chip: "border-slate-700 bg-slate-800 text-slate-300 hover:border-indigo-400 hover:text-indigo-300",
-  suggest: "border-slate-700 bg-slate-800/50 hover:border-indigo-400 hover:bg-slate-800",
-  errorBox: "border-red-500/30 bg-red-500/10 text-red-300",
-  jump: "border-slate-700 bg-slate-800 text-slate-300 shadow-md hover:bg-slate-700",
-  code: "bg-slate-800 text-slate-100",
-  tableBorder: "border-slate-700",
-  tableHead: "bg-slate-800 text-slate-200",
-  tableRow: "border-slate-800",
-};
-type Theme = typeof LIGHT;
-
-let colorCanvas: HTMLCanvasElement | null = null;
-
-/** Convertit n'importe quelle couleur CSS (rgb, oklch, hsl...) en [r, g, b, alpha]. */
-function toRgba(color: string): [number, number, number, number] | null {
-  try {
-    if (!colorCanvas) {
-      colorCanvas = document.createElement("canvas");
-      colorCanvas.width = 1;
-      colorCanvas.height = 1;
-    }
-    const ctx = colorCanvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return null;
-    ctx.clearRect(0, 0, 1, 1);
-    ctx.fillStyle = "#000";
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, 1, 1);
-    const d = ctx.getImageData(0, 0, 1, 1).data;
-    return [d[0], d[1], d[2], d[3] / 255];
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Détecte si la page est réellement sombre en lisant la couleur de fond de l'app
- * (fonctionne quelle que soit la façon dont ton thème sombre est activé).
- */
-function detectDark(root: HTMLElement | null): boolean {
-  if (typeof document === "undefined") return false;
-  let node: HTMLElement | null = root?.parentElement ?? document.body;
-  while (node) {
-    const rgba = toRgba(getComputedStyle(node).backgroundColor);
-    if (rgba && rgba[3] > 0.05) {
-      const lum = (0.2126 * rgba[0] + 0.7152 * rgba[1] + 0.0722 * rgba[2]) / 255;
-      return lum < 0.5;
-    }
-    node = node.parentElement;
-  }
-  const html = document.documentElement;
-  return html.classList.contains("dark") || html.dataset.theme === "dark";
-}
-
-function useIsDark(rootRef: { current: HTMLElement | null }): boolean {
-  const [dark, setDark] = useState(false);
-
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    let timers: number[] = [];
-
-    const update = () => setDark(detectDark(root));
-    // Le thème peut avoir une transition : on revérifie un peu plus tard
-    const schedule = () => {
-      update();
-      timers.forEach((id) => window.clearTimeout(id));
-      timers = [window.setTimeout(update, 120), window.setTimeout(update, 450)];
-    };
-
-    update();
-
-    const obs = new MutationObserver(schedule);
-    for (let n: HTMLElement | null = root?.parentElement ?? null; n; n = n.parentElement) {
-      obs.observe(n, { attributes: true, attributeFilter: ["class", "data-theme", "data-mode", "style"] });
-    }
-    const mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-    mq?.addEventListener?.("change", schedule);
-
-    return () => {
-      obs.disconnect();
-      mq?.removeEventListener?.("change", schedule);
-      timers.forEach((id) => window.clearTimeout(id));
-    };
-  }, [rootRef]);
-
-  return dark;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Rendu Markdown léger (sans dépendance, sans HTML brut = sans risque XSS)   */
-/* -------------------------------------------------------------------------- */
-function renderInline(text: string, t: Theme, keyPrefix: string): ReactNode[] {
+function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/g;
   let last = 0;
@@ -224,13 +66,13 @@ function renderInline(text: string, t: Theme, keyPrefix: string): ReactNode[] {
     const key = `${keyPrefix}-${n++}`;
     if (tok.startsWith("**")) {
       nodes.push(
-        <strong key={key} className={`font-semibold ${t.strong}`}>
+        <strong key={key} className="font-semibold text-slate-100">
           {tok.slice(2, -2)}
         </strong>
       );
     } else if (tok.startsWith("`")) {
       nodes.push(
-        <code key={key} className={`rounded px-1.5 py-0.5 text-[0.85em] ${t.code}`}>
+        <code key={key} className="rounded bg-surface px-1.5 py-0.5 font-mono text-[0.85em] text-brand">
           {tok.slice(1, -1)}
         </code>
       );
@@ -243,13 +85,18 @@ function renderInline(text: string, t: Theme, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
-function Markdown({ content, t }: { content: string; t: Theme }) {
+function Markdown({ content }: { content: string }) {
   const lines = content.replace(/\r/g, "").split("\n");
   const out: ReactNode[] = [];
   const isTableSep = (l: string) =>
     /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
   const splitRow = (l: string) =>
-    l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+    l
+      .trim()
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) => c.trim());
   const startsTable = (idx: number) =>
     lines[idx].includes("|") && idx + 1 < lines.length && isTableSep(lines[idx + 1]);
   const bulletRe = /^\s*[-*•]\s+/;
@@ -269,13 +116,13 @@ function Markdown({ content, t }: { content: string; t: Theme }) {
       const level = h[1].length;
       const cls =
         level === 1
-          ? "text-lg font-semibold"
+          ? "text-base font-semibold text-slate-100"
           : level === 2
-          ? "text-base font-semibold"
-          : "text-[15px] font-semibold";
+            ? "text-sm font-semibold text-slate-100"
+            : "text-xs font-semibold uppercase tracking-wider text-slate-300";
       out.push(
-        <p key={k++} className={`${cls} ${t.strong} pt-1`}>
-          {renderInline(h[2], t, `h${k}`)}
+        <p key={k++} className={`${cls} pt-1`}>
+          {renderInline(h[2], `h${k}`)}
         </p>
       );
       i++;
@@ -283,7 +130,7 @@ function Markdown({ content, t }: { content: string; t: Theme }) {
     }
 
     if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
-      out.push(<hr key={k++} className={`border-t ${t.tableBorder}`} />);
+      out.push(<hr key={k++} className="border-t border-surface-border" />);
       i++;
       continue;
     }
@@ -298,23 +145,23 @@ function Markdown({ content, t }: { content: string; t: Theme }) {
       }
       const tk = k++;
       out.push(
-        <div key={tk} className={`overflow-x-auto rounded-xl border ${t.tableBorder}`}>
-          <table className="min-w-full text-left text-sm">
-            <thead className={t.tableHead}>
+        <div key={tk} className="overflow-x-auto rounded-xl border border-surface-border bg-surface/50">
+          <table className="min-w-full text-left text-xs">
+            <thead className="border-b border-surface-border bg-surface text-slate-300">
               <tr>
                 {head.map((c, ci) => (
                   <th key={ci} className="whitespace-nowrap px-3 py-2 font-semibold">
-                    {renderInline(c, t, `th${tk}-${ci}`)}
+                    {renderInline(c, `th${tk}-${ci}`)}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-surface-border">
               {rows.map((r, ri) => (
-                <tr key={ri} className={`border-t ${t.tableRow}`}>
+                <tr key={ri}>
                   {r.map((c, ci) => (
-                    <td key={ci} className="px-3 py-2 align-top">
-                      {renderInline(c, t, `td${tk}-${ri}-${ci}`)}
+                    <td key={ci} className="px-3 py-2 align-top text-slate-300">
+                      {renderInline(c, `td${tk}-${ri}-${ci}`)}
                     </td>
                   ))}
                 </tr>
@@ -334,9 +181,9 @@ function Markdown({ content, t }: { content: string; t: Theme }) {
       }
       const lk = k++;
       out.push(
-        <ul key={lk} className="list-disc space-y-1.5 pl-5 marker:text-indigo-400">
+        <ul key={lk} className="list-disc space-y-1.5 pl-5 marker:text-brand">
           {items.map((it, ii) => (
-            <li key={ii}>{renderInline(it, t, `li${lk}-${ii}`)}</li>
+            <li key={ii}>{renderInline(it, `li${lk}-${ii}`)}</li>
           ))}
         </ul>
       );
@@ -351,9 +198,9 @@ function Markdown({ content, t }: { content: string; t: Theme }) {
       }
       const lk = k++;
       out.push(
-        <ol key={lk} className="list-decimal space-y-1.5 pl-5 marker:text-indigo-400">
+        <ol key={lk} className="list-decimal space-y-1.5 pl-5 marker:text-brand">
           {items.map((it, ii) => (
-            <li key={ii}>{renderInline(it, t, `ol${lk}-${ii}`)}</li>
+            <li key={ii}>{renderInline(it, `ol${lk}-${ii}`)}</li>
           ))}
         </ol>
       );
@@ -379,7 +226,7 @@ function Markdown({ content, t }: { content: string; t: Theme }) {
     const pk = k++;
     out.push(
       <p key={pk} className="whitespace-pre-line">
-        {renderInline(para.join("\n"), t, `p${pk}`)}
+        {renderInline(para.join("\n"), `p${pk}`)}
       </p>
     );
   }
@@ -387,77 +234,17 @@ function Markdown({ content, t }: { content: string; t: Theme }) {
   return <div className="space-y-3">{out}</div>;
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Petites icônes                                                             */
-/* -------------------------------------------------------------------------- */
-const iconProps = {
-  width: 16,
-  height: 16,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true,
-};
-const IconSend = () => (
-  <svg {...iconProps}>
-    <path d="M12 19V5" />
-    <path d="m5 12 7-7 7 7" />
-  </svg>
-);
-const IconCopy = () => (
-  <svg {...iconProps}>
-    <rect x="9" y="9" width="13" height="13" rx="2" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
-const IconCheck = () => (
-  <svg {...iconProps}>
-    <path d="M20 6 9 17l-5-5" />
-  </svg>
-);
-const IconDownload = () => (
-  <svg {...iconProps}>
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <path d="m7 10 5 5 5-5" />
-    <path d="M12 15V3" />
-  </svg>
-);
-const IconTrash = () => (
-  <svg {...iconProps}>
-    <path d="M3 6h18" />
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-  </svg>
-);
-const IconArrowDown = () => (
-  <svg {...iconProps}>
-    <path d="M12 5v14" />
-    <path d="m19 12-7 7-7-7" />
-  </svg>
-);
-const IconSpark = () => (
-  <svg {...iconProps} width={16} height={16}>
-    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
-  </svg>
-);
-
-const escapeHtml = (s: string) =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 const formatTime = (ts: unknown) => {
   const d =
-    typeof ts === "object" && ts !== null && "toDate" in ts && typeof (ts as { toDate: unknown }).toDate === "function"
+    typeof ts === "object" &&
+    ts !== null &&
+    "toDate" in ts &&
+    typeof (ts as { toDate: unknown }).toDate === "function"
       ? (ts as { toDate: () => Date }).toDate()
       : new Date(ts as number | string);
   return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 };
 
-/* -------------------------------------------------------------------------- */
-/*  Composant principal                                                        */
-/* -------------------------------------------------------------------------- */
 interface AiAssistantProps {
   workspaceId: string;
   team: Team | null;
@@ -474,57 +261,34 @@ export default function AiAssistant({
   closeuses,
   livreurs,
 }: AiAssistantProps) {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const isDark = useIsDark(rootRef);
-  const t = isDark ? DARK : LIGHT;
-
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [inputPrompt, setInputPrompt] = useState("");
+  const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [showJump, setShowJump] = useState(false);
-  const [provider, setProvider] = useState<ProviderKey>(() => {
-    try {
-      const saved = localStorage.getItem("aiAssistantProvider") as ProviderKey | null;
-      return saved && saved in PROVIDERS ? saved : "auto";
-    } catch {
-      return "auto";
-    }
-  });
+  const [showArtifactsPanel, setShowArtifactsPanel] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const stickRef = useRef(true);
 
-  const chooseProvider = (p: ProviderKey) => {
-    setProvider(p);
-    aiService.setProvider(p);
-    try {
-      localStorage.setItem("aiAssistantProvider", p);
-    } catch {
-      /* stockage indisponible : on ignore */
-    }
-  };
-
-  useEffect(() => {
-    aiService.setProvider(provider);
-  }, [provider]);
-
-  /* 1. Métriques business réelles ---------------------------------------- */
-  const context: BusinessMetricsContext = (() => {
+  const context: BusinessMetricsContext = useMemo(() => {
     const totalOrders = orders.length;
     const confirmedOrders = orders.filter(
       (o) => o.statutCloseuse === "en_cours" || o.statutCloseuse === "programme" || o.statutCloseuse === "livre"
     ).length;
-    const deliveredOrders = orders.filter((o) => o.statutLivreur === "livre").length;
+    const deliveredOrders = orders.filter(
+      (o) => o.statutLivreur === "livre" || o.statutCloseuse === "livre"
+    ).length;
     const injoignableOrders = orders.filter(
       (o) => o.statutCloseuse === "injoignable" || o.statutLivreur === "injoignable"
     ).length;
     const rejectedOrders = orders.filter((o) => o.statutCloseuse === "rejete").length;
     const revenue = orders
-      .filter((o) => o.statutLivreur === "livre")
+      .filter((o) => o.statutLivreur === "livre" || o.statutCloseuse === "livre")
       .reduce((acc, o) => acc + (o.amount || 0), 0);
 
     const confirmationRate = totalOrders > 0 ? Math.round((confirmedOrders / totalOrders) * 100) : 0;
@@ -548,7 +312,7 @@ export default function AiAssistant({
     const topLivreurs = livreurs
       .map((l) => {
         const lOrders = orders.filter((o) => o.livreurId === l.id);
-        const del = lOrders.filter((o) => o.statutLivreur === "livre").length;
+        const del = lOrders.filter((o) => o.statutLivreur === "livre" || o.statutCloseuse === "livre").length;
         return {
           name: l.name,
           delivered: del,
@@ -563,7 +327,7 @@ export default function AiAssistant({
       const p = o.product || "Produit standard";
       if (!productMap[p]) productMap[p] = { count: 0, revenue: 0 };
       productMap[p].count += 1;
-      if (o.statutLivreur === "livre") {
+      if (o.statutLivreur === "livre" || o.statutCloseuse === "livre") {
         productMap[p].revenue += o.amount || 0;
       }
     });
@@ -572,19 +336,24 @@ export default function AiAssistant({
       .map(([name, data]) => ({ name, count: data.count, revenue: data.revenue }))
       .sort((a, b) => b.count - a.count);
 
-    const trendsMap: Record<string, { date: string; confirmed: number; delivered: number; rejected: number; revenue: number }> = {};
+    const trendsMap: Record<
+      string,
+      { date: string; confirmed: number; delivered: number; rejected: number; revenue: number }
+    > = {};
     orders.forEach((o) => {
       const ts = o.timestamps?.received;
       if (!ts) return;
       const d = new Date(ts);
-      const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
+        d.getUTCDate()
+      ).padStart(2, "0")}`;
       if (!trendsMap[dateKey]) {
         trendsMap[dateKey] = { date: dateKey, confirmed: 0, delivered: 0, rejected: 0, revenue: 0 };
       }
       if (o.statutCloseuse === "en_cours" || o.statutCloseuse === "programme" || o.statutCloseuse === "livre") {
         trendsMap[dateKey].confirmed += 1;
       }
-      if (o.statutLivreur === "livre") {
+      if (o.statutLivreur === "livre" || o.statutCloseuse === "livre") {
         trendsMap[dateKey].delivered += 1;
         trendsMap[dateKey].revenue += o.amount || 0;
       }
@@ -594,10 +363,15 @@ export default function AiAssistant({
     });
     const dailyTrends = Object.values(trendsMap).sort((a, b) => a.date.localeCompare(b.date));
 
-    const timestamps = orders.map((o) => o.timestamps?.received).filter((t): t is number => typeof t === "number" && t > 0);
-    const periodLabel = timestamps.length > 0
-      ? `Du ${new Date(Math.min(...timestamps)).toLocaleDateString("fr-FR")} au ${new Date(Math.max(...timestamps)).toLocaleDateString("fr-FR")}`
-      : "Période active";
+    const timestamps = orders
+      .map((o) => o.timestamps?.received)
+      .filter((t): t is number => typeof t === "number" && t > 0);
+    const periodLabel =
+      timestamps.length > 0
+        ? `Du ${new Date(Math.min(...timestamps)).toLocaleDateString("fr-FR")} au ${new Date(
+            Math.max(...timestamps)
+          ).toLocaleDateString("fr-FR")}`
+        : "Période active";
 
     return {
       teamName: team?.name || "Toutes les équipes",
@@ -617,9 +391,27 @@ export default function AiAssistant({
       topProducts,
       dailyTrends,
     };
-  })();
+  }, [orders, closeuses, livreurs, team]);
 
-  /* 2. Écoute Firestore --------------------------------------------------- */
+  // Extract all chart artifacts generated across the conversation
+  const chartArtifacts = useMemo(() => {
+    const list: { id: string; spec: ChartSpec; timestamp: number }[] = [];
+    for (const m of messages) {
+      if (m.sender !== "assistant") continue;
+      const parts = splitMessage(m.content);
+      parts.forEach((p, idx) => {
+        if (p.kind === "chart") {
+          list.push({
+            id: `${m.id}_${idx}`,
+            spec: p.spec,
+            timestamp: m.timestamp,
+          });
+        }
+      });
+    }
+    return list.reverse();
+  }, [messages]);
+
   useEffect(() => {
     if (!workspaceId) return;
     setHistoryLoaded(false);
@@ -637,15 +429,15 @@ export default function AiAssistant({
         setMessages(list);
         setHistoryLoaded(true);
       },
-      () => {
+      (err) => {
         setHistoryLoaded(true);
-        setErrorMsg("Impossible de charger l'historique de la conversation.");
+        const formatted = formatFirebaseError(err);
+        setErrorMsg(formatted.message);
       }
     );
     return () => unsub();
   }, [workspaceId]);
 
-  /* 3. Défilement : uniquement DANS la zone de chat (jamais la page) ------- */
   const onScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -664,37 +456,37 @@ export default function AiAssistant({
     if (stickRef.current) scrollToBottom();
   }, [messages, loading]);
 
-  /* Zone de saisie qui grandit avec le texte ------------------------------ */
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
     ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+    ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`;
   }, [inputPrompt]);
 
-  /* 4. Envoi d'un message -------------------------------------------------- */
-  const handleSendMessage = async (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string, skipSavingUserMsg = false) => {
     const prompt = (textToSend ?? inputPrompt).trim();
     if (!prompt || loading) return;
 
     setInputPrompt("");
     setErrorMsg("");
+    setLastFailedPrompt(null);
     setLoading(true);
     stickRef.current = true;
 
     try {
       const db = getDb();
-      const userMsgId = `msg_${Date.now()}`;
-      const userMsg: AiChatMessage = {
-        id: userMsgId,
-        sender: "user",
-        content: prompt,
-        timestamp: Date.now(),
-      };
+      if (!skipSavingUserMsg) {
+        const userMsgId = `msg_${Date.now()}`;
+        const userMsg: AiChatMessage = {
+          id: userMsgId,
+          sender: "user",
+          content: prompt,
+          timestamp: Date.now(),
+        };
+        await setDoc(doc(db, "workspaces", workspaceId, "aiAssistantChats", userMsgId), userMsg);
+      }
 
-      await setDoc(doc(db, "workspaces", workspaceId, "aiAssistantChats", userMsgId), userMsg);
-
-      const history = messages.slice(-10).map((m) => ({
+      const history = messages.slice(-6).map((m) => ({
         role: m.sender as "user" | "assistant",
         content: m.content,
       }));
@@ -702,24 +494,22 @@ export default function AiAssistant({
       const systemPrompt = aiService.buildSystemPrompt(context);
 
       let reply = "";
-      let apiError = "";
       try {
         reply = await aiService.sendRaw([
           { role: "system", content: systemPrompt },
           ...history,
           { role: "user", content: prompt },
         ]);
-        if (!reply) apiError = "Le modèle a renvoyé une réponse vide. Réessaie ou change de moteur.";
       } catch (e) {
-        const rawErr = e instanceof Error ? e.message : "Connexion impossible";
-        apiError = rawErr.includes("variable d'environnement")
-          ? "Le service d'analyse IA est temporairement indisponible. Veuillez réessayer dans quelques instants."
-          : rawErr;
+        const formatted = formatFirebaseError(e);
+        setLastFailedPrompt(prompt);
+        setErrorMsg(formatted.message);
+        return;
       }
 
-      if (apiError) {
-        // Affichée, mais jamais enregistrée comme vraie réponse de l'IA
-        setErrorMsg(apiError);
+      if (!reply) {
+        setLastFailedPrompt(prompt);
+        setErrorMsg("L'analyse n'a pas pu être finalisée. Cliquez sur Réessayer.");
         return;
       }
 
@@ -732,14 +522,16 @@ export default function AiAssistant({
       };
       await setDoc(doc(db, "workspaces", workspaceId, "aiAssistantChats", botMsgId), botMsg);
     } catch (err) {
-      setErrorMsg("Erreur Assistant IA : " + (err instanceof Error ? err.message : "Erreur de connexion"));
+      const formatted = formatFirebaseError(err);
+      setLastFailedPrompt(prompt);
+      setErrorMsg(formatted.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleClearHistory = async () => {
-    if (!window.confirm("Voulez-vous réinitialiser l'historique de cette session d'analyse ?")) return;
+    if (!window.confirm("Réinitialiser l'historique de cette session d'analyse ?")) return;
     const db = getDb();
     for (const m of messages) {
       await deleteDoc(doc(db, "workspaces", workspaceId, "aiAssistantChats", m.id));
@@ -819,281 +611,364 @@ export default function AiAssistant({
     };
   };
 
-  const handleExportWord = () => {
-    const title = `Bilan_Analyste_IA_${team?.name || "Business"}_${new Date().toISOString().slice(0, 10)}`;
-    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-    <head><meta charset='utf-8'><title>${escapeHtml(title)}</title></head><body>`;
-    const footer = `</body></html>`;
-
-    let body = `<h2>Rapport d'Analyse Opérationnelle & Bilan Commercial</h2>`;
-    body += `<p><strong>Équipe :</strong> ${escapeHtml(team?.name || "Global")} (${escapeHtml(team?.defaultCountry || "")}) | <strong>Date :</strong> ${new Date().toLocaleDateString("fr-FR")}</p>`;
-    body += `<hr/>`;
-    body += `<h3>Chiffres Clés du Business :</h3>`;
-    body += `<ul>
-      <li>Chiffre d'Affaires Livré : <strong>${context.revenue.toLocaleString()} ${context.currency}</strong></li>
-      <li>Total Commandes Reçues : <strong>${context.totalOrders}</strong></li>
-      <li>Commandes Confirmées : <strong>${context.confirmedOrders} (${context.confirmationRate}%)</strong></li>
-      <li>Commandes Livrées : <strong>${context.deliveredOrders} (${context.deliveryRate}%)</strong></li>
-      <li>Injoignables : <strong>${context.injoignableOrders}</strong></li>
-      <li>Rejets / Annulations : <strong>${context.rejectedOrders}</strong></li>
-    </ul><hr/>`;
-
-    body += `<h3>Échanges & Analyses Stratégiques :</h3>`;
-    messages.forEach((m) => {
-      body += `<p><strong>${m.sender === "user" ? "Direction" : "Analyste IA"} :</strong></p>`;
-      body += `<p style="white-space: pre-wrap; background: #f8f9fa; padding: 10px; border-left: 3px solid #6366f1;">${escapeHtml(m.content)}</p>`;
-    });
-
-    const blob = new Blob([header + body + footer], { type: "application/msword;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${title}.doc`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const isEmpty = messages.length === 0;
   const canSend = inputPrompt.trim().length > 0 && !loading;
 
-  /* ------------------------------------------------------------------------ */
-  /*  Rendu                                                                    */
-  /* ------------------------------------------------------------------------ */
   return (
-    <div ref={rootRef} className="mx-auto w-full max-w-6xl">
-      <div
-        className={`flex h-[calc(100dvh-9rem)] min-h-[480px] flex-col overflow-hidden rounded-2xl border shadow-sm ${t.card}`}
-      >
-        {/* Barre du haut : choix du modèle + actions */}
-        <div className={`flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2.5 sm:px-4 ${t.bar}`}>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md">
-              <IconSpark />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-100">Secrétaire & Analyste Direction Ecom COD</span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Actif
-                </span>
+    <div className="mx-auto w-full max-w-7xl">
+      <div className="flex h-[calc(100dvh-9.5rem)] min-h-[520px] overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-sm">
+        {/* Left / Main Chat Column */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Top Workspace Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border bg-surface/40 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand/30 bg-brand/15 text-brand">
+                <Sparkles className="h-4 w-4" />
               </div>
-              <span className="text-[11px] text-slate-400">Analyses opérationnelles & bilans stratégiques</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-100">
+                    Analyste Direction — {context.teamName}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    Temps réel
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  {context.totalOrders} cmd · {context.confirmedOrders} confirmées ({context.confirmationRate}%) ·{" "}
+                  {context.deliveredOrders} livrées ({context.deliveryRate}%)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <ExportMenu getReport={buildBilanReport} />
+              {!isEmpty && (
+                <button
+                  type="button"
+                  onClick={handleClearHistory}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Réinitialiser</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowArtifactsPanel((v) => !v)}
+                className={`hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition lg:inline-flex ${
+                  showArtifactsPanel
+                    ? "border-brand/40 bg-brand/15 text-brand"
+                    : "border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+                }`}
+                title="Afficher / masquer le panneau d'artefacts et courbes"
+              >
+                {showArtifactsPanel ? (
+                  <PanelRightClose className="h-3.5 w-3.5" />
+                ) : (
+                  <PanelRightOpen className="h-3.5 w-3.5" />
+                )}
+                <span>Artefacts ({chartArtifacts.length})</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <ExportMenu getReport={buildBilanReport} />
-            {!isEmpty && (
+          {/* Conversation Scroll Area */}
+          <div className="relative min-h-0 flex-1">
+            <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto overscroll-contain">
+              <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-6 sm:px-6">
+                {!historyLoaded ? (
+                  <div className="my-auto py-10 text-center text-xs text-slate-500">
+                    Chargement du dossier d'analyse…
+                  </div>
+                ) : isEmpty && !loading ? (
+                  <div className="my-auto py-4">
+                    <div className="mb-6 text-center">
+                      <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-brand/30 bg-brand/10 text-brand">
+                        <BarChart3 className="h-5 w-5" />
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-100">
+                        Diagnostic Opérationnel — {team?.name || "Direction"}
+                      </h3>
+                      <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-slate-400">
+                        Interrogez vos indicateurs de closing, livraison et encaissement Cash-On-Delivery ou générez un bilan exécutif complet.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {SUGGESTIONS.map((s) => {
+                        const Icon = s.icon;
+                        return (
+                          <button
+                            key={s.title}
+                            type="button"
+                            onClick={() => handleSendMessage(s.prompt)}
+                            className="group flex items-start gap-3 rounded-xl border border-surface-border bg-surface/50 p-3.5 text-left transition hover:border-brand/50 hover:bg-surface"
+                          >
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface-raised text-brand group-hover:border-brand/40">
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <span className="block text-xs font-semibold text-slate-100">{s.title}</span>
+                              <span className="mt-0.5 block text-[11px] leading-relaxed text-slate-400">
+                                {s.desc}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {messages.map((m) => {
+                      const isUser = m.sender === "user";
+                      return isUser ? (
+                        <div key={m.id} className="flex flex-col items-end">
+                          <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-brand px-4 py-2.5 text-xs leading-relaxed text-white shadow-sm sm:text-sm">
+                            {m.content}
+                          </div>
+                          <span className="mt-1 text-[10px] text-slate-500">{formatTime(m.timestamp)}</span>
+                        </div>
+                      ) : (
+                        <div key={m.id} className="flex gap-3">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/15 text-brand">
+                            <Sparkles className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1 text-xs leading-6 text-slate-200 sm:text-sm">
+                            {splitMessage(m.content).map((part, pIdx) => {
+                              if (part.kind === "text") {
+                                return <Markdown key={pIdx} content={part.text} />;
+                              }
+                              return (
+                                <div
+                                  key={pIdx}
+                                  className="my-3 overflow-hidden rounded-xl border border-surface-border bg-surface p-3.5"
+                                >
+                                  <ProChart
+                                    spec={part.spec}
+                                    load={(p) => fetchDailyStats(getDb(), workspaceId, team?.id || "", p)}
+                                  />
+                                </div>
+                              );
+                            })}
+                            <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
+                              <span>{formatTime(m.timestamp)}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopy(m)}
+                                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition hover:text-slate-200"
+                              >
+                                {copiedId === m.id ? (
+                                  <Check className="h-3 w-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                                <span>{copiedId === m.id ? "Copié" : "Copier"}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {loading && (
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/15 text-brand">
+                          <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                        </div>
+                        <span className="text-xs text-slate-400">Calcul et consolidation du bilan en cours…</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {showJump && (
               <button
                 type="button"
-                onClick={handleClearHistory}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${t.dangerBtn}`}
+                onClick={() => {
+                  stickRef.current = true;
+                  scrollToBottom();
+                }}
+                className="absolute bottom-4 left-1/2 flex h-8 w-8 -translate-x-1/2 items-center justify-center rounded-full border border-surface-border bg-surface-raised text-slate-300 shadow-lg hover:text-white"
+                aria-label="Aller au dernier message"
               >
-                <IconTrash />
-                <span className="hidden sm:inline">Effacer</span>
+                <ArrowDown className="h-4 w-4" />
               </button>
             )}
           </div>
-        </div>
 
-        {/* Zone des messages (défile seule, jamais la page) */}
-        <div className="relative min-h-0 flex-1">
-          <div ref={scrollRef} onScroll={onScroll} className="h-full overflow-y-auto overscroll-contain">
-            <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-6 sm:px-6">
-              {!historyLoaded ? (
-                <div className={`my-auto py-10 text-center text-sm ${t.muted}`}>Chargement de la conversation…</div>
-              ) : isEmpty && !loading ? (
-                <div className="my-auto py-6">
-                  <div className="mb-8 text-center">
-                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-md">
-                      <IconSpark />
-                    </div>
-                    <h3 className={`text-xl font-semibold ${t.strong}`}>
-                      Bonjour {team?.name || "Direction"}
-                    </h3>
-                    <p className={`mx-auto mt-2 max-w-md text-sm leading-relaxed ${t.muted}`}>
-                      Je suis connecté à vos données : {context.totalOrders} commandes, {context.confirmedOrders}{" "}
-                      confirmées, {context.deliveredOrders} livrées. Posez une question ou choisissez un point de
-                      départ.
-                    </p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {SUGGESTIONS.map((s) => (
+          {/* Bottom Composer */}
+          <div className="border-t border-surface-border bg-surface/40 px-4 py-3">
+            <div className="mx-auto w-full max-w-3xl">
+              {!isEmpty && (
+                <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+                  {SUGGESTIONS.map((s) => {
+                    const Icon = s.icon;
+                    return (
                       <button
                         key={s.title}
                         type="button"
                         onClick={() => handleSendMessage(s.prompt)}
-                        className={`rounded-xl border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${t.suggest}`}
+                        disabled={loading}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-brand/40 hover:text-slate-100 disabled:opacity-40"
                       >
-                        <span className="text-xl" aria-hidden="true">
-                          {s.icon}
-                        </span>
-                        <span className={`mt-2 block text-sm font-semibold ${t.strong}`}>{s.title}</span>
-                        <span className={`mt-1 block text-xs leading-relaxed ${t.muted}`}>{s.desc}</span>
+                        <Icon className="h-3 w-3 text-brand" />
+                        <span>{s.title}</span>
                       </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-7">
-                  {messages.map((m) => {
-                    const isUser = m.sender === "user";
-                    return isUser ? (
-                      <div key={m.id} className="flex flex-col items-end">
-                        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2.5 text-[15px] leading-relaxed text-white shadow-sm">
-                          {m.content}
-                        </div>
-                        <span className={`mt-1 text-[11px] ${t.muted}`}>{formatTime(m.timestamp)}</span>
-                      </div>
-                    ) : (
-                      <div key={m.id} className="flex gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-white shadow-md">
-                          <IconSpark />
-                        </div>
-                        <div className={`min-w-0 flex-1 text-[15px] leading-7 ${t.text}`}>
-                          {splitMessage(m.content).map((part, pIdx) => {
-                            if (part.kind === "text") {
-                              return <Markdown key={pIdx} content={part.text} t={t} />;
-                            }
-                            return (
-                              <div key={pIdx} className="my-4 overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/60 p-4 shadow-xl">
-                                <ProChart spec={part.spec} load={(p) => fetchDailyStats(getDb(), workspaceId, team?.id || "", p)} />
-                              </div>
-                            );
-                          })}
-                          <div className={`mt-2 flex items-center gap-3 text-[11px] ${t.muted}`}>
-                            <span>{formatTime(m.timestamp)}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleCopy(m)}
-                              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 transition-colors hover:text-indigo-400"
-                              aria-label="Copier la réponse"
-                            >
-                              {copiedId === m.id ? <IconCheck /> : <IconCopy />}
-                              {copiedId === m.id ? "Copié" : "Copier"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
                     );
                   })}
-
-                  {loading && (
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-white">
-                        <IconSpark />
-                      </div>
-                      <div className={`flex items-center gap-2 text-sm ${t.muted}`}>
-                        <span className="flex gap-1" aria-hidden="true">
-                          {[0, 1, 2].map((n) => (
-                            <span
-                              key={n}
-                              className="h-2 w-2 animate-bounce rounded-full bg-indigo-400"
-                              style={{ animationDelay: `${n * 150}ms` }}
-                            />
-                          ))}
-                        </span>
-                        Analyse en cours…
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
-            </div>
-          </div>
 
-          {showJump && (
-            <button
-              type="button"
-              onClick={() => {
-                stickRef.current = true;
-                scrollToBottom();
-              }}
-              className={`absolute bottom-4 left-1/2 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border transition-colors ${t.jump}`}
-              aria-label="Aller au dernier message"
-            >
-              <IconArrowDown />
-            </button>
-          )}
-        </div>
-
-        {/* Zone de saisie */}
-        <div className={`border-t px-3 pb-3 pt-3 sm:px-4 ${t.bar}`}>
-          <div className="mx-auto w-full max-w-3xl">
-            {!isEmpty && (
-              <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s.title}
-                    type="button"
-                    onClick={() => handleSendMessage(s.prompt)}
-                    disabled={loading}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${t.chip}`}
-                  >
-                    <span aria-hidden="true">{s.icon}</span> {s.title}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {errorMsg && (
-              <div
-                role="alert"
-                className={`mb-2 flex items-start justify-between gap-3 rounded-xl border px-3 py-2 text-sm ${t.errorBox}`}
-              >
-                <span>{errorMsg}</span>
-                <button
-                  type="button"
-                  onClick={() => setErrorMsg("")}
-                  className="shrink-0 opacity-70 hover:opacity-100"
-                  aria-label="Fermer le message d'erreur"
+              {errorMsg && (
+                <div
+                  role="alert"
+                  className="mb-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs text-rose-200"
                 >
-                  ✕
-                </button>
-              </div>
-            )}
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+                    <span>{errorMsg}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {lastFailedPrompt && (
+                      <button
+                        type="button"
+                        onClick={() => handleSendMessage(lastFailedPrompt, true)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-rose-500/20 px-2.5 py-1 font-semibold text-rose-200 hover:bg-rose-500/30"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Réessayer
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setErrorMsg("")}
+                      className="text-rose-300/70 hover:text-rose-200"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className={`flex items-end gap-2 rounded-2xl border p-2 transition-shadow ${t.inputWrap}`}
-            >
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={inputPrompt}
-                onChange={(e) => setInputPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
                 }}
-                placeholder="Posez une question sur vos ventes, vos employés, vos livraisons…"
-                className={`max-h-40 min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-6 outline-none ${t.text} ${t.placeholder}`}
-              />
-              <button
-                type="submit"
-                disabled={!canSend}
-                aria-label="Envoyer"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex items-end gap-2 rounded-xl border border-surface-border bg-surface px-3 py-2 focus-within:border-brand"
               >
-                <IconSend />
-              </button>
-            </form>
-
-            <div className={`mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 text-[11px] ${t.muted}`}>
-              <span>
-                Données {team?.name || "de toutes les équipes"} · {context.confirmedOrders} confirmées ·{" "}
-                {context.deliveredOrders} livrées
-              </span>
-              <span className="hidden sm:inline">Entrée pour envoyer · Maj+Entrée pour un retour à la ligne</span>
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputPrompt}
+                  onChange={(e) => setInputPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Demandez un bilan, une analyse par closeuse ou une courbe de CA…"
+                  className="max-h-36 min-h-[32px] flex-1 resize-none bg-transparent py-1 text-xs leading-5 text-slate-100 outline-none placeholder:text-slate-500 sm:text-sm"
+                />
+                <button
+                  type="submit"
+                  disabled={!canSend}
+                  aria-label="Envoyer"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand text-white transition hover:bg-brand-hover disabled:opacity-40"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              </form>
             </div>
           </div>
         </div>
+
+        {/* Right Side Panel: Live Metrics & Chart Artifacts */}
+        {showArtifactsPanel && (
+          <aside className="hidden w-80 shrink-0 flex-col border-l border-surface-border bg-surface/30 lg:flex xl:w-96">
+            <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                <Layers className="h-3.5 w-3.5 text-brand" />
+                <span>Artefacts & Indicateurs</span>
+              </div>
+              <span className="rounded bg-surface px-2 py-0.5 font-mono text-[10px] text-slate-400">
+                {context.currency}
+              </span>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto p-4">
+              {/* Live Executive Summary Card */}
+              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Synthèse en direct
+                  </span>
+                  <span className="text-[11px] font-medium text-brand">{context.teamName}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">CA Encaissé</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-slate-100">
+                      {context.revenue.toLocaleString("fr-FR")} {context.currency}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">Livraisons</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-emerald-400">
+                      {context.deliveredOrders} ({context.deliveryRate}%)
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">Closing</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-sky-400">
+                      {context.confirmedOrders}/{context.totalOrders} ({context.confirmationRate}%)
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">Échecs / Rejets</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-rose-400">
+                      {context.rejectedOrders + context.injoignableOrders}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Generated Charts Deck */}
+              <div className="space-y-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Graphiques générés ({chartArtifacts.length})
+                </p>
+                {chartArtifacts.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-surface-border bg-surface/30 p-5 text-center">
+                    <BarChart3 className="mx-auto mb-2 h-5 w-5 text-slate-500" />
+                    <p className="text-xs text-slate-400">
+                      Demandez un bilan ou une courbe pour épingler automatiquement les graphiques ici.
+                    </p>
+                  </div>
+                ) : (
+                  chartArtifacts.map((item) => (
+                    <div
+                      key={item.id}
+                      className="overflow-hidden rounded-xl border border-surface-border bg-surface-raised p-3"
+                    >
+                      <ProChart
+                        spec={item.spec}
+                        load={(p) => fetchDailyStats(getDb(), workspaceId, team?.id || "", p)}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );

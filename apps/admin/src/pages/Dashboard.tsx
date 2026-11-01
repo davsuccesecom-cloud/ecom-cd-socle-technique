@@ -1,6 +1,23 @@
 import { useMemo, useState } from "react";
-import { useOrders, useTeams, useTeamUsers, useRegisterPushNotifications, useDailyStats, sumDailyStats, dailyStatDateToMs } from "@ecomcod/shared";
-import type { CloseuseStatus } from "@ecomcod/shared";
+import {
+  useOrders,
+  useTeams,
+  useTeamUsers,
+  useRegisterPushNotifications,
+  useDailyStats,
+  sumDailyStats,
+  dailyStatDateToMs,
+} from "@ecomcod/shared";
+import type { CloseuseStatus, Order } from "@ecomcod/shared";
+import {
+  TrendingUp,
+  Truck,
+  PhoneOff,
+  Ban,
+  PhoneCall,
+  Target,
+  Sparkles,
+} from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
 import CreateTeamForm from "../components/CreateTeamForm";
@@ -11,15 +28,17 @@ import LivraisonsParLivreur from "../components/LivraisonsParLivreur";
 import FluxTempsReel from "../components/FluxTempsReel";
 import PerformanceEmployes from "../components/PerformanceEmployes";
 import NotificationBell from "../components/NotificationBell";
-import QuickSummary from "../components/QuickSummary";
-import QuickSummaryFab from "../components/QuickSummaryFab";
+import ThemeQuickPicker from "../components/ThemeQuickPicker";
+import CommandPalette from "../components/CommandPalette";
+import LiveShopifyAnalytics from "../components/LiveShopifyAnalytics";
+import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
 import Utilisateurs from "./Utilisateurs";
 import Commandes from "./Commandes";
 import EquipesSheets from "./EquipesSheets";
 import Parametres from "./Parametres";
-import RevenueChart from "../components/RevenueChart";
 import Remuneration from "./Remuneration";
 import AiAssistant from "./AiAssistant";
+import PeriodSelector, { type Period, periodRangeMs, periodLabel } from "../components/PeriodSelector";
 
 interface DashboardProps {
   workspaceId: string;
@@ -27,9 +46,6 @@ interface DashboardProps {
   userEmail: string | null;
   adminId: string;
 }
-
-import PeriodSelector, { type Period, periodRangeMs, periodLabel } from "../components/PeriodSelector";
-
 
 const EMPTY_COUNTS: Record<CloseuseStatus, number> = {
   nouveau: 0,
@@ -41,14 +57,39 @@ const EMPTY_COUNTS: Record<CloseuseStatus, number> = {
   indisponible: 0,
 };
 
-const PAGE_TITLES: Record<string, string> = {
-  ai_assistant: "Analyste IA & Secrétaire de Direction ⭐",
-  performance: "Performance des employés 📊",
-  users: "Utilisateurs & Accès 👥",
-  orders: "Commandes 🛒",
-  teams: "Équipes & Sheets 📊",
-  remuneration: "Rémunération 💰",
-  settings: "Paramètres ⚙️",
+const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
+  overview: {
+    title: "Poste de Pilotage",
+    subtitle: "Suivi en temps réel des commandes, confirmations et encaissements COD",
+  },
+  ai_assistant: {
+    title: "Analyste Direction",
+    subtitle: "Diagnostic opérationnel, rentabilité et bilans par équipe",
+  },
+  performance: {
+    title: "Performance des Opérateurs",
+    subtitle: "Taux de closing, rapidité de prise en charge et efficacité livreurs",
+  },
+  users: {
+    title: "Utilisateurs & Accès",
+    subtitle: "Gestion des comptes closeuses et livreurs du marché actif",
+  },
+  orders: {
+    title: "Registre des Commandes",
+    subtitle: "Traitement, assignation et impression des bons de livraison 3D",
+  },
+  teams: {
+    title: "Marchés & Google Sheets",
+    subtitle: "Configuration des équipes par pays et synchronisation tableurs",
+  },
+  remuneration: {
+    title: "Rémunération & Commissions",
+    subtitle: "Calcul automatisé des primes sur livraisons validées",
+  },
+  settings: {
+    title: "Paramètres Système",
+    subtitle: "Boutiques Shopify, règles métiers, Meta CAPI et préférences",
+  },
 };
 
 export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }: DashboardProps) {
@@ -58,7 +99,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const [teamId, setTeamId] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>({ type: "preset", value: "jour" });
   const [showAddMarket, setShowAddMarket] = useState(false);
-  const [showRevenueChart, setShowRevenueChart] = useState(false);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+
   const activeTeamId = teamId ?? teams[0]?.id ?? null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
 
@@ -90,8 +132,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     });
   }, [allOrders, period]);
 
-  // Marge de jours a recuperer sur dailyStats pour couvrir la periode
-  // selectionnee. Limité à 365 max pour éviter tout débordement de date négative.
   const daysBack = useMemo(() => {
     const { start } = periodRangeMs(period);
     if (start <= 0) return 365;
@@ -127,7 +167,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       }
 
       const isDelivered = order.statutLivreur === "livre" || order.statutCloseuse === "livre";
-      const isConfirmed = order.statutCloseuse === "en_cours" || order.statutCloseuse === "programme" || order.statutCloseuse === "livre";
+      const isConfirmed =
+        order.statutCloseuse === "en_cours" ||
+        order.statutCloseuse === "programme" ||
+        order.statutCloseuse === "livre";
       const isInjoignable = order.statutLivreur === "injoignable" || order.statutCloseuse === "injoignable";
       const isRejected = order.statutCloseuse === "rejete";
 
@@ -167,8 +210,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     };
   }, [orders]);
 
-  // Fusionne les totaux : prend le maximum entre dailyStats (qui persiste les
-  // commandes après leur purge) et les commandes réelles en mémoire.
   const displayTotals = useMemo(() => {
     return {
       ca: Math.max(periodTotals.ca || 0, stats.caOrders || 0),
@@ -179,43 +220,64 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     };
   }, [periodTotals, stats, orders.length]);
 
-  const quickCounts = useMemo(
-    () => ({
-      total: displayTotals.commandes,
-      enAttente: (stats.statusCounts.nouveau || 0) + (stats.statusCounts.programme || 0),
-      enCours: stats.statusCounts.en_cours || 0,
-      livrees: stats.statusCounts.livre || 0,
-      rejetees: (stats.statusCounts.rejete || 0) + (stats.statusCounts.injoignable || 0) + (stats.statusCounts.indisponible || 0),
-    }),
-    [displayTotals.commandes, stats.statusCounts]
+  const totalPendingOrders = useMemo(
+    () => allOrders.filter((o) => o.statutCloseuse === "nouveau").length,
+    [allOrders]
   );
 
   const loading = teamsLoading || ordersLoading;
   const showPeriodFilter = page === "overview" || page === "remuneration";
+  const currency = activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF";
+  const headerMeta = PAGE_TITLES[page] ?? PAGE_TITLES.overview;
 
   return (
     <div className="min-h-screen bg-surface md:flex">
-      <Sidebar active={page} userEmail={userEmail} onLogout={onLogout} onNavigate={setPage} />
+      <Sidebar
+        active={page}
+        userEmail={userEmail}
+        onLogout={onLogout}
+        onNavigate={setPage}
+        pendingOrdersCount={totalPendingOrders}
+      />
 
-      <div className="flex items-center justify-between border-b border-surface-border px-4 py-3 md:hidden">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg">
-            <LogoIcon />
+      {/* Mobile Top Bar */}
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-surface-border bg-surface/95 px-4 py-2.5 backdrop-blur-md md:hidden">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-surface-border">
+            <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />
           </div>
-          <span className="text-base font-semibold text-slate-100">Ecom COD</span>
+          <div>
+            <span className="text-sm font-semibold text-slate-100">Ecom COD</span>
+            {activeTeam && <p className="text-[10px] text-slate-500">{activeTeam.name}</p>}
+          </div>
         </div>
-        <NotificationBell workspaceId={workspaceId} />
+        <div className="flex items-center gap-1.5">
+          <ThemeQuickPicker />
+          <NotificationBell workspaceId={workspaceId} />
+        </div>
       </div>
 
-      <main className="flex-1 px-5 py-6 pb-24 md:px-8 md:pb-6">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+      <main className="flex-1 px-4 py-5 pb-24 md:px-8 md:py-6 md:pb-8">
+        {/* Global Top Header Bar */}
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-surface-border pb-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-100 md:text-2xl">
-              {PAGE_TITLES[page] ?? "Vue globale du business 👋"}
+            <h1 className="text-lg font-semibold tracking-tight text-slate-100 md:text-xl">
+              {headerMeta.title}
             </h1>
+            <p className="mt-0.5 text-xs text-slate-500">{headerMeta.subtitle}</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Global Search / Command Palette Trigger */}
+            <CommandPalette
+              orders={allOrders}
+              teams={teams}
+              activeTeamId={activeTeamId}
+              onNavigate={setPage}
+              onSelectTeam={setTeamId}
+              onInspectOrder={(order) => setReceiptOrder(order)}
+            />
+
             {teams.length > 0 && page !== "teams" && (
               <MarketSelector
                 teams={teams}
@@ -225,9 +287,12 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               />
             )}
 
-            {showPeriodFilter && (
-              <PeriodSelector period={period} onChange={setPeriod} />
-            )}
+            {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+
+            {/* Always-accessible Theme & Color Picker */}
+            <div className="hidden md:block">
+              <ThemeQuickPicker />
+            </div>
 
             <div className="hidden md:block">
               <NotificationBell workspaceId={workspaceId} />
@@ -251,7 +316,13 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         ) : page === "users" ? (
           <Utilisateurs workspaceId={workspaceId} team={activeTeam} closeuses={closeuses} livreurs={livreurs} />
         ) : page === "orders" ? (
-          <Commandes workspaceId={workspaceId} team={activeTeam} orders={allOrders} closeuses={closeuses} livreurs={livreurs} />
+          <Commandes
+            workspaceId={workspaceId}
+            team={activeTeam}
+            orders={allOrders}
+            closeuses={closeuses}
+            livreurs={livreurs}
+          />
         ) : page === "teams" ? (
           <EquipesSheets workspaceId={workspaceId} teams={teams} />
         ) : page === "remuneration" ? (
@@ -259,25 +330,83 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         ) : page === "settings" ? (
           <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} />
         ) : (
-          <>
-            <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+          <div className="space-y-5">
+            {/* KPI Strip */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-6">
               <StatCard
                 label="Chiffre d'affaires"
-                value={`${displayTotals.ca.toLocaleString("fr-FR")} ${activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF"}`}
-                icon={<CaIcon />}
+                value={`${displayTotals.ca.toLocaleString("fr-FR")} ${currency}`}
+                subtitle={`${displayTotals.commandes} cmd sur la période`}
+                icon={<TrendingUp className="h-4 w-4" />}
                 accent="blue"
-                onClick={() => setShowRevenueChart(true)}
               />
-              <StatCard label="Livraisons réussies" value={String(displayTotals.livraisons)} icon={<TruckIcon />} accent="green" />
-              <StatCard label="Injoignables" value={String(displayTotals.injoignables)} icon={<XIcon />} accent="red" />
-              <StatCard label="Rejetées" value={String(displayTotals.rejetees)} icon={<BanIcon />} accent="orange" />
-              <StatCard label="Taux de confirmation" value={`${stats.tauxConfirmation}%`} icon={<PhoneIcon />} accent="purple" />
-              <StatCard label="Taux de livraison réelle" value={`${stats.tauxLivraisonReelle}%`} icon={<TargetIcon />} accent="cyan" />
+              <StatCard
+                label="Livraisons réussies"
+                value={String(displayTotals.livraisons)}
+                subtitle="Encaissées terrain"
+                icon={<Truck className="h-4 w-4" />}
+                accent="green"
+              />
+              <StatCard
+                label="Taux Confirmation"
+                value={`${stats.tauxConfirmation}%`}
+                subtitle="Qualité closing"
+                icon={<PhoneCall className="h-4 w-4" />}
+                accent="purple"
+              />
+              <StatCard
+                label="Livraison Réelle"
+                value={`${stats.tauxLivraisonReelle}%`}
+                subtitle="Sur confirmées"
+                icon={<Target className="h-4 w-4" />}
+                accent="cyan"
+              />
+              <StatCard
+                label="Injoignables"
+                value={String(displayTotals.injoignables)}
+                subtitle="À relancer"
+                icon={<PhoneOff className="h-4 w-4" />}
+                accent="red"
+                onClick={() => setPage("orders")}
+              />
+              <StatCard
+                label="Rejetées"
+                value={String(displayTotals.rejetees)}
+                subtitle="Annulations client"
+                icon={<Ban className="h-4 w-4" />}
+                accent="orange"
+                onClick={() => setPage("orders")}
+              />
             </div>
 
+            {/* Live Shopify-Style Analytics Deck */}
+            <LiveShopifyAnalytics
+              dailyStats={dailyStatsInPeriod}
+              orders={orders}
+              currency={currency}
+              periodLabel={periodLabel(period)}
+              displayTotals={displayTotals}
+              tauxConfirmation={stats.tauxConfirmation}
+              tauxLivraisonReelle={stats.tauxLivraisonReelle}
+              onNavigateToOrders={() => setPage("orders")}
+            />
+
+            {/* Operational Breakdown Grid */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 lg:col-span-1">
-                <h3 className="mb-3 text-sm font-medium text-slate-200">Répartition des statuts</h3>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Répartition des Statuts
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setPage("ai_assistant")}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    Analyser
+                  </button>
+                </div>
                 <StatusDonut counts={stats.statusCounts} />
               </div>
 
@@ -290,29 +419,26 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               </div>
             </div>
 
-            {loading && <p className="mt-4 text-center text-xs text-slate-600">Mise à jour des données…</p>}
-            {closeuses.length === 0 && livreurs.length === 0 && !loading && (
-              <p className="mt-4 text-center text-xs text-slate-600">Aucun employé sur cette équipe pour l'instant.</p>
-            )}
-          </>
+            {loading && <p className="text-center text-xs text-slate-500">Synchronisation temps réel…</p>}
+          </div>
         )}
       </main>
 
-      <MobileNav active={page} onNavigate={setPage} />
+      <MobileNav active={page} onNavigate={setPage} pendingOrdersCount={totalPendingOrders} />
 
-      {showRevenueChart && (
-        <RevenueChart
-          dailyStats={dailyStatsInPeriod}
-          orders={orders}
-          currency={activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF"}
-          periodLabel={periodLabel(period)}
-          onClose={() => setShowRevenueChart(false)}
+      {receiptOrder && (
+        <OrderReceipt3DModal
+          order={receiptOrder}
+          team={activeTeam}
+          closeuses={closeuses}
+          livreurs={livreurs}
+          onClose={() => setReceiptOrder(null)}
         />
       )}
 
       {showAddMarket && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
           onClick={() => setShowAddMarket(false)}
         >
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
@@ -328,62 +454,5 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         </div>
       )}
     </div>
-  );
-}
-
-function LogoIcon() {
-  return <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />;
-}
-
-function iconProps() {
-  return { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-}
-function CaIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M3 17 9 11l4 4 8-8" />
-      <path d="M15 7h6v6" />
-    </svg>
-  );
-}
-function TruckIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M1 3h13v13H1z" />
-      <path d="M14 8h4l3 3v5h-7V8Z" />
-      <circle cx="5.5" cy="18.5" r="1.5" />
-      <circle cx="17.5" cy="18.5" r="1.5" />
-    </svg>
-  );
-}
-function XIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M6 6l12 12M18 6 6 18" />
-    </svg>
-  );
-}
-function BanIcon() {
-  return (
-    <svg {...iconProps()}>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M5.5 5.5l13 13" />
-    </svg>
-  );
-}
-function PhoneIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M4 4h4l2 5-2.5 1.5a12 12 0 0 0 6 6L15 14l5 2v4a2 2 0 0 1-2 2C9.6 22 2 14.4 2 6a2 2 0 0 1 2-2Z" />
-    </svg>
-  );
-}
-function TargetIcon() {
-  return (
-    <svg {...iconProps()}>
-      <circle cx="12" cy="12" r="9" />
-      <circle cx="12" cy="12" r="5" />
-      <circle cx="12" cy="12" r="1" />
-    </svg>
   );
 }

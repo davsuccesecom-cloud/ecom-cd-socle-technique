@@ -1,101 +1,68 @@
 interface StatCardProps {
   label: string;
   value: string;
+  subtitle?: string;
   icon: React.ReactNode;
   accent: "blue" | "green" | "red" | "orange" | "purple" | "cyan";
   trendPoints?: number[];
   onClick?: () => void;
 }
 
-const ACCENT_GRADIENT: Record<StatCardProps["accent"], [string, string]> = {
-  blue: ["#3B82F6", "#1D4ED8"],
-  green: ["#10B981", "#047857"],
-  red: ["#EF4444", "#B91C1C"],
-  orange: ["#F59E0B", "#B45309"],
-  purple: ["#8B5CF6", "#6D28D9"],
-  cyan: ["#06B6D4", "#0E7490"],
+const ACCENT_STYLES: Record<StatCardProps["accent"], { badge: string; stroke: string }> = {
+  blue: { badge: "bg-sky-500/10 text-sky-400 border-sky-500/20", stroke: "#0EA5E9" },
+  green: { badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", stroke: "#10B981" },
+  red: { badge: "bg-rose-500/10 text-rose-400 border-rose-500/20", stroke: "#F43F5E" },
+  orange: { badge: "bg-amber-500/10 text-amber-400 border-amber-500/20", stroke: "#F59E0B" },
+  purple: { badge: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20", stroke: "#6366F1" },
+  cyan: { badge: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20", stroke: "#06B6D4" },
 };
 
-const ACCENT_STROKE: Record<StatCardProps["accent"], string> = {
-  blue: "#3B82F6",
-  green: "#10B981",
-  red: "#EF4444",
-  orange: "#F59E0B",
-  purple: "#8B5CF6",
-  cyan: "#06B6D4",
-};
-
-export default function StatCard({ label, value, icon, accent, trendPoints, onClick }: StatCardProps) {
+export default function StatCard({
+  label,
+  value,
+  subtitle,
+  icon,
+  accent,
+  trendPoints,
+  onClick,
+}: StatCardProps) {
   const Wrapper = onClick ? "button" : "div";
+  const style = ACCENT_STYLES[accent];
 
   return (
     <Wrapper
+      type={onClick ? "button" : undefined}
       onClick={onClick}
-      className={`relative w-full rounded-2xl border border-surface-border bg-surface-raised p-3 text-left sm:p-4 ${
-        onClick ? "cursor-pointer transition-transform hover:-translate-y-0.5 hover:border-brand/40" : ""
+      className={`group relative w-full rounded-xl border border-surface-border bg-surface-raised p-4 text-left transition-all ${
+        onClick ? "cursor-pointer hover:border-slate-600" : ""
       }`}
     >
-      {onClick && (
-        <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-surface text-slate-500 sm:right-4 sm:top-4">
-          <span className="absolute -inset-1.5 animate-ping rounded-full bg-brand/60" />
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="relative">
-            <path d="M3 3v18h18" />
-            <path d="m19 9-5 5-4-4-3 3" />
-          </svg>
-        </span>
-      )}
-
-      <div className="mb-2 flex items-center gap-2 sm:mb-3">
-        <GradientIcon accent={accent}>{icon}</GradientIcon>
-        <span className="truncate text-xs text-slate-400 sm:text-sm">{label}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-xs font-medium text-slate-400">{label}</span>
+        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${style.badge}`}>
+          {icon}
+        </div>
       </div>
-      <div className="flex items-end justify-between gap-2">
-        <span className="text-xl font-semibold text-slate-100 sm:text-2xl">{value}</span>
+
+      <div className="mt-2.5 flex items-baseline justify-between gap-2">
+        <span className="font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+          {value}
+        </span>
         {trendPoints && trendPoints.length > 1 && (
           <div className="hidden shrink-0 sm:block">
-            <Sparkline points={trendPoints} color={ACCENT_STROKE[accent]} />
+            <Sparkline points={trendPoints} color={style.stroke} />
           </div>
         )}
       </div>
+
+      {subtitle && <p className="mt-1 truncate text-[11px] text-slate-500">{subtitle}</p>}
     </Wrapper>
   );
 }
 
-/**
- * Icône avec fond en dégradé + reflet léger — approximation "glossy" en
- * SVG pur, léger et net à toute taille (contrairement à une image générée
- * en rendu 3D, qui pixelise vite à petite taille pour une icône d'UI).
- */
-function GradientIcon({ accent, children }: { accent: StatCardProps["accent"]; children: React.ReactNode }) {
-  const [from, to] = ACCENT_GRADIENT[accent];
-  const gradientId = `grad-${accent}`;
-  return (
-    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl sm:h-9 sm:w-9">
-      <svg width="0" height="0" className="absolute">
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={from} />
-            <stop offset="100%" stopColor={to} />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div
-        className="absolute inset-0 rounded-xl shadow-inner"
-        style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
-      />
-      {/* Reflet diagonal subtil pour l'effet "glossy" */}
-      <div
-        className="absolute inset-0 rounded-xl opacity-30"
-        style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.5) 0%, transparent 50%)" }}
-      />
-      <div className="relative text-white">{children}</div>
-    </div>
-  );
-}
-
 function Sparkline({ points, color }: { points: number[]; color: string }) {
-  const w = 72;
-  const h = 28;
+  const w = 68;
+  const h = 24;
   const max = Math.max(...points, 1);
   const min = Math.min(...points, 0);
   const range = max - min || 1;

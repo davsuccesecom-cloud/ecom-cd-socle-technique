@@ -2,7 +2,20 @@ import { useState, useEffect } from "react";
 import { doc, updateDoc, collection, onSnapshot } from "firebase/firestore";
 import { getDb, AFRICA_COUNTRIES } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
+import {
+  Plus,
+  Store,
+  FileSpreadsheet,
+  ExternalLink,
+  Trash2,
+  MapPin,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
 import CreateTeamForm from "../components/CreateTeamForm";
+import CountryMapBackdrop, { getCountryMeta } from "../components/CountryMapBackdrop";
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface EquipesSheetsProps {
   workspaceId: string;
@@ -19,8 +32,6 @@ function flagUrl(code: string) {
   return `https://flagcdn.com/24x18/${code.toLowerCase()}.png`;
 }
 
-// Accepte soit un ID brut, soit une URL complète Google Sheets collée —
-// évite d'obliger l'admin à extraire l'ID lui-même de l'URL.
 function extractSheetId(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
@@ -33,65 +44,156 @@ function extractSheetId(input: string): string | null {
 export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps) {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(teams[0]?.id ?? null);
   const [showCreate, setShowCreate] = useState(false);
+  const [shopifyByTeam, setShopifyByTeam] = useState<Record<string, string>>({});
 
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? null;
+  useEffect(() => {
+    const db = getDb();
+    const connCol = collection(db, "workspaces", workspaceId, "shopifyConnections");
+    const unsub = onSnapshot(connCol, (snap) => {
+      const map: Record<string, string> = {};
+      snap.forEach((d) => {
+        const c = d.data();
+        if (c.status === "active") {
+          if (c.ownerTeamId) {
+            map[c.ownerTeamId] = `${c.shopDomain} (Propriétaire)`;
+          }
+          if (c.countryRoutes) {
+            Object.values(c.countryRoutes).forEach((r: any) => {
+              if (r.assignedTeamId && r.status === "active") {
+                map[r.assignedTeamId] = `${c.shopDomain} (Flux délégué)`;
+              }
+            });
+          }
+        }
+      });
+      setShopifyByTeam(map);
+    });
+    return () => unsub();
+  }, [workspaceId]);
+
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0] ?? null;
 
   return (
-    <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-slate-400">
-          {teams.length} équipe{teams.length > 1 ? "s" : ""}
-        </h2>
+    <div className="space-y-5">
+      {/* Top Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-200">
+            Cartographie des Marchés ({teams.length})
+          </h2>
+          <p className="text-xs text-slate-500">
+            Sélectionnez une équipe pays pour superviser son flux d'entrée (Shopify ou Google Sheets).
+          </p>
+        </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover"
         >
-          + Nouvelle équipe
+          <Plus className="h-4 w-4" />
+          Nouveau marché
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
-        {/* Liste des équipes */}
-        <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised">
-          {teams.map((team) => {
-            const country = countryFor(team.defaultCountry);
-            const active = team.id === selectedTeamId;
-            return (
-              <button
-                key={team.id}
-                onClick={() => setSelectedTeamId(team.id)}
-                className={`flex w-full items-center justify-between border-b border-surface-border px-4 py-3.5 text-left text-sm last:border-0 transition-colors ${
-                  active ? "bg-brand/10 border-l-4 border-l-brand text-slate-100 font-semibold" : "text-slate-300 hover:bg-surface"
-                }`}
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {country && <img src={flagUrl(country.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover shadow-sm" />}
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-slate-100">{team.name}</p>
-                    <p className="text-[10px] text-slate-500 font-mono">{team.currency || "XOF"}</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-full bg-surface px-2 py-0.5 text-[10px] font-mono text-slate-400 border border-surface-border">
-                  {team.sheetIds.length}/{MAX_SHEETS_PER_TEAM} Sheets
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      {/* Geographic Team Cards Grid */}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        {teams.map((team) => {
+          const country = countryFor(team.defaultCountry);
+          const meta = getCountryMeta(team.defaultCountry);
+          const active = team.id === selectedTeam?.id;
+          const shopifyDomain = shopifyByTeam[team.id];
+          const hasSheets = team.sheetIds.length > 0;
 
-        {/* Détail équipe sélectionnée */}
-        {selectedTeam ? (
-          <TeamDetail key={selectedTeam.id} workspaceId={workspaceId} team={selectedTeam} />
-        ) : (
-          <div className="rounded-2xl border border-surface-border bg-surface-raised p-6 text-center text-sm text-slate-500">
-            Sélectionne une équipe pour gérer ses Sheets.
-          </div>
-        )}
+          return (
+            <button
+              key={team.id}
+              type="button"
+              onClick={() => setSelectedTeamId(team.id)}
+              className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all ${
+                active
+                  ? "border-brand bg-surface-raised ring-1 ring-brand/40 shadow-md"
+                  : "border-surface-border bg-surface-raised/80 hover:border-slate-600 hover:bg-surface-raised"
+              }`}
+            >
+              {/* Calm Country Map Silhouette Backdrop */}
+              <CountryMapBackdrop countryCode={team.defaultCountry} />
+
+              <div className="relative z-10 flex flex-col justify-between gap-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    {country && (
+                      <img
+                        src={flagUrl(country.code)}
+                        alt={country.name}
+                        className="h-4 w-6 shrink-0 rounded-[3px] object-cover shadow-sm"
+                      />
+                    )}
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-100">{team.name}</h3>
+                      <p className="flex items-center gap-1 text-[11px] text-slate-400">
+                        <span>{country?.name ?? team.defaultCountry}</span>
+                        {meta.capital && (
+                          <>
+                            <span>·</span>
+                            <MapPin className="h-2.5 w-2.5 text-brand" />
+                            <span>{meta.capital}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="rounded-md border border-surface-border bg-surface/90 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-300">
+                    {team.currency || meta.currency}
+                  </span>
+                </div>
+
+                {/* Operational Source Status Badge */}
+                <div className="flex items-center justify-between border-t border-surface-border/60 pt-3">
+                  {shopifyDomain ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Flux Shopify actif
+                    </span>
+                  ) : hasSheets ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-medium text-sky-400">
+                      <FileSpreadsheet className="h-3 w-3" />
+                      {team.sheetIds.length} Sheet{team.sheetIds.length > 1 ? "s" : ""} actif{team.sheetIds.length > 1 ? "s" : ""}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-400">
+                      <Clock className="h-3 w-3" />
+                      Source à relier
+                    </span>
+                  )}
+
+                  <span className="font-mono text-[10px] text-slate-500">{meta.dialCode}</span>
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
+      {/* Selected Team Detail Panel */}
+      {selectedTeam ? (
+        <TeamDetail
+          key={selectedTeam.id}
+          workspaceId={workspaceId}
+          team={selectedTeam}
+          shopifyActiveInfo={shopifyByTeam[selectedTeam.id] ?? null}
+        />
+      ) : (
+        <div className="rounded-2xl border border-surface-border bg-surface-raised p-8 text-center text-sm text-slate-500">
+          Sélectionnez une équipe ci-dessus pour gérer ses connexions.
+        </div>
+      )}
+
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowCreate(false)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+          onClick={() => setShowCreate(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg">
             <CreateTeamForm
               workspaceId={workspaceId}
               onCreated={(newTeamId) => {
@@ -107,36 +209,18 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
   );
 }
 
-function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) {
+function TeamDetail({
+  workspaceId,
+  team,
+  shopifyActiveInfo,
+}: {
+  workspaceId: string;
+  team: Team;
+  shopifyActiveInfo: string | null;
+}) {
   const [sheetInput, setSheetInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [shopifyActiveInfo, setShopifyActiveInfo] = useState<string | null>(null);
-
-  // Vérifier si cette équipe est connectée à une boutique Shopify (propriétaire ou emprunteuse de flux)
-  useEffect(() => {
-    const db = getDb();
-    const connCol = collection(db, "workspaces", workspaceId, "shopifyConnections");
-    const unsub = onSnapshot(connCol, (snap) => {
-      let matchedShop: string | null = null;
-      snap.forEach((d) => {
-        const c = d.data();
-        if (c.status === "active") {
-          if (c.ownerTeamId === team.id) {
-            matchedShop = `${c.shopDomain} (Administrateur du flux)`;
-          } else if (c.countryRoutes) {
-            Object.values(c.countryRoutes).forEach((r: any) => {
-              if (r.assignedTeamId === team.id && r.status === "active") {
-                matchedShop = `${c.shopDomain} (Flux pays délégué)`;
-              }
-            });
-          }
-        }
-      });
-      setShopifyActiveInfo(matchedShop);
-    });
-    return () => unsub();
-  }, [workspaceId, team.id]);
 
   const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
 
@@ -147,15 +231,15 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
     }
     const id = extractSheetId(sheetInput);
     if (!id) {
-      setError("ID ou lien Google Sheets invalide.");
+      setError("ID ou lien Google Sheets invalide. Collez l'URL complète de votre tableur.");
       return;
     }
     if (team.sheetIds.includes(id)) {
-      setError("Ce Sheet est déjà connecté à cette équipe.");
+      setError("Ce tableur Google Sheets est déjà rattaché à cette équipe.");
       return;
     }
     if (team.sheetIds.length >= MAX_SHEETS_PER_TEAM) {
-      setError(`Maximum ${MAX_SHEETS_PER_TEAM} Sheets par équipe.`);
+      setError(`Limite atteinte (${MAX_SHEETS_PER_TEAM} tableurs maximum par équipe).`);
       return;
     }
     setBusy(true);
@@ -164,7 +248,8 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
       await updateDoc(teamRef(), { sheetIds: [...team.sheetIds, id] });
       setSheetInput("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ajout impossible.");
+      const formatted = formatFirebaseError(err);
+      setError(`${formatted.title} : ${formatted.message}`);
     } finally {
       setBusy(false);
     }
@@ -176,7 +261,8 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
     try {
       await updateDoc(teamRef(), { sheetIds: team.sheetIds.filter((s) => s !== id) });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Retrait impossible.");
+      const formatted = formatFirebaseError(err);
+      setError(`${formatted.title} : ${formatted.message}`);
     } finally {
       setBusy(false);
     }
@@ -184,64 +270,77 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
 
   return (
     <div className="space-y-4">
-      {/* Alerte si Shopify est actif sur cette équipe */}
       {shopifyActiveInfo && (
-        <div className="rounded-2xl border border-indigo-500/40 bg-indigo-950/30 p-4">
+        <div className="rounded-2xl border border-brand/30 bg-brand/10 p-4">
           <div className="flex items-start gap-3">
-            <span className="text-xl">🛍️</span>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/20 text-brand">
+              <Store className="h-4 w-4" />
+            </div>
             <div>
-              <h4 className="text-xs font-bold text-indigo-200">
-                Source Shopify Active — {shopifyActiveInfo}
+              <h4 className="text-xs font-semibold text-slate-100">
+                Flux Temps Réel Shopify Actif — {shopifyActiveInfo}
               </h4>
-              <p className="mt-1 text-xs text-indigo-300/80 leading-relaxed">
-                Cette équipe reçoit directement ses commandes en temps réel depuis Shopify. La liaison Google Sheets est temporairement grisée et désactivée du processus pour éviter les doublons de commandes.
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">
+                Les commandes de <strong>{team.name}</strong> arrivent directement par webhook Shopify sécurisé. La synchronisation Google Sheets est mise en veille pour garantir zéro doublon.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Sheets connectés */}
       <div
-        className={`rounded-2xl border border-surface-border bg-surface-raised p-4 transition-opacity ${
-          shopifyActiveInfo ? "opacity-60" : ""
+        className={`rounded-2xl border border-surface-border bg-surface-raised p-5 transition-opacity ${
+          shopifyActiveInfo ? "opacity-65" : ""
         }`}
       >
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-medium text-slate-200">Google Sheets connectés</h3>
-          {shopifyActiveInfo && (
-            <span className="rounded-full bg-slate-800 border border-slate-700 px-2.5 py-0.5 text-[10px] font-semibold text-slate-400">
-              Désactivé (Source Shopify)
-            </span>
-          )}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+            <div>
+              <h3 className="text-sm font-semibold text-slate-100">
+                Tableurs Google Sheets — {team.name}
+              </h3>
+              <p className="text-xs text-slate-500">
+                Collez l'URL complète ou l'identifiant du Google Sheet partagé en mode Éditeur.
+              </p>
+            </div>
+          </div>
+          <span className="rounded-lg border border-surface-border bg-surface px-2.5 py-1 font-mono text-xs text-slate-400">
+            {team.sheetIds.length} / {MAX_SHEETS_PER_TEAM} tableurs
+          </span>
         </div>
-        <p className="mb-4 text-xs text-slate-500">
-          Colle l'ID ou le lien complet du Sheet. Pense à le partager au préalable, en Éditeur, avec le compte de
-          service (demande l'adresse à l'équipe technique si besoin).
-        </p>
 
         {team.sheetIds.length === 0 ? (
-          <p className="mb-3 text-sm text-slate-500">Aucun Sheet connecté pour l'instant.</p>
+          <div className="mb-4 rounded-xl border border-dashed border-surface-border bg-surface/40 p-6 text-center">
+            <p className="text-xs text-slate-400">Aucun tableur Google Sheets connecté à ce marché.</p>
+          </div>
         ) : (
-          <ul className="mb-3 space-y-2">
-            {team.sheetIds.map((id) => (
+          <ul className="mb-4 space-y-2">
+            {team.sheetIds.map((id, idx) => (
               <li
                 key={id}
-                className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-surface-border px-3 py-2 text-sm"
+                className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-surface-border bg-surface/60 px-3.5 py-2.5 text-xs"
               >
-                <a
-                  href={`https://docs.google.com/spreadsheets/d/${id}/edit`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="min-w-0 flex-1 truncate text-slate-300 hover:text-brand"
-                >
-                  {id}
-                </a>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 font-mono text-[11px] font-bold text-emerald-400">
+                    #{idx + 1}
+                  </span>
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${id}/edit`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 items-center gap-1.5 truncate font-mono text-slate-200 hover:text-brand"
+                  >
+                    <span className="truncate">{id}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-slate-500" />
+                  </a>
+                </div>
                 <button
                   disabled={busy}
                   onClick={() => handleRemoveSheet(id)}
-                  className="shrink-0 rounded-lg border border-red-500/30 px-2.5 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
                 >
+                  <Trash2 className="h-3 w-3" />
                   Retirer
                 </button>
               </li>
@@ -250,36 +349,35 @@ function TeamDetail({ workspaceId, team }: { workspaceId: string; team: Team }) 
         )}
 
         {team.sheetIds.length < MAX_SHEETS_PER_TEAM && (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={sheetInput}
               disabled={busy || !!shopifyActiveInfo}
               onChange={(e) => setSheetInput(e.target.value)}
-              placeholder={shopifyActiveInfo ? "Désactivé (Source Shopify active)" : "ID ou lien du Sheet…"}
-              className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand disabled:opacity-50"
+              placeholder={
+                shopifyActiveInfo
+                  ? "Désactivé tant que le flux Shopify est actif"
+                  : "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+              }
+              className="flex-1 rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-50"
             />
             <button
               disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo}
               onClick={handleAddSheet}
-              className="shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
             >
-              Ajouter
+              <Plus className="h-3.5 w-3.5" />
+              Connecter le Sheet
             </button>
           </div>
         )}
-        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
-      </div>
 
-      {/* Fusion d'équipes — pas encore disponible */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 opacity-60">
-        <div className="mb-1 flex items-center gap-2">
-          <h3 className="text-sm font-medium text-slate-200">Fusion d'équipes</h3>
-          <span className="rounded-full bg-surface px-2 py-0.5 text-[10px] text-slate-500">bientôt</span>
-        </div>
-        <p className="text-xs text-slate-500">
-          Fusionner ou archiver des équipes existantes pour partager leurs ressources — arrive dans une prochaine
-          mise à jour.
-        </p>
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
     </div>
   );

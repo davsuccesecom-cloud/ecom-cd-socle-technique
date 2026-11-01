@@ -1,8 +1,9 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import type { AppUser, Order, Team, UserRole } from "@ecomcod/shared";
 import { useRemunerationTotals, ConfirmDialog } from "@ecomcod/shared";
 import StatCard from "../components/StatCard";
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface RemunerationProps {
   team: Team | null;
@@ -25,6 +26,7 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
   const [confirmTarget, setConfirmTarget] = useState<{ userId: string; name: string; amount: number } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ userId: string; name: string } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const remunCloseuse = team?.remunerationCloseusePerOrder ?? 0;
   const remunLivreur = team?.remunerationLivreurPerOrder ?? 0;
@@ -77,11 +79,13 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
   const handleConfirmPay = async () => {
     if (!confirmTarget) return;
     setActionLoading(true);
+    setErrorMsg(null);
     try {
       await callMarkPaid({ userId: confirmTarget.userId });
       setConfirmTarget(null);
     } catch (err) {
-      console.error("Erreur lors du paiement:", err);
+      const f = formatFirebaseError(err);
+      setErrorMsg(`${f.title} : ${f.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -90,11 +94,13 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
   const handleConfirmCancel = async () => {
     if (!cancelTarget) return;
     setActionLoading(true);
+    setErrorMsg(null);
     try {
       await callCancelPaid({ userId: cancelTarget.userId });
       setCancelTarget(null);
     } catch (err) {
-      console.error("Erreur lors de l'annulation:", err);
+      const f = formatFirebaseError(err);
+      setErrorMsg(`${f.title} : ${f.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -148,6 +154,12 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
             Livreurs
           </button>
         </div>
+
+        {errorMsg && (
+          <p className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+            {errorMsg}
+          </p>
+        )}
 
         {!remunPerOrderConfigured && (
           <p className="mb-3 rounded-lg bg-accent-orange/10 px-3 py-2 text-xs text-accent-orange">

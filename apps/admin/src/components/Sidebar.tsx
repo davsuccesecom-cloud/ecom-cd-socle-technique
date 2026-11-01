@@ -1,184 +1,173 @@
 import { useState } from "react";
-import { NAV_ITEMS, ENABLED_KEYS } from "../navConfig";
+import {
+  LayoutDashboard,
+  ShoppingBag,
+  BarChart3,
+  Layers,
+  Users,
+  Wallet,
+  Settings,
+  FileBarChart2,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 
 interface SidebarProps {
   active: string;
   userEmail: string | null;
+  pendingOrdersCount?: number;
   onLogout: () => void;
   onNavigate: (key: string) => void;
 }
 
-const ICONS: Record<string, () => JSX.Element> = {
-  overview: OverviewIcon,
-  orders: OrdersIcon,
-  ai_assistant: AiAssistantIcon,
-  deliveries: DeliveriesIcon,
-  performance: PerformanceIcon,
-  teams: TeamsIcon,
-  users: UsersIcon,
-  remuneration: RemunerationIcon,
-  settings: SettingsIcon,
-};
+interface NavGroup {
+  title: string;
+  items: {
+    key: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[];
+}
 
-export default function Sidebar({ active, userEmail, onLogout, onNavigate }: SidebarProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+const GROUPS: NavGroup[] = [
+  {
+    title: "Pilotage",
+    items: [
+      { key: "overview", label: "Vue d'ensemble", icon: LayoutDashboard },
+      { key: "ai_assistant", label: "Analyste Direction", icon: FileBarChart2 },
+    ],
+  },
+  {
+    title: "Opérations",
+    items: [
+      { key: "orders", label: "Commandes", icon: ShoppingBag },
+      { key: "performance", label: "Performance", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Équipes & Paie",
+    items: [
+      { key: "teams", label: "Équipes & Marchés", icon: Layers },
+      { key: "users", label: "Utilisateurs & Accès", icon: Users },
+      { key: "remuneration", label: "Rémunération", icon: Wallet },
+    ],
+  },
+  {
+    title: "Système",
+    items: [{ key: "settings", label: "Paramètres & Flux", icon: Settings }],
+  },
+];
+
+export default function Sidebar({
+  active,
+  userEmail,
+  pendingOrdersCount = 0,
+  onLogout,
+  onNavigate,
+}: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-surface-border bg-surface px-4 py-6 md:flex">
-      <div className="mb-8 flex items-center gap-2 px-2">
-        <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl">
-          <LogoIcon />
+    <aside
+      className={`hidden shrink-0 flex-col border-r border-surface-border bg-surface-raised/60 py-5 transition-all duration-150 md:flex ${
+        collapsed ? "w-16 px-2" : "w-60 px-3.5"
+      }`}
+    >
+      {/* En-tête marque + bouton réduction */}
+      <div className="mb-6 flex items-center justify-between px-1.5">
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-surface-border bg-surface">
+            <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />
+          </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <span className="block truncate text-sm font-bold tracking-tight text-slate-100">
+                Ecom COD
+              </span>
+              <span className="block truncate text-[10px] font-medium text-slate-500">
+                Pilotage Opérationnel
+              </span>
+            </div>
+          )}
         </div>
-        <span className="text-lg font-semibold text-slate-100">Ecom COD</span>
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          title={collapsed ? "Déplier le menu" : "Réduire le menu"}
+          className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-200"
+        >
+          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1">
-        {NAV_ITEMS.map((item) => {
-          const Icon = ICONS[item.key];
-          const isActive = item.key === active;
-          const isEnabled = ENABLED_KEYS.includes(item.key);
-          return (
-            <button
-              key={item.key}
-              disabled={!isEnabled}
-              onClick={() => isEnabled && onNavigate(item.key)}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                isActive
-                  ? "bg-brand-light text-brand"
-                  : "text-slate-400 hover:bg-surface-raised hover:text-slate-200 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-500"
-              }`}
-            >
-              <Icon />
-              <span>{item.label}</span>
-              {!isEnabled && (
-                <span className="ml-auto rounded-full bg-surface-raised px-2 py-0.5 text-[10px] text-slate-500">
-                  bientôt
-                </span>
-              )}
-            </button>
-          );
-        })}
+      {/* Navigation structurée par pôles */}
+      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
+        {GROUPS.map((group) => (
+          <div key={group.title} className="space-y-1">
+            {!collapsed && (
+              <p className="px-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                {group.title}
+              </p>
+            )}
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = item.key === active;
+              const showBadge = item.key === "orders" && pendingOrdersCount > 0;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  title={collapsed ? item.label : undefined}
+                  onClick={() => onNavigate(item.key)}
+                  className={`group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${
+                    isActive
+                      ? "bg-brand-light text-brand font-semibold"
+                      : "text-slate-400 hover:bg-surface hover:text-slate-100"
+                  } ${collapsed ? "justify-center" : ""}`}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-brand" />
+                  )}
+                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-brand" : "text-slate-400 group-hover:text-slate-200"}`} />
+                  {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                  {showBadge && !collapsed && (
+                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-400">
+                      {pendingOrdersCount}
+                    </span>
+                  )}
+                  {showBadge && collapsed && (
+                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
-      <div className="relative mt-4 border-t border-surface-border pt-4">
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-raised"
-        >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-light text-sm font-medium text-brand">
+      {/* Pied de barre : compte & déconnexion directe */}
+      <div className="mt-4 border-t border-surface-border pt-3">
+        <div className={`flex items-center gap-2.5 px-1.5 ${collapsed ? "justify-center" : ""}`}>
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand">
             {(userEmail ?? "A").charAt(0).toUpperCase()}
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-200">Admin</p>
-            <p className="truncate text-xs text-slate-500">{userEmail}</p>
-          </div>
-        </button>
-
-        {menuOpen && (
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-slate-200">Direction Admin</p>
+              <p className="truncate text-[11px] text-slate-500">{userEmail}</p>
+            </div>
+          )}
           <button
+            type="button"
             onClick={onLogout}
-            className="mt-1 w-full rounded-xl px-3 py-2 text-left text-sm text-red-400 hover:bg-surface-raised"
+            title="Se déconnecter"
+            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
           >
-            Se déconnecter
+            <LogOut className="h-4 w-4" />
           </button>
-        )}
+        </div>
       </div>
     </aside>
-  );
-}
-
-function LogoIcon() {
-  return <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />;
-}
-
-function iconProps() {
-  return { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-}
-
-function OverviewIcon() {
-  return (
-    <svg {...iconProps()}>
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </svg>
-  );
-}
-function OrdersIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
-      <path d="M3 6h18" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </svg>
-  );
-}
-function AiAssistantIcon() {
-  return (
-    <div className="relative flex items-center justify-center">
-      <svg {...iconProps()} className="text-amber-400 animate-pulse">
-        <path d="M12 2l2.4 7.2h7.6l-6 4.8 2.4 7.2-6.4-4.8-6.4 4.8 2.4-7.2-6-4.8h7.6z" fill="#F59E0B" stroke="#D97706" />
-      </svg>
-      <span className="absolute -top-1 -right-1 flex h-2 w-2">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-      </span>
-    </div>
-  );
-}
-
-function DeliveriesIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M1 3h13v13H1z" />
-      <path d="M14 8h4l3 3v5h-7V8Z" />
-      <circle cx="5.5" cy="18.5" r="1.5" />
-      <circle cx="17.5" cy="18.5" r="1.5" />
-    </svg>
-  );
-}
-function TeamsIcon() {
-  return (
-    <svg {...iconProps()}>
-      <rect x="2" y="4" width="14" height="10" rx="1.5" />
-      <path d="M6 9h6M6 12h4" />
-      <path d="M20 8v8" />
-    </svg>
-  );
-}
-function UsersIcon() {
-  return (
-    <svg {...iconProps()}>
-      <circle cx="9" cy="8" r="3.2" />
-      <path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6" />
-      <path d="M17 4.5a3.2 3.2 0 0 1 0 6.3" />
-      <path d="M20 20c0-2.8-1.7-5-4-5.7" />
-    </svg>
-  );
-}
-function RemunerationIcon() {
-  return (
-    <svg {...iconProps()}>
-      <rect x="2" y="6" width="20" height="12" rx="2" />
-      <circle cx="12" cy="12" r="3" />
-      <path d="M6 6v0M18 18v0" />
-    </svg>
-  );
-}
-function PerformanceIcon() {
-  return (
-    <svg {...iconProps()}>
-      <path d="M3 3v18h18" />
-      <path d="m19 9-5 5-4-4-3 3" />
-    </svg>
-  );
-}
-function SettingsIcon() {
-  return (
-    <svg {...iconProps()}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
-    </svg>
   );
 }

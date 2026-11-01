@@ -1,31 +1,37 @@
 import { useState } from "react";
 import { addDoc, collection } from "firebase/firestore";
 import { getDb, AFRICA_COUNTRIES } from "@ecomcod/shared";
+import { Globe2, CheckCircle2, AlertTriangle } from "lucide-react";
+import CountryMapBackdrop, { getCountryMeta } from "./CountryMapBackdrop";
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface CreateTeamFormProps {
   workspaceId: string;
   onCreated: (teamId: string) => void;
-  /** Fourni uniquement quand le formulaire s'ouvre en popup depuis
-   * MarketSelector (pas lors de l'onboarding initial, où il n'y a rien à
-   * annuler puisqu'aucune équipe n'existe encore). */
   onCancel?: () => void;
 }
 
 const WEST_COUNTRIES = AFRICA_COUNTRIES.filter((c) => c.region === "ouest");
 const OTHER_COUNTRIES = AFRICA_COUNTRIES.filter((c) => c.region === "autre");
 
-/**
- * Onboarding : première équipe = premier pays/marché. Une équipe = un pays
- * — tout le reste (Sheets, closeuses, livreurs) se rattache à cette équipe
- * ensuite. Réutilisé aussi comme popup "Ajouter un marché" depuis
- * MarketSelector une fois qu'au moins une équipe existe déjà (onCancel
- * présent dans ce cas).
- */
 export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: CreateTeamFormProps) {
-  const [name, setName] = useState("");
   const [country, setCountry] = useState(WEST_COUNTRIES[0].code);
+  const [name, setName] = useState(`Équipe ${WEST_COUNTRIES[0].name}`);
+  const [remunCloseuse, setRemunCloseuse] = useState("500");
+  const [remunLivreur, setRemunLivreur] = useState("1500");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const meta = getCountryMeta(country);
+  const selectedCountryObj = AFRICA_COUNTRIES.find((c) => c.code === country);
+
+  const handleSelectCountry = (code: string) => {
+    setCountry(code);
+    const cObj = AFRICA_COUNTRIES.find((c) => c.code === code);
+    if (cObj && (!name.trim() || name.startsWith("Équipe "))) {
+      setName(`Équipe ${cObj.name}`);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +45,9 @@ export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: Cre
         name: name.trim(),
         sheetIds: [],
         defaultCountry: country,
+        currency: meta.currency,
+        remunerationCloseusePerOrder: Number(remunCloseuse) || 0,
+        remunerationLivreurPerOrder: Number(remunLivreur) || 0,
         maxClosseuses: 10,
         maxLivreurs: 10,
         reminderWindowStart: "07:00",
@@ -49,81 +58,151 @@ export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: Cre
       });
       onCreated(docRef.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Création impossible.");
+      const formatted = formatFirebaseError(err);
+      setError(`${formatted.title} : ${formatted.message}`);
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-md rounded-2xl border border-surface-border bg-surface-raised p-6">
-      <h2 className="mb-1 text-lg font-medium text-slate-100">
-        {onCancel ? "Ajouter un marché" : "Crée ta première équipe"}
-      </h2>
-      <p className="mb-6 text-sm text-slate-500">
-        Une équipe correspond à un pays/marché. Tu pourras en ajouter d'autres ensuite.
-      </p>
+    <div className="relative mx-auto max-w-lg overflow-hidden rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl">
+      <CountryMapBackdrop countryCode={country} className="opacity-70" />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="mb-1 block text-sm text-slate-400">Nom de l'équipe</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoFocus
-            placeholder="Ex : Équipe Sénégal"
-            className="w-full rounded-xl border border-surface-border bg-surface px-4 py-3 text-base text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
-          />
+      <div className="relative z-10">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/15 text-brand">
+              <Globe2 className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-slate-100">
+                {onCancel ? "Déployer un nouveau marché" : "Créer votre premier marché"}
+              </h2>
+              <p className="text-xs text-slate-500">
+                Chaque équipe dispose de sa devise, ses opérateurs et son routage pays.
+              </p>
+            </div>
+          </div>
+
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">
+            <CheckCircle2 className="h-3 w-3" />
+            Prêt
+          </span>
         </div>
 
-        <div>
-          <label className="mb-1 block text-sm text-slate-400">Pays / Marché</label>
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className="w-full rounded-xl border border-surface-border bg-surface px-4 py-3 text-base text-slate-100 outline-none focus:border-brand"
-          >
-            <optgroup label="Afrique de l'Ouest">
-              {WEST_COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.flag} {c.name}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Autres pays d'Afrique">
-              {OTHER_COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.flag} {c.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-          {/* Note : dans un <select> natif, seul du texte est affiché — les
-             drapeaux emoji ici peuvent apparaître en 2 lettres sur Windows,
-             comme dans le menu principal avant ce correctif. Sans impact
-             fonctionnel, juste cosmétique sur cette liste précise. */}
-        </div>
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <div className="flex gap-3">
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 rounded-xl border border-surface-border py-3 text-base font-medium text-slate-300"
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Country Selector + Geographic Summary */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-300">Pays / Territoire</label>
+            <select
+              value={country}
+              onChange={(e) => handleSelectCountry(e.target.value)}
+              className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm font-medium text-slate-100 outline-none focus:border-brand"
             >
-              Annuler
-            </button>
+              <optgroup label="Afrique de l'Ouest">
+                {WEST_COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Autres marchés d'Afrique">
+                {OTHER_COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface/80 px-2.5 py-1">
+                <img
+                  src={`https://flagcdn.com/20x15/${country.toLowerCase()}.png`}
+                  alt=""
+                  className="h-3 w-4 rounded-[2px] object-cover"
+                />
+                <strong className="text-slate-200">{selectedCountryObj?.name}</strong>
+              </span>
+              {meta.capital && (
+                <span className="rounded-lg border border-surface-border bg-surface/80 px-2.5 py-1">
+                  Hub : <strong className="text-slate-200">{meta.capital}</strong>
+                </span>
+              )}
+              <span className="rounded-lg border border-surface-border bg-surface/80 px-2.5 py-1 font-mono">
+                Indicatif : <strong className="text-slate-200">{meta.dialCode}</strong>
+              </span>
+              <span className="rounded-lg border border-brand/30 bg-brand/10 px-2.5 py-1 font-mono text-brand">
+                Devise : <strong>{meta.currency}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-300">Nom de l'équipe opérationnelle</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex : Équipe Togo"
+              className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+            />
+          </div>
+
+          {/* Default Commissions */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-400">
+                Prime Closeuse ({meta.currency})
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={remunCloseuse}
+                onChange={(e) => setRemunCloseuse(e.target.value)}
+                className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs font-semibold tabular-nums text-slate-100 outline-none focus:border-brand"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-400">
+                Prime Livreur ({meta.currency})
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={remunLivreur}
+                onChange={(e) => setRemunLivreur(e.target.value)}
+                className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs font-semibold tabular-nums text-slate-100 outline-none focus:border-brand"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+              <span>{error}</span>
+            </div>
           )}
-          <button
-            type="submit"
-            disabled={submitting || !name.trim()}
-            className="flex-1 rounded-xl bg-brand py-3 text-base font-medium text-white disabled:opacity-50"
-          >
-            {submitting ? "Création..." : "Créer l'équipe"}
-          </button>
-        </div>
-      </form>
+
+          <div className="flex gap-2.5 pt-2">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 rounded-xl border border-surface-border bg-surface py-2.5 text-xs font-semibold text-slate-300 transition hover:text-slate-100"
+              >
+                Annuler
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={submitting || !name.trim()}
+              className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-50"
+            >
+              {submitting ? "Initialisation du marché…" : "Activer cette équipe"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

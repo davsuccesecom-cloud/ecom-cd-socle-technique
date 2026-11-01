@@ -1,12 +1,6 @@
 import { COD_AFRIQUE_PLAYBOOK } from "../lib/codAfriquePlaybook";
 import { buildChartPrompt } from "../lib/aiChart";
-
-// Service d'IA Agnostique et Modulaire pour Ecom COD Admin.
-//
-// Les appels passent par la Cloud Function `aiChatProxy` (serveur) : les cles
-// fournisseurs restent cote serveur et ne sont jamais livrees au navigateur.
-// Le proxy enchaine les fournisseurs gratuits (Groq, Gemini, NVIDIA, OpenRouter,
-// Cloudflare, Pollinations) et bascule automatiquement en cas de quota epuise.
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 export interface BusinessMetricsContext {
   teamName: string;
@@ -39,26 +33,13 @@ export interface AiChatMessage {
   };
 }
 
-/**
- * Identifiants de fournisseurs. "auto" laisse le proxy choisir et basculer
- * entre les moteurs disponibles (recommande : le quota d'un seul moteur ne
- * peut plus casser l'assistant).
- */
-export type AiProviderType =
-  | "auto"
-  | "groq"
-  | "gemini"
-  | "nvidia"
-  | "openrouter"
-  | "cloudflare"
-  | "pollinations";
+export type AiProviderType = "auto" | "groq";
 
 export interface AiConfig {
   provider: AiProviderType;
   model?: string;
 }
 
-/** Endpoint de la passerelle IA (Firebase Functions, projet meta-capi-app). */
 const AI_PROXY_URL = "https://us-central1-meta-capi-app.cloudfunctions.net/aiChatProxy";
 
 class AiServiceAdapter {
@@ -66,7 +47,7 @@ class AiServiceAdapter {
 
   constructor() {
     this.config = {
-      provider: "auto",
+      provider: "groq",
     };
   }
 
@@ -82,121 +63,114 @@ class AiServiceAdapter {
     this.config.model = model;
   }
 
-  /**
-   * Construit un prompt systeme complet et enrichi : l'IA est une Secretaire de Direction & Analyste E-commerce COD.
-   * Injecte le Playbook COD Afrique, le formatage strict des dates (UTC Lomé/Dakar/Abidjan),
-   * et les instructions pour générer des courbes d'analyse interactives.
-   */
   public buildSystemPrompt(context: BusinessMetricsContext): string {
     const today = new Date().toISOString().slice(0, 10);
-    return `Tu es l'Assistante Secrétaire de Direction et Cheffe Analyste Opérationnelle E-commerce Cash On Delivery (COD).
-Ton rôle est d'analyser les performances du business, d'identifier les goulots d'étranglement (livreurs, closeuses, taux de rejet, villes rentables), et de proposer des plans d'action concrets pour maximiser les profits et la rentabilité.
+    return `Tu es l'Analyste Opérationnelle & Secrétaire de Direction d'Ecom COD.
+Ton rôle est d'analyser les performances du business, d'identifier les goulots d'étranglement (livreurs, closeuses, taux de rejet, villes rentables), et de proposer des plans d'action concrets pour maximiser la rentabilité nette.
+Ne mentionne jamais le nom technique de ton modèle ou de ton fournisseur : tu travailles exclusivement au nom de la plateforme Ecom COD.
 
 ${COD_AFRIQUE_PLAYBOOK}
 
 ${buildChartPrompt(today)}
 
-RÈGLES STRICTES DE SÉCURITÉ ET DE PERTINENCE :
-1. Tu ne traites QUE des sujets liés au business e-commerce COD, à la gestion d'équipe (closeuses, livreurs), à la rentabilité et aux opérations logistiques.
-2. Si l'utilisateur te pose une question hors-sujet, réponds courtoisement que ta fonction exclusive est la direction des opérations et l'optimisation financière de cette entreprise COD.
-3. Sois directe, percutante, avec des chiffres clairs, des pourcentages et des recommandations concrètes.
-4. Lorsque l'analyse comporte une évolution ou une comparaison de statuts (confirmés, livrés, rejetés), ajoute systématiquement un bloc de graphique interactif (\`\`\`chart ... \`\`\`) pour visualiser la tendance.
+RÈGLES D'ANALYSE :
+1. Tu ne traites que des sujets liés au business e-commerce COD, à la gestion d'équipe (closeuses, livreurs), à la rentabilité et aux opérations logistiques.
+2. Sois directe, structurée et chiffrée (tableaux synthétiques, pourcentages, actions prioritaires).
+3. Dès qu'une analyse porte sur une évolution temporelle ou une comparaison de volumes, insère un bloc graphique interactif (\`\`\`chart ... \`\`\`).
 
-DONNÉES BUSINESS DU COMPTE ET DE L'ÉQUIPE :
+DONNÉES OPÉRATIONNELLES DE L'ÉQUIPE :
 - Équipe : ${context.teamName} (Pays : ${context.country})
 - Période analysée : ${context.periodLabel}
-- Devise locale : ${context.currency}
-- Total Commandes entrantes : ${context.totalOrders}
-- Commandes Confirmées par closeuses : ${context.confirmedOrders} (Taux: ${context.confirmationRate}%)
-- Commandes Livrées et encaissées : ${context.deliveredOrders} (Taux de livraison réelle: ${context.deliveryRate}%)
+- Devise : ${context.currency}
+- Total Commandes reçues : ${context.totalOrders}
+- Commandes Confirmées : ${context.confirmedOrders} (Taux confirmation : ${context.confirmationRate}%)
+- Commandes Livrées & encaissées : ${context.deliveredOrders} (Taux livraison réelle : ${context.deliveryRate}%)
 - Injoignables : ${context.injoignableOrders}
-- Rejetées / Refusées : ${context.rejectedOrders}
+- Rejetées : ${context.rejectedOrders}
 - Chiffre d'Affaires Encaissé : ${context.revenue.toLocaleString()} ${context.currency}
 
-ÉVOLUTION DES TENDANCES JOURNALIÈRES :
-${context.dailyTrends?.length ? context.dailyTrends.map(t => `- ${t.date} : ${t.confirmed} confirmées, ${t.delivered} livrées, ${t.rejected} rejetées/injoignables, CA: ${t.revenue.toLocaleString()} ${context.currency}`).join("\n") : "Pas d'historique journalier suffisant sur cette période."}
+TENDANCES JOURNALIÈRES (30 derniers jours max) :
+${
+  context.dailyTrends?.length
+    ? context.dailyTrends
+        .slice(-21)
+        .map(
+          (t) =>
+            `- ${t.date} : ${t.confirmed} confirmées, ${t.delivered} livrées, ${t.rejected} échecs, CA: ${t.revenue.toLocaleString()} ${context.currency}`
+        )
+        .join("\n")
+    : "Pas d'historique journalier sur cette période."
+}
 
-TOP CLOSEUSES :
-${context.topCloseuses.map((c) => `- ${c.name} : ${c.confirmed}/${c.total} confirmées (${c.rate}%)`).join("\n") || "Aucune closeuse active sur la période."}
+PERFORMANCE CLOSEUSES :
+${
+  context.topCloseuses
+    .slice(0, 10)
+    .map((c) => `- ${c.name} : ${c.confirmed}/${c.total} confirmées (${c.rate}%)`)
+    .join("\n") || "Aucune closeuse active."
+}
 
-TOP LIVREURS :
-${context.topLivreurs.map((l) => `- ${l.name} : ${l.delivered}/${l.total} livraisons réussies (${l.rate}%)`).join("\n") || "Aucun livreur actif sur la période."}
+PERFORMANCE LIVREURS :
+${
+  context.topLivreurs
+    .slice(0, 10)
+    .map((l) => `- ${l.name} : ${l.delivered}/${l.total} livrées (${l.rate}%)`)
+    .join("\n") || "Aucun livreur actif."
+}
 
-PRODUITS :
-${context.topProducts.map((p) => `- ${p.name} : ${p.count} vendus (${p.revenue.toLocaleString()} ${context.currency})`).join("\n") || "Aucun produit vendu sur la période."}
+TOP PRODUITS :
+${
+  context.topProducts
+    .slice(0, 8)
+    .map((p) => `- ${p.name} : ${p.count} cmd (${p.revenue.toLocaleString()} ${context.currency})`)
+    .join("\n") || "Aucun produit enregistré."
+}
 `;
   }
 
-  /**
-   * Envoie une conversation deja constituee au proxy serveur, sans injecting
-   * de prompt systeme. Utilise par l'assistant admin qui construit son propre
-   * prompt a partir des metriques live.
-   */
   public async sendRaw(messages: { role: string; content: string }[]): Promise<string> {
-    const res = await fetch(AI_PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: this.config.provider,
-        model: this.config.model,
-        messages,
-        temperature: 0.6,
-        maxTokens: 4000,
-      }),
-    });
+    try {
+      const res = await fetch(AI_PROXY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: "groq",
+          messages,
+          temperature: 0.5,
+          maxTokens: 1800,
+        }),
+      });
 
-    const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
 
-    if (!res.ok) {
-      throw new Error(data.error || `Erreur ${res.status} du proxy IA.`);
+      if (!res.ok) {
+        const formatted = formatFirebaseError(new Error(data.error || `HTTP ${res.status}`));
+        throw new Error(formatted.message);
+      }
+
+      if (!data.text) {
+        throw new Error("L'analyse n'a pas pu être générée. Veuillez relancer votre demande.");
+      }
+
+      return data.text;
+    } catch (err) {
+      const formatted = formatFirebaseError(err);
+      throw new Error(formatted.message);
     }
-
-    if (!data.text) {
-      throw new Error("Le proxy IA a renvoyé une réponse vide.");
-    }
-
-    return data.text;
   }
 
-  /**
-   * Envoie le message au proxy serveur, qui redistribue vers les fournisseurs.
-   */
   public async sendMessage(
     userPrompt: string,
     history: { role: "user" | "assistant"; content: string }[],
     context: BusinessMetricsContext
   ): Promise<string> {
     const systemPrompt = this.buildSystemPrompt(context);
-
     const messages = [
       { role: "system", content: systemPrompt },
-      ...history.slice(-10),
+      ...history.slice(-6),
       { role: "user", content: userPrompt },
     ];
-
-    const res = await fetch(AI_PROXY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: this.config.provider,
-        model: this.config.model,
-        messages,
-        temperature: 0.6,
-        maxTokens: 4000,
-      }),
-    });
-
-    const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
-
-    if (!res.ok) {
-      throw new Error(data.error || `Erreur ${res.status} du proxy IA.`);
-    }
-
-    if (!data.text) {
-      throw new Error("Le proxy IA a renvoyé une réponse vide.");
-    }
-
-    return data.text;
+    return this.sendRaw(messages);
   }
 }
 

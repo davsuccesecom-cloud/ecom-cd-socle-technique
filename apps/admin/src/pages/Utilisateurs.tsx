@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import type { Team, AppUser } from "@ecomcod/shared";
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface UtilisateursProps {
   workspaceId: string;
@@ -62,7 +63,8 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
       const res = await callRegeneratePassword({ accessLinkId: linkFor(user.id)?.accessLinkId });
       setRevealedPassword({ label: user.name, password: (res.data as { password: string }).password });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Régénération impossible.");
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
     } finally {
       setBusyUserId(null);
     }
@@ -79,7 +81,8 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
         prev.map((l) => (l.userId === user.id ? { ...l, disabledAt: link.disabledAt ? null : Date.now() } : l))
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Action impossible.");
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
     } finally {
       setBusyUserId(null);
     }
@@ -93,7 +96,8 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
       await callDeleteEmployee({ userId: confirmDelete.id });
       setConfirmDelete(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Suppression impossible.");
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
     } finally {
       setBusyUserId(null);
     }
@@ -395,7 +399,8 @@ function CreateAccessModal({
       const { password } = res.data as { password: string };
       onCreated(name.trim(), password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Création impossible.");
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
       setSubmitting(false);
     }
   };

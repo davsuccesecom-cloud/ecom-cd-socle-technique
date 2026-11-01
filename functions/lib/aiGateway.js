@@ -1,132 +1,133 @@
 "use strict";
 /**
- * Passerelle IA multi-fournisseurs avec rotation automatique.
+ * Passerelle IA — fournisseur unique : Groq.
  *
- * Pourquoi ce module existe :
- * les paliers gratuits de chaque fournisseur sont plafonnes (Groq ~1 000 req/jour,
- * OpenRouter 50 req/jour sans achat de credits, Cloudflare 10 000 neurones/jour...).
- * Un seul fournisseur = l'assistant tombe au premier pic d'usage. Ici on enchaine
- * les fournisseurs : en cas de 429 (quota), 401 (cle invalide) ou 5xx, on passe
- * au suivant jusqu'a obtenir une reponse.
+ * Contrainte réelle du palier gratuit Groq (mesurée via les en-têtes
+ * x-ratelimit-*) : 1 000 requêtes/min mais seulement 8 000 tokens/min PAR MODÈLE.
+ * Groq compte dans ce quota les tokens du prompt + le max_tokens demandé.
  *
- * Les modeles listes ci-dessous sont ceux documentes comme gratuits ou credites
- * sur chaque portail. Les quotas cites sont releves sur la doc officielle (voir
- * docs/APIS-GRATUITES.md pour les liens et les dates).
+ * Stratégie :
+ *  1. Budget de tokens : on estime la taille du prompt, on tronque l'historique
+ *     le plus ancien si besoin et on ajuste max_tokens pour rester sous 8 000.
+ *  2. Rotation entre les modèles Groq (chacun a son propre quota de 8 000 TPM).
+ *  3. Blocage PAR MODÈLE (et non plus pour tout Groq) avec la durée exacte
+ *     renvoyée par Groq (retry-after / x-ratelimit-reset-tokens).
+ *  4. Si tous les modèles sont saturés, on attend la libération la plus proche
+ *     (jusqu'à ~25 s) au lieu d'échouer immédiatement.
  *
- * Aucun secret n'est code en dur : les cles viennent de process.env, injectees
- * par firebase (functions/.env en local, variables d'environnement en prod).
+ * La clé vient de process.env.GROQ_API_KEY (functions/.env, non versionné).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiGatewayError = exports.AI_PROVIDERS = void 0;
 exports.getProvider = getProvider;
 exports.isProviderConfigured = isProviderConfigured;
 exports.configuredProviderIds = configuredProviderIds;
-exports.rotationOrder = rotationOrder;
 exports.chatCompletion = chatCompletion;
-/* -------------------------------------------------------------------------- */
-/*  Catalogue des fournisseurs                                                 */
-/* -------------------------------------------------------------------------- */
 exports.AI_PROVIDERS = [
     {
         id: "groq",
         label: "Groq",
         baseUrl: "https://api.groq.com/openai/v1/chat/completions",
         defaultModel: "openai/gpt-oss-120b",
+        // Modèles actifs sur la clé (vérifiés via GET /openai/v1/models).
         models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"],
         envKeys: ["GROQ_API_KEY"],
-        freeTier: "30 req/min, 1 000 req/jour, 200 000 tokens/jour",
+        freeTier: "8 000 tokens/min par modèle, 1 000 req/min",
         docsUrl: "https://console.groq.com/docs/rate-limits",
     },
-    {
-        id: "gemini",
-        label: "Google Gemini",
-        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-        defaultModel: "gemini-3.8-flash",
-        models: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"],
-        envKeys: ["GEMINI_API_KEY"],
-        freeTier: "Entree et sortie gratuites (palier free), quotas par modele",
-        docsUrl: "https://ai.google.dev/gemini-api/docs/rate-limits",
-    },
-    {
-        id: "nvidia",
-        label: "NVIDIA NIM",
-        baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
-        defaultModel: "nvidia/nemotron-3-super-120b-a12b",
-        models: [
-            "nvidia/nemotron-3-super-120b-a12b",
-            "nvidia/nemotron-3.5-lightning-30b-a3b",
-            "openai/gpt-oss-120b",
-            "z-ai/glm-5.3-flash",
-            "meta/llama-3.3-70b-instruct",
-        ],
-        envKeys: ["NVIDIA_API_KEY"],
-        freeTier: "Credits de developpeur offerts sur build.nvidia.com",
-        docsUrl: "https://docs.api.nvidia.com/nim/reference/llm-apis",
-    },
-    {
-        id: "openrouter",
-        label: "OpenRouter",
-        baseUrl: "https://openrouter.ai/api/v1/chat/completions",
-        defaultModel: "openrouter/free",
-        models: [
-            "openrouter/free",
-            "nvidia/nemotron-3-super-120b-a12b:free",
-            "google/gemma-4-31b-it:free",
-            "minimax/minimax-m3.1-flash:free",
-        ],
-        envKeys: ["OPENROUTER_API_KEY"],
-        freeTier: "20 req/min ; 50 req/jour sans credit, 1 000 avec 10 $ de credits",
-        docsUrl: "https://openrouter.ai/docs/api-reference/limits",
-    },
-    {
-        id: "cloudflare",
-        label: "Cloudflare Workers AI",
-        baseUrl: "https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions",
-        defaultModel: "@cf/openai/gpt-oss-120b",
-        models: [
-            "@cf/openai/gpt-oss-120b",
-            "@cf/qwen/qwen3.8-27b",
-            "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-            "@cf/ibm-granite-4.0-h-micro",
-            "@cf/google/gemma-4-26b-a4b-it",
-        ],
-        envKeys: ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
-        freeTier: "10 000 neurones/jour, 300 req/min en generation de texte",
-        docsUrl: "https://developers.cloudflare.com/workers-ai/platform/pricing/",
-    },
-    {
-        id: "pollinations",
-        label: "Pollinations",
-        baseUrl: "https://gen.pollinations.ai/v1/chat/completions",
-        defaultModel: "openai/gpt-oss-20b",
-        models: ["openai/gpt-oss-20b", "meta/llama-3.3-70b-instruct", "google/gemini-3.8-flash"],
-        envKeys: ["POLLINATIONS_API_KEY"],
-        freeTier: "Pollen gratuit via les quetes de la communaute",
-        docsUrl: "https://gen.pollinations.ai/docs/llm.txt",
-    },
 ];
-const MAX_TOKENS_CEILING = 8192;
-const MAX_MESSAGES = 30;
-/** Duree de blocage d'un fournisseur apres un 429 (ms). */
-const RATE_LIMIT_COOLDOWN_MS = 60_000;
+const GROQ = exports.AI_PROVIDERS[0];
+/** Quota tokens/minute d'un modèle Groq gratuit (marge de sécurité incluse). */
+const TPM_BUDGET = 7600;
+/** Réponse minimale qu'on accepte de demander. */
+const MIN_COMPLETION = 700;
+/** Réponse maximale (un bilan complet tient largement). */
+const MAX_COMPLETION = 3000;
+/** Attente maximale quand tous les modèles sont saturés. */
+const MAX_WAIT_MS = 25_000;
+const REQUEST_TIMEOUT_MS = 45_000;
+/** model -> timestamp de fin de blocage */
 const cooldowns = new Map();
-function isCoolingDown(providerId) {
-    const until = cooldowns.get(providerId);
-    if (!until)
-        return false;
-    if (Date.now() >= until) {
-        cooldowns.delete(providerId);
-        return false;
+function cooldownLeft(model) {
+    const until = cooldowns.get(model) ?? 0;
+    const left = until - Date.now();
+    if (left <= 0) {
+        cooldowns.delete(model);
+        return 0;
     }
-    return true;
+    return left;
 }
-function coolDown(providerId) {
-    cooldowns.set(providerId, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+/** Parse "7.66s", "2m59.56s", "120ms" ou un nombre de secondes. */
+function parseDuration(value) {
+    if (!value)
+        return null;
+    const v = value.trim();
+    if (/^\d+(\.\d+)?$/.test(v))
+        return Math.ceil(parseFloat(v) * 1000);
+    let ms = 0;
+    const re = /(\d+(?:\.\d+)?)(ms|s|m|h)/g;
+    let m;
+    let matched = false;
+    while ((m = re.exec(v))) {
+        matched = true;
+        const n = parseFloat(m[1]);
+        ms += m[2] === "ms" ? n : m[2] === "s" ? n * 1000 : m[2] === "m" ? n * 60_000 : n * 3_600_000;
+    }
+    return matched ? Math.ceil(ms) : null;
+}
+/** Estimation prudente : ~3.2 caractères par token en français. */
+function estimateTokens(messages) {
+    return messages.reduce((sum, m) => sum + Math.ceil((m.content?.length ?? 0) / 3.2) + 8, 0);
+}
+/**
+ * Garde le prompt système + le dernier message utilisateur, puis ajoute
+ * l'historique du plus récent au plus ancien tant que le budget le permet.
+ * Un message trop long (ex. ancien bilan) est raccourci plutôt que gardé entier.
+ */
+function fitToBudget(messages, completionReserve) {
+    const budget = TPM_BUDGET - completionReserve;
+    const system = messages.filter((m) => m.role === "system");
+    const rest = messages.filter((m) => m.role !== "system");
+    const last = rest[rest.length - 1];
+    const history = rest.slice(0, -1);
+    const kept = [];
+    let used = estimateTokens(system) + (last ? estimateTokens([last]) : 0);
+    for (let i = history.length - 1; i >= 0; i--) {
+        let msg = history[i];
+        let cost = estimateTokens([msg]);
+        if (cost > 900) {
+            msg = { ...msg, content: msg.content.slice(0, 2600) + "\n[…réponse précédente abrégée…]" };
+            cost = estimateTokens([msg]);
+        }
+        if (used + cost > budget)
+            break;
+        kept.unshift(msg);
+        used += cost;
+    }
+    // Si même système + dernière question dépassent, on raccourcit le système.
+    let sys = system;
+    if (used > budget && system.length) {
+        const overflowChars = Math.ceil((used - budget) * 3.2) + 200;
+        sys = system.map((s, idx) => idx === 0 ? { ...s, content: s.content.slice(0, Math.max(2000, s.content.length - overflowChars)) } : s);
+    }
+    return [...sys, ...kept, ...(last ? [last] : [])];
+}
+function extractText(payload) {
+    const data = payload;
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content === "string")
+        return content.trim();
+    if (Array.isArray(content)) {
+        return content
+            .map((p) => (typeof p === "string" ? p : p?.text ?? ""))
+            .join("")
+            .trim();
+    }
+    return "";
 }
 function getProvider(id) {
     return exports.AI_PROVIDERS.find((p) => p.id === id);
 }
-/** Un fournisseur est utilisable si toutes ses variables d'environnement sont remplies. */
 function isProviderConfigured(id, env = process.env) {
     const provider = getProvider(id);
     if (!provider)
@@ -136,168 +137,111 @@ function isProviderConfigured(id, env = process.env) {
 function configuredProviderIds(env = process.env) {
     return exports.AI_PROVIDERS.filter((p) => isProviderConfigured(p.id, env)).map((p) => p.id);
 }
-function buildUrl(provider, env) {
-    return provider.baseUrl.replace(/\{(\w+)\}/g, (_m, key) => env[key] ?? "");
-}
-/**
- * Ordre d'essai en mode "auto" : on demarre sur un fournisseur different a chaque
- * appel (rotation sur le quart d'heure) pour repartir la charge sur tous les
- * quotas gratuits au lieu de vider celui du premier de la liste.
- */
-function rotationOrder(providerIds, preferred, now = Date.now()) {
-    if (providerIds.length === 0)
-        return [];
-    if (preferred && providerIds.includes(preferred)) {
-        return [preferred, ...providerIds.filter((id) => id !== preferred)];
-    }
-    const bucket = Math.floor(now / (15 * 60 * 1000));
-    const offset = bucket % providerIds.length;
-    return [...providerIds.slice(offset), ...providerIds.slice(0, offset)];
-}
-/** Seuls les modeles gpt-oss exposent reasoning_effort de facon fiable. */
-function supportsReasoningEffort(model) {
-    return model.includes("gpt-oss");
-}
-function extractText(payload) {
-    const data = payload;
-    const choice = data?.choices?.[0];
-    const content = choice?.message?.content;
-    if (typeof content === "string")
-        return content.trim();
-    if (Array.isArray(content)) {
-        // Certains fournisseurs (OpenAI-compat) renvoient un tableau de fragments.
-        const joined = content
-            .map((part) => (typeof part === "string" ? part : part?.text ?? ""))
-            .join("");
-        if (joined.trim())
-            return joined.trim();
-    }
-    if (typeof choice?.text === "string")
-        return choice.text.trim();
-    const output = data?.output?.[0]?.text;
-    if (typeof output === "string")
-        return output.trim();
-    const cf = data?.result?.response;
-    if (typeof cf === "string")
-        return cf.trim();
-    return "";
-}
-function describeError(status, body) {
-    const trimmed = body.replace(/\s+/g, " ").slice(0, 300);
-    return `HTTP ${status}${trimmed ? ` : ${trimmed}` : ""}`;
-}
+/** Erreur destinée à l'utilisateur : message neutre, sans nom de fournisseur. */
 class AiGatewayError extends Error {
-    constructor(message, attempts) {
+    constructor(message, attempts, retryAfterMs = null) {
         super(message);
         this.attempts = attempts;
+        this.retryAfterMs = retryAfterMs;
         this.name = "AiGatewayError";
     }
 }
 exports.AiGatewayError = AiGatewayError;
-/**
- * Envoie un chat completion, en essayant les fournisseurs un par un.
- *
- * Regles de bascule :
- *  - 401/403 : cle invalide ou non configuree -> on saute ce fournisseur.
- *  - 404/410 : modele indisponible pour cette cle -> on essaie le modele suivant
- *    du meme fournisseur, puis le fournisseur suivant.
- *  - 429 : quota epuise -> on memorise un blocage court et on passe au suivant.
- *  - 5xx / erreur reseau -> on passe au suivant.
- */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function chatCompletion(options) {
     const env = options.env ?? process.env;
     const doFetch = options.fetchImpl ?? fetch;
-    const messages = (options.messages ?? []).slice(-MAX_MESSAGES);
-    if (messages.length === 0) {
-        throw new AiGatewayError("Aucun message a envoyer.", []);
+    const apiKey = env.GROQ_API_KEY?.trim();
+    if (!apiKey) {
+        throw new AiGatewayError("Le service d'analyse n'est pas encore configuré.", []);
     }
-    const configured = configuredProviderIds(env);
-    if (configured.length === 0) {
-        throw new AiGatewayError("Aucune cle IA configuree. Renseigne au moins une variable d'environnement (GROQ_API_KEY, GEMINI_API_KEY, NVIDIA_API_KEY, OPENROUTER_API_KEY, CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID, POLLINATIONS_API_KEY).", []);
+    const raw = (options.messages ?? []).filter((m) => m && typeof m.content === "string" && m.content.trim());
+    if (raw.length === 0)
+        throw new AiGatewayError("Aucun message à envoyer.", []);
+    const requested = Math.min(Math.max(options.maxTokens ?? 2000, MIN_COMPLETION), MAX_COMPLETION);
+    const messages = fitToBudget(raw, Math.min(requested, 1800));
+    const promptTokens = estimateTokens(messages);
+    const maxTokens = Math.max(MIN_COMPLETION, Math.min(requested, TPM_BUDGET - promptTokens));
+    const temperature = options.temperature ?? 0.5;
+    const order = [...GROQ.models];
+    if (options.model && order.includes(options.model)) {
+        order.splice(order.indexOf(options.model), 1);
+        order.unshift(options.model);
     }
-    const order = rotationOrder(configured, options.provider ?? null);
     const attempts = [];
-    const temperature = options.maxTokens !== undefined ? undefined : options.temperature ?? 0.6;
-    const maxTokens = Math.min(options.maxTokens ?? 1500, MAX_TOKENS_CEILING);
-    for (const providerId of order) {
-        const provider = getProvider(providerId);
-        if (!provider)
-            continue;
-        if (isCoolingDown(providerId)) {
-            attempts.push({ provider: providerId, model: provider.defaultModel, status: null, error: "quota-epuise (attente)" });
+    const deadline = Date.now() + MAX_WAIT_MS + REQUEST_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+        const available = order.filter((m) => cooldownLeft(m) === 0);
+        if (available.length === 0) {
+            const soonest = Math.min(...order.map(cooldownLeft));
+            if (soonest > MAX_WAIT_MS || Date.now() + soonest > deadline) {
+                throw new AiGatewayError(`L'assistant est très sollicité. Réessaie dans ${Math.ceil(soonest / 1000)} s.`, attempts, soonest);
+            }
+            await sleep(soonest + 250);
             continue;
         }
-        const apiKey = env[provider.envKeys[0]];
-        if (!apiKey)
-            continue;
-        // Modeles a essayer : celui demande s'il est connu, sinon la liste du fournisseur.
-        const modelChain = provider.models.filter((m) => m !== options.model);
-        if (options.model && provider.models.includes(options.model)) {
-            modelChain.unshift(options.model);
-        }
-        for (const model of modelChain) {
-            const url = buildUrl(provider, env);
+        let progressed = false;
+        for (const model of available) {
             const body = {
                 model,
                 messages,
                 max_tokens: maxTokens,
+                temperature,
                 stream: false,
             };
-            if (temperature !== undefined)
-                body.temperature = temperature;
-            if (supportsReasoningEffort(model))
+            if (model.includes("gpt-oss"))
                 body.reasoning_effort = "low";
-            const headers = {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${apiKey}`,
-            };
-            if (provider.extraHeaders) {
-                Object.assign(headers, provider.extraHeaders(env));
-            }
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
             try {
-                const response = await doFetch(url, {
+                const response = await doFetch(GROQ.baseUrl, {
                     method: "POST",
-                    headers,
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
                     body: JSON.stringify(body),
+                    signal: controller.signal,
                 });
-                if (!response.ok) {
-                    const errorText = await response.text().catch(() => "");
-                    attempts.push({ provider: providerId, model, status: response.status, error: describeError(response.status, errorText) });
-                    if (response.status === 401 || response.status === 403) {
-                        // Cle refusee : inutile d'insister sur ce fournisseur ni sur ses autres modeles.
-                        break;
-                    }
-                    if (response.status === 429) {
-                        coolDown(providerId);
-                        break;
-                    }
-                    if (response.status === 404 || response.status === 410) {
-                        // Modele indisponible : on tente le modele suivant du meme fournisseur.
-                        continue;
-                    }
-                    break; // 5xx ou autre : on change de fournisseur.
-                }
-                const payload = await response.json();
-                const text = extractText(payload);
-                if (!text) {
-                    attempts.push({ provider: providerId, model, status: response.status, error: "reponse vide" });
+                if (response.ok) {
+                    const text = extractText(await response.json());
+                    if (text)
+                        return { text, provider: "groq", model, attempts };
+                    attempts.push({ provider: "groq", model, status: 200, error: "réponse vide" });
                     continue;
                 }
-                return { text, provider: providerId, model, attempts };
+                const errText = (await response.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 300);
+                attempts.push({ provider: "groq", model, status: response.status, error: errText });
+                if (response.status === 429 || response.status === 413 || response.status === 503) {
+                    const wait = parseDuration(response.headers.get("retry-after")) ??
+                        parseDuration(response.headers.get("x-ratelimit-reset-tokens")) ??
+                        20_000;
+                    cooldowns.set(model, Date.now() + Math.min(Math.max(wait, 1000), 120_000));
+                    progressed = true;
+                    continue;
+                }
+                if (response.status === 401 || response.status === 403) {
+                    throw new AiGatewayError("Le service d'analyse est momentanément indisponible (accès refusé).", attempts);
+                }
+                // 400/404/5xx : on essaie le modèle suivant.
+                cooldowns.set(model, Date.now() + 15_000);
+                progressed = true;
             }
             catch (err) {
+                if (err instanceof AiGatewayError)
+                    throw err;
                 attempts.push({
-                    provider: providerId,
+                    provider: "groq",
                     model,
                     status: null,
-                    error: err instanceof Error ? err.message : "erreur reseau",
+                    error: err instanceof Error ? err.message : "erreur réseau",
                 });
-                break;
+                cooldowns.set(model, Date.now() + 5_000);
+                progressed = true;
+            }
+            finally {
+                clearTimeout(timer);
             }
         }
+        if (!progressed)
+            await sleep(500);
     }
-    const summary = attempts
-        .map((a) => `${a.provider}/${a.model} -> ${a.error ?? a.status}`)
-        .join(" | ");
-    throw new AiGatewayError(`Aucun fournisseur IA n'a pu repondre. ${summary}`, attempts);
+    throw new AiGatewayError("L'assistant n'a pas pu répondre à temps. Réessaie dans un instant.", attempts);
 }

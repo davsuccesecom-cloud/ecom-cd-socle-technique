@@ -2,6 +2,24 @@ import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { getDb } from "@ecomcod/shared";
 import type { AppUser, CloseuseStatus, LivreurStatus, Order, Team } from "@ecomcod/shared";
+import {
+  Search,
+  Printer,
+  Box,
+  Phone,
+  MapPin,
+  Store,
+  UserCheck,
+  Truck,
+  AlertTriangle,
+  X,
+  Edit3,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
+} from "lucide-react";
+import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
+import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface CommandesProps {
   workspaceId: string;
@@ -11,7 +29,7 @@ interface CommandesProps {
   livreurs: AppUser[];
 }
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 const CLOSEUSE_LABELS: Record<CloseuseStatus, string> = {
   nouveau: "Nouveau",
@@ -24,13 +42,13 @@ const CLOSEUSE_LABELS: Record<CloseuseStatus, string> = {
 };
 
 const CLOSEUSE_COLORS: Record<CloseuseStatus, string> = {
-  nouveau: "bg-slate-500/15 text-slate-300",
-  programme: "bg-accent-purple/15 text-accent-purple",
-  en_cours: "bg-accent-blue/15 text-accent-blue",
-  livre: "bg-accent-green/15 text-accent-green",
-  rejete: "bg-accent-orange/15 text-accent-orange",
-  injoignable: "bg-accent-red/15 text-accent-red",
-  indisponible: "bg-slate-500/15 text-slate-400",
+  nouveau: "bg-slate-500/15 text-slate-300 border border-slate-500/25",
+  programme: "bg-purple-500/15 text-purple-300 border border-purple-500/25",
+  en_cours: "bg-sky-500/15 text-sky-300 border border-sky-500/25",
+  livre: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/25",
+  rejete: "bg-amber-500/15 text-amber-300 border border-amber-500/25",
+  injoignable: "bg-rose-500/15 text-rose-300 border border-rose-500/25",
+  indisponible: "bg-slate-500/15 text-slate-400 border border-slate-500/25",
 };
 
 const LIVREUR_LABELS: Record<LivreurStatus, string> = {
@@ -41,7 +59,12 @@ const LIVREUR_LABELS: Record<LivreurStatus, string> = {
 };
 
 function formatDate(ts: number) {
-  return new Date(ts).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function Commandes({ workspaceId, team, orders, closeuses, livreurs }: CommandesProps) {
@@ -50,6 +73,18 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
   const [closeuseFilter, setCloseuseFilter] = useState<string>("toutes");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Order | null>(null);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+
+  const currency = team?.currency || team?.metaCapiConfig?.currency || "FCFA";
+
+  const statusCounts = useMemo(() => {
+    const map: Record<string, number> = { tous: orders.length };
+    for (const key of Object.keys(CLOSEUSE_LABELS)) map[key] = 0;
+    for (const o of orders) {
+      map[o.statutCloseuse] = (map[o.statutCloseuse] || 0) + 1;
+    }
+    return map;
+  }, [orders]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -59,7 +94,10 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
       .filter((o) =>
         term === ""
           ? true
-          : o.clientName.toLowerCase().includes(term) || o.clientPhoneFormatted.toLowerCase().includes(term)
+          : o.clientName.toLowerCase().includes(term) ||
+            o.clientPhoneFormatted.toLowerCase().includes(term) ||
+            (o.product || "").toLowerCase().includes(term) ||
+            String(o.shopifyData?.orderNumber || "").includes(term)
       )
       .sort((a, b) => b.timestamps.received - a.timestamps.received);
   }, [orders, search, statusFilter, closeuseFilter]);
@@ -76,112 +114,228 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
   };
 
   if (!team) {
-    return <p className="text-sm text-slate-500">Sélectionne d'abord un marché en haut de page.</p>;
+    return (
+      <div className="rounded-2xl border border-surface-border bg-surface-raised p-8 text-center">
+        <p className="text-sm text-slate-400">Sélectionnez d'abord un marché en haut de page.</p>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+    <div className="space-y-4">
+      {/* Status Tabs Bar (Shopify-style quick filters) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto rounded-xl border border-surface-border bg-surface-raised p-1.5">
+        <button
+          type="button"
+          onClick={() => {
+            setStatusFilter("tous");
             setPage(1);
           }}
-          placeholder="Rechercher (nom, téléphone)…"
-          className="min-w-[220px] flex-1 rounded-xl border border-surface-border bg-surface-raised px-4 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
-        />
-
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value as CloseuseStatus | "tous");
-            setPage(1);
-          }}
-          className="rounded-xl border border-surface-border bg-surface-raised px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand"
+          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+            statusFilter === "tous"
+              ? "bg-brand text-white shadow-sm"
+              : "text-slate-400 hover:bg-surface hover:text-slate-200"
+          }`}
         >
-          <option value="tous">Tous les statuts</option>
-          {(Object.keys(CLOSEUSE_LABELS) as CloseuseStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {CLOSEUSE_LABELS[s]}
-            </option>
-          ))}
-        </select>
+          <span>Toutes</span>
+          <span
+            className={`rounded-full px-1.5 py-0.2 text-[10px] tabular-nums ${
+              statusFilter === "tous" ? "bg-white/20 text-white" : "bg-surface text-slate-500"
+            }`}
+          >
+            {statusCounts.tous || 0}
+          </span>
+        </button>
 
-        <select
-          value={closeuseFilter}
-          onChange={(e) => {
-            setCloseuseFilter(e.target.value);
-            setPage(1);
-          }}
-          className="rounded-xl border border-surface-border bg-surface-raised px-3 py-2 text-sm text-slate-200 outline-none focus:border-brand"
-        >
-          <option value="toutes">Toutes les closeuses</option>
-          {closeuses.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        {(Object.keys(CLOSEUSE_LABELS) as CloseuseStatus[]).map((s) => {
+          const active = statusFilter === s;
+          const count = statusCounts[s] || 0;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => {
+                setStatusFilter(s);
+                setPage(1);
+              }}
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                active
+                  ? "bg-brand text-white shadow-sm"
+                  : "text-slate-400 hover:bg-surface hover:text-slate-200"
+              }`}
+            >
+              <span>{CLOSEUSE_LABELS[s]}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] tabular-nums ${
+                  active
+                    ? "bg-white/20 text-white"
+                    : s === "nouveau" && count > 0
+                      ? "bg-amber-500/20 text-amber-400 font-semibold"
+                      : "bg-surface text-slate-500"
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
+      {/* Search & Operator Filter Bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-[240px] flex-1">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Rechercher un client, téléphone, produit ou #commande…"
+            className="w-full rounded-xl border border-surface-border bg-surface-raised py-2 pl-10 pr-4 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-3 py-1.5">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
+          <select
+            value={closeuseFilter}
+            onChange={(e) => {
+              setCloseuseFilter(e.target.value);
+              setPage(1);
+            }}
+            className="bg-transparent text-xs font-medium text-slate-200 outline-none"
+          >
+            <option value="toutes" className="bg-surface-raised">
+              Toutes les closeuses
+            </option>
+            {closeuses.map((c) => (
+              <option key={c.id} value={c.id} className="bg-surface-raised">
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Orders Table */}
       <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised">
         {pageItems.length === 0 ? (
-          <p className="p-6 text-center text-sm text-slate-500">Aucune commande ne correspond à ces filtres.</p>
+          <div className="p-10 text-center">
+            <p className="text-sm font-medium text-slate-300">Aucune commande trouvée</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Modifiez vos filtres ou recherchez un autre terme.
+            </p>
+          </div>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-surface-border text-xs text-slate-500">
-                <th className="px-4 py-3 font-normal">Client</th>
-                <th className="px-4 py-3 font-normal">Téléphone</th>
-                <th className="px-4 py-3 font-normal">Montant</th>
-                <th className="px-4 py-3 font-normal">Closeuse</th>
-                <th className="px-4 py-3 font-normal">Statut</th>
-                <th className="px-4 py-3 font-normal">Reçue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((order) => (
-                <tr
-                  key={order.id}
-                  onClick={() => setSelected(order)}
-                  className="cursor-pointer border-b border-surface-border last:border-0 hover:bg-surface"
-                >
-                  <td className="px-4 py-3 text-slate-200">{order.clientName}</td>
-                  <td className="px-4 py-3 text-slate-400">{order.clientPhoneFormatted}</td>
-                  <td className="px-4 py-3 text-slate-300">{order.amount.toLocaleString("fr-FR")} F</td>
-                  <td className="px-4 py-3 text-slate-400">{nameFor(order.closeuseId, closeuses)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${CLOSEUSE_COLORS[order.statutCloseuse]}`}>
-                      {CLOSEUSE_LABELS[order.statutCloseuse]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{formatDate(order.timestamps.received)}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-surface-border bg-surface/40 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-4 py-3">Client & Produit</th>
+                  <th className="px-4 py-3">Téléphone</th>
+                  <th className="px-4 py-3">Montant</th>
+                  <th className="px-4 py-3">Closeuse / Livreur</th>
+                  <th className="px-4 py-3">Statut</th>
+                  <th className="px-4 py-3">Reçue</th>
+                  <th className="px-4 py-3 text-right">Bon 3D</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {pageItems.map((order) => (
+                  <tr
+                    key={order.id}
+                    onClick={() => setSelected(order)}
+                    className="group cursor-pointer transition-colors hover:bg-surface/60"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-100">{order.clientName}</span>
+                        {order.shopifyData?.orderNumber && (
+                          <span className="rounded bg-brand/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-brand">
+                            #{order.shopifyData.orderNumber}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 max-w-[240px] truncate text-xs text-slate-500">
+                        {order.product || "Article standard"}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-300">
+                      {order.clientPhoneFormatted}
+                    </td>
+                    <td className="px-4 py-3 font-semibold tabular-nums text-slate-200">
+                      {order.amount.toLocaleString("fr-FR")}{" "}
+                      <span className="text-[11px] font-normal text-slate-500">{currency}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      <div className="text-slate-300">{nameFor(order.closeuseId, closeuses)}</div>
+                      {order.livreurId && (
+                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500">
+                          <Truck className="h-3 w-3" />
+                          <span>{nameFor(order.livreurId, livreurs)}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${CLOSEUSE_COLORS[order.statutCloseuse]}`}
+                      >
+                        {CLOSEUSE_LABELS[order.statutCloseuse]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs tabular-nums text-slate-500">
+                      {formatDate(order.timestamps.received)}
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptOrder(order)}
+                        title="Ouvrir le Bon de Livraison 3D & Imprimer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-brand/50 hover:text-brand"
+                      >
+                        <Box className="h-3.5 w-3.5 text-brand" />
+                        <span className="hidden sm:inline">Bon 3D</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-surface-border px-4 py-3 text-xs text-slate-500">
             <span>
-              Page {page} / {totalPages} — {filtered.length} commande{filtered.length > 1 ? "s" : ""}
+              Page <strong className="text-slate-300">{page}</strong> sur {totalPages} — {filtered.length} commande
+              {filtered.length > 1 ? "s" : ""}
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               <button
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
-                className="rounded-lg border border-surface-border px-2.5 py-1 disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface px-2.5 py-1 text-slate-300 hover:bg-surface-border/40 disabled:opacity-40"
               >
+                <ChevronLeft className="h-3.5 w-3.5" />
                 Précédent
               </button>
               <button
                 disabled={page >= totalPages}
                 onClick={() => setPage((p) => p + 1)}
-                className="rounded-lg border border-surface-border px-2.5 py-1 disabled:opacity-40"
+                className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface px-2.5 py-1 text-slate-300 hover:bg-surface-border/40 disabled:opacity-40"
               >
                 Suivant
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -191,13 +345,29 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
       {selected && (
         <OrderDetail
           order={selected}
+          currency={currency}
           closeuses={closeuses}
           livreurs={livreurs}
           onClose={() => setSelected(null)}
+          onOpenReceipt3D={() => {
+            const ord = selected;
+            setSelected(null);
+            setReceiptOrder(ord);
+          }}
           onSave={async (data) => {
             await updateOrder(selected.id, data);
             setSelected((prev) => (prev ? { ...prev, ...data } : prev));
           }}
+        />
+      )}
+
+      {receiptOrder && (
+        <OrderReceipt3DModal
+          order={receiptOrder}
+          team={team}
+          closeuses={closeuses}
+          livreurs={livreurs}
+          onClose={() => setReceiptOrder(null)}
         />
       )}
     </div>
@@ -206,15 +376,19 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
 
 function OrderDetail({
   order,
+  currency,
   closeuses,
   livreurs,
   onClose,
+  onOpenReceipt3D,
   onSave,
 }: {
   order: Order;
+  currency: string;
   closeuses: AppUser[];
   livreurs: AppUser[];
   onClose: () => void;
+  onOpenReceipt3D: () => void;
   onSave: (data: Partial<Order>) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
@@ -233,17 +407,15 @@ function OrderDetail({
       await onSave(data);
       after?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Enregistrement impossible.");
+      const formatted = formatFirebaseError(err);
+      setError(`${formatted.title} : ${formatted.message}`);
     } finally {
       setBusy(false);
     }
   };
 
   const handleSaveEdit = () =>
-    runSave(
-      { clientName: clientName.trim(), amount: Number(amount) || 0 },
-      () => setEditing(false)
-    );
+    runSave({ clientName: clientName.trim(), amount: Number(amount) || 0 }, () => setEditing(false));
 
   const handleAssign = () =>
     runSave({
@@ -258,22 +430,49 @@ function OrderDetail({
     });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised p-6"
+        className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl"
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-slate-100">Détail de la commande</h2>
-          <span className={`rounded-full px-2 py-0.5 text-xs ${CLOSEUSE_COLORS[order.statutCloseuse]}`}>
-            {CLOSEUSE_LABELS[order.statutCloseuse]}
-          </span>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-slate-100">Détail de la commande</h2>
+            <p className="font-mono text-xs text-slate-500">
+              {order.shopifyData?.orderNumber ? `#${order.shopifyData.orderNumber}` : `ID: ${order.id.slice(0, 10)}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onOpenReceipt3D}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand/15 px-3 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand/25"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Bon 3D / Imprimer
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-surface-border p-1.5 text-slate-400 hover:text-slate-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+        {error && (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+            <span>{error}</span>
+          </div>
+        )}
 
         {/* Infos client */}
-        <div className="mb-5 space-y-3 rounded-xl border border-surface-border p-4">
+        <div className="mb-4 space-y-2.5 rounded-xl border border-surface-border bg-surface/40 p-4">
           {editing ? (
             <>
               <div>
@@ -285,7 +484,7 @@ function OrderDetail({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-slate-500">Montant (FCFA)</label>
+                <label className="mb-1 block text-xs text-slate-500">Montant ({currency})</label>
                 <input
                   type="number"
                   value={amount}
@@ -296,14 +495,14 @@ function OrderDetail({
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => setEditing(false)}
-                  className="flex-1 rounded-lg border border-surface-border py-2 text-sm text-slate-300"
+                  className="flex-1 rounded-lg border border-surface-border py-2 text-xs font-medium text-slate-300"
                 >
                   Annuler
                 </button>
                 <button
                   disabled={busy}
                   onClick={handleSaveEdit}
-                  className="flex-1 rounded-lg bg-brand py-2 text-sm font-medium text-white disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-brand py-2 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   Enregistrer
                 </button>
@@ -312,122 +511,142 @@ function OrderDetail({
           ) : (
             <>
               <Row label="Client" value={order.clientName} />
-              <Row label="Téléphone" value={order.clientPhoneFormatted} />
+              <Row
+                label="Téléphone"
+                value={order.clientPhoneFormatted}
+                icon={<Phone className="h-3.5 w-3.5 text-slate-500" />}
+              />
               <Row label="Produit" value={order.product} />
-              <Row label="Montant" value={`${order.amount.toLocaleString("fr-FR")} FCFA`} />
+              <Row label="Montant" value={`${order.amount.toLocaleString("fr-FR")} ${currency}`} />
               <Row label="Reçue le" value={formatDate(order.timestamps.received)} />
               {order.sourceType === "shopify" && (
-                <Row label="Source" value={`🛍️ Shopify (${order.shopifyData?.shopDomain || ""})`} />
+                <Row
+                  label="Source"
+                  value={`Shopify (${order.shopifyData?.shopDomain || ""})`}
+                  icon={<Store className="h-3.5 w-3.5 text-brand" />}
+                />
               )}
               {order.shopifyData?.locationHint && (
-                <Row label="Indice Localisation" value={`📍 ${order.shopifyData.locationHint}`} />
+                <Row
+                  label="Localisation"
+                  value={order.shopifyData.locationHint}
+                  icon={<MapPin className="h-3.5 w-3.5 text-amber-400" />}
+                />
               )}
               {order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0 && (
-                <div className="rounded-lg bg-surface/50 border border-surface-border p-3 space-y-1.5 mt-2">
-                  <p className="text-xs font-semibold text-slate-300">Détails EasySell / Formulaire :</p>
+                <div className="mt-2 space-y-1.5 rounded-lg border border-surface-border bg-surface p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Attributs Formulaire COD
+                  </p>
                   {order.shopifyData.noteAttributes.map((attr, idx) => (
-                    <div key={idx} className="flex justify-between text-xs">
-                      <span className="text-slate-400">{attr.name} :</span>
-                      <span className="text-slate-200 font-medium">{attr.value}</span>
+                    <div key={idx} className="flex justify-between gap-2 text-xs">
+                      <span className="text-slate-500">{attr.name}</span>
+                      <span className="font-medium text-slate-200 text-right">{attr.value}</span>
                     </div>
                   ))}
                 </div>
               )}
-              {order.statutLivreur && (
-                <Row label="Statut livreur" value={LIVREUR_LABELS[order.statutLivreur]} />
-              )}
+              {order.statutLivreur && <Row label="Statut livreur" value={LIVREUR_LABELS[order.statutLivreur]} />}
               <button
                 onClick={() => setEditing(true)}
-                className="mt-1 w-full rounded-lg border border-surface-border py-2 text-sm text-slate-300 hover:bg-surface"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-surface-border bg-surface py-2 text-xs font-medium text-slate-300 transition hover:border-slate-600"
               >
-                Modifier
+                <Edit3 className="h-3.5 w-3.5" />
+                Modifier les informations
               </button>
             </>
           )}
         </div>
 
         {/* Assignation */}
-        <div className="mb-5 space-y-3 rounded-xl border border-surface-border p-4">
-          <h3 className="text-sm font-medium text-slate-200">Assigner</h3>
-          <div>
-            <label className="mb-1 block text-xs text-slate-500">Closeuse</label>
-            <select
-              value={closeuseId}
-              onChange={(e) => setCloseuseId(e.target.value)}
-              className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
-            >
-              <option value="">Non assignée</option>
-              {closeuses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+        <div className="mb-4 space-y-3 rounded-xl border border-surface-border bg-surface/40 p-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <UserCheck className="h-3.5 w-3.5 text-brand" />
+            <span>Assignation Opérationnelle</span>
           </div>
-          <div>
-            <label className="mb-1 block text-xs text-slate-500">Livreur</label>
-            <select
-              value={livreurId}
-              onChange={(e) => setLivreurId(e.target.value)}
-              className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
-            >
-              <option value="">Non assigné</option>
-              {livreurs.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Closeuse</label>
+              <select
+                value={closeuseId}
+                onChange={(e) => setCloseuseId(e.target.value)}
+                className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+              >
+                <option value="">Non assignée</option>
+                {closeuses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Livreur</label>
+              <select
+                value={livreurId}
+                onChange={(e) => setLivreurId(e.target.value)}
+                className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+              >
+                <option value="">Non assigné</option>
+                {livreurs.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <button
             disabled={busy}
             onClick={handleAssign}
-            className="w-full rounded-lg bg-brand py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="w-full rounded-lg bg-brand py-2 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-50"
           >
             Enregistrer l'assignation
           </button>
         </div>
 
         {/* Admin override */}
-        <div className="space-y-3 rounded-xl border border-red-500/30 bg-red-500/5 p-4">
-          <h3 className="text-sm font-medium text-red-400">Admin Override</h3>
-          <p className="text-xs text-slate-500">
-            Force le statut de la commande manuellement. À utiliser en dernier recours (ex : correction d'une
-            erreur de la closeuse).
-          </p>
-          <select
-            value={overrideStatus}
-            onChange={(e) => setOverrideStatus(e.target.value as CloseuseStatus)}
-            className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 outline-none focus:border-red-400"
-          >
-            {(Object.keys(CLOSEUSE_LABELS) as CloseuseStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {CLOSEUSE_LABELS[s]}
-              </option>
-            ))}
-          </select>
-          <button
-            disabled={busy}
-            onClick={handleOverride}
-            className="w-full rounded-lg border border-red-500/40 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50"
-          >
-            Forcer ce statut
-          </button>
+        <div className="space-y-2.5 rounded-xl border border-rose-500/25 bg-rose-500/5 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-rose-400">Correction Statut Admin</h3>
+            <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium ${CLOSEUSE_COLORS[order.statutCloseuse]}`}>
+              {CLOSEUSE_LABELS[order.statutCloseuse]}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={overrideStatus}
+              onChange={(e) => setOverrideStatus(e.target.value as CloseuseStatus)}
+              className="flex-1 rounded-lg border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-rose-400"
+            >
+              {(Object.keys(CLOSEUSE_LABELS) as CloseuseStatus[]).map((s) => (
+                <option key={s} value={s}>
+                  {CLOSEUSE_LABELS[s]}
+                </option>
+              ))}
+            </select>
+            <button
+              disabled={busy}
+              onClick={handleOverride}
+              className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+            >
+              Appliquer
+            </button>
+          </div>
         </div>
-
-        <button onClick={onClose} className="mt-4 w-full rounded-xl border border-surface-border py-2.5 text-sm text-slate-300">
-          Fermer
-        </button>
       </div>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between text-sm">
+    <div className="flex items-center justify-between gap-3 text-xs">
       <span className="text-slate-500">{label}</span>
-      <span className="text-slate-200">{value}</span>
+      <span className="flex items-center gap-1.5 font-medium text-slate-200 text-right">
+        {icon}
+        <span>{value}</span>
+      </span>
     </div>
   );
 }
