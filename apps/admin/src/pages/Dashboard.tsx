@@ -35,6 +35,7 @@ import Commandes from "./Commandes";
 import EquipesSheets from "./EquipesSheets";
 import Parametres from "./Parametres";
 import Remuneration from "./Remuneration";
+import CaisseLivreurs from "./CaisseLivreurs";
 import AiAssistant from "./AiAssistant";
 import PeriodSelector, { type Period, periodRangeMs, periodLabel } from "../components/PeriodSelector";
 
@@ -80,9 +81,13 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
     title: "Marchés & Google Sheets",
     subtitle: "Configuration des équipes par pays et synchronisation tableurs",
   },
+  caisse: {
+    title: "Caisse & Versements Livreurs",
+    subtitle: "Vérification des encaissements terrain, déductions d'imprévus avec note justificative et validation avant paie",
+  },
   remuneration: {
     title: "Rémunération & Commissions",
-    subtitle: "Calcul automatisé des primes sur livraisons validées",
+    subtitle: "Calcul automatisé des primes sur livraisons validées et contrôle caisse",
   },
   settings: {
     title: "Paramètres Système",
@@ -224,7 +229,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   );
 
   const loading = teamsLoading || ordersLoading;
-  const showPeriodFilter = page === "overview" || page === "remuneration";
+  const showPeriodFilter = page === "overview" || page === "remuneration" || page === "caisse";
   const currency = activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF";
   const headerMeta = PAGE_TITLES[page] ?? PAGE_TITLES.overview;
 
@@ -344,10 +349,24 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           />
         ) : page === "teams" ? (
           <EquipesSheets workspaceId={workspaceId} teams={teams} />
+        ) : page === "caisse" ? (
+          <CaisseLivreurs
+            workspaceId={workspaceId}
+            team={activeTeam}
+            livreurs={livreurs}
+            orders={orders}
+            onNavigateToRemuneration={() => setPage("remuneration")}
+          />
         ) : page === "remuneration" ? (
-          <Remuneration team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={orders} />
+          <Remuneration
+            team={activeTeam}
+            closeuses={closeuses}
+            livreurs={livreurs}
+            orders={orders}
+            onOpenCaisse={() => setPage("caisse")}
+          />
         ) : page === "settings" ? (
-          <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} />
+          <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} orders={allOrders} />
         ) : (
           <div className="space-y-4">
             {/* 1. Primary Live Shopify-Style Analytics Deck */}

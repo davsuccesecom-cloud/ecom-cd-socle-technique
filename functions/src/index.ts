@@ -635,6 +635,27 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
     const phoneParsed = parsePhoneNumberFromString(body.phone, team.defaultCountry as never);
     const clientPhoneFormatted = phoneParsed?.formatInternational() ?? body.phone;
 
+    let isDuplicatePhone = false;
+    let previousOrdersCount = 0;
+    let previousRejectionsCount = 0;
+    try {
+      const prevSnap = await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("orders")
+        .where("clientPhoneFormatted", "==", clientPhoneFormatted)
+        .limit(20)
+        .get();
+      if (!prevSnap.empty) {
+        isDuplicatePhone = true;
+        previousOrdersCount = prevSnap.size;
+        previousRejectionsCount = prevSnap.docs.filter((d) => {
+          const st = d.data().statutCloseuse;
+          return st === "rejete" || st === "injoignable";
+        }).length;
+      }
+    } catch {}
+
     const orderRef = db.collection("workspaces").doc(workspaceId).collection("orders").doc();
     await orderRef.set({
       workspaceId,
@@ -657,6 +678,11 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       statutAdminOverride: null,
       callInProgress: null,
       reminderAt: null,
+      isDuplicatePhone,
+      previousOrdersCount,
+      previousRejectionsCount,
+      capiIsolated: isDuplicatePhone,
+      trafficSource: isDuplicatePhone ? "acces_libre_site" : "meta_ads",
       timestamps: {
         received: Date.now(),
         assignedToCloseuse: null,
@@ -847,8 +873,38 @@ export const onOrderUpdated = onDocumentUpdated(
         incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
       ]);
 
+      // Isolation Meta CAPI pour les numéros doublons ("acces_libre_site") :
+      // Si ce numéro a déjà fait l'objet d'un tracking CAPI ou est qualifié en doublon,
+      // on l'isole du Pixel Meta et on le considère comme paiement accès libre site.
+      let isPhoneAlreadyTracked = Boolean(after.capiIsolated || after.isDuplicatePhone);
+      if (!isPhoneAlreadyTracked && after.clientPhoneFormatted) {
+        try {
+          const dupPaidSnap = await db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("orders")
+            .where("clientPhoneFormatted", "==", after.clientPhoneFormatted)
+            .limit(15)
+            .get();
+          const otherPaid = dupPaidSnap.docs.some((d) => d.id !== orderId && d.data().capiSent === true);
+          if (otherPaid) {
+            isPhoneAlreadyTracked = true;
+            await ref.update({
+              capiIsolated: true,
+              isDuplicatePhone: true,
+              trafficSource: "acces_libre_site",
+            });
+          }
+        } catch {}
+      }
+
       // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI) enrichi
-      if (team?.metaCapiConfig?.enabled && team.metaCapiConfig.pixelId && team.metaCapiConfig.accessToken) {
+      if (
+        !isPhoneAlreadyTracked &&
+        team?.metaCapiConfig?.enabled &&
+        team.metaCapiConfig.pixelId &&
+        team.metaCapiConfig.accessToken
+      ) {
         try {
           const capiRes = await sendMetaPurchaseEvent(team.metaCapiConfig, {
             id: orderId,
@@ -880,11 +936,13 @@ export const onOrderUpdated = onDocumentUpdated(
       }
     }
 
-    // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse
+    // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse (hors doublon isolé)
     if (
       statutCloseuseChanged &&
       (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme") &&
-      !after.capiConfirmedSent
+      !after.capiConfirmedSent &&
+      !after.capiIsolated &&
+      !after.isDuplicatePhone
     ) {
       const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(after.teamId).get();
       const team = teamSnap.data();

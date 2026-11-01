@@ -15,7 +15,7 @@ interface OrderCardProps {
   livreurs: AppUser[];
   onCall: () => void;
   onEndCall: () => void;
-  onChangeStatus: (status: CloseuseStatus, reminderAt?: number | null) => void;
+  onChangeStatus: (status: CloseuseStatus, reminderAt?: number | null, rejectionReason?: string | null) => void;
   onAssignLivreur: (livreurId: string) => void;
 }
 
@@ -85,6 +85,15 @@ export default function OrderCard({
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [customDateTime, setCustomDateTime] = useState("");
   const [pendingFinalStatus, setPendingFinalStatus] = useState<CloseuseStatus | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<string>("");
+
+  const REJECTION_REASONS = [
+    "Doublon / Déjà commandé",
+    "Client a annulé",
+    "Numéro erroné / Faux numéro",
+    "Hors zone de livraison",
+    "Prix / Frais refusés",
+  ];
 
   const handleQuickSchedule = (minutesFromNow: number) => {
     const reminderTime = Date.now() + minutesFromNow * 60 * 1000;
@@ -101,11 +110,18 @@ export default function OrderCard({
     }
   };
 
-  const whatsAppMessage = `Bonjour ${order.clientName}, je suis de la boutique suite à votre commande ${
-    order.orderNumber ? `(#${order.orderNumber}) ` : ""
-  }de ${order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}${order.product} d'un montant de ${order.amount.toLocaleString(
-    "fr-FR"
-  )} F. Êtes-vous disponible pour confirmer la livraison ?`;
+  const whatsAppMessage =
+    order.statutCloseuse === "injoignable"
+      ? `Bonjour ${order.clientName}, nous avons essayé de vous joindre par téléphone concernant votre commande de ${order.product} (${order.amount.toLocaleString("fr-FR")} F). À quelle heure pouvons-nous vous livrer aujourd'hui ?`
+      : order.statutCloseuse === "programme"
+      ? `Bonjour ${order.clientName}, comme convenu nous revenons vers vous pour votre livraison de ${order.product} (${order.amount.toLocaleString("fr-FR")} F). Êtes-vous disponible pour recevoir le livreur ?`
+      : order.isDuplicatePhone
+      ? `Bonjour ${order.clientName}, nous avons reçu votre commande de ${order.product} (${order.amount.toLocaleString("fr-FR")} F). Comme votre numéro figure deux fois, souhaitiez-vous 1 seul produit ou 2 produits pour la livraison ?`
+      : `Bonjour ${order.clientName}, je suis de la boutique suite à votre commande ${
+          order.orderNumber ? `(#${order.orderNumber}) ` : ""
+        }de ${order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}${order.product} d'un montant de ${order.amount.toLocaleString(
+          "fr-FR"
+        )} F. Êtes-vous disponible pour confirmer la livraison ?`;
 
   return (
     <div id={`order-${order.id}`} className="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-slate-100 dark:border-slate-700 transition-all">
@@ -137,6 +153,12 @@ export default function OrderCard({
           </span>
         )}
       </div>
+
+      {order.isDuplicatePhone && (
+        <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <strong>⚠️ Numéro doublon ({(order.previousOrdersCount ?? 1) + 1}x) :</strong> Vérifier à l'appel si le client souhaite <strong>1 seul produit</strong> (commande en double) ou <strong>2 produits</strong>.
+        </div>
+      )}
 
       <div className="mb-3 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-light text-sm font-medium text-brand">
@@ -335,26 +357,70 @@ export default function OrderCard({
         </div>
       )}
 
-      <ConfirmDialog
-        open={!!pendingFinalStatus}
-        title={
-          pendingFinalStatus === "rejete"
-            ? `Rejeter la commande de ${order.clientName} ?`
-            : `Marquer ${order.clientName} comme injoignable ?`
-        }
-        message={
-          pendingFinalStatus === "rejete"
-            ? "Cette décision classe la commande en statut final Rejeté et impacte le taux de confirmation de l'équipe."
-            : "La commande sera classée dans les clients injoignables à relancer."
-        }
-        confirmLabel={pendingFinalStatus === "rejete" ? "Confirmer le rejet" : "Marquer injoignable"}
-        danger={pendingFinalStatus === "rejete"}
-        onConfirm={() => {
-          if (pendingFinalStatus) onChangeStatus(pendingFinalStatus);
-          setPendingFinalStatus(null);
-        }}
-        onCancel={() => setPendingFinalStatus(null)}
-      />
+      {pendingFinalStatus === "rejete" ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-xl border border-slate-100 dark:border-slate-700 space-y-3.5">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+              Rejeter la commande de {order.clientName} ?
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Sélectionnez le motif du rejet en 1 clic pour l'historique Admin :
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {REJECTION_REASONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRejectionReason(r)}
+                  className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    rejectionReason === r
+                      ? "border-red-500 bg-red-500/15 text-red-600 dark:text-red-400"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingFinalStatus(null);
+                  setRejectionReason("");
+                }}
+                className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onChangeStatus("rejete", undefined, rejectionReason || "Rejeté à l'appel");
+                  setPendingFinalStatus(null);
+                  setRejectionReason("");
+                }}
+                className="flex-1 rounded-xl bg-red-600 py-2.5 text-xs font-semibold text-white"
+              >
+                Confirmer le rejet
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <ConfirmDialog
+          open={pendingFinalStatus === "injoignable"}
+          title={`Marquer ${order.clientName} comme injoignable ?`}
+          message="La commande sera classée dans les clients injoignables à relancer."
+          confirmLabel="Marquer injoignable"
+          danger={false}
+          onConfirm={() => {
+            onChangeStatus("injoignable");
+            setPendingFinalStatus(null);
+          }}
+          onCancel={() => setPendingFinalStatus(null)}
+        />
+      )}
     </div>
   );
 }

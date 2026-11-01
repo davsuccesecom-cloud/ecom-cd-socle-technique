@@ -8,6 +8,7 @@ import {
   Layers,
   Users,
   Wallet,
+  Landmark,
   Settings,
   FileBarChart2,
   LogOut,
@@ -52,6 +53,7 @@ const GROUPS: NavGroup[] = [
     items: [
       { key: "teams", label: "Équipes & Marchés", icon: Layers },
       { key: "users", label: "Utilisateurs & Accès", icon: Users },
+      { key: "caisse", label: "Caisse & Versements", icon: Landmark },
       { key: "remuneration", label: "Rémunération", icon: Wallet },
     ],
   },

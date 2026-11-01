@@ -99,14 +99,14 @@ service cloud.firestore {
           && isSameTeam(resource.data.teamId)
           && resource.data.closeuseId == auth_().uid
           && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['statutCloseuse', 'callInProgress', 'livreurId', 'statutLivreur', 'reminderAt']);
+             .hasOnly(['statutCloseuse', 'callInProgress', 'livreurId', 'statutLivreur', 'reminderAt', 'rejectionReason']);
 
         // Livreur : uniquement statutLivreur
         allow update: if isLivreur(workspaceId)
           && isSameTeam(resource.data.teamId)
           && resource.data.livreurId == auth_().uid
           && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['statutLivreur']);
+             .hasOnly(['statutLivreur', 'rejectionReason']);
 
         // Admin : accès complet, y compris statutAdminOverride
         allow update, delete: if isAdmin(workspaceId);
@@ -132,6 +132,11 @@ service cloud.firestore {
 
       // Historique des échanges avec l'analyste IA (accessible par les admins du workspace)
       match /aiAssistantChats/{chatId} {
+        allow read, write: if isAdmin(workspaceId);
+      }
+
+      // Versements de caisse fin de journée et retenues/imprévus livreurs
+      match /cashSettlements/{settlementId} {
         allow read, write: if isAdmin(workspaceId);
       }
     }

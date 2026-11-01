@@ -615,6 +615,38 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
                 console.warn("shopifyWebhook: réconciliation session ignorée (non bloquant):", sessionErr);
             }
         }
+        // =====================================================================
+        // DÉTECTION NUMÉRO DOUBLON & ISOLATION META CAPI (Accès libre site)
+        // Si ce numéro a déjà passé commande, on l'isole du tracking Meta CAPI
+        // et on le qualifie en "acces_libre_site" pour que la closeuse vérifie
+        // s'il s'agit d'un doublon involontaire (1 produit) ou d'un 2e produit.
+        // =====================================================================
+        const formattedPhoneForCheck = phoneNormalized || rawPhone || "";
+        let isDuplicatePhone = false;
+        let previousOrdersCount = 0;
+        let previousRejectionsCount = 0;
+        if (formattedPhoneForCheck && formattedPhoneForCheck !== "Non renseigné") {
+            try {
+                const prevSnap = await db
+                    .collection("workspaces")
+                    .doc(workspaceId)
+                    .collection("orders")
+                    .where("clientPhoneFormatted", "==", formattedPhoneForCheck)
+                    .limit(25)
+                    .get();
+                if (!prevSnap.empty) {
+                    isDuplicatePhone = true;
+                    previousOrdersCount = prevSnap.size;
+                    previousRejectionsCount = prevSnap.docs.filter((d) => {
+                        const st = d.data().statutCloseuse;
+                        return st === "rejete" || st === "injoignable";
+                    }).length;
+                }
+            }
+            catch (dupErr) {
+                console.warn("shopifyWebhook: vérification doublon numéro ignorée (non bloquant):", dupErr);
+            }
+        }
         // Création de la commande dans Firestore
         const newOrderRef = db
             .collection("workspaces")
@@ -648,6 +680,12 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             reminderAt: null,
             // Température initiale : "hot" car commande toute fraîche
             temperature: "hot",
+            // Qualification doublon & isolation Meta CAPI
+            isDuplicatePhone,
+            previousOrdersCount,
+            previousRejectionsCount,
+            capiIsolated: isDuplicatePhone,
+            trafficSource: isDuplicatePhone ? "acces_libre_site" : "meta_ads",
             // Données Shopify & EasySell enrichies
             shopifyData: {
                 shopifyOrderId,

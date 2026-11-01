@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb, ConfirmDialog } from "@ecomcod/shared";
+import { getDb, ConfirmDialog, buildWhatsAppLink } from "@ecomcod/shared";
 import type { AppUser, CloseuseStatus, LivreurStatus, Order, Team } from "@ecomcod/shared";
 import {
   Search,
@@ -85,6 +85,34 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
     }
     return map;
   }, [orders]);
+
+  // Comptage des commandes par numéro pour identifier les doublons et l'isolation Meta ("Accès libre site")
+  const phoneStatsMap = useMemo(() => {
+    const map = new Map<string, { total: number; rejected: number; firstOrderId: string }>();
+    const chronological = [...orders].sort((a, b) => a.timestamps.received - b.timestamps.received);
+    for (const o of chronological) {
+      const key = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+      if (!key) continue;
+      const cur = map.get(key) ?? { total: 0, rejected: 0, firstOrderId: o.id };
+      cur.total += 1;
+      if (o.statutCloseuse === "rejete" || o.statutCloseuse === "injoignable") {
+        cur.rejected += 1;
+      }
+      map.set(key, cur);
+    }
+    return map;
+  }, [orders]);
+
+  const buildSavWhatsAppMessage = (o: Order) => {
+    const ref = o.shopifyData?.orderNumber || o.orderNumber ? ` (#${o.shopifyData?.orderNumber || o.orderNumber})` : "";
+    if (o.statutCloseuse === "livre") {
+      return `Bonjour ${o.clientName}, ici le service après-vente de la boutique concernant votre commande${ref} (${o.product}). Tout se passe-t-il bien avec votre produit ?`;
+    }
+    if (o.statutCloseuse === "injoignable" || o.statutCloseuse === "rejete") {
+      return `Bonjour ${o.clientName}, nous avons tenté de vous joindre pour la livraison de votre commande${ref} (${o.product} — ${o.amount.toLocaleString("fr-FR")} ${currency}). Souhaitez-vous que l'on reprogramme votre livraison ?`;
+    }
+    return `Bonjour ${o.clientName}, ici la direction de la boutique concernant votre commande${ref} de ${o.product} (${o.amount.toLocaleString("fr-FR")} ${currency}).`;
+  };
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -251,64 +279,98 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {pageItems.map((order) => (
-                  <tr
-                    key={order.id}
-                    onClick={() => setSelected(order)}
-                    className="group cursor-pointer transition-colors hover:bg-surface/60"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-100">{order.clientName}</span>
-                        {order.shopifyData?.orderNumber && (
-                          <span className="rounded bg-brand/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-brand">
-                            #{order.shopifyData.orderNumber}
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 max-w-[240px] truncate text-xs text-slate-500">
-                        {order.product || "Article standard"}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-300">
-                      {order.clientPhoneFormatted}
-                    </td>
-                    <td className="px-4 py-3 font-semibold tabular-nums text-slate-200">
-                      {order.amount.toLocaleString("fr-FR")}{" "}
-                      <span className="text-[11px] font-normal text-slate-500">{currency}</span>
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      <div className="text-slate-300">{nameFor(order.closeuseId, closeuses)}</div>
-                      {order.livreurId && (
-                        <div className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500">
-                          <Truck className="h-3 w-3" />
-                          <span>{nameFor(order.livreurId, livreurs)}</span>
+                {pageItems.map((order) => {
+                  const phoneKey = (order.clientPhoneFormatted || order.clientPhoneRaw || "").trim();
+                  const pStats = phoneStatsMap.get(phoneKey);
+                  const isDup =
+                    Boolean(order.isDuplicatePhone || order.capiIsolated) ||
+                    Boolean(pStats && pStats.total > 1 && pStats.firstOrderId !== order.id);
+
+                  return (
+                    <tr
+                      key={order.id}
+                      onClick={() => setSelected(order)}
+                      className="group cursor-pointer transition-colors hover:bg-surface/60"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium text-slate-100">{order.clientName}</span>
+                          {order.shopifyData?.orderNumber && (
+                            <span className="rounded bg-brand/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-brand">
+                              #{order.shopifyData.orderNumber}
+                            </span>
+                          )}
+                          {isDup && (
+                            <span
+                              title="Numéro doublon : isolé du tracking Meta CAPI et comptabilisé en Accès libre site. Vérifier avec le client s'il souhaite 1 ou 2 produits."
+                              className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400"
+                            >
+                              Doublon N° ({pStats?.total ?? 2}x) · Accès libre site
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${CLOSEUSE_COLORS[order.statutCloseuse]}`}
-                      >
-                        {CLOSEUSE_LABELS[order.statutCloseuse]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs tabular-nums text-slate-500">
-                      {formatDate(order.timestamps.received)}
-                    </td>
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => setReceiptOrder(order)}
-                        title="Ouvrir le Bon de Livraison 3D & Imprimer"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-brand/50 hover:text-brand"
-                      >
-                        <Box className="h-3.5 w-3.5 text-brand" />
-                        <span className="hidden sm:inline">Bon 3D</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        <p className="mt-0.5 max-w-[240px] truncate text-xs text-slate-500">
+                          {order.product || "Article standard"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-slate-300">{order.clientPhoneFormatted}</span>
+                          {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
+                            <a
+                              href={buildSavWhatsAppMessage ? buildWhatsAppLink(order.clientPhoneFormatted, buildSavWhatsAppMessage(order)) : "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Écrire au client sur WhatsApp (SAV / Relance)"
+                              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-sm transition hover:bg-emerald-500/20"
+                            >
+                              💬
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-semibold tabular-nums text-slate-200">
+                        {order.amount.toLocaleString("fr-FR")}{" "}
+                        <span className="text-[11px] font-normal text-slate-500">{currency}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <div className="text-slate-300">{nameFor(order.closeuseId, closeuses)}</div>
+                        {order.livreurId && (
+                          <div className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500">
+                            <Truck className="h-3 w-3" />
+                            <span>{nameFor(order.livreurId, livreurs)}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-start gap-1">
+                          <span
+                            className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium ${CLOSEUSE_COLORS[order.statutCloseuse]}`}
+                          >
+                            {CLOSEUSE_LABELS[order.statutCloseuse]}
+                          </span>
+                          {order.rejectionReason && (
+                            <span className="text-[10px] text-slate-400">Motif : {order.rejectionReason}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs tabular-nums text-slate-500">
+                        {formatDate(order.timestamps.received)}
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setReceiptOrder(order)}
+                          title="Ouvrir le Bon de Livraison 3D & Imprimer"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-brand/50 hover:text-brand"
+                        >
+                          <Box className="h-3.5 w-3.5 text-brand" />
+                          <span className="hidden sm:inline">Bon 3D</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -569,11 +631,27 @@ function OrderDetail({
           ) : (
             <>
               <Row label="Client" value={order.clientName} />
-              <Row
-                label="Téléphone"
-                value={order.clientPhoneFormatted}
-                icon={<Phone className="h-3.5 w-3.5 text-slate-500" />}
-              />
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-slate-500">Téléphone</span>
+                <span className="flex items-center gap-2 font-medium text-slate-200">
+                  <Phone className="h-3.5 w-3.5 text-slate-500" />
+                  <span className="font-mono">{order.clientPhoneFormatted}</span>
+                  {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
+                    <a
+                      href={buildWhatsAppLink(
+                        order.clientPhoneFormatted,
+                        `Bonjour ${order.clientName}, ici le service client de la boutique concernant votre commande (${order.product}).`
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-400 transition hover:bg-emerald-500/20"
+                    >
+                      <span>💬</span>
+                      <span>WhatsApp SAV</span>
+                    </a>
+                  )}
+                </span>
+              </div>
               <Row label="Produit" value={order.product} />
               <Row label="Montant" value={`${order.amount.toLocaleString("fr-FR")} ${currency}`} />
               <Row label="Reçue le" value={formatDate(order.timestamps.received)} />

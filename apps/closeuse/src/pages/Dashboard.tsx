@@ -178,7 +178,9 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
             livreurs={livreurs}
             onCall={() => startCall(order.id, closeuseId)}
             onEndCall={() => endCall(order.id)}
-            onChangeStatus={(status, reminderAt) => updateCloseuseStatus(order.id, status, reminderAt)}
+            onChangeStatus={(status, reminderAt, rejectionReason) =>
+              updateCloseuseStatus(order.id, status, reminderAt, rejectionReason)
+            }
             onAssignLivreur={(livreurId) => assignLivreur(order.id, livreurId)}
           />
         ))}

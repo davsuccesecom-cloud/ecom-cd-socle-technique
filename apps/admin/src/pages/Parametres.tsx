@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb, ConfirmDialog } from "@ecomcod/shared";
-import type { Team } from "@ecomcod/shared";
+import { getDb, ConfirmDialog, buildWhatsAppLink } from "@ecomcod/shared";
+import type { Team, Order } from "@ecomcod/shared";
 import {
   Palette,
   Sliders,
@@ -16,6 +16,9 @@ import {
   RotateCcw,
   Save,
   AlertTriangle,
+  Download,
+  Copy,
+  PhoneCall,
 } from "lucide-react";
 import { useTheme, ACCENT_PRESETS } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
@@ -27,13 +30,14 @@ interface ParametresProps {
   workspaceId: string;
   team: Team | null;
   teams?: Team[];
+  orders?: Order[];
 }
 
-type SettingsTab = "general" | "rules" | "shopify" | "print" | "metacapi";
+type SettingsTab = "general" | "rules" | "shopify" | "print" | "metacapi" | "phone_export";
 
 const SOUND_KEY = "ecomcod-sound-notifications";
 
-export default function Parametres({ workspaceId, team, teams = [] }: ParametresProps) {
+export default function Parametres({ workspaceId, team, teams = [], orders = [] }: ParametresProps) {
   const { theme, setTheme, accent, setAccent } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -77,6 +81,12 @@ export default function Parametres({ workspaceId, team, teams = [] }: Parametres
       label: "Meta Conversions API",
       desc: "Pixel Facebook & événements serveur",
       icon: Share2,
+    },
+    {
+      id: "phone_export",
+      label: "Export Numéros & SAV",
+      desc: "Extraction complète des numéros sur une durée",
+      icon: PhoneCall,
     },
     {
       id: "general",
@@ -310,6 +320,8 @@ export default function Parametres({ workspaceId, team, teams = [] }: Parametres
               <EmptyTeamNotice />
             )
           )}
+
+          {activeTab === "phone_export" && <PhoneExportManager team={team} orders={orders} />}
         </div>
       </div>
     </div>
@@ -587,6 +599,319 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
         onConfirm={executeSave}
         onCancel={() => setConfirmSensitiveSave(false)}
       />
+    </div>
+  );
+}
+
+type ExportRangePreset = "today" | "7d" | "30d" | "all" | "custom";
+type ExportSegment = "all" | "livre" | "relance" | "duplicates";
+
+function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order[] }) {
+  const [rangePreset, setRangePreset] = useState<ExportRangePreset>("30d");
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date(Date.now() - 30 * 86400000);
+    return d.toISOString().slice(0, 10);
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [segment, setSegment] = useState<ExportSegment>("all");
+  const [deduplicate, setDeduplicate] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  const currency = team?.currency || "XOF";
+
+  const filteredEntries = useMemo(() => {
+    const now = Date.now();
+    let startMs = 0;
+    let endMs = now + 86400000;
+
+    if (rangePreset === "today") {
+      const d = new Date();
+      startMs = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).getTime();
+    } else if (rangePreset === "7d") {
+      startMs = now - 7 * 86400000;
+    } else if (rangePreset === "30d") {
+      startMs = now - 30 * 86400000;
+    } else if (rangePreset === "custom") {
+      startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : 0;
+      endMs = endDate ? new Date(`${endDate}T23:59:59`).getTime() : now + 86400000;
+    }
+
+    // Comptage global des numéros pour identifier les doublons
+    const phoneCounts = new Map<string, number>();
+    for (const o of orders) {
+      const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+      if (p && p !== "Non renseigné") {
+        phoneCounts.set(p, (phoneCounts.get(p) ?? 0) + 1);
+      }
+    }
+
+    const inRange = orders
+      .filter((o) => o.timestamps.received >= startMs && o.timestamps.received <= endMs)
+      .filter((o) => {
+        const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+        if (!p || p === "Non renseigné") return false;
+        if (segment === "livre") return o.statutCloseuse === "livre";
+        if (segment === "relance") return o.statutCloseuse === "injoignable" || o.statutCloseuse === "rejete";
+        if (segment === "duplicates") {
+          return Boolean(o.isDuplicatePhone || o.capiIsolated || (phoneCounts.get(p) ?? 0) > 1);
+        }
+        return true;
+      })
+      .sort((a, b) => b.timestamps.received - a.timestamps.received);
+
+    if (!deduplicate) {
+      return inRange.map((o) => {
+        const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+        const totalForPhone = phoneCounts.get(p) ?? 1;
+        return {
+          order: o,
+          phone: p,
+          ordersCount: totalForPhone,
+          isDuplicate: Boolean(o.isDuplicatePhone || o.capiIsolated || totalForPhone > 1),
+        };
+      });
+    }
+
+    const seen = new Set<string>();
+    const unique: { order: Order; phone: string; ordersCount: number; isDuplicate: boolean }[] = [];
+    for (const o of inRange) {
+      const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+      if (seen.has(p)) continue;
+      seen.add(p);
+      const totalForPhone = phoneCounts.get(p) ?? 1;
+      unique.push({
+        order: o,
+        phone: p,
+        ordersCount: totalForPhone,
+        isDuplicate: Boolean(o.isDuplicatePhone || o.capiIsolated || totalForPhone > 1),
+      });
+    }
+    return unique;
+  }, [orders, rangePreset, startDate, endDate, segment, deduplicate]);
+
+  const handleCopyNumbers = () => {
+    const text = filteredEntries.map((e) => e.phone).join("\n");
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleExportCsv = () => {
+    const headers = [
+      "Téléphone Formaté",
+      "Téléphone Brut",
+      "Nom Client",
+      "Ville",
+      "Produit",
+      "Quantité",
+      `Montant (${currency})`,
+      "Statut",
+      "Nb Commandes Numéro",
+      "Qualification Tracking",
+      "Date Réception",
+    ];
+    const escapeCsv = (val: string | number) => {
+      const s = String(val ?? "").replace(/"/g, '""');
+      return `"${s}"`;
+    };
+    const rows = filteredEntries.map(({ order: o, phone, ordersCount, isDuplicate }) => [
+      escapeCsv(phone),
+      escapeCsv(o.clientPhoneRaw || phone),
+      escapeCsv(o.clientName),
+      escapeCsv(o.city || o.shopifyData?.locationHint || ""),
+      escapeCsv(o.product),
+      escapeCsv(o.quantity || 1),
+      escapeCsv(o.amount),
+      escapeCsv(o.statutCloseuse),
+      escapeCsv(ordersCount),
+      escapeCsv(isDuplicate ? "Accès libre site (Isolé Meta)" : "Meta CAPI Standard"),
+      escapeCsv(new Date(o.timestamps.received).toLocaleString("fr-FR")),
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.map(escapeCsv).join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `numeros-clients-${team?.name.toLowerCase().replace(/\s+/g, "-") || "export"}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="rounded-2xl border border-surface-border bg-surface-raised p-6 space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-surface-border pb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-100">
+            Exportation Complète des Numéros Clients & SAV {team ? `— ${team.name}` : ""}
+          </h3>
+          <p className="mt-0.5 text-xs text-slate-500">
+            Extrayez tous les numéros sur la durée de votre choix pour vos relances WhatsApp, SMS ou campagnes SAV.
+          </p>
+        </div>
+        <span className="rounded-xl border border-brand/30 bg-brand/10 px-3 py-1 font-mono text-xs font-bold text-brand">
+          {filteredEntries.length} numéro{filteredEntries.length > 1 ? "s" : ""} prêt{filteredEntries.length > 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* Filtres de durée et segment */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-slate-300">Durée d'extraction</label>
+          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+            {(
+              [
+                { id: "today", label: "Aujourd'hui" },
+                { id: "7d", label: "7 jours" },
+                { id: "30d", label: "30 jours" },
+                { id: "all", label: "Tout" },
+                { id: "custom", label: "Dates" },
+              ] as { id: ExportRangePreset; label: string }[]
+            ).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setRangePreset(p.id)}
+                className={`rounded-lg border px-2.5 py-2 text-xs font-medium transition ${
+                  rangePreset === p.id
+                    ? "border-brand bg-brand text-white"
+                    : "border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {rangePreset === "custom" && (
+            <div className="mt-2.5 grid grid-cols-2 gap-2">
+              <div>
+                <span className="mb-1 block text-[11px] text-slate-500">Du</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-brand"
+                />
+              </div>
+              <div>
+                <span className="mb-1 block text-[11px] text-slate-500">Au</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-brand"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-slate-300">Catégorie de clients</label>
+          <select
+            value={segment}
+            onChange={(e) => setSegment(e.target.value as ExportSegment)}
+            className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+          >
+            <option value="all">Tous les numéros reçus sur la période</option>
+            <option value="livre">Clients Livrés uniquement (Fidélisation & SAV)</option>
+            <option value="relance">Injoignables & Rejetés (À relancer sur WhatsApp)</option>
+            <option value="duplicates">Numéros Doublons uniquement (Accès libre site / Hors Meta)</option>
+          </select>
+
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={deduplicate}
+              onChange={(e) => setDeduplicate(e.target.checked)}
+              className="rounded border-surface-border text-brand focus:ring-brand"
+            />
+            <span>Dédupliquer automatiquement (garder 1 seule ligne par numéro unique)</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Boutons d'exportation */}
+      <div className="flex flex-wrap items-center gap-2.5 border-t border-surface-border pt-4">
+        <button
+          type="button"
+          disabled={filteredEntries.length === 0}
+          onClick={handleExportCsv}
+          className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-40"
+        >
+          <Download className="h-4 w-4" />
+          Exporter en Excel / CSV ({filteredEntries.length})
+        </button>
+
+        <button
+          type="button"
+          disabled={filteredEntries.length === 0}
+          onClick={handleCopyNumbers}
+          className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-medium text-slate-200 transition hover:border-brand/50 disabled:opacity-40"
+        >
+          {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-slate-400" />}
+          {copied ? "Numéros copiés dans le presse-papiers !" : "Copier uniquement la liste des numéros"}
+        </button>
+      </div>
+
+      {/* Aperçu rapide avec bouton WhatsApp SAV direct */}
+      <div className="max-h-72 overflow-y-auto rounded-xl border border-surface-border bg-surface/50">
+        {filteredEntries.length === 0 ? (
+          <p className="p-6 text-center text-xs text-slate-500">Aucun numéro sur cette plage de dates.</p>
+        ) : (
+          <table className="w-full text-left text-xs">
+            <thead className="sticky top-0 border-b border-surface-border bg-surface-raised text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <tr>
+                <th className="px-3.5 py-2.5">Numéro & SAV</th>
+                <th className="px-3.5 py-2.5">Client</th>
+                <th className="px-3.5 py-2.5">Produit</th>
+                <th className="px-3.5 py-2.5">Attribution</th>
+                <th className="px-3.5 py-2.5 text-right">Date</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {filteredEntries.slice(0, 60).map(({ order: o, phone, ordersCount, isDuplicate }) => (
+                <tr key={o.id} className="hover:bg-surface/80">
+                  <td className="px-3.5 py-2 font-mono text-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span>{phone}</span>
+                      <a
+                        href={buildWhatsAppLink(
+                          phone,
+                          `Bonjour ${o.clientName}, ici le service client de la boutique concernant votre commande (${o.product}).`
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Écrire sur WhatsApp"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-emerald-500/30 bg-emerald-500/10 text-xs hover:bg-emerald-500/20"
+                      >
+                        💬
+                      </a>
+                    </div>
+                  </td>
+                  <td className="px-3.5 py-2 text-slate-300">{o.clientName}</td>
+                  <td className="max-w-[160px] truncate px-3.5 py-2 text-slate-400">{o.product}</td>
+                  <td className="px-3.5 py-2">
+                    {isDuplicate ? (
+                      <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
+                        Accès libre site ({ordersCount}x)
+                      </span>
+                    ) : (
+                      <span className="rounded border border-surface-border bg-surface px-1.5 py-0.5 text-[10px] text-slate-400">
+                        Standard (1x)
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3.5 py-2 text-right tabular-nums text-slate-500">
+                    {new Date(o.timestamps.received).toLocaleDateString("fr-FR")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

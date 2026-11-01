@@ -7,6 +7,7 @@ import {
   Layers,
   Users,
   Wallet,
+  Landmark,
   Settings,
   Menu,
 } from "lucide-react";
@@ -18,7 +19,7 @@ interface MobileNavProps {
   onNavigate: (key: string) => void;
 }
 
-const PRIMARY_KEYS = ["overview", "orders", "ai_assistant", "settings"];
+const PRIMARY_KEYS = ["overview", "orders", "caisse", "settings"];
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   overview: LayoutDashboard,
@@ -27,6 +28,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   performance: BarChart3,
   teams: Layers,
   users: Users,
+  caisse: Landmark,
   remuneration: Wallet,
   settings: Settings,
 };

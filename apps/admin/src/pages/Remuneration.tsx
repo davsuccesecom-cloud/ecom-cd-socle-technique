@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import type { AppUser, Order, Team, UserRole } from "@ecomcod/shared";
-import { useRemunerationTotals, ConfirmDialog } from "@ecomcod/shared";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import type { AppUser, CashSettlementEntry, Order, Team, UserRole } from "@ecomcod/shared";
+import { getDb, useRemunerationTotals, ConfirmDialog } from "@ecomcod/shared";
+import { Landmark, AlertTriangle, CheckCircle2 } from "lucide-react";
 import StatCard from "../components/StatCard";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
@@ -10,23 +12,54 @@ interface RemunerationProps {
   closeuses: AppUser[];
   livreurs: AppUser[];
   orders: Order[];
+  onOpenCaisse?: () => void;
 }
 
 interface EmployeeRow {
   user: AppUser;
   livraisons: number;
   remuneration: number;
+  remunDeductions: number;
+  remunDeductionNotes: string[];
+  unsettledCash: number;
 }
 
 const callMarkPaid = httpsCallable(getFunctions(), "markRemunerationPaid");
 const callCancelPaid = httpsCallable(getFunctions(), "cancelRemunerationPayment");
 
-export default function Remuneration({ team, closeuses, livreurs, orders }: RemunerationProps) {
+export default function Remuneration({ team, closeuses, livreurs, orders, onOpenCaisse }: RemunerationProps) {
   const [role, setRole] = useState<UserRole>("closeuse");
-  const [confirmTarget, setConfirmTarget] = useState<{ userId: string; name: string; amount: number } | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{
+    userId: string;
+    name: string;
+    amount: number;
+    unsettledCash?: number;
+  } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ userId: string; name: string } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [settlementEntries, setSettlementEntries] = useState<CashSettlementEntry[]>([]);
+
+  useEffect(() => {
+    const wsId = team?.workspaceId;
+    const tId = team?.id;
+    if (!wsId || !tId) {
+      setSettlementEntries([]);
+      return;
+    }
+    const q = query(
+      collection(getDb(), `workspaces/${wsId}/cashSettlements`),
+      where("teamId", "==", tId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list: CashSettlementEntry[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<CashSettlementEntry, "id">),
+      }));
+      setSettlementEntries(list);
+    });
+    return () => unsub();
+  }, [team?.workspaceId, team?.id]);
 
   const remunCloseuse = team?.remunerationCloseusePerOrder ?? 0;
   const remunLivreur = team?.remunerationLivreurPerOrder ?? 0;
@@ -35,9 +68,12 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
   const { totals: livreurTotals } = useRemunerationTotals(team?.workspaceId ?? null, "livreur");
   const totals = role === "closeuse" ? closeuseTotals : livreurTotals;
 
-  const delivered = useMemo(() => orders.filter((o) => o.statutLivreur === "livre"), [orders]);
+  const delivered = useMemo(
+    () => orders.filter((o) => o.statutLivreur === "livre" || o.statutCloseuse === "livre"),
+    [orders]
+  );
 
-  const caTotal = useMemo(() => delivered.reduce((sum, o) => sum + o.amount, 0), [delivered]);
+  const caTotal = useMemo(() => delivered.reduce((sum, o) => sum + (o.amount || 0), 0), [delivered]);
 
   const rows: EmployeeRow[] = useMemo(() => {
     const users = role === "closeuse" ? closeuses : livreurs;
@@ -46,13 +82,41 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
       const mine = delivered.filter((o) =>
         role === "closeuse" ? o.closeuseId === user.id : o.livreurId === user.id
       );
+      const userEntries = settlementEntries.filter((e) => e.livreurId === user.id);
+      const remunDeductionEntries = userEntries.filter(
+        (e) => e.type === "deduction" && e.impact === "remuneration"
+      );
+      const remunDeductions = remunDeductionEntries.reduce((s, e) => s + (e.amount || 0), 0);
+      const remunDeductionNotes = remunDeductionEntries.map(
+        (e) => `-${e.amount.toLocaleString("fr-FR")} F (${e.note})`
+      );
+
+      const expectedCash =
+        role === "livreur" ? mine.reduce((s, o) => s + (o.amount || 0), 0) : 0;
+      const remittedCash =
+        role === "livreur"
+          ? userEntries
+              .filter((e) => e.type === "remittance")
+              .reduce((s, e) => s + (e.amount || 0), 0)
+          : 0;
+      const caisseDeductions =
+        role === "livreur"
+          ? userEntries
+              .filter((e) => e.type === "deduction" && e.impact === "caisse")
+              .reduce((s, e) => s + (e.amount || 0), 0)
+          : 0;
+      const unsettledCash = Math.max(0, expectedCash - caisseDeductions - remittedCash);
+
       return {
         user,
         livraisons: mine.length,
         remuneration: mine.length * remunPerOrder,
+        remunDeductions,
+        remunDeductionNotes,
+        unsettledCash,
       };
     });
-  }, [role, closeuses, livreurs, delivered, remunCloseuse, remunLivreur]);
+  }, [role, closeuses, livreurs, delivered, remunCloseuse, remunLivreur, settlementEntries]);
 
   const remunerationTotale = useMemo(() => {
     const closeuseTotal = closeuses.reduce((sum, u) => {
@@ -136,23 +200,35 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
       </div>
 
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-        <div className="mb-4 flex rounded-xl border border-surface-border bg-surface p-1">
-          <button
-            onClick={() => setRole("closeuse")}
-            className={`flex-1 rounded-lg px-4 py-1.5 text-sm transition-colors ${
-              role === "closeuse" ? "bg-brand text-white" : "text-slate-400"
-            }`}
-          >
-            Closeuses
-          </button>
-          <button
-            onClick={() => setRole("livreur")}
-            className={`flex-1 rounded-lg px-4 py-1.5 text-sm transition-colors ${
-              role === "livreur" ? "bg-brand text-white" : "text-slate-400"
-            }`}
-          >
-            Livreurs
-          </button>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-1 rounded-xl border border-surface-border bg-surface p-1">
+            <button
+              onClick={() => setRole("closeuse")}
+              className={`flex-1 rounded-lg px-4 py-1.5 text-sm transition-colors ${
+                role === "closeuse" ? "bg-brand text-white" : "text-slate-400"
+              }`}
+            >
+              Closeuses
+            </button>
+            <button
+              onClick={() => setRole("livreur")}
+              className={`flex-1 rounded-lg px-4 py-1.5 text-sm transition-colors ${
+                role === "livreur" ? "bg-brand text-white" : "text-slate-400"
+              }`}
+            >
+              Livreurs
+            </button>
+          </div>
+          {role === "livreur" && onOpenCaisse && (
+            <button
+              type="button"
+              onClick={onOpenCaisse}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 bg-brand/10 px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/15"
+            >
+              <Landmark className="h-3.5 w-3.5" />
+              Contrôler Caisse & Versements fin de journée
+            </button>
+          )}
         </div>
 
         {errorMsg && (
@@ -177,30 +253,76 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
                 <tr className="border-b border-surface-border text-left text-xs text-slate-500">
                   <th className="pb-2 font-medium">{role === "closeuse" ? "Closeuse" : "Livreur"}</th>
                   <th className="pb-2 font-medium">Livrées</th>
-                  <th className="pb-2 font-medium">Rémunération</th>
-                  <th className="pb-2 font-medium">Reste à payer</th>
+                  {role === "livreur" && <th className="pb-2 font-medium">Statut Caisse Terrain</th>}
+                  <th className="pb-2 font-medium">Rémunération brute</th>
+                  {role === "livreur" && <th className="pb-2 font-medium">Retenues (justifiées)</th>}
+                  <th className="pb-2 font-medium">Net à payer</th>
                   <th className="pb-2 font-medium"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {rows.map((r) => {
                   const total = totals[r.user.id];
-                  const resteAPayer = total?.resteAPayer ?? r.remuneration;
-                  const isPaid = resteAPayer <= 0 && (total?.totalAmount ?? 0) > 0;
+                  const baseReste = total?.resteAPayer ?? r.remuneration;
+                  const netAPayer = Math.max(0, baseReste - r.remunDeductions);
+                  const isPaid = baseReste <= 0 && (total?.totalAmount ?? 0) > 0;
                   return (
                     <tr key={r.user.id}>
-                      <td className="py-2.5 text-slate-200">{r.user.name}</td>
+                      <td className="py-2.5 font-medium text-slate-200">{r.user.name}</td>
                       <td className="py-2.5 text-slate-400">{r.livraisons}</td>
+                      {role === "livreur" && (
+                        <td className="py-2.5">
+                          {r.livraisons === 0 ? (
+                            <span className="text-xs text-slate-500">Aucun encaissement</span>
+                          ) : r.unsettledCash <= 0 ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Caisse soldée ✓
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={onOpenCaisse}
+                              title="Ouvrir Caisse & Versements pour pointer ce livreur"
+                              className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400 hover:bg-amber-500/20"
+                            >
+                              <AlertTriangle className="h-3 w-3" />
+                              {r.unsettledCash.toLocaleString("fr-FR")} F non versé
+                            </button>
+                          )}
+                        </td>
+                      )}
                       <td className="py-2.5 font-medium text-slate-200">
                         {r.remuneration.toLocaleString("fr-FR")} F
                       </td>
+                      {role === "livreur" && (
+                        <td className="py-2.5">
+                          {r.remunDeductions > 0 ? (
+                            <div className="space-y-0.5">
+                              <span className="font-mono text-xs font-semibold text-rose-400">
+                                -{r.remunDeductions.toLocaleString("fr-FR")} F
+                              </span>
+                              <p
+                                className="max-w-[220px] truncate text-[10px] text-slate-400"
+                                title={r.remunDeductionNotes.join(" • ")}
+                              >
+                                {r.remunDeductionNotes.join(" • ")}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-500">0 F</span>
+                          )}
+                        </td>
+                      )}
                       <td className="py-2.5">
                         {isPaid ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-accent-green/10 px-2 py-0.5 text-xs font-medium text-accent-green">
                             <CheckIcon /> Payé
                           </span>
                         ) : (
-                          <span className="text-accent-orange">{resteAPayer.toLocaleString("fr-FR")} F</span>
+                          <span className="font-semibold text-accent-orange">
+                            {netAPayer.toLocaleString("fr-FR")} F
+                          </span>
                         )}
                       </td>
                       <td className="py-2.5 text-right">
@@ -211,9 +333,16 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
                           >
                             Annuler
                           </button>
-                        ) : resteAPayer > 0 ? (
+                        ) : netAPayer > 0 ? (
                           <button
-                            onClick={() => setConfirmTarget({ userId: r.user.id, name: r.user.name, amount: resteAPayer })}
+                            onClick={() =>
+                              setConfirmTarget({
+                                userId: r.user.id,
+                                name: r.user.name,
+                                amount: netAPayer,
+                                unsettledCash: role === "livreur" ? r.unsettledCash : 0,
+                              })
+                            }
                             className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white"
                           >
                             Payer
@@ -234,10 +363,13 @@ export default function Remuneration({ team, closeuses, livreurs, orders }: Remu
         title="Confirmer le paiement"
         message={
           confirmTarget
-            ? `Confirmer le paiement de ${confirmTarget.amount.toLocaleString("fr-FR")} F à ${confirmTarget.name} ?`
+            ? confirmTarget.unsettledCash && confirmTarget.unsettledCash > 0
+              ? `⚠️ Attention : ${confirmTarget.name} a encore ${confirmTarget.unsettledCash.toLocaleString("fr-FR")} F de caisse terrain non validée dans Caisse & Versements. Confirmer malgré tout le versement de sa prime nette (${confirmTarget.amount.toLocaleString("fr-FR")} F) ?`
+              : `Confirmer le paiement de ${confirmTarget.amount.toLocaleString("fr-FR")} F à ${confirmTarget.name} ?`
             : ""
         }
         confirmLabel="Payer"
+        danger={!!(confirmTarget?.unsettledCash && confirmTarget.unsettledCash > 0)}
         loading={actionLoading}
         onConfirm={handleConfirmPay}
         onCancel={() => setConfirmTarget(null)}

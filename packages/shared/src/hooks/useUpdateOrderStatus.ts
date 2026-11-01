@@ -18,7 +18,7 @@ import type { CloseuseStatus, LivreurStatus } from "../types";
  */
 export function useUpdateOrderStatus(workspaceId: string) {
   const updateCloseuseStatus = useCallback(
-    async (orderId: string, status: CloseuseStatus, reminderAt?: number | null) => {
+    async (orderId: string, status: CloseuseStatus, reminderAt?: number | null, rejectionReason?: string | null) => {
       const db = getDb();
       const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
       const payload: Record<string, unknown> = {
@@ -28,16 +28,23 @@ export function useUpdateOrderStatus(workspaceId: string) {
       if (reminderAt !== undefined) {
         payload.reminderAt = reminderAt;
       }
+      if (rejectionReason !== undefined) {
+        payload.rejectionReason = rejectionReason;
+      }
       await updateDoc(ref, payload);
     },
     [workspaceId]
   );
 
   const updateLivreurStatus = useCallback(
-    async (orderId: string, status: LivreurStatus) => {
+    async (orderId: string, status: LivreurStatus, rejectionReason?: string | null) => {
       const db = getDb();
       const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
-      await updateDoc(ref, { statutLivreur: status });
+      const payload: Record<string, unknown> = { statutLivreur: status };
+      if (rejectionReason !== undefined) {
+        payload.rejectionReason = rejectionReason;
+      }
+      await updateDoc(ref, payload);
       // Le passage à "livre"/"injoignable" déclenche la suite (notifs,
       // rémunération, purge programmée) côté Cloud Function `onOrderUpdated`
       // — jamais côté client, pour garder une seule source de vérité.

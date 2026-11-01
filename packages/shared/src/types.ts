@@ -116,6 +116,13 @@ export interface Order {
   };
 
   capiSent: boolean;
+  capiConfirmedSent?: boolean;
+  capiIsolated?: boolean; // true si isolé du tracking Meta (ex: numéro doublon / accès libre site)
+  trafficSource?: "meta_ads" | "acces_libre_site"; // qualification d'attribution
+  isDuplicatePhone?: boolean; // true si ce numéro a déjà commandé
+  previousOrdersCount?: number;
+  previousRejectionsCount?: number;
+  rejectionReason?: string | null; // motif rapide choisi lors d'un rejet / injoignable
   purgeAt: number | null; // calculé = statut final + 3 jours
 
   // Intégration Shopify & Tracking Réel
@@ -273,4 +280,22 @@ export interface RemunerationTotal {
   totalAmount: number;
   updatedAt: number;
   // jamais purgé, contrairement aux commandes (section 15)
+}
+
+export interface CashSettlementEntry {
+  id: string;
+  workspaceId: string;
+  teamId: string;
+  livreurId: string;
+  livreurName: string;
+  type: "remittance" | "deduction";
+  /**
+   * "caisse" = frais terrain justifié (ex: aller-retour carburant) retranché du cash que le livreur doit reverser
+   * "remuneration" = retenue retranchée sur la commission/paie du livreur
+   */
+  impact: "caisse" | "remuneration";
+  amount: number;
+  note: string;
+  dateKey: string; // YYYY-MM-DD
+  createdAt: number;
 }
