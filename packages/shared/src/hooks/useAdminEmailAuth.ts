@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
+  FacebookAuthProvider,
+  GoogleAuthProvider,
   isSignInWithEmailLink,
   onAuthStateChanged,
   sendSignInLinkToEmail,
   signInWithEmailLink,
+  signInWithPopup,
   signOut,
   type User,
 } from "firebase/auth";
@@ -124,6 +127,43 @@ export function useAdminEmailAuth() {
     }
   }, []);
 
+  const signInWithGoogle = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const auth = getFirebaseAuth();
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      await signInWithPopup(auth, provider);
+      await provision();
+    } catch (err: any) {
+      if (err?.code === "auth/popup-closed-by-user") {
+        setBusy(false);
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Connexion Google impossible.");
+      setBusy(false);
+    }
+  }, [provision]);
+
+  const signInWithFacebook = useCallback(async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const auth = getFirebaseAuth();
+      const provider = new FacebookAuthProvider();
+      await signInWithPopup(auth, provider);
+      await provision();
+    } catch (err: any) {
+      if (err?.code === "auth/popup-closed-by-user") {
+        setBusy(false);
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Connexion Facebook impossible.");
+      setBusy(false);
+    }
+  }, [provision]);
+
   const createWorkspace = useCallback(
     async (workspaceName: string) => provision(workspaceName),
     [provision]
@@ -143,6 +183,8 @@ export function useAdminEmailAuth() {
     needsWorkspaceName,
     error,
     sendLoginLink,
+    signInWithGoogle,
+    signInWithFacebook,
     createWorkspace,
     logout,
   };
