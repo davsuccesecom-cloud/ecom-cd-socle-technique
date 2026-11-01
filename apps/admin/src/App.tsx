@@ -1,8 +1,9 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getFirebaseAuth, useAdminEmailAuth, ConnectionGuard } from "@ecomcod/shared";
 import { useTheme } from "./hooks/useTheme";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import MetaOAuthBridgePage from "./pages/MetaOAuthBridgePage";
 
 interface SessionClaims {
   workspaceId: string;
@@ -74,6 +75,11 @@ export default function App() {
       return true;
     }
   }, [logout]);
+
+  const metaBridgeParam = new URLSearchParams(window.location.search).get("metaBridge");
+  if (metaBridgeParam) {
+    return <MetaOAuthBridgePage bridgeParam={metaBridgeParam} />;
+  }
 
   if (authLoading || (firebaseUser && claimsLoading && !needsWorkspaceName)) {
     return <div className="flex min-h-screen items-center justify-center bg-surface text-slate-500">Chargement…</div>;

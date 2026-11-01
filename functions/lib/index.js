@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.migrateUsers = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.migrateUsers = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -1318,6 +1318,86 @@ exports.disconnectMetaCapi = (0, https_1.onCall)(async (request) => {
     }
     catch (err) {
         throw new https_1.HttpsError("internal", err?.message || "Erreur désactivation Meta.");
+    }
+});
+exports.createMetaOAuthBridgeSession = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { teamId, teamName } = request.data;
+    if (!teamId) {
+        throw new https_1.HttpsError("invalid-argument", "teamId requis.");
+    }
+    const sessionId = crypto.randomBytes(12).toString("base64url");
+    const secret = crypto.randomBytes(18).toString("base64url");
+    const secretHash = crypto.createHash("sha256").update(secret).digest("hex");
+    const now = Date.now();
+    const expiresAt = now + 15 * 60 * 1000;
+    await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("metaOAuthSessions")
+        .doc(sessionId)
+        .set({
+        sessionId,
+        workspaceId,
+        teamId,
+        teamName: teamName || "Équipe",
+        secretHash,
+        status: "pending",
+        createdAt: now,
+        expiresAt,
+    });
+    return {
+        workspaceId,
+        sessionId,
+        secret,
+        expiresAt,
+    };
+});
+exports.completeMetaOAuthBridgeSession = (0, https_1.onCall)(async (request) => {
+    const { workspaceId, sessionId, secret, userAccessToken } = request.data;
+    if (!workspaceId || !sessionId || !secret || !userAccessToken) {
+        throw new https_1.HttpsError("invalid-argument", "Paramètres de session incomplets.");
+    }
+    const sessionRef = db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("metaOAuthSessions")
+        .doc(sessionId);
+    const snap = await sessionRef.get();
+    if (!snap.exists) {
+        throw new https_1.HttpsError("not-found", "Ce lien de connexion a expiré ou n'existe plus.");
+    }
+    const data = snap.data();
+    if (data.status !== "pending") {
+        throw new https_1.HttpsError("failed-precondition", "Ce lien a déjà été utilisé.");
+    }
+    if (Date.now() > (data.expiresAt ?? 0)) {
+        throw new https_1.HttpsError("deadline-exceeded", "Ce lien de connexion a expiré (validité 15 min).");
+    }
+    const providedHash = crypto.createHash("sha256").update(secret).digest("hex");
+    if (!data.secretHash || providedHash !== data.secretHash) {
+        throw new https_1.HttpsError("permission-denied", "Lien de connexion invalide.");
+    }
+    try {
+        const metaData = await (0, metaAuth_1.fetchMetaAdAccountsAndPixels)(userAccessToken);
+        await sessionRef.update({
+            status: "authorized",
+            secretHash: null,
+            userAccessToken,
+            user: metaData.user,
+            businesses: metaData.businesses || [],
+            adAccounts: metaData.adAccounts || [],
+            authorizedAt: Date.now(),
+        });
+        return {
+            success: true,
+            teamName: data.teamName || "Équipe",
+            fbUserName: metaData.user?.name || "Compte Facebook",
+            adAccountsCount: metaData.adAccounts?.length || 0,
+        };
+    }
+    catch (err) {
+        throw new https_1.HttpsError("internal", err?.message || "Impossible de récupérer les comptes Meta.");
     }
 });
 // ---------------------------------------------------------------------------

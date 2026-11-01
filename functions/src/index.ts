@@ -1603,6 +1603,102 @@ export const disconnectMetaCapi = onCall(async (request) => {
   }
 });
 
+export const createMetaOAuthBridgeSession = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { teamId, teamName } = request.data as { teamId: string; teamName?: string };
+  if (!teamId) {
+    throw new HttpsError("invalid-argument", "teamId requis.");
+  }
+
+  const sessionId = crypto.randomBytes(12).toString("base64url");
+  const secret = crypto.randomBytes(18).toString("base64url");
+  const secretHash = crypto.createHash("sha256").update(secret).digest("hex");
+  const now = Date.now();
+  const expiresAt = now + 15 * 60 * 1000;
+
+  await db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("metaOAuthSessions")
+    .doc(sessionId)
+    .set({
+      sessionId,
+      workspaceId,
+      teamId,
+      teamName: teamName || "Équipe",
+      secretHash,
+      status: "pending",
+      createdAt: now,
+      expiresAt,
+    });
+
+  return {
+    workspaceId,
+    sessionId,
+    secret,
+    expiresAt,
+  };
+});
+
+export const completeMetaOAuthBridgeSession = onCall(async (request) => {
+  const { workspaceId, sessionId, secret, userAccessToken } = request.data as {
+    workspaceId: string;
+    sessionId: string;
+    secret: string;
+    userAccessToken: string;
+  };
+
+  if (!workspaceId || !sessionId || !secret || !userAccessToken) {
+    throw new HttpsError("invalid-argument", "Paramètres de session incomplets.");
+  }
+
+  const sessionRef = db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("metaOAuthSessions")
+    .doc(sessionId);
+  const snap = await sessionRef.get();
+
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "Ce lien de connexion a expiré ou n'existe plus.");
+  }
+
+  const data = snap.data()!;
+  if (data.status !== "pending") {
+    throw new HttpsError("failed-precondition", "Ce lien a déjà été utilisé.");
+  }
+  if (Date.now() > (data.expiresAt ?? 0)) {
+    throw new HttpsError("deadline-exceeded", "Ce lien de connexion a expiré (validité 15 min).");
+  }
+
+  const providedHash = crypto.createHash("sha256").update(secret).digest("hex");
+  if (!data.secretHash || providedHash !== data.secretHash) {
+    throw new HttpsError("permission-denied", "Lien de connexion invalide.");
+  }
+
+  try {
+    const metaData = await fetchMetaAdAccountsAndPixels(userAccessToken);
+    await sessionRef.update({
+      status: "authorized",
+      secretHash: null,
+      userAccessToken,
+      user: metaData.user,
+      businesses: metaData.businesses || [],
+      adAccounts: metaData.adAccounts || [],
+      authorizedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      teamName: data.teamName || "Équipe",
+      fbUserName: metaData.user?.name || "Compte Facebook",
+      adAccountsCount: metaData.adAccounts?.length || 0,
+    };
+  } catch (err: any) {
+    throw new HttpsError("internal", err?.message || "Impossible de récupérer les comptes Meta.");
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 9. Migration : cree les utilisateurs Firebase Auth manquants pour tous les
 // employes existants dans Firestore (correction du bug d'authentification)

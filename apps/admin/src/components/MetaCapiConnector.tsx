@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { doc, onSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { ConfirmDialog } from "@ecomcod/shared";
+import { getDb, ConfirmDialog } from "@ecomcod/shared";
 import type { Team, MetaCapiConfig } from "@ecomcod/shared";
-import { Share2 } from "lucide-react";
+import { Share2, Link2, Copy, Check, RefreshCw, Sparkles, X } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 declare global {
@@ -17,6 +18,7 @@ const FB_APP_ID = "27919549707704174";
 interface MetaCapiConnectorProps {
   workspaceId: string;
   team: Team;
+  allTeams?: Team[];
   onConfigSaved?: (newConfig: MetaCapiConfig) => void;
 }
 
@@ -34,13 +36,22 @@ interface MetaAdAccount {
   pixels: MetaPixel[];
 }
 
-export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: MetaCapiConnectorProps) {
+export default function MetaCapiConnector({ workspaceId, team, allTeams = [], onConfigSaved }: MetaCapiConnectorProps) {
   const [fbSdkLoaded, setFbSdkLoaded] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [userToken, setUserToken] = useState<string | null>(null);
   const [fbUser, setFbUser] = useState<{ id: string; name: string; picture?: string } | null>(null);
   const [adAccounts, setAdAccounts] = useState<MetaAdAccount[]>([]);
   const [businesses, setBusinesses] = useState<{ id: string; name: string }[]>([]);
+
+  // External OAuth Bridge state (Incognito / Other Browser / Multi-Profile)
+  const [bridgeSession, setBridgeSession] = useState<{
+    sessionId: string;
+    secret: string;
+    expiresAt: number;
+  } | null>(null);
+  const [creatingBridge, setCreatingBridge] = useState(false);
+  const [copiedBridgeLink, setCopiedBridgeLink] = useState(false);
 
   // Selection state
   const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>("");
@@ -67,10 +78,57 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
     setTestCode(team.metaCapiConfig?.testEventCode || "");
     setManualPixelId(team.metaCapiConfig?.pixelId || "");
     setManualToken(team.metaCapiConfig?.accessToken || "");
+    setBridgeSession(null);
     setTestResult(null);
     setError(null);
     setSuccessMsg(null);
   }, [team.id, team.metaCapiConfig]);
+
+  // Listen in real time to External Bridge Session when active
+  useEffect(() => {
+    if (!bridgeSession?.sessionId || !workspaceId) return;
+    const db = getDb();
+    const sessionRef = doc(db, "workspaces", workspaceId, "metaOAuthSessions", bridgeSession.sessionId);
+
+    const unsubscribe = onSnapshot(
+      sessionRef,
+      (snap) => {
+        if (!snap.exists()) return;
+        const data = snap.data();
+        if (data?.status === "authorized" && data?.userAccessToken) {
+          setUserToken(data.userAccessToken as string);
+          setFbUser(data.user || { id: "external", name: "Compte Facebook Externe" });
+          const bizList = Array.isArray(data.businesses) ? data.businesses : [];
+          const accList: MetaAdAccount[] = Array.isArray(data.adAccounts) ? data.adAccounts : [];
+          setBusinesses(bizList);
+          setAdAccounts(accList);
+
+          if (accList.length > 0) {
+            const firstAcc = accList[0];
+            setSelectedAdAccountId(firstAcc.id);
+            if (firstAcc.currency) setCurrency(firstAcc.currency);
+            if (firstAcc.pixels && firstAcc.pixels.length > 0) {
+              setSelectedPixelId(firstAcc.pixels[0].id);
+            } else {
+              setSelectedPixelId("");
+            }
+          }
+
+          setBridgeSession(null);
+          setError(null);
+          setSuccessMsg(
+            `✓ Connexion externe reçue en direct (${data.user?.name || "Compte Facebook"}) ! Sélectionnez maintenant le compte publicitaire et le Pixel ci-dessous.`
+          );
+
+          // Nettoyage de la session éphémère après réception
+          deleteDoc(sessionRef).catch(() => {});
+        }
+      },
+      () => {}
+    );
+
+    return () => unsubscribe();
+  }, [bridgeSession?.sessionId, workspaceId]);
 
   // Load Facebook JS SDK dynamically
   useEffect(() => {
@@ -104,7 +162,16 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
   const currentAdAccount = adAccounts.find((a) => a.id === selectedAdAccountId);
   const availablePixels = currentAdAccount?.pixels || [];
 
-  const handleFbLogin = () => {
+  const otherConfiguredTeams = allTeams.filter(
+    (t) =>
+      t.id !== team.id &&
+      t.metaCapiConfig?.enabled &&
+      t.metaCapiConfig?.pixelId &&
+      t.metaCapiConfig?.accessToken &&
+      t.metaCapiConfig.pixelId !== team.metaCapiConfig?.pixelId
+  );
+
+  const handleFbLogin = (forceReauth = false) => {
     setError(null);
     setSuccessMsg(null);
     if (!window.FB) {
@@ -158,13 +225,74 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
         })();
       };
 
-      window.FB.login(onLoginResponse, {
+      const loginOpts: Record<string, unknown> = {
         scope: "ads_read,ads_management,business_management",
         return_scopes: true,
-      });
+      };
+      if (forceReauth) {
+        loginOpts.auth_type = "reauthenticate";
+      }
+
+      window.FB.login(onLoginResponse, loginOpts);
     } catch (err: any) {
       setLoggingIn(false);
       setError(err?.message || "Erreur ouverture popup Facebook.");
+    }
+  };
+
+  const handleCreateExternalBridgeLink = async () => {
+    setCreatingBridge(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const functions = getFunctions();
+      const createBridgeFn = httpsCallable(functions, "createMetaOAuthBridgeSession");
+      const res = (await createBridgeFn({
+        teamId: team.id,
+        teamName: team.name,
+      })) as {
+        data: { sessionId: string; secret: string; expiresAt: number };
+      };
+      setBridgeSession(res.data);
+      const url = `${window.location.origin}/?metaBridge=${workspaceId}:${res.data.sessionId}:${res.data.secret}`;
+      navigator.clipboard.writeText(url).catch(() => {});
+      setCopiedBridgeLink(true);
+      setTimeout(() => setCopiedBridgeLink(false), 3000);
+    } catch (err: any) {
+      setError(err?.message || "Impossible de générer le lien de connexion externe.");
+    } finally {
+      setCreatingBridge(false);
+    }
+  };
+
+  const handleReuseTeamPixel = async (sourceTeam: Team) => {
+    const sourceCfg = sourceTeam.metaCapiConfig;
+    if (!sourceCfg || !sourceCfg.pixelId || !sourceCfg.accessToken) return;
+    setSaving(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const db = getDb();
+      const sharedConfig: MetaCapiConfig = {
+        ...sourceCfg,
+        enabled: true,
+        currency: team.currency || sourceCfg.currency || "XOF",
+        connectedAt: Date.now(),
+      };
+      await updateDoc(doc(db, "workspaces", workspaceId, "teams", team.id), {
+        metaCapiConfig: sharedConfig,
+      });
+      setSuccessMsg(
+        `✓ Pixel « ${sourceCfg.pixelName || sourceCfg.pixelId} » partagé depuis ${sourceTeam.name} avec succès !`
+      );
+      if (onConfigSaved) {
+        onConfigSaved(sharedConfig);
+      }
+    } catch (err: any) {
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -317,11 +445,25 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
               onClick={() => {
                 setUserToken(null);
                 setFbUser(null);
-                handleFbLogin();
+                handleFbLogin(false);
               }}
               className="rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
             >
               Changer de Pixel
+            </button>
+
+            <button
+              type="button"
+              disabled={creatingBridge}
+              onClick={() => {
+                setUserToken(null);
+                setFbUser(null);
+                void handleCreateExternalBridgeLink();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300 hover:bg-blue-500/20 transition-colors"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              {creatingBridge ? "Génération..." : "Lien externe (Incognito / Autre navigateur)"}
             </button>
 
             <button
@@ -336,9 +478,9 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
         </div>
       )}
 
-      {/* ÉTAT 2 : Formulaire de connexion automatique */}
+      {/* ÉTAT 2 : Formulaire de connexion automatique + Lien Externe Multi-Navigateur */}
       {!isAlreadyConfigured && !fbUser && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-950/20 p-4 text-center space-y-3">
+        <div className="rounded-xl border border-blue-500/20 bg-blue-950/20 p-4 text-center space-y-3.5">
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20 text-blue-400">
             <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -346,53 +488,183 @@ export default function MetaCapiConnector({ workspaceId, team, onConfigSaved }: 
           </div>
           <div>
             <h5 className="text-sm font-medium text-slate-100">Connexion Meta en 1 clic</h5>
-            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-              Connectez votre compte Facebook pour sélectionner votre compte publicitaire et votre Pixel. Le robot configurera un jeton permanent sans copier-coller.
+            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+              Connectez votre compte Facebook ici, ou générez un lien externe pour vous connecter depuis une fenêtre Incognito, un autre navigateur (Brave, Firefox, AdsPower) ou un autre profil Chrome.
             </p>
           </div>
 
-          <button
-            type="button"
-            disabled={loggingIn}
-            onClick={handleFbLogin}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
-          >
-            <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
-              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-            </svg>
-            {loggingIn ? "Connexion Facebook en cours..." : "Se connecter avec Facebook"}
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            <button
+              type="button"
+              disabled={loggingIn}
+              onClick={() => handleFbLogin(false)}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50"
+            >
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              {loggingIn ? "Connexion Facebook en cours..." : "Se connecter avec Facebook"}
+            </button>
+
+            <button
+              type="button"
+              disabled={creatingBridge}
+              onClick={handleCreateExternalBridgeLink}
+              className="inline-flex items-center gap-2 rounded-xl border border-blue-400/40 bg-surface/80 hover:bg-surface px-3.5 py-2.5 text-xs font-semibold text-blue-300 transition-all disabled:opacity-50"
+            >
+              <Link2 className="h-4 w-4" />
+              {creatingBridge ? "Création du lien..." : "Générer un lien de connexion externe"}
+            </button>
+          </div>
+
+          <div className="pt-0.5">
+            <button
+              type="button"
+              disabled={loggingIn}
+              onClick={() => handleFbLogin(true)}
+              className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-200 underline underline-offset-2 transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Forcer la reconnexion d'un autre compte Facebook sur ce navigateur
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PANNEAU PASSERELLE EXTERNE EN ATTENTE (Incognito / Autre Navigateur) */}
+      {bridgeSession && (
+        <div className="rounded-xl border border-blue-500/40 bg-surface-raised p-4 space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500" />
+              </span>
+              <p className="text-xs font-semibold text-blue-300">
+                En attente de connexion Facebook depuis l'autre navigateur…
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBridgeSession(null)}
+              className="rounded-lg p-1 text-slate-400 hover:bg-surface hover:text-slate-200"
+              title="Fermer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Copiez ce lien à usage unique et collez-le dans une <strong>fenêtre de navigation privée (Incognito)</strong>, un <strong>autre navigateur</strong> (Brave, Firefox, Edge, AdsPower) ou un <strong>autre profil Chrome</strong>. Dès que vous y autoriserez Facebook, vos comptes publicitaires et Pixels s'afficheront <strong>automatiquement ici en temps réel</strong>.
+          </p>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              readOnly
+              value={`${window.location.origin}/?metaBridge=${workspaceId}:${bridgeSession.sessionId}:${bridgeSession.secret}`}
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+              className="flex-1 rounded-lg border border-surface-border bg-surface px-3 py-2 font-mono text-[11px] text-slate-200 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const url = `${window.location.origin}/?metaBridge=${workspaceId}:${bridgeSession.sessionId}:${bridgeSession.secret}`;
+                navigator.clipboard.writeText(url).catch(() => {});
+                setCopiedBridgeLink(true);
+                setTimeout(() => setCopiedBridgeLink(false), 2500);
+              }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-xs font-semibold text-white hover:bg-brand-hover transition-colors"
+            >
+              {copiedBridgeLink ? (
+                <>
+                  <Check className="h-3.5 w-3.5" />
+                  Copié !
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Copier le lien
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* PARTAGE MULTI-ÉQUIPES EN 1 CLIC (Si une autre équipe a déjà un Pixel actif) */}
+      {otherConfiguredTeams.length > 0 && !fbUser && (
+        <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 text-brand" />
+            <p className="text-xs font-semibold text-slate-200">
+              Partager / Réutiliser un Pixel déjà connecté sur une autre équipe
+            </p>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            Si plusieurs équipes utilisent le même Business Manager ou le même Pixel, activez-le en 1 clic sur {team.name} sans vous reconnecter :
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {otherConfiguredTeams.map((otherTeam) => (
+              <button
+                key={otherTeam.id}
+                type="button"
+                disabled={saving}
+                onClick={() => handleReuseTeamPixel(otherTeam)}
+                className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 hover:bg-brand/20 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors disabled:opacity-50"
+              >
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span>
+                  Utiliser le Pixel de <strong>{otherTeam.name}</strong> ({otherTeam.metaCapiConfig?.pixelName || otherTeam.metaCapiConfig?.pixelId})
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* ÉTAT 3 : Connecté à Facebook, sélection du Compte et du Pixel */}
       {fbUser && (
         <div className="space-y-4 rounded-xl border border-surface-border bg-surface-raised p-4">
-          <div className="flex items-center justify-between border-b border-surface-border pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-3">
             <div className="flex items-center gap-2.5">
               {fbUser.picture && (
                 <img src={fbUser.picture} alt="" className="h-8 w-8 rounded-full border border-surface-border" />
               )}
               <div>
                 <p className="text-xs font-semibold text-slate-100">{fbUser.name}</p>
-                <p className="text-[10px] text-emerald-400">✓ Authentifié Facebook</p>
+                <p className="text-[10px] text-emerald-400">✓ Authentifié Facebook — Sélectionnez le compte pub & Pixel</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  if (window.FB && window.FB.getAccessToken && window.FB.getAccessToken()) {
-                    window.FB.logout();
-                  }
-                } catch (e) {}
-                setFbUser(null);
-                setUserToken(null);
-              }}
-              className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
-            >
-              Changer de compte Facebook
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setFbUser(null);
+                  setUserToken(null);
+                  void handleCreateExternalBridgeLink();
+                }}
+                className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                Lien externe
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    if (window.FB && window.FB.getAccessToken && window.FB.getAccessToken()) {
+                      window.FB.logout();
+                    }
+                  } catch (e) {}
+                  setFbUser(null);
+                  setUserToken(null);
+                }}
+                className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                Changer de compte Facebook
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">

@@ -316,7 +316,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
 
           {activeTab === "metacapi" && (
             team ? (
-              <MetaCapiConnector workspaceId={workspaceId} team={team} />
+              <MetaCapiConnector workspaceId={workspaceId} team={team} allTeams={teams} />
             ) : (
               <EmptyTeamNotice />
             )

@@ -139,6 +139,11 @@ service cloud.firestore {
       match /cashSettlements/{settlementId} {
         allow read, write: if isAdmin(workspaceId);
       }
+
+      // Sessions temporaires de pont OAuth Meta (Incognito / navigateur externe)
+      match /metaOAuthSessions/{sessionId} {
+        allow read, write: if isAdmin(workspaceId);
+      }
     }
   }
 }
