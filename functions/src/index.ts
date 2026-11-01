@@ -259,7 +259,7 @@ export const createAccessUser = onCall(async (request) => {
   try {
     firebaseUser = await admin.auth().createUser({
       displayName: name.trim(),
-      phoneNumber: phone?.trim() || undefined,
+      // phoneNumber stocke uniquement dans Firestore (evite erreur E.164 Firebase Auth)
     });
   } catch (err: any) {
     // Si l'utilisateur existe deja (par exemple si le numero de telephone est
