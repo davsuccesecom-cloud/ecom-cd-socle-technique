@@ -172,6 +172,15 @@ export function useAdminEmailAuth() {
   const logout = useCallback(async () => {
     setNeedsWorkspaceName(false);
     setLinkSent(false);
+    try {
+      window.localStorage.removeItem("ecomcod-theme");
+      window.localStorage.setItem("ecomcod-theme", "dark");
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.remove("light");
+        document.documentElement.classList.add("dark");
+        window.dispatchEvent(new Event("ecomcod-theme-sync"));
+      }
+    } catch (_) {}
     await signOut(getFirebaseAuth());
   }, []);
 

@@ -41,19 +41,19 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
       onClick={() => !loading && onCancel()}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-700 border-surface-border bg-white dark:bg-slate-800 bg-surface-raised p-5 shadow-2xl"
+        className="w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-2xl transition-all"
       >
         <div className="flex items-start gap-3">
           <div
             className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
               danger
-                ? "bg-red-500/15 text-red-500 border border-red-500/25"
-                : "bg-amber-500/15 text-amber-500 border border-amber-500/25"
+                ? "bg-red-500/15 text-red-400 border border-red-500/30"
+                : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
             }`}
           >
             <svg
@@ -72,8 +72,8 @@ export default function ConfirmDialog({
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
-            <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{message}</p>
+            <h2 className="text-base font-semibold text-slate-100">{title}</h2>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-400">{message}</p>
           </div>
         </div>
 
@@ -82,7 +82,7 @@ export default function ConfirmDialog({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 border-surface-border bg-slate-50 dark:bg-slate-900 bg-surface px-4 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 transition hover:opacity-90 disabled:opacity-50"
+            className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-medium text-slate-300 transition hover:bg-surface-subtle hover:text-white disabled:opacity-50"
           >
             {cancelLabel}
           </button>

@@ -106,6 +106,7 @@ function applyDomTheme(theme: Theme, accent: AccentColor) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   root.classList.toggle("light", theme === "light");
+  root.classList.toggle("dark", theme === "dark");
   root.setAttribute("data-accent", accent);
 }
 

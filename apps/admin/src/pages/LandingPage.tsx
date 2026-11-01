@@ -230,6 +230,7 @@ export default function LandingPage({
     const root = document.documentElement;
     const hadLight = root.classList.contains("light");
     root.classList.add("landing-active");
+    root.classList.add("dark");
     if (hadLight) {
       root.classList.remove("light");
     }
@@ -237,6 +238,7 @@ export default function LandingPage({
       root.classList.remove("landing-active");
       if (hadLight) {
         root.classList.add("light");
+        root.classList.remove("dark");
       }
     };
   }, []);
