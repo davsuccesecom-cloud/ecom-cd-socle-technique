@@ -110,33 +110,27 @@ export default function App() {
     );
   }
 
-  if (authLoading || (firebaseUser && claimsLoading && !needsWorkspaceName)) {
-    return <div className="flex min-h-screen items-center justify-center bg-surface text-slate-500">Chargement…</div>;
-  }
-
-  if (searchParams.get("landing") === "1" || pathname === "/landing") {
+  // Si l'utilisateur est connecté et ses droits admin sont validés, on affiche le tableau de bord
+  if (firebaseUser && claims?.workspaceId && claims.role === "admin") {
     return (
-      <LandingPage
-        sendLoginLink={sendLoginLink}
-        createWorkspace={createWorkspace}
-        needsWorkspaceName={needsWorkspaceName}
-        linkSent={linkSent}
-        busy={busy}
-        error={error}
-        isAuthenticatedPreview={Boolean(firebaseUser && claims?.workspaceId)}
-        onBackToDashboard={() => {
-          window.location.href = "/";
-        }}
-      />
+      <ConnectionGuard appName="Admin">
+        <Dashboard
+          workspaceId={claims.workspaceId}
+          onLogout={logout}
+          userEmail={firebaseUser.email}
+          adminId={firebaseUser.uid}
+        />
+      </ConnectionGuard>
     );
   }
 
-  if (!firebaseUser || !claims?.workspaceId) {
+  // Si l'utilisateur a créé un compte et doit nommer son workspace
+  if (firebaseUser && needsWorkspaceName) {
     return (
       <LandingPage
         sendLoginLink={sendLoginLink}
         createWorkspace={createWorkspace}
-        needsWorkspaceName={needsWorkspaceName}
+        needsWorkspaceName={true}
         linkSent={linkSent}
         busy={busy}
         error={error}
@@ -144,22 +138,29 @@ export default function App() {
     );
   }
 
-  if (claims.role !== "admin") {
+  // Si l'utilisateur est connecté mais ses claims sont en cours de chargement
+  if (firebaseUser && claimsLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface px-6 text-center text-slate-500">
-        Ce compte n'est pas un accès admin.
+      <div className="flex min-h-screen items-center justify-center bg-surface text-slate-500">
+        Chargement de l'espace...
       </div>
     );
   }
 
+  // Par défaut pour tout visiteur non connecté : Affichage INSTANTANÉ de la Landing Page 3D
+  // Zéro écran noir, zéro blocage "Chargement..."
   return (
-    <ConnectionGuard appName="Admin">
-      <Dashboard
-        workspaceId={claims.workspaceId}
-        onLogout={logout}
-        userEmail={firebaseUser.email}
-        adminId={firebaseUser.uid}
-      />
-    </ConnectionGuard>
+    <LandingPage
+      sendLoginLink={sendLoginLink}
+      createWorkspace={createWorkspace}
+      needsWorkspaceName={needsWorkspaceName}
+      linkSent={linkSent}
+      busy={busy}
+      error={error}
+      isAuthenticatedPreview={Boolean(firebaseUser && claims?.workspaceId)}
+      onBackToDashboard={() => {
+        window.location.href = "/";
+      }}
+    />
   );
 }
