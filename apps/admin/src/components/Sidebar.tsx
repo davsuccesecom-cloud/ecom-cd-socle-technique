@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ConfirmDialog } from "@ecomcod/shared";
 import ThemeQuickPicker from "./ThemeQuickPicker";
 import {
   LayoutDashboard,
@@ -74,7 +73,19 @@ export default function Sidebar({
   onNavigate,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await onLogout();
+    } catch (err) {
+      console.error("Erreur déconnexion :", err);
+    } finally {
+      window.location.href = "/";
+    }
+  };
 
   return (
     <aside
@@ -170,33 +181,15 @@ export default function Sidebar({
           )}
           <button
             type="button"
-            onClick={() => setConfirmLogout(true)}
+            onClick={handleLogout}
+            disabled={loggingOut}
             title="Se déconnecter"
-            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
           >
-            <LogOut className="h-4 w-4" />
+            <LogOut className={`h-4 w-4 ${loggingOut ? "animate-spin" : ""}`} />
           </button>
         </div>
       </div>
-
-      <ConfirmDialog
-        open={confirmLogout}
-        title="Se déconnecter du poste de pilotage ?"
-        message="Votre session administrateur actuelle sera fermée sur cet appareil."
-        confirmLabel="Se déconnecter"
-        danger={true}
-        onConfirm={async () => {
-          setConfirmLogout(false);
-          try {
-            await onLogout();
-          } catch (err) {
-            console.error("Erreur déconnexion :", err);
-          } finally {
-            window.location.href = "/";
-          }
-        }}
-        onCancel={() => setConfirmLogout(false)}
-      />
     </aside>
   );
 }
