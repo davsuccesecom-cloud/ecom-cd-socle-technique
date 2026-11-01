@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Sun, Moon, Palette, Check } from "lucide-react";
+import { Sun, Moon, Palette, Check, ChevronUp } from "lucide-react";
 import { ACCENT_PRESETS, useTheme } from "../hooks/useTheme";
 
-export default function ThemeQuickPicker() {
+interface ThemeQuickPickerProps {
+  variant?: "header" | "sidebar";
+  collapsed?: boolean;
+}
+
+export default function ThemeQuickPicker({
+  variant = "header",
+  collapsed = false,
+}: ThemeQuickPickerProps) {
   const { theme, accent, setTheme, setAccent } = useTheme();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -19,32 +27,50 @@ export default function ThemeQuickPicker() {
   }, [open]);
 
   const currentPreset = ACCENT_PRESETS.find((p) => p.id === accent) ?? ACCENT_PRESETS[0];
+  const isSidebar = variant === "sidebar";
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={`relative ${isSidebar ? "w-full" : ""}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         title="Personnaliser le thème et l'ambiance visuelle"
-        className="inline-flex h-9 items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-3 text-xs font-medium text-slate-300 transition-colors hover:border-brand/50 hover:text-slate-100"
+        className={
+          isSidebar
+            ? `flex w-full items-center rounded-xl border border-surface-border bg-surface/80 px-2.5 py-2 text-xs font-medium text-slate-300 transition-colors hover:border-brand/50 hover:bg-surface hover:text-slate-100 ${
+                collapsed ? "justify-center" : "justify-between gap-2"
+              }`
+            : "inline-flex h-9 items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-3 text-xs font-medium text-slate-300 transition-colors hover:border-brand/50 hover:text-slate-100"
+        }
       >
-        <span className="flex h-3.5 w-3.5 overflow-hidden rounded-full border border-surface-border shadow-sm">
-          <span
-            className="h-full w-1/2"
-            style={{ backgroundColor: theme === "light" ? currentPreset.lightBar : currentPreset.darkBar }}
-          />
-          <span className="h-full w-1/2" style={{ backgroundColor: currentPreset.swatch }} />
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="flex h-4 w-4 shrink-0 overflow-hidden rounded-full border border-surface-border shadow-sm">
+            <span
+              className="h-full w-1/2"
+              style={{ backgroundColor: theme === "light" ? currentPreset.lightBar : currentPreset.darkBar }}
+            />
+            <span className="h-full w-1/2" style={{ backgroundColor: currentPreset.swatch }} />
+          </span>
+          {theme === "dark" ? (
+            <Moon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          ) : (
+            <Sun className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+          )}
+          {!collapsed && (
+            <span className={`truncate ${isSidebar ? "text-slate-200" : "hidden sm:inline"}`}>
+              {isSidebar ? currentPreset.label : currentPreset.label.split(" ")[0]}
+            </span>
+          )}
         </span>
-        {theme === "dark" ? (
-          <Moon className="h-3.5 w-3.5 text-slate-400" />
-        ) : (
-          <Sun className="h-3.5 w-3.5 text-amber-500" />
-        )}
-        <span className="hidden sm:inline">{currentPreset.label.split(" ")[0]}</span>
+        {isSidebar && !collapsed && <ChevronUp className="h-3.5 w-3.5 shrink-0 text-slate-500" />}
       </button>
 
       {open && (
-        <div className="surface-popover absolute right-0 top-11 z-50 w-72 rounded-2xl p-4">
+        <div
+          className={`surface-popover absolute z-50 w-72 rounded-2xl p-4 ${
+            isSidebar ? "bottom-full left-0 mb-2" : "right-0 top-11"
+          }`}
+        >
           <div className="mb-3 flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-100">
               <Palette className="h-3.5 w-3.5 text-brand" />

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ConfirmDialog } from "@ecomcod/shared";
+import ThemeQuickPicker from "./ThemeQuickPicker";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -148,8 +149,10 @@ export default function Sidebar({
         ))}
       </nav>
 
-      {/* Pied de barre : compte & déconnexion directe */}
-      <div className="mt-4 border-t border-surface-border pt-3">
+      {/* Pied de barre : contrôleur de couleur & compte administrateur */}
+      <div className="mt-3 space-y-2.5 border-t border-surface-border pt-3">
+        <ThemeQuickPicker variant="sidebar" collapsed={collapsed} />
+
         <div className={`flex items-center gap-2.5 px-1.5 ${collapsed ? "justify-center" : ""}`}>
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand">
             {(userEmail ?? "A").charAt(0).toUpperCase()}

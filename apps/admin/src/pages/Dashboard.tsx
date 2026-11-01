@@ -298,9 +298,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
 
             {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
 
-            {/* Always-accessible Theme & Notification Bell (Desktop right corner) */}
-            <div className="hidden md:flex md:items-center md:gap-2">
-              <ThemeQuickPicker />
+            {/* Notification Bell anchored at top-right corner on desktop */}
+            <div className="hidden md:flex md:items-center">
               <NotificationBell
                 workspaceId={workspaceId}
                 onNotificationClick={(notif) => {
