@@ -803,17 +803,16 @@ export default function AiAssistant({
     }
   };
 
-  const runAiLogisticsWatchdog = async (manual = false) => {
+  const runAiLogisticsWatchdog = async () => {
     if (!workspaceId || watchdogScanning) return;
     setWatchdogScanning(true);
-    setWatchdogFeedback(null);
     try {
       const db = getDb();
       const notifCol = collection(db, "workspaces", workspaceId, "notifications");
       const recentSnap = await getDocs(
         query(notifCol, orderBy("createdAt", "desc"), limit(25))
       );
-      const cutoffDedupe = Date.now() - 45 * 60 * 1000;
+      const cutoffDedupe = Date.now() - 60 * 60 * 1000;
       const recentTitles = new Set<string>();
       recentSnap.forEach((d) => {
         const data = d.data();
@@ -824,61 +823,87 @@ export default function AiAssistant({
 
       const alerts = context.logisticsAlerts;
       const toSend: { title: string; body: string }[] = [];
+      const aiEditorLines: string[] = [];
 
       // 1. Caisse livreurs non versée
       const unsettledLivreurs = (context.livreurCashSummaries || []).filter((l) => l.unsettledCash > 0);
       if (unsettledLivreurs.length > 0) {
-        const title = `🤖 Vigie IA · Caisse Livreur à récupérer`;
+        const title = `🤖 Rappel IA · Caisse Livreur à récupérer`;
         const names = unsettledLivreurs
-          .map((l) => `${l.name} (${l.unsettledCash.toLocaleString("fr-FR")} ${context.currency})`)
+          .map((l) => `**${l.name}** (${l.unsettledCash.toLocaleString("fr-FR")} ${context.currency})`)
           .join(", ");
-        const body = `${unsettledLivreurs.length} livreur(s) n'ont pas encore soldé leur caisse : ${names}. Vérifiez dans Caisse & Versements avant de verser la paie.`;
-        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+        const body = `${unsettledLivreurs.length} livreur(s) n'ont pas encore soldé leur caisse : ${unsettledLivreurs.map((l) => `${l.name} (${l.unsettledCash.toLocaleString("fr-FR")} ${context.currency})`).join(", ")}.`;
+        if (!recentTitles.has(title)) {
+          toSend.push({ title, body });
+          aiEditorLines.push(
+            `- **Caisse & Versements Livreurs** : ${unsettledLivreurs.length} livreur(s) n'ont pas encore versé leur encaissement du jour : ${names}. Pensez à pointer leur versement (ou retrancher leurs imprévus avec note justificative) avant de valider leur paie.`
+          );
+        }
       }
 
       // 2. Commandes Nouveau dépassant le délai (> 15 min)
       if (alerts && alerts.staleNewOrders.length > 0) {
-        const title = `🤖 Vigie IA · ${alerts.staleNewOrders.length} commande(s) hors délai d'appel`;
+        const title = `🤖 Rappel IA · ${alerts.staleNewOrders.length} commande(s) hors délai d'appel`;
         const sample = alerts.staleNewOrders
-          .slice(0, 3)
-          .map((o) => `${o.orderNumber} (${o.clientName}, ${o.minutesWaiting} min)`)
+          .slice(0, 4)
+          .map((o) => `${o.orderNumber} (${o.clientName}, ${o.minutesWaiting} min — ${o.closeuseName})`)
           .join(", ");
         const body = `Délai > 15 min dépassé sans action closeuse : ${sample}.`;
-        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+        if (!recentTitles.has(title)) {
+          toSend.push({ title, body });
+          aiEditorLines.push(
+            `- **Délai d'appel dépassé (> 15 min)** : **${alerts.staleNewOrders.length}** commande(s) en statut *Nouveau* n'ont pas encore été traitées (${sample}).`
+          );
+        }
       }
 
       // 3. Rappels programmés oubliés
       if (alerts && alerts.overdueReminders.length > 0) {
-        const title = `🤖 Vigie IA · ${alerts.overdueReminders.length} rappel(s) programmé(s) oublié(s)`;
+        const title = `🤖 Rappel IA · ${alerts.overdueReminders.length} rappel(s) programmé(s) en retard`;
         const sample = alerts.overdueReminders
-          .slice(0, 3)
-          .map((o) => `${o.clientName} (${o.closeuseName}, +${o.minutesOverdue} min)`)
+          .slice(0, 4)
+          .map((o) => `${o.orderNumber} ${o.clientName} (${o.closeuseName}, +${o.minutesOverdue} min)`)
           .join(", ");
         const body = `Heure de rappel dépassée pour : ${sample}.`;
-        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+        if (!recentTitles.has(title)) {
+          toSend.push({ title, body });
+          aiEditorLines.push(
+            `- **Rappels programmés oubliés** : **${alerts.overdueReminders.length}** client(s) attendent leur rappel téléphonique (${sample}).`
+          );
+        }
       }
 
       // 4. Commandes confirmées sans livreur assigné
       if (alerts && alerts.unassignedConfirmed.length > 0) {
-        const title = `🤖 Vigie IA · ${alerts.unassignedConfirmed.length} colis confirmé(s) sans livreur`;
+        const title = `🤖 Rappel IA · ${alerts.unassignedConfirmed.length} colis confirmé(s) sans livreur`;
         const sample = alerts.unassignedConfirmed
-          .slice(0, 3)
-          .map((o) => `${o.orderNumber} (${o.city})`)
+          .slice(0, 4)
+          .map((o) => `${o.orderNumber} (${o.clientName} — ${o.city})`)
           .join(", ");
         const body = `Confirmées mais aucun livreur assigné : ${sample}.`;
-        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+        if (!recentTitles.has(title)) {
+          toSend.push({ title, body });
+          aiEditorLines.push(
+            `- **Colis confirmés sans livreur** : **${alerts.unassignedConfirmed.length}** commande(s) confirmée(s) n'ont pas encore de livreur attribué (${sample}).`
+          );
+        }
       }
 
       // 5. Colis sur le terrain depuis > 3h
       const longStuck = (alerts?.stuckInDelivery || []).filter((o) => o.hoursInTransit >= 3);
       if (longStuck.length > 0) {
-        const title = `🤖 Vigie IA · ${longStuck.length} colis sur le terrain > 3h`;
+        const title = `🤖 Rappel IA · ${longStuck.length} colis sur le terrain > 3h`;
         const sample = longStuck
-          .slice(0, 3)
+          .slice(0, 4)
           .map((o) => `${o.orderNumber} (${o.livreurName}, ${o.hoursInTransit}h)`)
           .join(", ");
         const body = `Livraisons non clôturées sur le terrain : ${sample}.`;
-        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+        if (!recentTitles.has(title)) {
+          toSend.push({ title, body });
+          aiEditorLines.push(
+            `- **Colis en attente sur le terrain (> 3h)** : **${longStuck.length}** livraison(s) non clôturée(s) (${sample}).`
+          );
+        }
       }
 
       // 6. Numéros doublons à vérifier (1 ou 2 produits)
@@ -886,42 +911,60 @@ export default function AiAssistant({
         o.status.startsWith("nouveau")
       );
       if (pendingDuplicates.length > 0) {
-        const title = `🤖 Vigie IA · ${pendingDuplicates.length} numéro(s) doublon(s) à vérifier`;
-        const body = `Isolé(s) en Accès libre site (hors Meta CAPI). Vérifier à l'appel si le client souhaite 1 ou 2 produits.`;
-        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+        const title = `🤖 Rappel IA · ${pendingDuplicates.length} numéro(s) doublon(s) à vérifier`;
+        const sample = pendingDuplicates
+          .slice(0, 3)
+          .map((o) => `${o.orderNumber} (${o.clientName} · ${o.phone})`)
+          .join(", ");
+        const body = `Isolé(s) en Accès libre site (hors Meta CAPI). Vérifier à l'appel si 1 ou 2 produits : ${sample}.`;
+        if (!recentTitles.has(title)) {
+          toSend.push({ title, body });
+          aiEditorLines.push(
+            `- **Numéros doublons (Accès libre site)** : **${pendingDuplicates.length}** commande(s) isolée(s) de Meta CAPI à vérifier avec le client pour confirmer s'il souhaite **1 ou 2 produits** (${sample}).`
+          );
+        }
       }
 
-      for (const n of toSend) {
-        await addDoc(notifCol, {
-          title: n.title,
-          body: n.body,
-          read: false,
-          createdAt: Date.now(),
+      if (toSend.length > 0) {
+        for (const n of toSend) {
+          await addDoc(notifCol, {
+            title: n.title,
+            body: n.body,
+            read: false,
+            createdAt: Date.now(),
+          });
+        }
+
+        // L'IA écrit toute seule directement dans son éditeur de conversation
+        const autoMsgId = `bot_auto_${Date.now()}`;
+        const autoContent = [
+          `### 🔔 Rappel Automatique — Vigie Logistique (${context.teamName})`,
+          `Voici les opérations en attente ou qui dépassent actuellement leurs délais :`,
+          ...aiEditorLines,
+          `Vous pouvez me poser n'importe quelle question sur ces commandes, la caisse des livreurs ou la logistique terrain.`,
+        ].join("\n\n");
+
+        await setDoc(doc(db, "workspaces", workspaceId, "aiAssistantChats", autoMsgId), {
+          id: autoMsgId,
+          sender: "assistant",
+          content: autoContent,
+          timestamp: Date.now(),
         });
       }
-
-      if (manual) {
-        setWatchdogFeedback(
-          toSend.length > 0
-            ? `${toSend.length} rappel(s) envoyé(s) dans votre cloche de notifications.`
-            : "Aucun oubli ni dépassement de délai détecté : tout est à jour ✓"
-        );
-        setTimeout(() => setWatchdogFeedback(null), 5000);
-      }
     } catch {
-      if (manual) setWatchdogFeedback("Impossible d'envoyer les notifications pour l'instant.");
+      // Silencieux en arrière-plan
     } finally {
       setWatchdogScanning(false);
     }
   };
 
   useEffect(() => {
-    if (!workspaceId || orders.length === 0) return;
+    if (!workspaceId || !historyLoaded || orders.length === 0) return;
     const timer = window.setTimeout(() => {
-      void runAiLogisticsWatchdog(false);
+      void runAiLogisticsWatchdog();
     }, 2500);
     return () => window.clearTimeout(timer);
-  }, [workspaceId, team?.id, orders.length]);
+  }, [workspaceId, team?.id, historyLoaded, orders.length]);
 
   const buildBilanReport = async (): Promise<BilanReport> => {
     const lastAssistant = [...messages].reverse().find((m) => m.sender === "assistant");
@@ -1301,139 +1344,18 @@ export default function AiAssistant({
                     </p>
                   </div>
                   <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
-                    <p className="text-[10px] text-slate-500">Caisse non versée</p>
-                    <p className="mt-0.5 text-xs font-bold tabular-nums text-amber-400">
-                      {(context.totalUnsettledCash ?? 0).toLocaleString("fr-FR")} {context.currency}
+                    <p className="text-[10px] text-slate-500">Closing</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-sky-400">
+                      {context.confirmedOrders}/{context.totalOrders} ({context.confirmationRate}%)
                     </p>
                   </div>
                   <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
-                    <p className="text-[10px] text-slate-500">Primes à payer</p>
-                    <p className="mt-0.5 text-xs font-bold tabular-nums text-sky-400">
-                      {(context.totalRemunResteAPayer ?? 0).toLocaleString("fr-FR")} {context.currency}
+                    <p className="text-[10px] text-slate-500">Échecs / Rejets</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-rose-400">
+                      {context.rejectedOrders + context.injoignableOrders}
                     </p>
                   </div>
                 </div>
-              </div>
-
-              {/* Vigie Logistique IA & Monopole des Rappels */}
-              <div className="rounded-xl border border-brand/30 bg-brand/5 p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <BellRing className="h-3.5 w-3.5 text-brand" />
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-200">
-                      Vigie Logistique IA
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={watchdogScanning}
-                    onClick={() => runAiLogisticsWatchdog(true)}
-                    className="rounded-lg bg-brand px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-brand-hover disabled:opacity-50"
-                  >
-                    {watchdogScanning ? "Scan…" : "M'envoyer les rappels"}
-                  </button>
-                </div>
-
-                {watchdogFeedback && (
-                  <p className="rounded-lg border border-brand/30 bg-surface px-2.5 py-1.5 text-[11px] text-slate-200">
-                    {watchdogFeedback}
-                  </p>
-                )}
-
-                <div className="space-y-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSendMessage(
-                        "Quelles sont les commandes en dépassement de délai (>15 min) et les rappels programmés en retard maintenant ?"
-                      )
-                    }
-                    className="flex w-full items-center justify-between rounded-lg border border-surface-border bg-surface/70 px-2.5 py-1.5 text-left hover:border-brand/40"
-                  >
-                    <span className="text-[11px] text-slate-300">Retards d'appel & rappels</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
-                        (context.logisticsAlerts?.staleNewOrders.length ?? 0) +
-                          (context.logisticsAlerts?.overdueReminders.length ?? 0) >
-                        0
-                          ? "bg-rose-500/20 text-rose-400"
-                          : "bg-emerald-500/15 text-emerald-400"
-                      }`}
-                    >
-                      {(context.logisticsAlerts?.staleNewOrders.length ?? 0) +
-                        (context.logisticsAlerts?.overdueReminders.length ?? 0)}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSendMessage(
-                        "Fais-moi le point sur les colis confirmés sans livreur et les colis actuellement en livraison sur le terrain."
-                      )
-                    }
-                    className="flex w-full items-center justify-between rounded-lg border border-surface-border bg-surface/70 px-2.5 py-1.5 text-left hover:border-brand/40"
-                  >
-                    <span className="text-[11px] text-slate-300">Colis sans livreur / en route</span>
-                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-400">
-                      {(context.logisticsAlerts?.unassignedConfirmed.length ?? 0)} /{" "}
-                      {(context.logisticsAlerts?.stuckInDelivery.length ?? 0)}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSendMessage(
-                        "Quels sont les numéros doublons isolés en Accès libre site et quel est leur statut de vérification (1 ou 2 produits) ?"
-                      )
-                    }
-                    className="flex w-full items-center justify-between rounded-lg border border-surface-border bg-surface/70 px-2.5 py-1.5 text-left hover:border-brand/40"
-                  >
-                    <span className="text-[11px] text-slate-300">Doublons N° (Accès libre site)</span>
-                    <span className="rounded-full bg-brand/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-brand">
-                      {context.logisticsAlerts?.duplicateOrders.length ?? 0}
-                    </span>
-                  </button>
-                </div>
-
-                {/* Direct Page Access Shortcuts */}
-                {onNavigate && (
-                  <div className="grid grid-cols-2 gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => onNavigate("caisse")}
-                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
-                    >
-                      <span className="truncate">Caisse Livreurs</span>
-                      <ArrowUpRight className="h-3 w-3 shrink-0" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate("remuneration")}
-                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
-                    >
-                      <span className="truncate">Rémunération</span>
-                      <ArrowUpRight className="h-3 w-3 shrink-0" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate("orders")}
-                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
-                    >
-                      <span className="truncate">Commandes & SAV</span>
-                      <ArrowUpRight className="h-3 w-3 shrink-0" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onNavigate("settings")}
-                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
-                    >
-                      <span className="truncate">Export Numéros</span>
-                      <ArrowUpRight className="h-3 w-3 shrink-0" />
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Generated Charts Deck */}

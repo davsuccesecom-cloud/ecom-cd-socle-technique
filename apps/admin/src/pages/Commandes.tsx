@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
+import WhatsAppIcon from "../components/WhatsAppIcon";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface CommandesProps {
@@ -322,9 +323,9 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Écrire au client sur WhatsApp (SAV / Relance)"
-                              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-sm transition hover:bg-emerald-500/20"
+                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110"
                             >
-                              💬
+                              <WhatsAppIcon size={22} />
                             </a>
                           )}
                         </div>
@@ -644,9 +645,9 @@ function OrderDetail({
                       )}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-400 transition hover:bg-emerald-500/20"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 py-0.5 pl-1 pr-2.5 text-[11px] font-semibold text-emerald-400 transition hover:bg-emerald-500/20"
                     >
-                      <span>💬</span>
+                      <WhatsAppIcon size={18} />
                       <span>WhatsApp SAV</span>
                     </a>
                   )}

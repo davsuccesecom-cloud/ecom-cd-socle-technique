@@ -175,12 +175,15 @@ export default function OrderCard({
           href={buildWhatsAppLink(order.clientPhoneFormatted, whatsAppMessage)}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 transition-colors"
+          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"
           aria-label="WhatsApp"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.669-.699c.968.54 1.775.84 2.791.84h.005c3.18 0 5.767-2.586 5.768-5.766 0-1.543-.601-2.993-1.693-4.085-1.092-1.093-2.542-1.691-4.08-1.691zm0-2.172c4.418 0 8 3.582 8 8 0 1.77-.577 3.411-1.56 4.743l1.529 5.257-5.385-1.413c-1.28.847-2.81 1.413-4.584 1.413-4.418 0-8-3.582-8-8 0-4.418 3.582-8 8-8z" />
-          </svg>
+          <img
+            src="/icons/whatsapp.png"
+            alt="WhatsApp"
+            className="h-full w-full scale-[1.18] rounded-full object-cover"
+            draggable={false}
+          />
         </a>
 
         {/* Bouton Appel téléphonique */}

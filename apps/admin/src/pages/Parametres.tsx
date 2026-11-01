@@ -24,6 +24,7 @@ import { useTheme, ACCENT_PRESETS } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import ShopifyFluxManager from "../components/ShopifyFluxManager";
 import PrintReceiptConfig from "../components/PrintReceiptConfig";
+import WhatsAppIcon from "../components/WhatsAppIcon";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface ParametresProps {
@@ -884,9 +885,9 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
                         target="_blank"
                         rel="noopener noreferrer"
                         title="Écrire sur WhatsApp"
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-emerald-500/30 bg-emerald-500/10 text-xs hover:bg-emerald-500/20"
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110"
                       >
-                        💬
+                        <WhatsAppIcon size={20} />
                       </a>
                     </div>
                   </td>

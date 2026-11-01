@@ -1195,12 +1195,27 @@ async function sendPushToUser(workspaceId, userId, title, body, orderId) {
     }
 }
 async function notifyAdmins(workspaceId, title, body) {
+    const now = Date.now();
     await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
         title,
         body,
         read: false,
-        createdAt: Date.now(),
+        createdAt: now,
     });
+    if (title.startsWith("🤖")) {
+        const autoMsgId = `bot_auto_${now}`;
+        await db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("aiAssistantChats")
+            .doc(autoMsgId)
+            .set({
+            id: autoMsgId,
+            sender: "assistant",
+            content: `**${title}**\n\n${body}`,
+            timestamp: now,
+        });
+    }
     const adminsSnap = await db
         .collection("workspaces")
         .doc(workspaceId)

@@ -260,7 +260,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             workspaceId={workspaceId}
             onNotificationClick={(notif) => {
               const t = `${notif.title} ${notif.body}`.toLowerCase();
-              if (t.includes("caisse") || t.includes("versement")) {
+              if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
+                setPage("ai_assistant");
+              } else if (t.includes("caisse") || t.includes("versement")) {
                 setPage("caisse");
               } else if (t.includes("rémunération") || t.includes("prime") || t.includes("paie")) {
                 setPage("remuneration");
@@ -268,8 +270,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 setPage("orders");
               } else if (t.includes("connexion")) {
                 setPage("users");
-              } else if (t.includes("vigie ia") || t.includes("bilan")) {
-                setPage("ai_assistant");
               }
             }}
           />
@@ -314,7 +314,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 workspaceId={workspaceId}
                 onNotificationClick={(notif) => {
                   const t = `${notif.title} ${notif.body}`.toLowerCase();
-                  if (t.includes("caisse") || t.includes("versement")) {
+                  if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
+                    setPage("ai_assistant");
+                  } else if (t.includes("caisse") || t.includes("versement")) {
                     setPage("caisse");
                   } else if (t.includes("rémunération") || t.includes("prime") || t.includes("paie")) {
                     setPage("remuneration");
@@ -329,8 +331,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                     setPage("orders");
                   } else if (t.includes("connexion")) {
                     setPage("users");
-                  } else if (t.includes("vigie ia") || t.includes("bilan")) {
-                    setPage("ai_assistant");
                   }
                 }}
               />
