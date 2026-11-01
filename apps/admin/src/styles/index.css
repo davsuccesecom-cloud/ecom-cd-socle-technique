@@ -2,102 +2,205 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   1. PALETTE PAR DÉFAUT (INDIGO & ARDOISE)
+   ========================================================================== */
 :root {
   color-scheme: dark;
-  --surface: #090b0e;
-  --surface-raised: #11141a;
-  --surface-subtle: #161a22;
-  --surface-border: #1f242f;
-  --surface-border-strong: #2c3342;
+  --surface: #090b10;
+  --surface-raised: #111520;
+  --surface-subtle: #0d1018;
+  --surface-border: #1e2436;
+  --surface-border-strong: #2b334b;
   --brand: #6366f1;
   --brand-hover: #4f46e5;
-  --brand-light: rgba(99, 102, 241, 0.12);
+  --brand-light: rgba(99, 102, 241, 0.14);
   --brand-ring: rgba(99, 102, 241, 0.35);
   accent-color: var(--brand);
 }
 
 html.light {
   color-scheme: light;
-  --surface: #f4f6f9;
+  --surface: #f3f5f9;
   --surface-raised: #ffffff;
-  --surface-subtle: #f8fafc;
-  --surface-border: #e2e8f0;
-  --surface-border-strong: #cbd5e1;
+  --surface-subtle: #e6ebf4;
+  --surface-border: #dbe2ef;
+  --surface-border-strong: #c3cee2;
   --brand: #4f46e5;
   --brand-hover: #4338ca;
-  --brand-light: #eef2ff;
+  --brand-light: #e0e7ff;
   --brand-ring: rgba(79, 70, 229, 0.25);
 }
 
-/* Palettes d'accentuation via sélecteurs d'attribut racine (:where pour garder une spécificité basse) */
+/* ==========================================================================
+   2. CACAO & LATTE (Fond crème / marron clair & barre marron chaud)
+   ========================================================================== */
+:where([data-accent="cacao"]) {
+  --surface: #120c08;
+  --surface-raised: #1c140e;
+  --surface-subtle: #17100b;
+  --surface-border: #332319;
+  --surface-border-strong: #473123;
+  --brand: #c87d46;
+  --brand-hover: #b06834;
+  --brand-light: rgba(200, 125, 70, 0.16);
+  --brand-ring: rgba(200, 125, 70, 0.35);
+}
+html.light:where([data-accent="cacao"]) {
+  --surface: #f6efe7;
+  --surface-raised: #fdfaf6;
+  --surface-subtle: #e6d5c3;
+  --surface-border: #d5bfa8;
+  --surface-border-strong: #bfa386;
+  --brand: #7c4a21;
+  --brand-hover: #613816;
+  --brand-light: #ead8c5;
+  --brand-ring: rgba(124, 74, 33, 0.25);
+}
+
+/* ==========================================================================
+   3. ÉMERAUDE & SAUGE (Teinte forêt / menthe douce)
+   ========================================================================== */
 :where([data-accent="emerald"]) {
+  --surface: #07110d;
+  --surface-raised: #0e1e17;
+  --surface-subtle: #0a1712;
+  --surface-border: #1a3328;
+  --surface-border-strong: #254738;
   --brand: #10b981;
   --brand-hover: #059669;
-  --brand-light: rgba(16, 185, 129, 0.12);
+  --brand-light: rgba(16, 185, 129, 0.14);
   --brand-ring: rgba(16, 185, 129, 0.35);
 }
 html.light:where([data-accent="emerald"]) {
+  --surface: #eef5f1;
+  --surface-raised: #fbfdfc;
+  --surface-subtle: #dfece5;
+  --surface-border: #c4dcd0;
+  --surface-border-strong: #a7cbb9;
   --brand: #059669;
   --brand-hover: #047857;
-  --brand-light: #ecfdf5;
+  --brand-light: #d1fae5;
+  --brand-ring: rgba(5, 150, 105, 0.25);
 }
 
+/* ==========================================================================
+   4. OCÉAN & GLACIER (Bleu polaire & abyssal)
+   ========================================================================== */
 :where([data-accent="blue"]) {
+  --surface: #070d14;
+  --surface-raised: #0e1826;
+  --surface-subtle: #0a121d;
+  --surface-border: #1b2b42;
+  --surface-border-strong: #263d5d;
   --brand: #0ea5e9;
   --brand-hover: #0284c7;
-  --brand-light: rgba(14, 165, 233, 0.12);
+  --brand-light: rgba(14, 165, 233, 0.14);
   --brand-ring: rgba(14, 165, 233, 0.35);
 }
 html.light:where([data-accent="blue"]) {
+  --surface: #edf4fb;
+  --surface-raised: #fafdff;
+  --surface-subtle: #dce9f7;
+  --surface-border: #c2d7ee;
+  --surface-border-strong: #a3c2e4;
   --brand: #0284c7;
   --brand-hover: #0369a1;
-  --brand-light: #f0f9ff;
+  --brand-light: #dbeafe;
+  --brand-ring: rgba(2, 132, 199, 0.25);
 }
 
+/* ==========================================================================
+   5. AMBRE & IVOIRE (Sable chaud & obsidienne dorée)
+   ========================================================================== */
 :where([data-accent="amber"]) {
+  --surface: #120f08;
+  --surface-raised: #1d170c;
+  --surface-subtle: #161209;
+  --surface-border: #332917;
+  --surface-border-strong: #473920;
   --brand: #f59e0b;
   --brand-hover: #d97706;
-  --brand-light: rgba(245, 158, 11, 0.12);
+  --brand-light: rgba(245, 158, 11, 0.14);
   --brand-ring: rgba(245, 158, 11, 0.35);
 }
 html.light:where([data-accent="amber"]) {
-  --brand: #d97706;
-  --brand-hover: #b45309;
-  --brand-light: #fffbeb;
+  --surface: #f9f4e8;
+  --surface-raised: #fffdf8;
+  --surface-subtle: #ede2c8;
+  --surface-border: #dfd0ad;
+  --surface-border-strong: #cbb78b;
+  --brand: #b45309;
+  --brand-hover: #92400e;
+  --brand-light: #fef3c7;
+  --brand-ring: rgba(180, 83, 9, 0.25);
 }
 
+/* ==========================================================================
+   6. VELOURS & QUARTZ (Rose poudré & bordeaux nuit)
+   ========================================================================== */
 :where([data-accent="rose"]) {
+  --surface: #13090c;
+  --surface-raised: #200f15;
+  --surface-subtle: #180b10;
+  --surface-border: #361b24;
+  --surface-border-strong: #4d2633;
   --brand: #f43f5e;
   --brand-hover: #e11d48;
-  --brand-light: rgba(244, 63, 94, 0.12);
+  --brand-light: rgba(244, 63, 94, 0.14);
   --brand-ring: rgba(244, 63, 94, 0.35);
 }
 html.light:where([data-accent="rose"]) {
-  --brand: #e11d48;
-  --brand-hover: #be123c;
-  --brand-light: #fff1f2;
+  --surface: #f9eff2;
+  --surface-raised: #fffbfc;
+  --surface-subtle: #eedce2;
+  --surface-border: #e0c4cd;
+  --surface-border-strong: #cda6b3;
+  --brand: #be123c;
+  --brand-hover: #9f1239;
+  --brand-light: #ffe4e6;
+  --brand-ring: rgba(190, 18, 60, 0.25);
 }
 
+/* ==========================================================================
+   7. CARBONE & CRAIE (Monochrome architectural)
+   ========================================================================== */
 :where([data-accent="slate"]) {
+  --surface: #0a0a0c;
+  --surface-raised: #131418;
+  --surface-subtle: #0e0f12;
+  --surface-border: #24262c;
+  --surface-border-strong: #343740;
   --brand: #94a3b8;
   --brand-hover: #64748b;
   --brand-light: rgba(148, 163, 184, 0.14);
   --brand-ring: rgba(148, 163, 184, 0.35);
 }
 html.light:where([data-accent="slate"]) {
+  --surface: #f1f3f5;
+  --surface-raised: #ffffff;
+  --surface-subtle: #e2e6ea;
+  --surface-border: #cfd6de;
+  --surface-border-strong: #b8c2ce;
   --brand: #334155;
   --brand-hover: #1e293b;
-  --brand-light: #f1f5f9;
+  --brand-light: #e2e8f0;
+  --brand-ring: rgba(51, 65, 85, 0.25);
 }
 
 body {
   @apply bg-surface text-slate-100 antialiased;
   -webkit-tap-highlight-color: transparent;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.18s ease, color 0.18s ease;
 }
 
-/* Surfaces architecturales sobres (style Linear / Polaris) */
+/* Barre latérale harmonisée avec la palette active */
+.sidebar-surface {
+  background-color: var(--surface-subtle);
+}
+
+/* Surfaces architecturales sobres */
 .bg-surface-raised {
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.035), 0 1px 2px 0 rgba(0, 0, 0, 0.28);
 }
@@ -107,7 +210,7 @@ html.light .bg-surface-raised {
 }
 
 .surface-popover {
-  background-color: rgba(17, 20, 26, 0.94);
+  background-color: var(--surface-raised);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--surface-border-strong);
@@ -115,25 +218,36 @@ html.light .bg-surface-raised {
 }
 
 html.light .surface-popover {
-  background-color: rgba(255, 255, 255, 0.96);
-  border: 1px solid var(--surface-border);
+  background-color: var(--surface-raised);
+  border: 1px solid var(--surface-border-strong);
   box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.14);
 }
 
-/* Mode clair — adaptation globale des nuances de texte slate et badges */
+/* Mode clair — adaptation globale des nuances de texte et badges */
 html.light .text-slate-100,
 html.light .text-slate-200 {
-  color: #0f172a;
+  color: #18181b;
+}
+html.light:where([data-accent="cacao"]) .text-slate-100,
+html.light:where([data-accent="cacao"]) .text-slate-200 {
+  color: #26170e;
 }
 html.light .text-slate-300 {
-  color: #1e293b;
+  color: #27272a;
+}
+html.light:where([data-accent="cacao"]) .text-slate-300 {
+  color: #3d2618;
 }
 html.light .text-slate-400,
 html.light .text-slate-500 {
-  color: #475569;
+  color: #52525b;
+}
+html.light:where([data-accent="cacao"]) .text-slate-400,
+html.light:where([data-accent="cacao"]) .text-slate-500 {
+  color: #694934;
 }
 html.light .text-slate-600 {
-  color: #64748b;
+  color: #71717a;
 }
 html.light .text-emerald-400,
 html.light .text-emerald-300 {

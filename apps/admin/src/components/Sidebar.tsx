@@ -70,7 +70,7 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`hidden shrink-0 flex-col border-r border-surface-border bg-surface-raised/60 py-5 transition-all duration-150 md:flex ${
+      className={`sidebar-surface sticky top-0 hidden h-screen shrink-0 flex-col border-r border-surface-border py-4 transition-all duration-150 md:flex ${
         collapsed ? "w-16 px-2" : "w-60 px-3.5"
       }`}
     >

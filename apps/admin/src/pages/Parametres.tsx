@@ -194,32 +194,46 @@ export default function Parametres({ workspaceId, team, teams = [] }: Parametres
                 </div>
 
                 <div className="border-t border-surface-border pt-5">
-                  <h3 className="text-sm font-semibold text-slate-100">Couleur d'accentuation</h3>
+                  <h3 className="text-sm font-semibold text-slate-100">Palette d'ambiance complète (Fond + Barre + Accent)</h3>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    Personnalisez la teinte principale des boutons, graphiques et indicateurs actifs.
+                    Chaque palette harmonise la couleur du fond, de la barre latérale et des boutons en mode clair comme en mode sombre.
                   </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     {ACCENT_PRESETS.map((preset) => {
                       const active = accent === preset.id;
+                      const surfaceBg = theme === "light" ? preset.lightSurface : preset.darkSurface;
+                      const barBg = theme === "light" ? preset.lightBar : preset.darkBar;
                       return (
                         <button
                           key={preset.id}
                           type="button"
                           onClick={() => setAccent(preset.id)}
-                          className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-medium transition ${
+                          className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-left text-xs transition ${
                             active
-                              ? "border-brand bg-brand/10 text-slate-100"
-                              : "border-surface-border bg-surface text-slate-400 hover:border-slate-600 hover:text-slate-200"
+                              ? "border-brand bg-brand/10 text-slate-100 ring-1 ring-brand/30"
+                              : "border-surface-border bg-surface text-slate-300 hover:border-slate-500 hover:text-slate-100"
                           }`}
                         >
-                          <span className="flex items-center gap-2">
+                          <span className="flex items-center gap-3 min-w-0">
                             <span
-                              className="h-3.5 w-3.5 rounded-full shadow-sm"
-                              style={{ backgroundColor: preset.swatch }}
-                            />
-                            <span>{preset.label}</span>
+                              className="relative flex h-8 w-11 shrink-0 overflow-hidden rounded-lg border border-slate-500/30 shadow-inner"
+                              style={{ backgroundColor: surfaceBg }}
+                            >
+                              <span
+                                className="h-full w-3.5 border-r border-slate-500/20"
+                                style={{ backgroundColor: barBg }}
+                              />
+                              <span
+                                className="absolute bottom-1.5 right-1.5 h-3 w-3 rounded-full shadow-sm"
+                                style={{ backgroundColor: preset.swatch }}
+                              />
+                            </span>
+                            <span className="min-w-0 truncate">
+                              <span className="block truncate font-semibold text-slate-100">{preset.label}</span>
+                              <span className="block truncate text-[10px] text-slate-500">{preset.subtitle}</span>
+                            </span>
                           </span>
-                          {active && <Check className="h-3.5 w-3.5 text-brand" />}
+                          {active && <Check className="h-4 w-4 shrink-0 text-brand" />}
                         </button>
                       );
                     })}

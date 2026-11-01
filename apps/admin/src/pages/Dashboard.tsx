@@ -10,13 +10,11 @@ import {
 } from "@ecomcod/shared";
 import type { CloseuseStatus, Order } from "@ecomcod/shared";
 import {
-  TrendingUp,
   Truck,
-  PhoneOff,
   Ban,
-  PhoneCall,
-  Target,
   Sparkles,
+  CalendarClock,
+  Receipt,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
@@ -330,56 +328,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         ) : page === "settings" ? (
           <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} />
         ) : (
-          <div className="space-y-5">
-            {/* KPI Strip */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-6">
-              <StatCard
-                label="Chiffre d'affaires"
-                value={`${displayTotals.ca.toLocaleString("fr-FR")} ${currency}`}
-                subtitle={`${displayTotals.commandes} cmd sur la période`}
-                icon={<TrendingUp className="h-4 w-4" />}
-                accent="blue"
-              />
-              <StatCard
-                label="Livraisons réussies"
-                value={String(displayTotals.livraisons)}
-                subtitle="Encaissées terrain"
-                icon={<Truck className="h-4 w-4" />}
-                accent="green"
-              />
-              <StatCard
-                label="Taux Confirmation"
-                value={`${stats.tauxConfirmation}%`}
-                subtitle="Qualité closing"
-                icon={<PhoneCall className="h-4 w-4" />}
-                accent="purple"
-              />
-              <StatCard
-                label="Livraison Réelle"
-                value={`${stats.tauxLivraisonReelle}%`}
-                subtitle="Sur confirmées"
-                icon={<Target className="h-4 w-4" />}
-                accent="cyan"
-              />
-              <StatCard
-                label="Injoignables"
-                value={String(displayTotals.injoignables)}
-                subtitle="À relancer"
-                icon={<PhoneOff className="h-4 w-4" />}
-                accent="red"
-                onClick={() => setPage("orders")}
-              />
-              <StatCard
-                label="Rejetées"
-                value={String(displayTotals.rejetees)}
-                subtitle="Annulations client"
-                icon={<Ban className="h-4 w-4" />}
-                accent="orange"
-                onClick={() => setPage("orders")}
-              />
-            </div>
-
-            {/* Live Shopify-Style Analytics Deck */}
+          <div className="space-y-4">
+            {/* 1. Primary Live Shopify-Style Analytics Deck */}
             <LiveShopifyAnalytics
               dailyStats={dailyStatsInPeriod}
               orders={orders}
@@ -391,7 +341,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               onNavigateToOrders={() => setPage("orders")}
             />
 
-            {/* Operational Breakdown Grid */}
+            {/* 2. Operational Companion Grid (immediately visible alongside the chart) */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 lg:col-span-1">
                 <div className="mb-3 flex items-center justify-between">
@@ -417,6 +367,45 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               <div className="lg:col-span-1">
                 <FluxTempsReel orders={orders} />
               </div>
+            </div>
+
+            {/* 3. Complementary Non-Redundant Indicators (Rejetées, Terrain & Panier Moyen) */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-4">
+              <StatCard
+                label="Commandes Rejetées"
+                value={String(displayTotals.rejetees)}
+                subtitle="Annulations / refus client"
+                icon={<Ban className="h-4 w-4" />}
+                accent="orange"
+                onClick={() => setPage("orders")}
+              />
+              <StatCard
+                label="En cours de livraison"
+                value={String(stats.statusCounts.en_cours || 0)}
+                subtitle="Colis sur le terrain"
+                icon={<Truck className="h-4 w-4" />}
+                accent="blue"
+                onClick={() => setPage("orders")}
+              />
+              <StatCard
+                label="Programmées & Relances"
+                value={String(stats.statusCounts.programme || 0)}
+                subtitle="Rendez-vous planifiés"
+                icon={<CalendarClock className="h-4 w-4" />}
+                accent="purple"
+                onClick={() => setPage("orders")}
+              />
+              <StatCard
+                label="Panier moyen livré"
+                value={
+                  displayTotals.livraisons > 0
+                    ? `${Math.round(displayTotals.ca / displayTotals.livraisons).toLocaleString("fr-FR")} ${currency}`
+                    : `0 ${currency}`
+                }
+                subtitle="Par commande encaissée"
+                icon={<Receipt className="h-4 w-4" />}
+                accent="green"
+              />
             </div>
 
             {loading && <p className="text-center text-xs text-slate-500">Synchronisation temps réel…</p>}
