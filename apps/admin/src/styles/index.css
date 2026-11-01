@@ -225,39 +225,39 @@ html.light .surface-popover {
   box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.14);
 }
 
-/* Mode clair — adaptation globale des nuances de texte et badges */
-html.light .text-slate-100,
-html.light .text-slate-200 {
+/* Mode clair — adaptation globale des nuances de texte et badges (exclut la vitrine/landing sombre) */
+html.light:not(.landing-active) .text-slate-100,
+html.light:not(.landing-active) .text-slate-200 {
   color: #18181b;
 }
-html.light:where([data-accent="cacao"]) .text-slate-100,
-html.light:where([data-accent="cacao"]) .text-slate-200 {
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-100,
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-200 {
   color: #26170e;
 }
-html.light .text-slate-300 {
+html.light:not(.landing-active) .text-slate-300 {
   color: #27272a;
 }
-html.light:where([data-accent="cacao"]) .text-slate-300 {
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-300 {
   color: #3d2618;
 }
-html.light .text-slate-400,
-html.light .text-slate-500 {
+html.light:not(.landing-active) .text-slate-400,
+html.light:not(.landing-active) .text-slate-500 {
   color: #52525b;
 }
-html.light:where([data-accent="cacao"]) .text-slate-400,
-html.light:where([data-accent="cacao"]) .text-slate-500 {
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-400,
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-500 {
   color: #694934;
 }
-html.light .text-slate-600 {
+html.light:not(.landing-active) .text-slate-600 {
   color: #71717a;
 }
-html.light .text-emerald-400,
-html.light .text-emerald-300 {
+html.light:not(.landing-active) .text-emerald-400,
+html.light:not(.landing-active) .text-emerald-300 {
   color: #047857;
 }
-html.light .text-amber-400,
-html.light .text-amber-300,
-html.light .text-amber-200 {
+html.light:not(.landing-active) .text-amber-400,
+html.light:not(.landing-active) .text-amber-300,
+html.light:not(.landing-active) .text-amber-200 {
   color: #b45309;
 }
 html.light .text-rose-400,

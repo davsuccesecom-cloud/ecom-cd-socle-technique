@@ -225,6 +225,22 @@ export default function LandingPage({
   const [avgOrderValue, setAvgOrderValue] = useState(18000);
   const [deliveryBoostPct, setDeliveryBoostPct] = useState(18);
 
+  // Garantit que la vitrine reste en mode sombre pur même si l'ancien compte avait enregistré un thème clair
+  useEffect(() => {
+    const root = document.documentElement;
+    const hadLight = root.classList.contains("light");
+    root.classList.add("landing-active");
+    if (hadLight) {
+      root.classList.remove("light");
+    }
+    return () => {
+      root.classList.remove("landing-active");
+      if (hadLight) {
+        root.classList.add("light");
+      }
+    };
+  }, []);
+
   // Ouvre automatiquement la modale si l'utilisateur doit nommer son workspace ou si un lien a été envoyé
   useEffect(() => {
     if (needsWorkspaceName || linkSent || error) {
@@ -266,7 +282,7 @@ export default function LandingPage({
             </div>
           </div>
 
-          <nav className="hidden items-center gap-7 text-xs font-semibold text-slate-300 md:flex">
+          <nav className="hidden items-center gap-7 text-xs font-semibold text-slate-200 md:flex">
             <a href="#fonctionnalites" className="hover:text-white transition-colors">
               Fonctionnalités
             </a>
@@ -285,7 +301,7 @@ export default function LandingPage({
             <button
               type="button"
               onClick={() => setLegalModalTab("privacy")}
-              className="text-slate-400 hover:text-indigo-300 transition-colors"
+              className="text-slate-300 hover:text-indigo-300 transition-colors"
             >
               Conformité RGPD
             </button>
@@ -295,7 +311,7 @@ export default function LandingPage({
             <button
               type="button"
               onClick={openAuth}
-              className="hidden sm:inline-block text-xs font-bold text-slate-300 hover:text-white transition"
+              className="hidden sm:inline-block text-xs font-bold text-slate-200 hover:text-white transition"
             >
               Connexion
             </button>
@@ -331,8 +347,8 @@ export default function LandingPage({
             </span>
           </h1>
 
-          {/* Sous-titre aéré axé douleurs réelles */}
-          <p className="mx-auto mt-6 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-300">
+          {/* Sous-titre aéré avec haute lisibilité garantie */}
+          <p className="mx-auto mt-6 max-w-2xl text-base sm:text-lg leading-relaxed text-slate-100 font-normal">
             Gérez vos commandes, vos closeuses WhatsApp, vos livreurs et vos caisses de A à Z en toute simplicité.
             Fini les fiches perdues, les contestations de livraison et les écarts de trésorerie.
           </p>
@@ -350,7 +366,7 @@ export default function LandingPage({
 
             <a
               href="#showcase-logiciel"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 hover:bg-white/10 px-6 py-3.5 text-sm font-semibold text-slate-200 shadow-sm transition-all"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border border-white/25 bg-white/10 hover:bg-white/15 px-6 py-3.5 text-sm font-semibold text-white shadow-sm backdrop-blur-md transition-all"
             >
               <span>Explorer la Démo</span>
               <ChevronRight className="h-4 w-4" />
