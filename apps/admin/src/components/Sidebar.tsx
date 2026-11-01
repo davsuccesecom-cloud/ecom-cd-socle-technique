@@ -185,9 +185,15 @@ export default function Sidebar({
         message="Votre session administrateur actuelle sera fermée sur cet appareil."
         confirmLabel="Se déconnecter"
         danger={true}
-        onConfirm={() => {
+        onConfirm={async () => {
           setConfirmLogout(false);
-          onLogout();
+          try {
+            await onLogout();
+          } catch (err) {
+            console.error("Erreur déconnexion :", err);
+          } finally {
+            window.location.href = "/";
+          }
         }}
         onCancel={() => setConfirmLogout(false)}
       />
