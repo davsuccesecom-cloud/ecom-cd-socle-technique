@@ -59,8 +59,8 @@ interface Props {
 }
 
 const margin = { top: 6, right: 0, left: 0, bottom: 0 };
-const cursor = { stroke: 'currentColor', strokeOpacity: 0.4, strokeDasharray: '3 3' };
-const tick = { fontSize: 11, fill: 'currentColor', fillOpacity: 0.55 };
+const cursor = { stroke: 'var(--brand)', strokeOpacity: 0.45, strokeDasharray: '3 3' };
+const tick = { fontSize: 11, fill: '#94a3b8' };
 
 function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
   const syncId = useId();
@@ -150,7 +150,7 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
       dataKey="label"
       hide={!show}
       tickLine={false}
-      axisLine={{ stroke: 'currentColor', strokeOpacity: 0.15 }}
+      axisLine={{ stroke: 'var(--surface-border)' }}
       tick={tick}
       interval="preserveStartEnd"
       minTickGap={36}
@@ -168,7 +168,7 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
       {...extra}
     />
   );
-  const grid = <CartesianGrid vertical={false} stroke="currentColor" strokeOpacity={0.1} />;
+  const grid = <CartesianGrid vertical={false} stroke="var(--surface-border)" strokeDasharray="3 3" />;
   const silentTip = <Tooltip content={() => null} cursor={cursor} />;
 
   const last = model?.rows[model.rows.length - 1];
@@ -177,11 +177,11 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
 
   return (
     <section
-      className="my-3 w-full rounded-xl border border-black/10 p-3 text-gray-900 dark:border-white/10 dark:text-gray-100"
+      className="my-2 w-full rounded-xl border border-surface-border bg-surface/50 p-3 text-slate-100"
       aria-label={`Graphique : ${METRIC_LABEL[metric]}, vue par ${PERIODS[period].label.toLowerCase()}`}
     >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div role="tablist" aria-label="Période" className="flex gap-1">
+        <div role="tablist" aria-label="Période" className="flex gap-1 rounded-lg border border-surface-border bg-surface p-0.5">
           {(Object.keys(PERIODS) as Period[]).map((p) => (
             <button
               key={p}
@@ -189,10 +189,10 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
               role="tab"
               aria-selected={p === period}
               onClick={() => setPeriod(p)}
-              className={`min-h-9 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${
+              className={`min-h-7 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 p === period
-                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                  ? 'bg-brand text-white shadow-xs'
+                  : 'text-slate-400 hover:bg-surface-raised hover:text-slate-100'
               }`}
             >
               {PERIODS[p].label}
@@ -205,25 +205,25 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
             cache.current.delete(period);
             setReloadTick((t) => t + 1);
           }}
-          className="min-h-9 rounded-md px-3 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+          className="min-h-7 rounded-md border border-surface-border bg-surface px-2.5 py-1 text-xs font-medium text-slate-300 transition-colors hover:border-brand/40 hover:text-slate-100"
         >
           Actualiser
         </button>
       </div>
 
       <div className="mb-1 flex flex-wrap items-baseline gap-x-3 text-sm">
-        <span className="font-medium">{METRIC_LABEL[metric]}</span>
-        {last && <span>{fmtFull(last.value)}</span>}
+        <span className="font-semibold text-slate-100">{METRIC_LABEL[metric]}</span>
+        {last && <span className="font-mono font-bold text-slate-200">{fmtFull(last.value)}</span>}
         {delta !== null && (
-          <span style={{ color: delta >= 0 ? GREEN : RED }}>
+          <span style={{ color: delta >= 0 ? GREEN : RED }} className="font-medium">
             {delta >= 0 ? '+' : ''}
             {nf.format(Math.round(delta * 10) / 10)} % vs période précédente
           </span>
         )}
-        {last?.partial && <span className="text-xs opacity-60">période en cours</span>}
+        {last?.partial && <span className="text-xs text-slate-400">période en cours</span>}
       </div>
 
-      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs opacity-70">
+      <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300">
         <Legend color={BLUE} text={METRIC_LABEL[metric]} />
         {showMa1 && model && <Legend color={ORANGE} text={`MM ${model.w1}`} />}
         {showMa2 && model && <Legend color={VIOLET} text={`MM ${model.w2}`} dashed />}
@@ -231,16 +231,16 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
       </div>
 
       {error && (
-        <p className="py-8 text-center text-sm" role="alert">
+        <p className="py-8 text-center text-sm text-rose-400" role="alert">
           {error}
         </p>
       )}
       {!error && !model && !loading && (
-        <p className="py-8 text-center text-sm opacity-70">
+        <p className="py-8 text-center text-sm text-slate-400">
           Pas encore assez de données sur cette période. Il faut au moins 2 points.
         </p>
       )}
-      {!error && !model && loading && <p className="py-8 text-center text-sm opacity-70">Chargement…</p>}
+      {!error && !model && loading && <p className="py-8 text-center text-sm text-slate-400">Chargement…</p>}
 
       {model && (
         <div className={`transition-opacity duration-150 ${loading ? 'opacity-50' : 'opacity-100'}`} aria-busy={loading}>
@@ -304,7 +304,7 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
                   {xAxis(lastPanel === 'macd')}
                   {yAxis({ tickCount: 4 })}
                   {silentTip}
-                  <ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.3} />
+                  <ReferenceLine y={0} stroke="var(--surface-border)" />
                   <Bar dataKey="hist" isAnimationActive={false} maxBarSize={14}>
                     {model.rows.map((r) => (
                       <Cell key={r.key} fill={(r.hist ?? 0) >= 0 ? GREEN : RED} />
@@ -318,7 +318,7 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
           )}
 
           {!model.advanced && spec.panels.some((p) => p !== 'volume') && (
-            <p className="mt-2 text-xs opacity-60">
+            <p className="mt-2 text-xs text-slate-400">
               RSI et MACD apparaissent à partir de 8 points. Essayez une période plus fine.
             </p>
           )}
@@ -330,7 +330,7 @@ function ProChartBase({ spec = DEFAULT_SPEC, load }: Props) {
 
 function Legend({ color, text, dashed }: { color: string; text: string; dashed?: boolean }) {
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex items-center gap-1.5 text-slate-300">
       <span
         aria-hidden="true"
         className="inline-block h-0 w-4"
@@ -344,7 +344,7 @@ function Legend({ color, text, dashed }: { color: string; text: string; dashed?:
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mt-2">
-      <div className="text-xs opacity-60">{title}</div>
+      <div className="text-xs font-medium text-slate-300">{title}</div>
       {children}
     </div>
   );
@@ -355,16 +355,16 @@ function Readout({ active, payload, metric, fmt }: any) {
   const r: Row = payload[0].payload;
   const f = (v: number | null, d = 1) => (v === null || v === undefined ? '–' : nf.format(Math.round(v * 10 ** d) / 10 ** d));
   return (
-    <div className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs shadow-md dark:border-white/10 dark:bg-neutral-900">
-      <div className="mb-1 font-medium">
+    <div className="surface-popover rounded-xl border border-surface-border bg-surface-raised px-3 py-2 text-xs text-slate-100 shadow-lg">
+      <div className="mb-1 font-semibold text-slate-100">
         {r.label}
         {r.partial ? ' (en cours)' : ''}
       </div>
-      <div>
-        {METRIC_LABEL[metric as Metric]} : <b className="font-medium">{fmt(r.value)}</b>
+      <div className="text-slate-200">
+        {METRIC_LABEL[metric as Metric]} : <b className="font-mono font-bold text-slate-100">{fmt(r.value)}</b>
       </div>
-      <div className="opacity-70">Volume : {f(r.vol, 0)} commandes</div>
-      <div className="opacity-70">MM : {f(r.ma1)} · RSI : {f(r.rsi)} · MACD : {f(r.macd, 2)}</div>
+      <div className="text-slate-400">Volume : {f(r.vol, 0)} commandes</div>
+      <div className="text-slate-400">MM : {f(r.ma1)} · RSI : {f(r.rsi)} · MACD : {f(r.macd, 2)}</div>
     </div>
   );
 }
