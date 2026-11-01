@@ -208,7 +208,12 @@ export default function LandingPage({
 }: LandingPageProps) {
   const [email, setEmail] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("auth") === "1";
+    }
+    return false;
+  });
   const [legalModalTab, setLegalModalTab] = useState<LegalTab | null>(null);
   const [comparisonMode, setComparisonMode] = useState<"avec" | "sans">("avec");
   const [activeShowcaseIndex, setActiveShowcaseIndex] = useState(0);
