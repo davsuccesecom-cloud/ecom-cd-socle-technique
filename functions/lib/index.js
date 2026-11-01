@@ -247,7 +247,7 @@ exports.createAccessUser = (0, https_1.onCall)(async (request) => {
     try {
         firebaseUser = await admin.auth().createUser({
             displayName: name.trim(),
-            phoneNumber: phone?.trim() || undefined,
+            // phoneNumber stocke uniquement dans Firestore (evite erreur E.164 Firebase Auth)
         });
     }
     catch (err) {

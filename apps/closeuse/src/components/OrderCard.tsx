@@ -3,6 +3,7 @@ import {
   buildTelLink,
   buildWhatsAppLink,
   CLOSEUSE_STATUS_LABELS,
+  ConfirmDialog,
   type AppUser,
   type CloseuseStatus,
   type Order,
@@ -83,6 +84,7 @@ export default function OrderCard({
   const [selectedLivreur, setSelectedLivreur] = useState("");
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [customDateTime, setCustomDateTime] = useState("");
+  const [pendingFinalStatus, setPendingFinalStatus] = useState<CloseuseStatus | null>(null);
 
   const handleQuickSchedule = (minutesFromNow: number) => {
     const reminderTime = Date.now() + minutesFromNow * 60 * 1000;
@@ -242,6 +244,8 @@ export default function OrderCard({
               onClick={() => {
                 if (action.target === "programme") {
                   setShowScheduleModal(true);
+                } else if (action.target === "rejete" || action.target === "injoignable") {
+                  setPendingFinalStatus(action.target);
                 } else {
                   onChangeStatus(action.target);
                 }
@@ -330,6 +334,27 @@ export default function OrderCard({
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingFinalStatus}
+        title={
+          pendingFinalStatus === "rejete"
+            ? `Rejeter la commande de ${order.clientName} ?`
+            : `Marquer ${order.clientName} comme injoignable ?`
+        }
+        message={
+          pendingFinalStatus === "rejete"
+            ? "Cette décision classe la commande en statut final Rejeté et impacte le taux de confirmation de l'équipe."
+            : "La commande sera classée dans les clients injoignables à relancer."
+        }
+        confirmLabel={pendingFinalStatus === "rejete" ? "Confirmer le rejet" : "Marquer injoignable"}
+        danger={pendingFinalStatus === "rejete"}
+        onConfirm={() => {
+          if (pendingFinalStatus) onChangeStatus(pendingFinalStatus);
+          setPendingFinalStatus(null);
+        }}
+        onCancel={() => setPendingFinalStatus(null)}
+      />
     </div>
   );
 }

@@ -251,51 +251,84 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         </div>
         <div className="flex items-center gap-1.5">
           <ThemeQuickPicker />
-          <NotificationBell workspaceId={workspaceId} />
+          <NotificationBell
+            workspaceId={workspaceId}
+            onNotificationClick={(notif) => {
+              if (notif.orderId) {
+                setPage("orders");
+              } else if (notif.title.toLowerCase().includes("connexion")) {
+                setPage("users");
+              } else if (notif.title.toLowerCase().includes("commande") || notif.title.toLowerCase().includes("closeuse")) {
+                setPage("orders");
+              }
+            }}
+          />
         </div>
       </div>
 
       <main className="flex-1 px-4 py-5 pb-24 md:px-8 md:py-6 md:pb-8">
         {/* Global Top Header Bar */}
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-surface-border pb-4">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-100 md:text-xl">
-              {headerMeta.title}
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-500">{headerMeta.subtitle}</p>
-          </div>
+        <header className="mb-6 space-y-3 border-b border-surface-border pb-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-slate-100 md:text-xl">
+                {headerMeta.title}
+              </h1>
+              <p className="mt-0.5 truncate text-xs text-slate-500">{headerMeta.subtitle}</p>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Global Search / Command Palette Trigger */}
-            <CommandPalette
-              orders={allOrders}
-              teams={teams}
-              activeTeamId={activeTeamId}
-              onNavigate={setPage}
-              onSelectTeam={setTeamId}
-              onInspectOrder={(order) => setReceiptOrder(order)}
-            />
-
-            {teams.length > 0 && page !== "teams" && (
-              <MarketSelector
+            {/* Top-Right Anchored Utility Bar (Search, Market, Period on wide screens, Theme & Notifications) */}
+            <div className="flex shrink-0 items-center gap-2">
+              <CommandPalette
+                orders={allOrders}
                 teams={teams}
                 activeTeamId={activeTeamId}
+                onNavigate={setPage}
                 onSelectTeam={setTeamId}
-                onAddMarket={() => setShowAddMarket(true)}
+                onInspectOrder={(order) => setReceiptOrder(order)}
               />
-            )}
 
-            {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+              {teams.length > 0 && page !== "teams" && (
+                <MarketSelector
+                  teams={teams}
+                  activeTeamId={activeTeamId}
+                  onSelectTeam={setTeamId}
+                  onAddMarket={() => setShowAddMarket(true)}
+                />
+              )}
 
-            {/* Always-accessible Theme & Color Picker */}
-            <div className="hidden md:block">
-              <ThemeQuickPicker />
-            </div>
+              {showPeriodFilter && (
+                <div className="hidden 2xl:block">
+                  <PeriodSelector period={period} onChange={setPeriod} />
+                </div>
+              )}
 
-            <div className="hidden md:block">
-              <NotificationBell workspaceId={workspaceId} />
+              <div className="hidden md:flex md:items-center md:gap-2">
+                <ThemeQuickPicker />
+                <NotificationBell
+                  workspaceId={workspaceId}
+                  onNotificationClick={(notif) => {
+                    if (notif.orderId) {
+                      setPage("orders");
+                    } else if (notif.title.toLowerCase().includes("connexion")) {
+                      setPage("users");
+                    } else if (
+                      notif.title.toLowerCase().includes("commande") ||
+                      notif.title.toLowerCase().includes("closeuse")
+                    ) {
+                      setPage("orders");
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
+
+          {showPeriodFilter && (
+            <div className="flex justify-end 2xl:hidden">
+              <PeriodSelector period={period} onChange={setPeriod} />
+            </div>
+          )}
         </header>
 
         {teams.length === 0 && !teamsLoading ? (

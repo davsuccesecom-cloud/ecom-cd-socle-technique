@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb } from "@ecomcod/shared";
+import { getDb, ConfirmDialog } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
 import {
   Palette,
@@ -352,12 +352,18 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmSensitiveSave, setConfirmSensitiveSave] = useState(false);
 
   const isDirty =
     reminderStart !== initial.reminderStart ||
     reminderEnd !== initial.reminderEnd ||
     overloadThreshold !== initial.overloadThreshold ||
     digestInterval !== initial.digestInterval ||
+    remunCloseuse !== initial.remunCloseuse ||
+    remunLivreur !== initial.remunLivreur ||
+    currency !== initial.currency;
+
+  const isFinancialChange =
     remunCloseuse !== initial.remunCloseuse ||
     remunLivreur !== initial.remunLivreur ||
     currency !== initial.currency;
@@ -373,7 +379,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
     setError(null);
   };
 
-  const handleSave = async () => {
+  const executeSave = async () => {
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -388,6 +394,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
         remunerationLivreurPerOrder: Number(remunLivreur) || 0,
         currency,
       });
+      setConfirmSensitiveSave(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -396,6 +403,14 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = () => {
+    if (isFinancialChange) {
+      setConfirmSensitiveSave(true);
+      return;
+    }
+    executeSave();
   };
 
   return (
@@ -561,6 +576,17 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmSensitiveSave}
+        title="Confirmer la modification des règles financières ?"
+        message={`Vous modifiez la devise (${currency}) ou les barèmes de commissions (Closeuse : ${Number(remunCloseuse) || 0} ${currency}, Livreur : ${Number(remunLivreur) || 0} ${currency}) de l'équipe ${team.name}. Ce barème s'appliquera immédiatement au calcul de la paie.`}
+        confirmLabel="Appliquer le barème"
+        danger={false}
+        loading={saving}
+        onConfirm={executeSave}
+        onCancel={() => setConfirmSensitiveSave(false)}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb } from "@ecomcod/shared";
+import { getDb, ConfirmDialog } from "@ecomcod/shared";
 import type { AppUser, CloseuseStatus, LivreurStatus, Order, Team } from "@ecomcod/shared";
 import {
   Search,
@@ -399,6 +399,13 @@ function OrderDetail({
   const [overrideStatus, setOverrideStatus] = useState<CloseuseStatus>(order.statutCloseuse);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    danger?: boolean;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
 
   const runSave = async (data: Partial<Order>, after?: () => void) => {
     setBusy(true);
@@ -414,20 +421,71 @@ function OrderDetail({
     }
   };
 
-  const handleSaveEdit = () =>
-    runSave({ clientName: clientName.trim(), amount: Number(amount) || 0 }, () => setEditing(false));
+  const handleSaveEdit = () => {
+    const newAmount = Number(amount) || 0;
+    const newName = clientName.trim();
+    if (newAmount !== order.amount) {
+      setConfirmAction({
+        title: "Modifier le montant de la commande ?",
+        message: `Le montant passera de ${order.amount.toLocaleString("fr-FR")} ${currency} à ${newAmount.toLocaleString("fr-FR")} ${currency}. Cette modification impactera directement le calcul du chiffre d'affaires.`,
+        confirmLabel: "Valider le nouveau montant",
+        danger: false,
+        onConfirm: async () => {
+          setConfirmAction(null);
+          await runSave({ clientName: newName, amount: newAmount }, () => setEditing(false));
+        },
+      });
+      return;
+    }
+    runSave({ clientName: newName, amount: newAmount }, () => setEditing(false));
+  };
 
-  const handleAssign = () =>
-    runSave({
-      closeuseId: closeuseId || null,
-      livreurId: livreurId || null,
-    });
+  const handleAssign = () => {
+    const nextCloseuse = closeuseId || null;
+    const nextLivreur = livreurId || null;
+    const isReassigningCloseuse = !!order.closeuseId && order.closeuseId !== nextCloseuse;
+    const isReassigningLivreur = !!order.livreurId && order.livreurId !== nextLivreur;
 
-  const handleOverride = () =>
+    if (isReassigningCloseuse || isReassigningLivreur) {
+      setConfirmAction({
+        title: "Confirmer la réassignation ?",
+        message:
+          "Cette commande est déjà attribuée à un opérateur. Le changement transférera le suivi et les futures commissions au nouvel opérateur sélectionné.",
+        confirmLabel: "Confirmer le transfert",
+        danger: false,
+        onConfirm: async () => {
+          setConfirmAction(null);
+          await runSave({ closeuseId: nextCloseuse, livreurId: nextLivreur });
+        },
+      });
+      return;
+    }
+
     runSave({
-      statutCloseuse: overrideStatus,
-      statutAdminOverride: overrideStatus,
+      closeuseId: nextCloseuse,
+      livreurId: nextLivreur,
     });
+  };
+
+  const handleOverride = () => {
+    if (overrideStatus === order.statutCloseuse) return;
+    const isFinal = overrideStatus === "livre" || overrideStatus === "rejete" || overrideStatus === "injoignable";
+    setConfirmAction({
+      title: `Forcer le statut « ${CLOSEUSE_LABELS[overrideStatus]} » ?`,
+      message: isFinal
+        ? `Attention : passer cette commande en statut final « ${CLOSEUSE_LABELS[overrideStatus]} » met à jour les statistiques définitives, déclenche le calcul des commissions / événements Meta CAPI et programme sa purge.`
+        : `Le statut de la commande passera de « ${CLOSEUSE_LABELS[order.statutCloseuse]} » à « ${CLOSEUSE_LABELS[overrideStatus]} ».`,
+      confirmLabel: "Forcer le statut",
+      danger: true,
+      onConfirm: async () => {
+        setConfirmAction(null);
+        await runSave({
+          statutCloseuse: overrideStatus,
+          statutAdminOverride: overrideStatus,
+        });
+      },
+    });
+  };
 
   return (
     <div
@@ -634,6 +692,17 @@ function OrderDetail({
             </button>
           </div>
         </div>
+
+        <ConfirmDialog
+          open={!!confirmAction}
+          title={confirmAction?.title ?? ""}
+          message={confirmAction?.message ?? ""}
+          confirmLabel={confirmAction?.confirmLabel ?? "Confirmer"}
+          danger={confirmAction?.danger}
+          loading={busy}
+          onConfirm={() => confirmAction?.onConfirm()}
+          onCancel={() => setConfirmAction(null)}
+        />
       </div>
     </div>
   );

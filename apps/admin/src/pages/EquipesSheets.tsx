@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { doc, updateDoc, collection, onSnapshot } from "firebase/firestore";
-import { getDb, AFRICA_COUNTRIES } from "@ecomcod/shared";
+import { getDb, AFRICA_COUNTRIES, ConfirmDialog } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
 import {
   Plus,
@@ -221,6 +221,7 @@ function TeamDetail({
   const [sheetInput, setSheetInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmRemoveSheetId, setConfirmRemoveSheetId] = useState<string | null>(null);
 
   const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
 
@@ -337,7 +338,7 @@ function TeamDetail({
                 </div>
                 <button
                   disabled={busy}
-                  onClick={() => handleRemoveSheet(id)}
+                  onClick={() => setConfirmRemoveSheetId(id)}
                   className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
                 >
                   <Trash2 className="h-3 w-3" />
@@ -379,6 +380,22 @@ function TeamDetail({
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!confirmRemoveSheetId}
+        title="Retirer ce tableur Google Sheets ?"
+        message={`Le tableur ${confirmRemoveSheetId ? confirmRemoveSheetId.slice(0, 18) + "…" : ""} ne sera plus synchronisé avec l'équipe ${team.name}. Les nouvelles lignes ajoutées dans ce fichier ne remonteront plus.`}
+        confirmLabel="Retirer le tableur"
+        danger={true}
+        loading={busy}
+        onConfirm={async () => {
+          if (!confirmRemoveSheetId) return;
+          const target = confirmRemoveSheetId;
+          setConfirmRemoveSheetId(null);
+          await handleRemoveSheet(target);
+        }}
+        onCancel={() => setConfirmRemoveSheetId(null)}
+      />
     </div>
   );
 }

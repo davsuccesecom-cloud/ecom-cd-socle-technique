@@ -104,8 +104,8 @@ export default function CommandPalette({
         className="inline-flex h-9 items-center gap-2.5 rounded-lg border border-surface-border bg-surface-raised px-3 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-slate-200"
       >
         <Search className="h-3.5 w-3.5 text-slate-400" />
-        <span className="hidden md:inline">Rechercher une commande, une page…</span>
-        <span className="md:hidden">Recherche</span>
+        <span className="hidden xl:inline">Rechercher une commande…</span>
+        <span className="hidden sm:inline xl:hidden">Rechercher…</span>
         <kbd className="hidden rounded border border-surface-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-400 sm:inline-block">
           ⌘K
         </kbd>

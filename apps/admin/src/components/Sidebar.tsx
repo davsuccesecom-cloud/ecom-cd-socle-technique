@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ConfirmDialog } from "@ecomcod/shared";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -67,6 +68,7 @@ export default function Sidebar({
   onNavigate,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   return (
     <aside
@@ -160,7 +162,7 @@ export default function Sidebar({
           )}
           <button
             type="button"
-            onClick={onLogout}
+            onClick={() => setConfirmLogout(true)}
             title="Se déconnecter"
             className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
           >
@@ -168,6 +170,19 @@ export default function Sidebar({
           </button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmLogout}
+        title="Se déconnecter du poste de pilotage ?"
+        message="Votre session administrateur actuelle sera fermée sur cet appareil."
+        confirmLabel="Se déconnecter"
+        danger={true}
+        onConfirm={() => {
+          setConfirmLogout(false);
+          onLogout();
+        }}
+        onCancel={() => setConfirmLogout(false)}
+      />
     </aside>
   );
 }

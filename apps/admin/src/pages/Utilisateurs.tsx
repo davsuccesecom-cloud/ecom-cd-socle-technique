@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import type { Team, AppUser } from "@ecomcod/shared";
+import { ConfirmDialog, type Team, type AppUser } from "@ecomcod/shared";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface UtilisateursProps {
@@ -38,6 +38,8 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
   const [revealedPassword, setRevealedPassword] = useState<{ label: string; password: string } | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<AppUser | null>(null);
+  const [confirmRegenerate, setConfirmRegenerate] = useState<AppUser | null>(null);
+  const [confirmToggle, setConfirmToggle] = useState<AppUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const users = tab === "closeuse" ? closeuses : livreurs;
@@ -61,6 +63,7 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
     setError(null);
     try {
       const res = await callRegeneratePassword({ accessLinkId: linkFor(user.id)?.accessLinkId });
+      setConfirmRegenerate(null);
       setRevealedPassword({ label: user.name, password: (res.data as { password: string }).password });
     } catch (err) {
       const f = formatFirebaseError(err);
@@ -80,6 +83,7 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
       setLinks((prev) =>
         prev.map((l) => (l.userId === user.id ? { ...l, disabledAt: link.disabledAt ? null : Date.now() } : l))
       );
+      setConfirmToggle(null);
     } catch (err) {
       const f = formatFirebaseError(err);
       setError(`${f.title} : ${f.message}`);
@@ -179,8 +183,8 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
                           url={url}
                           busy={busyUserId === user.id}
                           disabled={disabled}
-                          onRegenerate={() => handleRegenerate(user)}
-                          onToggle={() => handleToggleStatus(user)}
+                          onRegenerate={() => setConfirmRegenerate(user)}
+                          onToggle={() => (disabled ? handleToggleStatus(user) : setConfirmToggle(user))}
                           onDelete={() => setConfirmDelete(user)}
                         />
                       </td>
@@ -211,8 +215,8 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
                     url={url}
                     busy={busyUserId === user.id}
                     disabled={disabled}
-                    onRegenerate={() => handleRegenerate(user)}
-                    onToggle={() => handleToggleStatus(user)}
+                    onRegenerate={() => setConfirmRegenerate(user)}
+                    onToggle={() => (disabled ? handleToggleStatus(user) : setConfirmToggle(user))}
                     onDelete={() => setConfirmDelete(user)}
                   />
                 </div>
@@ -253,6 +257,28 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
           onConfirm={handleDelete}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmRegenerate}
+        title={confirmRegenerate ? `Régénérer le mot de passe de ${confirmRegenerate.name} ?` : ""}
+        message="L'ancien mot de passe sera immédiatement invalidé et les sessions actives de cet employé seront fermées. Vous devrez lui transmettre le nouveau code."
+        confirmLabel="Régénérer le code"
+        danger={false}
+        loading={!!confirmRegenerate && busyUserId === confirmRegenerate.id}
+        onConfirm={() => confirmRegenerate && handleRegenerate(confirmRegenerate)}
+        onCancel={() => setConfirmRegenerate(null)}
+      />
+
+      <ConfirmDialog
+        open={!!confirmToggle}
+        title={confirmToggle ? `Désactiver l'accès de ${confirmToggle.name} ?` : ""}
+        message="Cet employé sera déconnecté immédiatement et ne recevra plus aucune nouvelle commande automatique tant que son compte restera désactivé."
+        confirmLabel="Désactiver l'accès"
+        danger={true}
+        loading={!!confirmToggle && busyUserId === confirmToggle.id}
+        onConfirm={() => confirmToggle && handleToggleStatus(confirmToggle)}
+        onCancel={() => setConfirmToggle(null)}
+      />
     </div>
   );
 }

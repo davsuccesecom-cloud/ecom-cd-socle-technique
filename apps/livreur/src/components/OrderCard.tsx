@@ -1,4 +1,13 @@
-import { buildTelLink, buildWhatsAppLink, LIVREUR_STATUS_LABELS, type LivreurStatus, type Order, type Team } from "@ecomcod/shared";
+import { useState } from "react";
+import {
+  buildTelLink,
+  buildWhatsAppLink,
+  LIVREUR_STATUS_LABELS,
+  ConfirmDialog,
+  type LivreurStatus,
+  type Order,
+  type Team,
+} from "@ecomcod/shared";
 
 interface OrderCardProps {
   order: Order;
@@ -77,6 +86,7 @@ function printThermalReceipt(order: Order, team?: Team | null) {
 export default function OrderCard({ order, team, onChangeStatus }: OrderCardProps) {
   const status = order.statutLivreur ?? "recu";
   const isFinal = status === "livre" || status === "injoignable";
+  const [pendingFinalStatus, setPendingFinalStatus] = useState<LivreurStatus | null>(null);
 
   const whatsAppMessage = `Bonjour ${order.clientName}, votre livreur est en route pour votre colis ${
     order.orderNumber ? `(#${order.orderNumber}) ` : ""
@@ -201,24 +211,45 @@ export default function OrderCard({ order, team, onChangeStatus }: OrderCardProp
       {status === "en_route" && (
         <div className="flex gap-2">
           <button
-            onClick={() => {
-              onChangeStatus("livre");
-              if (team?.printReceiptConfig?.enabled && team?.printReceiptConfig?.autoPrintOnDelivery) {
-                printThermalReceipt(order, team);
-              }
-            }}
+            onClick={() => setPendingFinalStatus("livre")}
             className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-green-700 transition-colors"
           >
             Livré ✓
           </button>
           <button
-            onClick={() => onChangeStatus("injoignable")}
+            onClick={() => setPendingFinalStatus("injoignable")}
             className="flex-1 rounded-xl bg-red-50 dark:bg-red-950/40 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 border border-red-100 dark:border-red-900/40 hover:bg-red-100 transition-colors"
           >
             Injoignable
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!pendingFinalStatus}
+        title={
+          pendingFinalStatus === "livre"
+            ? `Confirmer la livraison de ${order.clientName} ?`
+            : `Marquer ${order.clientName} comme injoignable ?`
+        }
+        message={
+          pendingFinalStatus === "livre"
+            ? `Vous confirmez avoir remis le colis et encaissé ${order.amount.toLocaleString("fr-FR")} F. Cette action est définitive et déclenche les commissions.`
+            : "Le client sera signalé comme injoignable sur le terrain auprès de la closeuse et de l'administration."
+        }
+        confirmLabel={pendingFinalStatus === "livre" ? "Oui, livré et encaissé" : "Confirmer injoignable"}
+        danger={pendingFinalStatus === "injoignable"}
+        onConfirm={() => {
+          const target = pendingFinalStatus;
+          setPendingFinalStatus(null);
+          if (!target) return;
+          onChangeStatus(target);
+          if (target === "livre" && team?.printReceiptConfig?.enabled && team?.printReceiptConfig?.autoPrintOnDelivery) {
+            printThermalReceipt(order, team);
+          }
+        }}
+        onCancel={() => setPendingFinalStatus(null)}
+      />
 
       {status === "livre" && team?.printReceiptConfig?.enabled && (
         <button
