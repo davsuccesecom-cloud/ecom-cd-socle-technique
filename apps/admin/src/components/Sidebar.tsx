@@ -10,6 +10,7 @@ import {
   Wallet,
   Landmark,
   Settings,
+  Globe,
   FileBarChart2,
   LogOut,
   PanelLeftClose,
@@ -59,7 +60,10 @@ const GROUPS: NavGroup[] = [
   },
   {
     title: "Système",
-    items: [{ key: "settings", label: "Paramètres & Flux", icon: Settings }],
+    items: [
+      { key: "settings", label: "Paramètres & Flux", icon: Settings },
+      { key: "landing", label: "Vitrine & Landing 3D", icon: Globe },
+    ],
   },
 ];
 

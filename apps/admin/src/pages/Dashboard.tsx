@@ -37,6 +37,7 @@ import Parametres from "./Parametres";
 import Remuneration from "./Remuneration";
 import CaisseLivreurs from "./CaisseLivreurs";
 import AiAssistant from "./AiAssistant";
+import LandingPage from "./LandingPage";
 import PeriodSelector, { type Period, periodRangeMs, periodLabel } from "../components/PeriodSelector";
 
 interface DashboardProps {
@@ -232,6 +233,15 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const showPeriodFilter = page === "overview" || page === "remuneration" || page === "caisse";
   const currency = activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF";
   const headerMeta = PAGE_TITLES[page] ?? PAGE_TITLES.overview;
+
+  if (page === "landing") {
+    return (
+      <LandingPage
+        isAuthenticatedPreview
+        onBackToDashboard={() => setPage("overview")}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface md:flex">

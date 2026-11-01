@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { getFirebaseAuth, useAdminEmailAuth, ConnectionGuard } from "@ecomcod/shared";
 import { useTheme } from "./hooks/useTheme";
-import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import MetaOAuthBridgePage from "./pages/MetaOAuthBridgePage";
+import LegalPrivacyModal, { type LegalTab } from "./components/LegalPrivacyModal";
 
 interface SessionClaims {
   workspaceId: string;
@@ -76,18 +77,63 @@ export default function App() {
     }
   }, [logout]);
 
-  const metaBridgeParam = new URLSearchParams(window.location.search).get("metaBridge");
+  const searchParams = new URLSearchParams(window.location.search);
+  const metaBridgeParam = searchParams.get("metaBridge");
   if (metaBridgeParam) {
     return <MetaOAuthBridgePage bridgeParam={metaBridgeParam} />;
+  }
+
+  const legalParam = searchParams.get("legal") as LegalTab | null;
+  const pathname = window.location.pathname.toLowerCase();
+  if (
+    legalParam ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
+    pathname === "/data-deletion"
+  ) {
+    const initialTab: LegalTab =
+      legalParam === "terms" || pathname === "/terms"
+        ? "terms"
+        : legalParam === "deletion" || pathname === "/data-deletion"
+        ? "deletion"
+        : legalParam === "security"
+        ? "security"
+        : "privacy";
+    return (
+      <LegalPrivacyModal
+        standalone
+        initialTab={initialTab}
+        onClose={() => {
+          window.location.href = "/";
+        }}
+      />
+    );
   }
 
   if (authLoading || (firebaseUser && claimsLoading && !needsWorkspaceName)) {
     return <div className="flex min-h-screen items-center justify-center bg-surface text-slate-500">Chargement…</div>;
   }
 
+  if (searchParams.get("landing") === "1" || pathname === "/landing") {
+    return (
+      <LandingPage
+        sendLoginLink={sendLoginLink}
+        createWorkspace={createWorkspace}
+        needsWorkspaceName={needsWorkspaceName}
+        linkSent={linkSent}
+        busy={busy}
+        error={error}
+        isAuthenticatedPreview={Boolean(firebaseUser && claims?.workspaceId)}
+        onBackToDashboard={() => {
+          window.location.href = "/";
+        }}
+      />
+    );
+  }
+
   if (!firebaseUser || !claims?.workspaceId) {
     return (
-      <Login
+      <LandingPage
         sendLoginLink={sendLoginLink}
         createWorkspace={createWorkspace}
         needsWorkspaceName={needsWorkspaceName}

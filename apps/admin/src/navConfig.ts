@@ -21,7 +21,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "caisse", label: "Caisse & Versements", shortLabel: "Caisse" },
   { key: "remuneration", label: "Rémunération" },
   { key: "settings", label: "Paramètres" },
+  { key: "landing", label: "Vitrine & Landing 3D", shortLabel: "Landing" },
 ];
 
 // Pages réellement construites
-export const ENABLED_KEYS = ["overview", "orders", "ai_assistant", "performance", "teams", "users", "caisse", "remuneration", "settings"];
+export const ENABLED_KEYS = ["overview", "orders", "ai_assistant", "performance", "teams", "users", "caisse", "remuneration", "settings", "landing"];

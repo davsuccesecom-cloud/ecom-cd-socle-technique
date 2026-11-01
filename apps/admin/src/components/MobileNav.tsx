@@ -9,6 +9,7 @@ import {
   Wallet,
   Landmark,
   Settings,
+  Globe,
   Menu,
 } from "lucide-react";
 import { NAV_ITEMS, ENABLED_KEYS } from "../navConfig";
@@ -31,6 +32,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   caisse: Landmark,
   remuneration: Wallet,
   settings: Settings,
+  landing: Globe,
 };
 
 export default function MobileNav({ active, pendingOrdersCount = 0, onNavigate }: MobileNavProps) {
