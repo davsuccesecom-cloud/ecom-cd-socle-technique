@@ -152,6 +152,24 @@ export default function LandingPage({
 
   return (
     <div className="min-h-screen bg-[#070b14] text-slate-100 selection:bg-brand selection:text-white overflow-x-hidden">
+      {/* Bandeau d'aperçu pour administrateur connecté */}
+      {isAuthenticatedPreview && (
+        <div className="sticky top-0 z-[60] flex flex-wrap items-center justify-between gap-2 border-b border-indigo-500/30 bg-indigo-950/95 px-4 py-2 text-xs font-medium text-indigo-200 backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Mode Aperçu Vitrine (Connecté avec vos droits Administrateur)</span>
+          </div>
+          <button
+            type="button"
+            onClick={onBackToDashboard}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 px-3 py-1 text-xs font-bold text-white shadow transition"
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            <span>Retour à mon Dashboard</span>
+          </button>
+        </div>
+      )}
+
       {/* Halo immersif supérieur */}
       <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[640px] bg-[radial-gradient(ellipse_80%_50%_at_50%_-15%,rgba(99,102,241,0.28),rgba(16,185,129,0.12),transparent)]" />
 
@@ -247,7 +265,7 @@ export default function LandingPage({
             </div>
 
             {/* Titre Principal Haute Typographie */}
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.08]">
+            <h1 className="text-2xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.15] sm:leading-[1.08] break-words">
               Transformez chaque commande en{" "}
               <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-400 bg-clip-text text-transparent">
                 cash réellement encaissé
@@ -389,17 +407,17 @@ export default function LandingPage({
             </div>
 
             {/* 3 Cartes de Réassurance Supérieures */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-                <p className="font-mono text-lg font-extrabold text-white">3 Apps</p>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-3.5">
+                <p className="font-mono text-base sm:text-lg font-extrabold text-white">3 Apps</p>
                 <p className="text-[11px] text-slate-400 font-medium">Admin, Closeuse & Livreur</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-                <p className="font-mono text-lg font-extrabold text-emerald-400">100% Livré</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-3.5">
+                <p className="font-mono text-base sm:text-lg font-extrabold text-emerald-400">100% Livré</p>
                 <p className="text-[11px] text-slate-400 font-medium">Signal CAPI Purifié</p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-                <p className="font-mono text-lg font-extrabold text-amber-300">Caisse + IA</p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-3.5">
+                <p className="font-mono text-base sm:text-lg font-extrabold text-amber-300">Caisse + IA</p>
                 <p className="text-[11px] text-slate-400 font-medium">Zéro perte de cash</p>
               </div>
             </div>
@@ -491,7 +509,7 @@ export default function LandingPage({
                 className="w-full rounded-2xl object-cover shadow-lg"
               />
             </div>
-            <div className="grid grid-cols-3 gap-2.5 text-center">
+            <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3 sm:gap-2.5">
               <div className="rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-3">
                 <p className="text-xs font-bold text-indigo-300">1. App Closeuse</p>
                 <p className="mt-0.5 text-[11px] text-slate-400">Appels & WhatsApp</p>

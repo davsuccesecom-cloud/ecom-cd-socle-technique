@@ -110,6 +110,29 @@ export default function App() {
     );
   }
 
+  const isLandingRequested =
+    searchParams.get("landing") === "1" ||
+    pathname === "/landing" ||
+    pathname === "/vitrine" ||
+    pathname === "/home";
+
+  if (isLandingRequested) {
+    return (
+      <LandingPage
+        sendLoginLink={sendLoginLink}
+        createWorkspace={createWorkspace}
+        needsWorkspaceName={needsWorkspaceName}
+        linkSent={linkSent}
+        busy={busy}
+        error={error}
+        isAuthenticatedPreview={Boolean(firebaseUser && claims?.workspaceId)}
+        onBackToDashboard={() => {
+          window.location.href = "/";
+        }}
+      />
+    );
+  }
+
   // Si l'utilisateur est connecté et ses droits admin sont validés, on affiche le tableau de bord
   if (firebaseUser && claims?.workspaceId && claims.role === "admin") {
     return (

@@ -311,7 +311,7 @@ export default function AfricaNetworkMap3D() {
       <div className="pointer-events-none absolute -inset-6 rounded-3xl bg-gradient-to-tr from-indigo-500/15 via-emerald-500/10 to-amber-500/10 blur-3xl opacity-80" />
 
       <div
-        className="relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-b from-[#0c1324]/95 via-[#090e1c]/95 to-[#060a14]/95 p-6 sm:p-8 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl transition-transform duration-200 ease-out"
+        className="relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-b from-[#0c1324]/95 via-[#090e1c]/95 to-[#060a14]/95 p-4 sm:p-8 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-2xl transition-transform duration-200 ease-out"
         style={{
           transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`,
           transformStyle: "preserve-3d",
