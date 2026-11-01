@@ -235,15 +235,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const currency = activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF";
   const headerMeta = PAGE_TITLES[page] ?? PAGE_TITLES.overview;
 
-  if (page === "landing") {
-    return (
-      <LandingPage
-        isAuthenticatedPreview
-        onBackToDashboard={() => setPage("overview")}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen bg-surface md:flex">
       <Sidebar
@@ -266,15 +257,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setPage("landing")}
-            title="Voir la Vitrine Landing Page 3D"
-            className="flex h-8 items-center gap-1 rounded-lg border border-surface-border bg-surface px-2 text-[11px] font-semibold text-slate-300 hover:text-white"
-          >
-            <Globe className="h-3.5 w-3.5 text-brand" />
-            <span className="hidden sm:inline">Vitrine</span>
-          </button>
           <ThemeQuickPicker />
           <NotificationBell
             workspaceId={workspaceId}
@@ -329,16 +311,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
 
             {/* Notification Bell anchored at top-right corner on desktop */}
-            <div className="hidden md:flex md:items-center md:gap-2">
-              <button
-                type="button"
-                onClick={() => setPage("landing")}
-                title="Consulter la Landing Page 3D Vitrine"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:border-brand/40 hover:text-white transition"
-              >
-                <Globe className="h-3.5 w-3.5 text-brand" />
-                <span>Vitrine Landing 3D</span>
-              </button>
+            <div className="hidden md:flex md:items-center">
               <NotificationBell
                 workspaceId={workspaceId}
                 onNotificationClick={(notif) => {

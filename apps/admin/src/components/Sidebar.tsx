@@ -62,7 +62,6 @@ const GROUPS: NavGroup[] = [
     title: "Système",
     items: [
       { key: "settings", label: "Paramètres & Flux", icon: Settings },
-      { key: "landing", label: "Vitrine & Landing 3D", icon: Globe },
     ],
   },
 ];

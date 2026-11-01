@@ -1,7 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   ShieldCheck,
-  Sparkles,
   PhoneCall,
   Landmark,
   Bot,
@@ -10,18 +9,19 @@ import {
   Lock,
   Globe2,
   Trash2,
-  BarChart3,
   Mail,
-  LayoutDashboard,
   Check,
   Layers,
-  ChevronRight,
   SlidersHorizontal,
   XCircle,
   Truck,
-  Flame,
-  Smartphone,
   Zap,
+  X,
+  ExternalLink,
+  Laptop,
+  Smartphone,
+  ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import AfricaNetworkMap3D from "../components/AfricaNetworkMap3D";
 import LegalPrivacyModal, { type LegalTab } from "../components/LegalPrivacyModal";
@@ -90,7 +90,7 @@ function ShopifyIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-// Les 5 étapes critiques du COD : Sans vs Avec
+// Les 5 étapes critiques du COD
 const COD_STAGES = [
   {
     step: "01",
@@ -154,6 +154,46 @@ const COD_STAGES = [
   },
 ];
 
+// Onglets de démonstration réelle du logiciel
+const SHOWCASE_TABS = [
+  {
+    id: "dashboard",
+    label: "Tableau de Bord (Direction)",
+    icon: Laptop,
+    badge: "Temps Réel",
+    image: "/landing/preview-dashboard.png",
+    headline: "Cockpit de pilotage unifié multi-marchés",
+    sub: "Chiffre d'affaires encaissé, taux de confirmation, volume en cours et livraisons par livreur consolidés en direct.",
+  },
+  {
+    id: "closeuse",
+    label: "App Closeuse (WhatsApp 1-Clic)",
+    icon: Smartphone,
+    badge: "Mobile & PWA",
+    image: "/landing/preview-closeuse.png",
+    headline: "Appel & WhatsApp immédiat sans enregistrer le contact",
+    sub: "Fini la perte de temps. Un clic suffit pour appeler ou envoyer le message WhatsApp pré-rempli au client.",
+  },
+  {
+    id: "ai",
+    label: "Analyste Direction (Vigie IA)",
+    icon: Bot,
+    badge: "Intelligence COD",
+    image: "/landing/preview-ai.png",
+    headline: "Audit opérationnel et courbes de performance automatiques",
+    sub: "L'IA analyse vos points forts, identifie les goulots d'étranglement de closing et rédige vos plans d'action.",
+  },
+  {
+    id: "shopify",
+    label: "Flux Shopify & Routage Pays",
+    icon: Zap,
+    badge: "Zéro Latence",
+    image: "/landing/preview-shopify.png",
+    headline: "Routage étanche par pays et enrichissement Meta CAPI",
+    sub: "Chaque commande reçue au Togo, Bénin ou Côte d'Ivoire est isolée vers l'équipe locale dédiée.",
+  },
+];
+
 export default function LandingPage({
   sendLoginLink,
   signInWithGoogle,
@@ -167,59 +207,38 @@ export default function LandingPage({
   onBackToDashboard,
 }: LandingPageProps) {
   const [email, setEmail] = useState("");
-  const [newsletterEmail, setNewsletterEmail] = useState("");
-  const [newsletterSent, setNewsletterSent] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [legalModalTab, setLegalModalTab] = useState<LegalTab | null>(null);
   const [comparisonMode, setComparisonMode] = useState<"avec" | "sans">("avec");
+  const [activeShowcaseIndex, setActiveShowcaseIndex] = useState(0);
 
   // Simulateur interactif de rentabilité
   const [monthlyOrders, setMonthlyOrders] = useState(600);
   const [avgOrderValue, setAvgOrderValue] = useState(18000);
   const [deliveryBoostPct, setDeliveryBoostPct] = useState(18);
 
-  const authBoxRef = useRef<HTMLDivElement | null>(null);
+  // Ouvre automatiquement la modale si l'utilisateur doit nommer son workspace ou si un lien a été envoyé
+  useEffect(() => {
+    if (needsWorkspaceName || linkSent || error) {
+      setAuthModalOpen(true);
+    }
+  }, [needsWorkspaceName, linkSent, error]);
 
-  const scrollToAuth = () => {
+  const openAuth = () => {
     if (isAuthenticatedPreview && onBackToDashboard) {
       onBackToDashboard();
       return;
     }
-    authBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newsletterEmail.trim()) {
-      setNewsletterSent(true);
-      setTimeout(() => setNewsletterSent(false), 5000);
-      setNewsletterEmail("");
-    }
+    setAuthModalOpen(true);
   };
 
   const extraDeliveredOrders = Math.round((monthlyOrders * deliveryBoostPct) / 100);
   const extraMonthlyRevenue = extraDeliveredOrders * avgOrderValue;
+  const currentTab = SHOWCASE_TABS[activeShowcaseIndex];
 
   return (
     <div className="min-h-screen bg-[#050814] text-slate-100 selection:bg-brand selection:text-white overflow-x-hidden font-sans">
-      {/* Bandeau d'aperçu pour administrateur déjà connecté */}
-      {isAuthenticatedPreview && (
-        <div className="sticky top-0 z-[60] flex flex-wrap items-center justify-between gap-2 border-b border-indigo-500/30 bg-indigo-950/95 px-4 py-2 text-xs font-medium text-indigo-200 backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Mode Aperçu Vitrine (Connecté avec vos droits Administrateur)</span>
-          </div>
-          <button
-            type="button"
-            onClick={onBackToDashboard}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 px-3 py-1 text-xs font-bold text-white shadow transition"
-          >
-            <LayoutDashboard className="h-3.5 w-3.5" />
-            <span>Retour à mon Dashboard</span>
-          </button>
-        </div>
-      )}
-
       {/* Halo immersif supérieur (Style Typewise Neon Blue Spotlight) */}
       <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[680px] bg-[radial-gradient(ellipse_75%_50%_at_50%_-10%,rgba(59,130,246,0.32),rgba(16,185,129,0.14),transparent)]" />
 
@@ -244,6 +263,9 @@ export default function LandingPage({
           </div>
 
           <nav className="hidden items-center gap-6 text-xs font-semibold text-slate-300 md:flex">
+            <a href="#showcase-logiciel" className="hover:text-white transition-colors">
+              Logiciel en Direct
+            </a>
             <a href="#comparatif-cod" className="hover:text-white transition-colors">
               Comparatif
             </a>
@@ -254,7 +276,7 @@ export default function LandingPage({
               Réseau Afrique
             </a>
             <a href="#simulateur-roi" className="hover:text-white transition-colors">
-              Simulateur Cash
+              Simulateur
             </a>
             <button
               type="button"
@@ -266,38 +288,27 @@ export default function LandingPage({
           </nav>
 
           <div className="flex items-center gap-2.5">
-            {isAuthenticatedPreview && onBackToDashboard ? (
-              <button
-                type="button"
-                onClick={onBackToDashboard}
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-95 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 transition-all"
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Poste de Pilotage</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={scrollToAuth}
-                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-brand to-indigo-600 hover:opacity-95 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white shadow-lg shadow-brand/30 transition-all"
-              >
-                <span>Accès Direction</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={openAuth}
+              className="inline-flex items-center gap-1.5 sm:gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-brand to-indigo-600 hover:opacity-95 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white shadow-lg shadow-brand/30 transition-all"
+            >
+              <span>{isAuthenticatedPreview ? "Poste de Pilotage" : "Commencer gratuitement"}</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* 2. HERO PRINCIPAL CENTRÉ HAUTE TYPOGRAPHIE (STYLE TYPEWISE + EASYAFRIK) */}
-      <section className="relative z-10 mx-auto max-w-6xl px-4 pt-12 pb-16 sm:px-6 lg:pt-20 text-center">
+      {/* 2. HERO PRINCIPAL CENTRÉ HAUTE TYPOGRAPHIE (STYLE TYPEWISE & EASYAFRIK) */}
+      <section className="relative z-10 mx-auto max-w-6xl px-4 pt-12 pb-14 sm:px-6 lg:pt-20 text-center">
         {/* Pill Badge Centré */}
         <div className="inline-flex items-center gap-2 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-1.5 text-xs font-semibold text-indigo-300 backdrop-blur-md shadow-sm mb-6">
           <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
           <span>Système d'Exploitation E-Commerce COD Afrique</span>
         </div>
 
-        {/* Titre Principal Haute Typographie Centré */}
+        {/* Titre Principal Haute Typographie Centré (sans font-mono) */}
         <h1 className="mx-auto max-w-4xl text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-[1.12] sm:leading-[1.08] break-words">
           Votre e-commerce COD en Afrique.{" "}
           <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-indigo-400 bg-clip-text text-transparent">
@@ -305,326 +316,150 @@ export default function LandingPage({
           </span>
         </h1>
 
-        {/* Sous-titre percutant axé douleurs terrain */}
+        {/* Sous-titre percutant axé douleurs réelles */}
         <p className="mx-auto mt-6 max-w-2xl text-sm sm:text-base leading-relaxed text-slate-300">
-          Comptabilité, caisse livreurs, closeuses, boutiques <strong>Shopify</strong> et <strong>Pixel Meta CAPI</strong> :
+          Comptabilité, caisse livreurs, closeuses, boutiques <strong>Shopify</strong> et signal <strong>Meta CAPI</strong> :
           tout ce qui fait tourner votre business dans un seul cockpit étanche, au lieu d'un cahier de notes, d'un fichier Excel perdu et de dix groupes WhatsApp.
         </p>
 
-        {/* MODULE DE CONNEXION UNIVERSEL MULTI-APPAREILS */}
-        <div
-          ref={authBoxRef}
-          className="mx-auto mt-10 max-w-xl rounded-3xl border border-white/15 bg-gradient-to-b from-[#0e1628]/95 via-[#090e1c]/95 to-[#060a14]/95 p-6 sm:p-7 shadow-2xl shadow-indigo-500/20 backdrop-blur-2xl text-left"
-        >
-          {isAuthenticatedPreview ? (
-            <div className="space-y-3 text-center py-2">
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400">
-                <LayoutDashboard className="h-6 w-6" />
-              </div>
-              <h3 className="text-base font-bold text-white">Vous êtes connecté en tant qu'administrateur</h3>
-              <p className="text-xs text-slate-300">
-                Votre session est active. Vous pouvez naviguer sur cette vitrine ou retourner à votre cockpit opérationnel.
-              </p>
-              <button
-                type="button"
-                onClick={onBackToDashboard}
-                className="mt-2 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 hover:opacity-95"
-              >
-                <span>Accéder au Poste de Pilotage</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          ) : needsWorkspaceName ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
-                <Sparkles className="h-4 w-4" />
-                <span>Bienvenue ! Nommez votre espace de pilotage</span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Votre compte est authentifié. Indiquez le nom de votre boutique ou entreprise COD pour initialiser votre base étanche :
-              </p>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (workspaceName.trim() && createWorkspace) void createWorkspace(workspaceName.trim());
-                }}
-                className="flex flex-col gap-2.5 sm:flex-row"
-              >
-                <input
-                  type="text"
-                  value={workspaceName}
-                  onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="Ex: Lomé Express Shop, Dakar Bio..."
-                  className="flex-1 rounded-xl border border-white/15 bg-[#050814] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/30"
-                />
-                <button
-                  type="submit"
-                  disabled={busy || !workspaceName.trim()}
-                  className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-3 text-xs font-bold text-white shadow hover:opacity-95 disabled:opacity-50"
-                >
-                  {busy ? "Création..." : "Finaliser mon Espace"}
-                </button>
-              </form>
-              {error && <p className="text-xs font-semibold text-rose-400">{error}</p>}
-            </div>
-          ) : linkSent ? (
-            <div className="space-y-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-              <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
-                <Mail className="h-4 w-4" />
-                <span>Lien magique envoyé avec succès 📩</span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Un lien sécurisé sans mot de passe a été envoyé à <strong className="text-white">{email}</strong>.
-                Cliquez dessus depuis cet appareil ou votre smartphone pour ouvrir directement votre Poste de Pilotage.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                  <Lock className="h-3.5 w-3.5 text-brand" />
-                  <span>Connexion & Accès Direction</span>
-                </span>
-                <span className="text-[11px] font-mono text-emerald-400">Tous appareils compatibles</span>
-              </div>
+        {/* Deux Boutons d'Action Principaux */}
+        <div className="mx-auto mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={openAuth}
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 px-7 py-3.5 text-sm font-bold text-white shadow-xl shadow-emerald-500/25 hover:opacity-95 transition-all"
+          >
+            <span>Commencer gratuitement</span>
+            <ArrowRight className="h-4 w-4" />
+          </button>
 
-              {/* Boutons Sociaux Rapides (Google & Facebook) */}
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => signInWithGoogle && signInWithGoogle()}
-                  disabled={busy}
-                  className="inline-flex items-center justify-center gap-2.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition-all disabled:opacity-50"
-                >
-                  <GoogleIcon className="h-4 w-4" />
-                  <span>Continuer avec Google</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => signInWithFacebook && signInWithFacebook()}
-                  disabled={busy}
-                  className="inline-flex items-center justify-center gap-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/15 px-4 py-2.5 text-xs font-semibold text-blue-200 shadow-sm transition-all disabled:opacity-50"
-                >
-                  <FacebookBrandIcon className="h-4 w-4" />
-                  <span>Continuer avec Facebook</span>
-                </button>
-              </div>
-
-              <div className="relative flex items-center justify-center py-1">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/10" />
-                </div>
-                <span className="relative bg-[#090e1c] px-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">
-                  Ou par email sans mot de passe
-                </span>
-              </div>
-
-              {/* Formulaire Email Magic Link */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (email.trim() && sendLoginLink) void sendLoginLink(email.trim());
-                }}
-                className="flex flex-col gap-2.5 sm:flex-row"
-              >
-                <div className="relative flex-1">
-                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="votre-email@boutique.com"
-                    className="w-full rounded-xl border border-white/15 bg-[#050814] pl-10 pr-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={busy || !email.trim()}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-brand to-indigo-600 px-5 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-brand/30 hover:opacity-95 disabled:opacity-50 transition-all"
-                >
-                  <span>{busy ? "Envoi..." : "Recevoir mon lien"}</span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </form>
-
-              {error && <p className="text-xs font-semibold text-rose-400">{error}</p>}
-
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] text-slate-400 border-t border-white/5">
-                <span className="flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  Multi-appareils • Espace isolé automatique
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLegalModalTab("privacy")}
-                  className="text-slate-300 underline underline-offset-2 hover:text-white"
-                >
-                  Charte de Confidentialité
-                </button>
-              </div>
-            </div>
-          )}
+          <a
+            href="#showcase-logiciel"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 px-6 py-3.5 text-sm font-semibold text-slate-200 transition-all"
+          >
+            <span>Explorer le logiciel en direct</span>
+            <ChevronRight className="h-4 w-4" />
+          </a>
         </div>
 
-        {/* SOCIAL PROOF ROW (AVATARS + CHIFFRES) */}
+        {/* Social Proof Row */}
         <div className="mx-auto mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400">
           <div className="flex -space-x-2 overflow-hidden">
-            <span className="inline-block h-7 w-7 rounded-full border-2 border-[#050814] bg-emerald-500 text-[10px] font-black text-white flex items-center justify-center">
+            <span className="inline-block h-6 w-6 rounded-full border-2 border-[#050814] bg-emerald-500 text-[9px] font-black text-white flex items-center justify-center">
               TG
             </span>
-            <span className="inline-block h-7 w-7 rounded-full border-2 border-[#050814] bg-indigo-500 text-[10px] font-black text-white flex items-center justify-center">
+            <span className="inline-block h-6 w-6 rounded-full border-2 border-[#050814] bg-indigo-500 text-[9px] font-black text-white flex items-center justify-center">
               CI
             </span>
-            <span className="inline-block h-7 w-7 rounded-full border-2 border-[#050814] bg-teal-500 text-[10px] font-black text-white flex items-center justify-center">
+            <span className="inline-block h-6 w-6 rounded-full border-2 border-[#050814] bg-teal-500 text-[9px] font-black text-white flex items-center justify-center">
               BJ
             </span>
-            <span className="inline-block h-7 w-7 rounded-full border-2 border-[#050814] bg-amber-500 text-[10px] font-black text-white flex items-center justify-center">
+            <span className="inline-block h-6 w-6 rounded-full border-2 border-[#050814] bg-amber-500 text-[9px] font-black text-white flex items-center justify-center">
               SN
             </span>
-            <span className="inline-block h-7 w-7 rounded-full border-2 border-[#050814] bg-rose-500 text-[10px] font-black text-white flex items-center justify-center">
+            <span className="inline-block h-6 w-6 rounded-full border-2 border-[#050814] bg-rose-500 text-[9px] font-black text-white flex items-center justify-center">
               CM
             </span>
           </div>
           <span>
-            Rejoint par <strong className="text-white">+120 boutiques e-commerce actives</strong> à travers l'Afrique de l'Ouest & Centrale
+            Rejoint par <strong className="text-white">+120 boutiques actives</strong> au Togo, Bénin, Côte d'Ivoire, Sénégal et Cameroun
           </span>
         </div>
 
-        {/* 3D FLOATING COCKPIT DECK (STYLE TYPEWISE CARDS + EASYAFRIK HUB) */}
-        <div className="relative mx-auto mt-14 max-w-5xl">
+        {/* 3. SHOWCASE LOGICIEL INTERACTIF EN DIRECT (À LA PLACE DU GROS FORMULAIRE) */}
+        <div id="showcase-logiciel" className="relative mx-auto mt-12 max-w-5xl text-left">
           {/* Lueur arrière */}
-          <div className="absolute inset-x-12 top-10 h-72 rounded-full bg-gradient-to-r from-blue-600/30 via-indigo-500/25 to-emerald-500/25 blur-3xl opacity-70 pointer-events-none" />
+          <div className="absolute inset-x-8 top-10 h-80 rounded-full bg-gradient-to-r from-blue-600/30 via-indigo-500/25 to-emerald-500/25 blur-3xl opacity-75 pointer-events-none" />
 
-          <div className="relative grid grid-cols-1 gap-6 lg:grid-cols-12 items-center">
-            {/* Carte Flottante Gauche : Shopify & Meta CAPI */}
-            <div className="rounded-3xl border border-white/15 bg-[#090f1e]/90 p-5 shadow-2xl backdrop-blur-xl lg:col-span-3 text-left space-y-3">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-[#95BF47]/20 flex items-center justify-center">
-                    <ShopifyIcon className="h-4 w-4" />
-                  </div>
-                  <span className="text-xs font-bold text-white">Flux Ingestion</span>
-                </div>
-                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 font-mono text-[9px] font-bold text-emerald-300">
-                  &lt; 400 ms
-                </span>
+          {/* Cadre de l'appareil professionnel */}
+          <div className="relative rounded-3xl border border-white/20 bg-gradient-to-b from-[#0e1628]/95 via-[#090e1c]/95 to-[#060a14]/95 p-3 sm:p-5 shadow-2xl shadow-indigo-500/20 backdrop-blur-2xl">
+            {/* Barre d'onglets réels du logiciel */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3 mb-4">
+              <div className="flex flex-wrap gap-1.5">
+                {SHOWCASE_TABS.map((tab, idx) => {
+                  const active = idx === activeShowcaseIndex;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveShowcaseIndex(idx)}
+                      className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                        active
+                          ? "bg-white/15 text-white border border-white/25 shadow-md"
+                          : "text-slate-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <Icon className={`h-3.5 w-3.5 ${active ? "text-emerald-400" : "text-slate-400"}`} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="space-y-2">
-                <div className="rounded-xl border border-white/10 bg-[#050814]/80 p-2.5">
-                  <p className="text-[10px] text-slate-400 font-medium">Balisage Anti-Doublons</p>
-                  <p className="text-xs font-bold text-emerald-400 mt-0.5">100% Isolé Site Libre</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-[#050814]/80 p-2.5">
-                  <p className="text-[10px] text-slate-400 font-medium">Signal Facebook CAPI</p>
-                  <p className="text-xs font-bold text-sky-400 mt-0.5">Purchase post-livraison</p>
-                </div>
+
+              <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>Interface de production réelle</span>
               </div>
             </div>
 
-            {/* Carte Centrale Principale : Cockpit Live */}
-            <div className="rounded-3xl border border-white/20 bg-gradient-to-b from-[#0c1426] to-[#070b14] p-6 shadow-2xl shadow-indigo-500/30 backdrop-blur-2xl lg:col-span-6 text-left space-y-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="h-3 w-3 rounded-full bg-emerald-400 animate-ping" />
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-white">
-                    Poste de Commandement Live
-                  </span>
-                </div>
-                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-mono font-bold text-emerald-300">
-                  Temps Réel
-                </span>
-              </div>
-
+            {/* Légende active */}
+            <div className="mb-3 px-1 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
               <div>
-                <p className="text-xs text-slate-400 font-medium">Cash Net Encaissé Aujourd'hui</p>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <p className="font-mono text-3xl sm:text-4xl font-black text-white tracking-tight">
-                    1 944 000 <span className="text-base text-emerald-400 font-bold">FCFA</span>
-                  </p>
-                  <span className="text-xs font-bold text-emerald-400">+18% vs S-1</span>
-                </div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>{currentTab.headline}</span>
+                  <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">
+                    {currentTab.badge}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">{currentTab.sub}</p>
               </div>
-
-              {/* Répartition par Marché */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex justify-between text-[11px] text-slate-300 font-mono">
-                  <span>Lomé (34%)</span>
-                  <span>Abidjan (28%)</span>
-                  <span>Cotonou (22%)</span>
-                  <span>Dakar (16%)</span>
-                </div>
-                <div className="flex h-2 w-full overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full bg-emerald-400" style={{ width: "34%" }} />
-                  <div className="h-full bg-indigo-500" style={{ width: "28%" }} />
-                  <div className="h-full bg-teal-400" style={{ width: "22%" }} />
-                  <div className="h-full bg-amber-400" style={{ width: "16%" }} />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-2 text-[11px] text-slate-400 border-t border-white/5">
-                <span>18 livreurs connectés sur le terrain</span>
-                <span className="text-emerald-400 font-semibold">92% taux de confirmation</span>
-              </div>
+              <button
+                type="button"
+                onClick={openAuth}
+                className="self-start sm:self-auto inline-flex items-center gap-1 text-xs font-bold text-brand hover:text-brand-hover mt-1 sm:mt-0"
+              >
+                <span>Tester dans votre boutique</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
             </div>
 
-            {/* Carte Flottante Droite : Contrôle Caisse & Paie */}
-            <div className="rounded-3xl border border-white/15 bg-[#090f1e]/90 p-5 shadow-2xl backdrop-blur-xl lg:col-span-3 text-left space-y-3">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400">
-                    <Landmark className="h-4 w-4" />
-                  </div>
-                  <span className="text-xs font-bold text-white">Caisse & Paie</span>
-                </div>
-                <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-300">
-                  Vérifié
-                </span>
-              </div>
-              <div className="space-y-2">
-                <div className="rounded-xl border border-white/10 bg-[#050814]/80 p-2.5">
-                  <p className="text-[10px] text-slate-400 font-medium">Pointage Quotidien</p>
-                  <p className="text-xs font-bold text-amber-300 mt-0.5">0 FCFA d'écart toléré</p>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-[#050814]/80 p-2.5">
-                  <p className="text-[10px] text-slate-400 font-medium">Déductions Livreur</p>
-                  <p className="text-xs font-bold text-white mt-0.5">Motif & reçu obligatoires</p>
-                </div>
-              </div>
+            {/* Capture réelle en plein cadre */}
+            <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-[#050814] shadow-inner">
+              <img
+                src={currentTab.image}
+                alt={currentTab.label}
+                className="w-full object-cover object-top max-h-[520px] transition-opacity duration-300"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#050814]/40 via-transparent to-transparent" />
             </div>
           </div>
         </div>
 
-        {/* LOGOS MARQUEE DES CONNECTEURS OFFICIELS */}
-        <div className="mx-auto mt-16 max-w-4xl border-t border-b border-white/10 py-6">
-          <p className="text-[11px] uppercase font-bold tracking-widest text-slate-400 mb-4">
-            Connecté nativement aux piliers de votre écosystème
+        {/* CONNECTEURS OFFICIELS (UNIQUEMENT LES VRAIS : SHOPIFY, META CAPI, WHATSAPP) */}
+        <div className="mx-auto mt-14 max-w-3xl border-t border-b border-white/10 py-5">
+          <p className="text-[11px] uppercase font-bold tracking-widest text-slate-400 mb-3">
+            Intégrations officielles natives
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-10 text-xs font-bold text-slate-300">
-            <span className="flex items-center gap-2">
-              <ShopifyIcon className="h-5 w-5" /> Shopify
+          <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-12 text-xs font-bold text-slate-300">
+            <span className="flex items-center gap-2.5">
+              <ShopifyIcon className="h-5 w-5" />
+              <span>Shopify (Webhooks &lt; 400 ms)</span>
             </span>
-            <span className="flex items-center gap-2">
-              <FacebookBrandIcon className="h-5 w-5" /> Meta Conversions API
+            <span className="flex items-center gap-2.5">
+              <FacebookBrandIcon className="h-5 w-5" />
+              <span>Facebook Meta Conversions API (CAPI)</span>
             </span>
-            <span className="flex items-center gap-2">
-              <WhatsAppIcon size={20} /> WhatsApp Business
-            </span>
-            <span className="font-mono text-emerald-400 font-extrabold tracking-wider">
-              MTN MoMo
-            </span>
-            <span className="font-mono text-orange-400 font-extrabold tracking-wider">
-              Orange Money
-            </span>
-            <span className="font-mono text-sky-400 font-extrabold tracking-wider">
-              Wave
+            <span className="flex items-center gap-2.5">
+              <WhatsAppIcon size={20} />
+              <span>WhatsApp Business (Contact 1-Clic)</span>
             </span>
           </div>
         </div>
       </section>
 
-      {/* 3. SECTION GRAND COMPARATIF : SANS VS AVEC ECOM COD (INSPIRÉ D'EASAYAFRIK) */}
-      <section id="comparatif-cod" className="relative z-10 mx-auto max-w-5xl px-4 py-20 sm:px-6">
+      {/* 4. SECTION GRAND COMPARATIF : SANS VS AVEC ECOM COD (INSPIRÉ D'EASYAFRIK) */}
+      <section id="comparatif-cod" className="relative z-10 mx-auto max-w-5xl px-4 py-16 sm:px-6">
         <div className="text-center space-y-3 mb-10">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
             <Zap className="h-3.5 w-3.5" /> La Fin du Bricolage
@@ -684,7 +519,7 @@ export default function LandingPage({
               >
                 <div className="flex items-center gap-3.5">
                   <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-black ${
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-black ${
                       isAvec ? "bg-emerald-500/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"
                     }`}
                   >
@@ -711,8 +546,8 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* 4. SECTION BENTO GRID FONCTIONNALITÉS (STYLE TASKGO) */}
-      <section id="bento-fonctionnalites" className="relative z-10 mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      {/* 5. SECTION BENTO GRID FONCTIONNALITÉS (STYLE TASKGO) */}
+      <section id="bento-fonctionnalites" className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center space-y-3 mb-12">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-300">
             <Layers className="h-3.5 w-3.5" /> Architecture Tout-En-Un
@@ -737,8 +572,8 @@ export default function LandingPage({
                 L'appel et le message WhatsApp partent en un seul clic sans enregistrer le numéro. Vos closeuses disposent de l'historique complet pour convertir les indécis.
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400 font-mono">
-              ⚡ Détection instantanée des doublons & numéros invalides
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300 font-semibold">
+              Détection instantanée des doublons & numéros invalides
             </div>
           </div>
 
@@ -753,8 +588,8 @@ export default function LandingPage({
                 Vos livreurs terrain reçoivent leur feuille de route, scannent les statuts en direct et éditent des bordereaux d'expédition clairs. Finies les contestations de livraison.
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-400 font-mono">
-              📦 Bordereaux thermiques & A4 prêts à imprimer
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300 font-semibold">
+              Bordereaux thermiques & A4 prêts à imprimer
             </div>
           </div>
 
@@ -770,7 +605,7 @@ export default function LandingPage({
               </p>
             </div>
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300 font-bold">
-              🔒 Verrouillage anti-perte de cash
+              Verrouillage anti-perte de cash
             </div>
           </div>
 
@@ -780,7 +615,7 @@ export default function LandingPage({
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand/20 text-brand">
                 <Bot className="h-5 w-5" />
               </div>
-              <span className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1 font-mono text-xs font-bold text-brand">
+              <span className="rounded-full border border-brand/40 bg-brand/10 px-3 py-1 text-xs font-bold text-brand">
                 Surveillance Continue
               </span>
             </div>
@@ -790,44 +625,44 @@ export default function LandingPage({
                 L'IA analyse vos flux toutes les 15 minutes : elle alerte sur les commandes non appelées, repère les colis en route depuis plus de 4 heures et rédige des rappels opérationnels personnalisés directement dans son éditeur.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
               <div className="rounded-xl border border-white/10 bg-[#050814]/80 p-2.5 text-slate-300">
-                🚨 Alerte Retard &gt; 4h
+                Alerte Retard &gt; 4h
               </div>
               <div className="rounded-xl border border-white/10 bg-[#050814]/80 p-2.5 text-slate-300">
-                ✍️ Rappels Autonomes IA
+                Rappels Autonomes IA
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 5. SECTION 4 STATISTIQUES CLÉS (STYLE TYPEWISE / TASKGO) */}
+      {/* 6. SECTION 4 STATISTIQUES CLÉS HAUT DE GAMME (SANS COULEURS DÉPAREILLÉES) */}
       <section className="relative z-10 mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="rounded-3xl border border-white/15 bg-gradient-to-b from-[#0b1220]/90 to-[#070b14]/90 p-8 shadow-2xl backdrop-blur-xl">
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-4 text-center">
             <div className="space-y-1">
-              <p className="font-mono text-3xl sm:text-5xl font-black text-emerald-400">+18%</p>
-              <p className="text-xs text-slate-300 font-semibold">Taux de livraison effectif</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">+18%</p>
+              <p className="text-xs text-slate-400 font-semibold">Taux de livraison effectif</p>
             </div>
             <div className="space-y-1">
-              <p className="font-mono text-3xl sm:text-5xl font-black text-indigo-400">&lt; 15 min</p>
-              <p className="text-xs text-slate-300 font-semibold">Premier contact closeuse</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">&lt; 15 min</p>
+              <p className="text-xs text-slate-400 font-semibold">Premier contact closeuse</p>
             </div>
             <div className="space-y-1">
-              <p className="font-mono text-3xl sm:text-5xl font-black text-amber-300">0 FCFA</p>
-              <p className="text-xs text-slate-300 font-semibold">Écart de caisse toléré</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">0 FCFA</p>
+              <p className="text-xs text-slate-400 font-semibold">Écart de caisse toléré</p>
             </div>
             <div className="space-y-1">
-              <p className="font-mono text-3xl sm:text-5xl font-black text-sky-400">100%</p>
-              <p className="text-xs text-slate-300 font-semibold">Signal Meta CAPI Livré</p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">100%</p>
+              <p className="text-xs text-slate-400 font-semibold">Signal Meta CAPI Livré</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 6. SECTION RÉSEAU AFRIQUE EN POINTILLÉS 3D */}
-      <section id="afrique-reseau" className="relative z-10 mx-auto max-w-7xl px-4 py-20 sm:px-6">
+      {/* 7. SECTION RÉSEAU AFRIQUE EN POINTILLÉS 3D */}
+      <section id="afrique-reseau" className="relative z-10 mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <div className="mb-8 max-w-3xl space-y-2.5">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
             <Globe2 className="h-3.5 w-3.5" /> Architecture Pan-Africaine Multi-Devises
@@ -843,8 +678,8 @@ export default function LandingPage({
         <AfricaNetworkMap3D />
       </section>
 
-      {/* 7. SECTION SIMULATEUR DE RENTABILITÉ CASH */}
-      <section id="simulateur-roi" className="relative z-10 mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      {/* 8. SECTION SIMULATEUR DE RENTABILITÉ CASH (SANS FONT-MONO) */}
+      <section id="simulateur-roi" className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="rounded-3xl border border-white/15 bg-gradient-to-b from-[#0d1527]/95 to-[#070b14]/95 p-6 sm:p-10 shadow-2xl backdrop-blur-2xl">
           <div className="mb-8 space-y-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
@@ -863,7 +698,7 @@ export default function LandingPage({
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="text-slate-300">Volume mensuel de commandes reçues</span>
-                  <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded">
+                  <span className="font-bold text-white bg-white/10 px-2.5 py-1 rounded-lg">
                     {monthlyOrders} commandes / mois
                   </span>
                 </div>
@@ -881,7 +716,7 @@ export default function LandingPage({
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="text-slate-300">Panier moyen par commande (FCFA / XOF)</span>
-                  <span className="font-mono font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  <span className="font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
                     {avgOrderValue.toLocaleString("fr-FR")} FCFA
                   </span>
                 </div>
@@ -899,7 +734,7 @@ export default function LandingPage({
               <div className="space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span className="text-slate-300">Gain de livraisons effectives (Relances IA + WhatsApp + Signal Meta Propre)</span>
-                  <span className="font-mono font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                  <span className="font-bold text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
                     +{deliveryBoostPct}%
                   </span>
                 </div>
@@ -919,7 +754,7 @@ export default function LandingPage({
               <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">
                 Cash Net Supplémentaire Estimé
               </p>
-              <p className="font-mono text-3xl sm:text-5xl font-black text-white tracking-tight">
+              <p className="text-3xl sm:text-5xl font-black text-white tracking-tight">
                 +{extraMonthlyRevenue.toLocaleString("fr-FR")}{" "}
                 <span className="text-base font-bold text-emerald-400 block sm:inline">FCFA / mois</span>
               </p>
@@ -928,7 +763,7 @@ export default function LandingPage({
               </p>
               <button
                 type="button"
-                onClick={scrollToAuth}
+                onClick={openAuth}
                 className="w-full rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:opacity-95 py-3.5 text-xs font-bold text-white shadow-xl shadow-emerald-500/30 transition-all"
               >
                 Activer ce modèle sur mon Espace Ecom COD
@@ -938,8 +773,8 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* 8. SECTION DÉMARRER EN 3 ÉTAPES (STYLE TASKGO) */}
-      <section className="relative z-10 mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      {/* 9. SECTION DÉMARRER EN 3 ÉTAPES (STYLE TASKGO) */}
+      <section className="relative z-10 mx-auto max-w-6xl px-4 py-16 sm:px-6">
         <div className="text-center space-y-3 mb-12">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-300">
             <Zap className="h-3.5 w-3.5" /> Démarrage Express
@@ -954,7 +789,7 @@ export default function LandingPage({
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="rounded-3xl border border-white/15 bg-[#090f1e]/90 p-6 space-y-3 shadow-xl">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/20 font-mono text-sm font-black text-indigo-300">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/20 text-sm font-black text-indigo-300">
               01
             </span>
             <h3 className="text-base font-bold text-white">Connectez votre compte</h3>
@@ -964,7 +799,7 @@ export default function LandingPage({
           </div>
 
           <div className="rounded-3xl border border-white/15 bg-[#090f1e]/90 p-6 space-y-3 shadow-xl">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/20 font-mono text-sm font-black text-emerald-300">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/20 text-sm font-black text-emerald-300">
               02
             </span>
             <h3 className="text-base font-bold text-white">Reliez Shopify & Votre Équipe</h3>
@@ -974,7 +809,7 @@ export default function LandingPage({
           </div>
 
           <div className="rounded-3xl border border-white/15 bg-[#090f1e]/90 p-6 space-y-3 shadow-xl">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/20 font-mono text-sm font-black text-amber-300">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/20 text-sm font-black text-amber-300">
               03
             </span>
             <h3 className="text-base font-bold text-white">Pilotez & Encaissez au Réel</h3>
@@ -982,39 +817,6 @@ export default function LandingPage({
               Suivez les appels, contrôlez les pointages de caisse en fin de journée et laissez l'IA vous alerter sur chaque anomalie.
             </p>
           </div>
-        </div>
-      </section>
-
-      {/* 9. SECTION NEWSLETTER & ÉTUDES DE CAS COD */}
-      <section className="relative z-10 mx-auto max-w-4xl px-4 py-12 sm:px-6">
-        <div className="rounded-3xl border border-white/15 bg-gradient-to-r from-indigo-950/60 via-[#0a1020]/90 to-emerald-950/50 p-6 sm:p-8 text-center space-y-4 shadow-2xl backdrop-blur-xl">
-          <h3 className="text-xl sm:text-2xl font-bold text-white">
-            Recevez nos études de cas COD & astuces rentabilité en Afrique
-          </h3>
-          <p className="mx-auto max-w-xl text-xs sm:text-sm text-slate-300">
-            Rejoignez notre lettre privée réservée aux fondateurs de boutiques COD : analyse des taux de livraison par pays, scripts WhatsApp gagnants et méthodes anti-vol de caisse.
-          </p>
-          <form onSubmit={handleNewsletterSubmit} className="mx-auto flex max-w-md flex-col gap-2.5 sm:flex-row pt-2">
-            <input
-              type="email"
-              value={newsletterEmail}
-              onChange={(e) => setNewsletterEmail(e.target.value)}
-              placeholder="votre-email@boutique.com"
-              required
-              className="flex-1 rounded-xl border border-white/15 bg-[#050814] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-brand"
-            />
-            <button
-              type="submit"
-              className="rounded-xl bg-gradient-to-r from-indigo-500 to-emerald-500 px-5 py-3 text-xs font-bold text-white shadow hover:opacity-95"
-            >
-              S'inscrire gratuitement
-            </button>
-          </form>
-          {newsletterSent && (
-            <p className="text-xs font-semibold text-emerald-400">
-              Merci ! Vous êtes bien inscrit aux études de cas Ecom COD.
-            </p>
-          )}
         </div>
       </section>
 
@@ -1073,6 +875,178 @@ export default function LandingPage({
           <p>Conforme aux standards Meta Graph API v19.0 & RGPD</p>
         </div>
       </footer>
+
+      {/* POP-UP / MODALE DE CONNEXION UNIVERSELLE (DÉCLENCHÉE PAR LE BOUTON) */}
+      {authModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => {
+            if (!busy && !needsWorkspaceName) setAuthModalOpen(false);
+          }}
+        >
+          <div
+            className="relative w-full max-w-md rounded-3xl border border-white/20 bg-gradient-to-b from-[#0f172a] via-[#0c1222] to-[#070b14] p-6 sm:p-7 shadow-2xl shadow-indigo-500/25"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Bouton Fermer */}
+            <button
+              type="button"
+              onClick={() => setAuthModalOpen(false)}
+              className="absolute right-4 top-4 rounded-xl border border-white/10 bg-white/5 p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition"
+              aria-label="Fermer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            {needsWorkspaceName ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                  <Sparkles className="h-4 w-4" />
+                  <span>Bienvenue ! Nommez votre espace</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Votre compte est authentifié. Indiquez le nom de votre boutique ou entreprise COD pour initialiser votre base étanche :
+                </p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (workspaceName.trim() && createWorkspace) void createWorkspace(workspaceName.trim());
+                  }}
+                  className="space-y-3"
+                >
+                  <input
+                    type="text"
+                    value={workspaceName}
+                    onChange={(e) => setWorkspaceName(e.target.value)}
+                    placeholder="Ex: Lomé Express Shop, Dakar Bio..."
+                    className="w-full rounded-xl border border-white/15 bg-[#050814] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-brand"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy || !workspaceName.trim()}
+                    className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 py-3 text-xs font-bold text-white shadow hover:opacity-95 disabled:opacity-50"
+                  >
+                    {busy ? "Création..." : "Finaliser mon Espace"}
+                  </button>
+                </form>
+                {error && <p className="text-xs font-semibold text-rose-400">{error}</p>}
+              </div>
+            ) : linkSent ? (
+              <div className="space-y-3 py-2 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-300">
+                  <Mail className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-white">Lien magique envoyé avec succès</h3>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Un lien sécurisé sans mot de passe a été envoyé à <strong className="text-white">{email}</strong>.
+                  Cliquez dessus depuis cet appareil ou votre smartphone pour ouvrir directement votre Poste de Pilotage.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAuthModalOpen(false)}
+                  className="mt-2 rounded-xl border border-white/15 bg-white/5 px-5 py-2 text-xs font-semibold text-white hover:bg-white/10"
+                >
+                  Compris
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="border-b border-white/10 pb-3">
+                  <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-brand" />
+                    <span>Connexion & Démarrage Gratuit</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Accédez à votre espace en 1 clic. Aucun mot de passe à retenir.
+                  </p>
+                </div>
+
+                {/* Boutons Sociaux Rapides (Google & Facebook) */}
+                <div className="space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={() => signInWithGoogle && signInWithGoogle()}
+                    disabled={busy}
+                    className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-semibold text-white shadow-sm transition-all disabled:opacity-50"
+                  >
+                    <GoogleIcon className="h-4 w-4" />
+                    <span>Continuer avec Google</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => signInWithFacebook && signInWithFacebook()}
+                    disabled={busy}
+                    className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/15 px-4 py-3 text-xs font-semibold text-blue-200 shadow-sm transition-all disabled:opacity-50"
+                  >
+                    <FacebookBrandIcon className="h-4 w-4" />
+                    <span>Continuer avec Facebook</span>
+                  </button>
+                </div>
+
+                <div className="relative flex items-center justify-center py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-white/10" />
+                  </div>
+                  <span className="relative bg-[#0c1222] px-3 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                    Ou par email direct
+                  </span>
+                </div>
+
+                {/* Formulaire Email Magic Link */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (email.trim() && sendLoginLink) void sendLoginLink(email.trim());
+                  }}
+                  className="space-y-2.5"
+                >
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="votre-email@boutique.com"
+                      required
+                      className="w-full rounded-xl border border-white/15 bg-[#050814] pl-10 pr-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/30 transition-all"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={busy || !email.trim()}
+                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-brand to-indigo-600 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-brand/30 hover:opacity-95 disabled:opacity-50 transition-all"
+                  >
+                    <span>{busy ? "Envoi du lien..." : "Recevoir mon lien d'accès"}</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </form>
+
+                {error && <p className="text-xs font-semibold text-rose-400">{error}</p>}
+
+                <div className="pt-2 text-center text-[11px] text-slate-400 border-t border-white/5 space-y-1">
+                  <p className="flex items-center justify-center gap-1.5">
+                    <Check className="h-3 w-3 text-emerald-400" />
+                    Compatible tous appareils (PC, iPhone, Android, PWA)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthModalOpen(false);
+                      setLegalModalTab("privacy");
+                    }}
+                    className="text-slate-400 hover:text-white underline underline-offset-2"
+                  >
+                    Charte de Confidentialité & Sécurité
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal Juridique & Confidentialité */}
       {legalModalTab && (
