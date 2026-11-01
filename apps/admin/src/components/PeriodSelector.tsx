@@ -86,12 +86,12 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
   };
 
   return (
-    <div className="relative flex rounded-xl border border-surface-border bg-surface-raised p-1">
+    <div className="relative flex rounded-xl border border-surface-border bg-surface-raised p-1 md:h-9 md:items-center md:rounded-lg md:p-0.5">
       {(Object.keys(PRESET_LABELS) as PeriodPreset[]).map((p) => (
         <button
           key={p}
           onClick={() => onChange({ type: "preset", value: p })}
-          className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+          className={`rounded-lg px-3 py-1.5 text-sm transition-colors md:rounded-md md:px-2.5 md:py-1 md:text-xs md:font-medium ${
             period.type === "preset" && period.value === p
               ? "bg-brand text-white"
               : "text-slate-400 hover:text-slate-200"
@@ -102,7 +102,7 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
       ))}
       <button
         onClick={openCustomPanel}
-        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors md:rounded-md md:px-2.5 md:py-1 md:text-xs md:font-medium ${
           isCustom ? "bg-brand text-white" : "text-slate-400 hover:text-slate-200"
         }`}
       >

@@ -266,69 +266,58 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         </div>
       </div>
 
-      <main className="flex-1 px-4 py-5 pb-24 md:px-8 md:py-6 md:pb-8">
-        {/* Global Top Header Bar */}
-        <header className="mb-6 space-y-3 border-b border-surface-border pb-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="truncate text-lg font-semibold tracking-tight text-slate-100 md:text-xl">
-                {headerMeta.title}
-              </h1>
-              <p className="mt-0.5 truncate text-xs text-slate-500">{headerMeta.subtitle}</p>
-            </div>
-
-            {/* Top-Right Anchored Utility Bar (Search, Market, Period on wide screens, Theme & Notifications) */}
-            <div className="flex shrink-0 items-center gap-2">
-              <CommandPalette
-                orders={allOrders}
-                teams={teams}
-                activeTeamId={activeTeamId}
-                onNavigate={setPage}
-                onSelectTeam={setTeamId}
-                onInspectOrder={(order) => setReceiptOrder(order)}
-              />
-
-              {teams.length > 0 && page !== "teams" && (
-                <MarketSelector
-                  teams={teams}
-                  activeTeamId={activeTeamId}
-                  onSelectTeam={setTeamId}
-                  onAddMarket={() => setShowAddMarket(true)}
-                />
-              )}
-
-              {showPeriodFilter && (
-                <div className="hidden 2xl:block">
-                  <PeriodSelector period={period} onChange={setPeriod} />
-                </div>
-              )}
-
-              <div className="hidden md:flex md:items-center md:gap-2">
-                <ThemeQuickPicker />
-                <NotificationBell
-                  workspaceId={workspaceId}
-                  onNotificationClick={(notif) => {
-                    if (notif.orderId) {
-                      setPage("orders");
-                    } else if (notif.title.toLowerCase().includes("connexion")) {
-                      setPage("users");
-                    } else if (
-                      notif.title.toLowerCase().includes("commande") ||
-                      notif.title.toLowerCase().includes("closeuse")
-                    ) {
-                      setPage("orders");
-                    }
-                  }}
-                />
-              </div>
-            </div>
+      <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:px-6 md:py-4 md:pb-8">
+        {/* Global Top Header Bar : 1 seule ligne compacte sur ordinateur, inchangé sur mobile */}
+        <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3 md:flex-nowrap">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight text-slate-100 md:text-xl">
+              {headerMeta.title}
+            </h1>
+            <p className="mt-0.5 truncate text-xs text-slate-500">{headerMeta.subtitle}</p>
           </div>
 
-          {showPeriodFilter && (
-            <div className="flex justify-end 2xl:hidden">
-              <PeriodSelector period={period} onChange={setPeriod} />
+          <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">
+            {/* Global Search / Command Palette Trigger */}
+            <CommandPalette
+              orders={allOrders}
+              teams={teams}
+              activeTeamId={activeTeamId}
+              onNavigate={setPage}
+              onSelectTeam={setTeamId}
+              onInspectOrder={(order) => setReceiptOrder(order)}
+            />
+
+            {teams.length > 0 && page !== "teams" && (
+              <MarketSelector
+                teams={teams}
+                activeTeamId={activeTeamId}
+                onSelectTeam={setTeamId}
+                onAddMarket={() => setShowAddMarket(true)}
+              />
+            )}
+
+            {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+
+            {/* Always-accessible Theme & Notification Bell (Desktop right corner) */}
+            <div className="hidden md:flex md:items-center md:gap-2">
+              <ThemeQuickPicker />
+              <NotificationBell
+                workspaceId={workspaceId}
+                onNotificationClick={(notif) => {
+                  if (notif.orderId) {
+                    setPage("orders");
+                  } else if (notif.title.toLowerCase().includes("connexion")) {
+                    setPage("users");
+                  } else if (
+                    notif.title.toLowerCase().includes("commande") ||
+                    notif.title.toLowerCase().includes("closeuse")
+                  ) {
+                    setPage("orders");
+                  }
+                }}
+              />
             </div>
-          )}
+          </div>
         </header>
 
         {teams.length === 0 && !teamsLoading ? (

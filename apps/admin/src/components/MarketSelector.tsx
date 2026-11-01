@@ -45,12 +45,12 @@ export default function MarketSelector({ teams, activeTeamId, onSelectTeam, onAd
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-4 py-2 text-sm text-slate-200 outline-none focus:border-brand"
+        className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-4 py-2 text-sm text-slate-200 outline-none focus:border-brand md:h-9 md:rounded-lg md:px-3 md:py-1.5 md:text-xs md:font-medium"
       >
         {activeCountry && (
-          <img src={flagUrl(activeCountry.code)} alt="" className="h-3.5 w-5 rounded-sm object-cover" />
+          <img src={flagUrl(activeCountry.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover" />
         )}
-        <span>{activeTeam ? activeTeam.name : "Sélectionner un marché"}</span>
+        <span className="max-w-[130px] truncate">{activeTeam ? activeTeam.name : "Sélectionner un marché"}</span>
         <ChevronIcon />
       </button>
 
