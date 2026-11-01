@@ -230,17 +230,17 @@ export default function CaisseLivreurs({
   return (
     <div className="space-y-5">
       {/* Top Banner : Explication du flux de contrôle avant rémunération */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface-raised px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface-raised px-5 py-4 shadow-xs">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/15 text-brand">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand/15 text-brand shadow-xs">
             <Landmark className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-100">
-              Contrôle de Caisse & Versements Fin de Journée — {team.name}
+            <h2 className="text-sm font-bold text-slate-100">
+              Pointage de Caisse & Rapprochement Journalier — {team.name}
             </h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              Vérifiez les espèces encaissées par chaque livreur, retranchez les imprévus (aller-retour, carburant, manquant) avec note justificative, puis validez la caisse avant de verser sa rémunération.
+            <p className="mt-0.5 text-xs text-slate-400">
+              Contrôlez les espèces collectées par chaque livreur, consignez les imprévus réels (transport, carburant) avec note justificative, et enregistrez les versements effectifs avant déblocage de la paie.
             </p>
           </div>
         </div>
@@ -249,9 +249,9 @@ export default function CaisseLivreurs({
           <button
             type="button"
             onClick={onNavigateToRemuneration}
-            className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:border-brand/50 hover:text-brand"
+            className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-semibold text-slate-200 transition-all hover:border-brand/50 hover:bg-surface-subtle hover:text-white shadow-xs"
           >
-            <Wallet className="h-3.5 w-3.5 text-brand" />
+            <Wallet className="h-4 w-4 text-brand" />
             <span>Passer aux Rémunérations</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
@@ -260,65 +260,65 @@ export default function CaisseLivreurs({
 
       {/* KPI Strip de Caisse */}
       <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-4">
-        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-            Cash encaissé terrain
+        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-xs">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Total Encaissé Terrain
           </p>
-          <p className="mt-1.5 text-xl font-bold tabular-nums text-slate-100">
+          <p className="mt-2 font-mono text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-slate-100">
             {globalTotals.encaisse.toLocaleString("fr-FR")}{" "}
-            <span className="text-xs font-normal text-slate-500">{currency}</span>
+            <span className="text-xs font-semibold text-slate-400">{currency}</span>
           </p>
-          <p className="mt-1 text-[11px] text-slate-500">Total des commandes livrées</p>
+          <p className="mt-1 text-[11px] font-medium text-slate-400">Montant total des colis livrés</p>
         </div>
 
-        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-amber-400">
-            Imprévus / Frais retranchés
+        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-xs">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">
+            Frais & Imprévus Déduits
           </p>
-          <p className="mt-1.5 text-xl font-bold tabular-nums text-amber-400">
+          <p className="mt-2 font-mono text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-amber-400">
             − {globalTotals.fraisTerrain.toLocaleString("fr-FR")}{" "}
-            <span className="text-xs font-normal opacity-75">{currency}</span>
+            <span className="text-xs font-semibold opacity-80">{currency}</span>
           </p>
-          <p className="mt-1 text-[11px] text-slate-500">Allers-retours & dépenses justifiées</p>
+          <p className="mt-1 text-[11px] font-medium text-slate-400">Dépenses justifiées avec note</p>
         </div>
 
-        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-emerald-400">
-            Déjà reversé à la caisse
+        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-xs">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
+            Déjà Reversé à la Caisse
           </p>
-          <p className="mt-1.5 text-xl font-bold tabular-nums text-emerald-400">
-            {globalTotals.reverse.toLocaleString("fr-FR")}{" "}
-            <span className="text-xs font-normal opacity-75">{currency}</span>
+          <p className="mt-2 font-mono text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-emerald-400">
+            + {globalTotals.reverse.toLocaleString("fr-FR")}{" "}
+            <span className="text-xs font-semibold opacity-80">{currency}</span>
           </p>
-          <p className="mt-1 text-[11px] text-slate-500">Versements validés par l'admin</p>
+          <p className="mt-1 text-[11px] font-medium text-slate-400">Versements pointés et validés</p>
         </div>
 
-        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-rose-400">
-            Reste entre les mains livreurs
+        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-xs">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-400">
+            Solde Terrain Restant
           </p>
-          <p className="mt-1.5 text-xl font-bold tabular-nums text-rose-400">
+          <p className="mt-2 font-mono text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-rose-400">
             {globalTotals.reste.toLocaleString("fr-FR")}{" "}
-            <span className="text-xs font-normal opacity-75">{currency}</span>
+            <span className="text-xs font-semibold opacity-80">{currency}</span>
           </p>
-          <p className="mt-1 text-[11px] text-slate-500">À encaisser avant de payer la prime</p>
+          <p className="mt-1 text-[11px] font-medium text-slate-400">Espèces à encaisser avant paiement</p>
         </div>
       </div>
 
       {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300">
+        <div className="flex items-start gap-2.5 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-300 shadow-xs">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
           <span>{error}</span>
         </div>
       )}
 
       {/* Tableau de vérification par livreur */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5">
+      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-xs">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-slate-100">Situation de caisse par livreur</h3>
-            <p className="text-xs text-slate-500">
-              Validez le versement du livreur ou retranchez un montant avec une note justificative.
+            <h3 className="text-sm font-bold text-slate-100">Situation de Caisse par Livreur</h3>
+            <p className="text-xs text-slate-400">
+              Pointage des encaissements terrain, déductions sur note justificative et encaissement des versements journaliers.
             </p>
           </div>
         </div>
@@ -334,59 +334,63 @@ export default function CaisseLivreurs({
                 <tr className="border-b border-surface-border text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   <th className="pb-3 pr-3">Livreur</th>
                   <th className="pb-3 px-3">Colis Livrés</th>
-                  <th className="pb-3 px-3">Encaissé Terrain</th>
-                  <th className="pb-3 px-3">Montants Retranchés</th>
-                  <th className="pb-3 px-3">Déjà Versé</th>
-                  <th className="pb-3 px-3">Reste à Verser</th>
+                  <th className="pb-3 px-3">Cash Collecté</th>
+                  <th className="pb-3 px-3">Imprévus / Retenues</th>
+                  <th className="pb-3 px-3">Versements Validés</th>
+                  <th className="pb-3 px-3">Solde Restant</th>
                   <th className="pb-3 pl-3 text-right">Actions de Contrôle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {livreurSummaries.map((s) => (
-                  <tr key={s.livreur.id} className="hover:bg-surface/40">
+                  <tr key={s.livreur.id} className="transition-colors hover:bg-surface/30">
                     <td className="py-3.5 pr-3">
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-brand" />
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-surface-border bg-surface text-brand shadow-xs">
+                          <Truck className="h-4 w-4" />
+                        </div>
                         <div>
                           <p className="font-semibold text-slate-100">{s.livreur.name}</p>
-                          <p className="text-[10px] text-slate-500">{s.livreur.phone || "Sans numéro"}</p>
+                          <p className="font-mono text-[10px] text-slate-400">{s.livreur.phone || "Sans numéro"}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-3 font-mono text-slate-300">{s.deliveredCount}</td>
-                    <td className="py-3.5 px-3 font-semibold tabular-nums text-slate-200">
+                    <td className="py-3.5 px-3 font-mono font-semibold text-slate-200 tabular-nums">
+                      {s.deliveredCount} colis
+                    </td>
+                    <td className="py-3.5 px-3 font-mono font-bold tabular-nums text-slate-100">
                       {s.encaisseTerrain.toLocaleString("fr-FR")} {currency}
                     </td>
                     <td className="py-3.5 px-3 tabular-nums">
                       {s.deductionsCaisse > 0 || s.deductionsRemun > 0 ? (
-                        <div className="space-y-0.5">
+                        <div className="space-y-1">
                           {s.deductionsCaisse > 0 && (
-                            <span className="block font-medium text-amber-400">
+                            <span className="block font-mono text-[11px] font-semibold text-amber-400">
                               −{s.deductionsCaisse.toLocaleString("fr-FR")} {currency} (Caisse)
                             </span>
                           )}
                           {s.deductionsRemun > 0 && (
-                            <span className="block font-medium text-rose-400">
-                              −{s.deductionsRemun.toLocaleString("fr-FR")} {currency} (Sur prime)
+                            <span className="block font-mono text-[11px] font-semibold text-rose-400">
+                              −{s.deductionsRemun.toLocaleString("fr-FR")} {currency} (Prime)
                             </span>
                           )}
                         </div>
                       ) : (
-                        <span className="text-slate-500">0 {currency}</span>
+                        <span className="font-mono text-slate-500">0 {currency}</span>
                       )}
                     </td>
-                    <td className="py-3.5 px-3 font-semibold tabular-nums text-emerald-400">
+                    <td className="py-3.5 px-3 font-mono font-bold tabular-nums text-emerald-400">
                       {s.totalRemitted.toLocaleString("fr-FR")} {currency}
                     </td>
                     <td className="py-3.5 px-3">
                       {s.isSettled ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400 shadow-xs">
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           Caisse soldée ✓
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-amber-400">
-                          {s.resteAVerser.toLocaleString("fr-FR")} {currency} à verser
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 font-mono text-xs font-bold text-amber-400 shadow-xs">
+                          {s.resteAVerser.toLocaleString("fr-FR")} {currency} dû
                         </span>
                       )}
                     </td>
@@ -395,18 +399,18 @@ export default function CaisseLivreurs({
                         <button
                           type="button"
                           onClick={() => openModal(s.livreur, "deduction", 0)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 shadow-xs transition-all hover:bg-amber-500/20 active:scale-[0.98]"
                         >
                           <MinusCircle className="h-3.5 w-3.5" />
-                          Retrancher (Imprévu / Note)
+                          Imprévu / Retenue
                         </button>
                         <button
                           type="button"
                           onClick={() => openModal(s.livreur, "remittance", s.resteAVerser)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-brand-hover active:scale-[0.98]"
                         >
                           <Plus className="h-3.5 w-3.5" />
-                          Valider versement
+                          Encaisser versement
                         </button>
                       </div>
                     </td>
@@ -419,12 +423,14 @@ export default function CaisseLivreurs({
       </div>
 
       {/* Journal des versements & notes justificatives */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-xs">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-brand" />
-            <h3 className="text-sm font-semibold text-slate-100">
-              Registre des Versements & Notes Justificatives ({entries.length})
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/15 text-brand">
+              <FileText className="h-4 w-4" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-100">
+              Journal des Versements & Pièces Justificatives ({entries.length})
             </h3>
           </div>
         </div>
@@ -436,27 +442,27 @@ export default function CaisseLivreurs({
             Aucun versement ou montant retranché enregistré pour le moment.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {entries.map((entry) => (
               <div
                 key={entry.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-border bg-surface/60 px-4 py-3 text-xs"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface/50 px-4 py-3 text-xs transition-colors hover:bg-surface/70"
               >
-                <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-slate-100">{entry.livreurName}</span>
+                    <span className="font-bold text-slate-100">{entry.livreurName}</span>
                     {entry.type === "remittance" ? (
-                      <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-mono text-[11px] font-bold text-emerald-400">
+                      <span className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-emerald-400">
                         + {entry.amount.toLocaleString("fr-FR")} {currency} (Versement caisse)
                       </span>
                     ) : (
-                      <span className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[11px] font-bold text-amber-400">
+                      <span className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-amber-400">
                         − {entry.amount.toLocaleString("fr-FR")} {currency} (
-                        {entry.impact === "remuneration" ? "Retenue sur rémunération" : "Frais / Imprévu déduit caisse"}
+                        {entry.impact === "remuneration" ? "Retenue sur prime" : "Imprévu déduit caisse"}
                         )
                       </span>
                     )}
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-400">
                       {new Date(entry.createdAt).toLocaleString("fr-FR", {
                         day: "2-digit",
                         month: "2-digit",
@@ -466,7 +472,7 @@ export default function CaisseLivreurs({
                     </span>
                   </div>
                   <p className="text-xs text-slate-300">
-                    <span className="font-medium text-slate-400">Justification :</span> {entry.note}
+                    <span className="font-semibold text-slate-400">Justification :</span> {entry.note}
                   </p>
                 </div>
 
@@ -474,7 +480,7 @@ export default function CaisseLivreurs({
                   type="button"
                   onClick={() => setConfirmDeleteEntry(entry)}
                   title="Supprimer cette écriture"
-                  className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-1.5 text-rose-400 transition hover:bg-rose-500/20"
+                  className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-2 text-rose-400 transition-all hover:bg-rose-500/20 active:scale-95 shadow-xs"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -487,7 +493,7 @@ export default function CaisseLivreurs({
       {/* Modal de saisie Versement ou Retenue avec note justificative */}
       {modalState && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
           onClick={() => !busy && setModalState(null)}
         >
           <div
@@ -495,7 +501,7 @@ export default function CaisseLivreurs({
             className="w-full max-w-md rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl space-y-4"
           >
             <div>
-              <h3 className="text-base font-semibold text-slate-100">
+              <h3 className="text-base font-bold text-slate-100">
                 {modalState.mode === "remittance"
                   ? `Valider le versement de ${modalState.livreur.name}`
                   : `Retrancher un montant — ${modalState.livreur.name}`}
@@ -509,20 +515,20 @@ export default function CaisseLivreurs({
 
             {modalState.mode === "deduction" && (
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-300">
+                <label className="mb-1.5 block text-xs font-semibold text-slate-300">
                   Où appliquer ce retranchement ?
                 </label>
                 <div className="grid grid-cols-1 gap-2">
                   <button
                     type="button"
                     onClick={() => setImpactInput("caisse")}
-                    className={`rounded-xl border p-3 text-left text-xs transition ${
+                    className={`rounded-xl border p-3 text-left text-xs transition-all ${
                       impactInput === "caisse"
-                        ? "border-brand bg-brand/10 text-slate-100"
-                        : "border-surface-border bg-surface text-slate-400"
+                        ? "border-brand bg-brand/10 text-slate-100 shadow-xs"
+                        : "border-surface-border bg-surface text-slate-400 hover:border-slate-600"
                     }`}
                   >
-                    <p className="font-semibold">1. Déduire de la caisse à reverser (Imprévu terrain / Carburant)</p>
+                    <p className="font-semibold text-slate-100">1. Déduire de la caisse à reverser (Imprévu terrain / Carburant)</p>
                     <p className="mt-0.5 text-[11px] text-slate-400">
                       Le livreur a consommé ce montant sur le terrain (ex: aller-retour client absent). Réduit le cash qu'il doit vous remettre.
                     </p>
@@ -530,13 +536,13 @@ export default function CaisseLivreurs({
                   <button
                     type="button"
                     onClick={() => setImpactInput("remuneration")}
-                    className={`rounded-xl border p-3 text-left text-xs transition ${
+                    className={`rounded-xl border p-3 text-left text-xs transition-all ${
                       impactInput === "remuneration"
-                        ? "border-brand bg-brand/10 text-slate-100"
-                        : "border-surface-border bg-surface text-slate-400"
+                        ? "border-brand bg-brand/10 text-slate-100 shadow-xs"
+                        : "border-surface-border bg-surface text-slate-400 hover:border-slate-600"
                     }`}
                   >
-                    <p className="font-semibold">2. Retrancher sur sa rémunération (Retenue sur paie)</p>
+                    <p className="font-semibold text-slate-100">2. Retrancher sur sa rémunération (Retenue sur prime)</p>
                     <p className="mt-0.5 text-[11px] text-slate-400">
                       Sera directement déduit du solde de commissions à payer au livreur dans l'onglet Rémunération.
                     </p>
@@ -546,7 +552,7 @@ export default function CaisseLivreurs({
             )}
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-300">
+              <label className="mb-1 block text-xs font-semibold text-slate-300">
                 Montant ({currency})
               </label>
               <input
@@ -555,12 +561,12 @@ export default function CaisseLivreurs({
                 value={amountInput}
                 onChange={(e) => setAmountInput(e.target.value)}
                 placeholder="ex: 2000"
-                className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm font-semibold text-slate-100 outline-none focus:border-brand"
+                className="w-full rounded-xl border border-surface-border bg-surface px-4 py-2.5 font-mono text-base font-bold text-slate-100 outline-none focus:border-brand"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-300">
+              <label className="mb-1 block text-xs font-semibold text-slate-300">
                 Note justificative obligatoire
               </label>
               <textarea
@@ -569,10 +575,10 @@ export default function CaisseLivreurs({
                 onChange={(e) => setNoteInput(e.target.value)}
                 placeholder={
                   modalState.mode === "remittance"
-                    ? "ex: Versement espèces fin de journée vérifié / Flooz reçu"
-                    : "ex: Aller-retour Agoè pour client ayant repoussé la livraison, 1 500 F de carburant pris sur la caisse"
+                    ? "ex: Versement espèces fin de journée vérifié / Virement Mobile Money reçu"
+                    : "ex: Aller-retour pour client injoignable ayant reporté, 1 500 FCFA de carburant justifiés"
                 }
-                className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-xs text-slate-100 outline-none focus:border-brand"
+                className="w-full rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs text-slate-100 outline-none focus:border-brand"
               />
             </div>
 
@@ -580,7 +586,7 @@ export default function CaisseLivreurs({
               <button
                 type="button"
                 onClick={() => setModalState(null)}
-                className="flex-1 rounded-xl border border-surface-border bg-surface py-2.5 text-xs font-medium text-slate-300"
+                className="flex-1 rounded-xl border border-surface-border bg-surface py-2.5 text-xs font-semibold text-slate-300 transition-all hover:bg-surface-subtle hover:text-white"
               >
                 Annuler
               </button>
@@ -588,7 +594,7 @@ export default function CaisseLivreurs({
                 type="button"
                 disabled={busy || !Number(amountInput) || !noteInput.trim()}
                 onClick={() => setConfirmSubmit(true)}
-                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-semibold text-white disabled:opacity-40"
+                className="flex-1 rounded-xl bg-brand py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-brand-hover disabled:opacity-40"
               >
                 Continuer & Valider
               </button>

@@ -171,93 +171,96 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          label="CA total (livré)"
-          value={`${caTotal.toLocaleString("fr-FR")} F`}
+          label="Chiffre d'Affaires Livré"
+          value={`${caTotal.toLocaleString("fr-FR")} FCFA`}
           icon={<CaIcon />}
           accent="blue"
         />
         <StatCard
-          label="Commandes livrées"
-          value={String(delivered.length)}
+          label="Colis Livrés & Encaissés"
+          value={`${delivered.length.toLocaleString("fr-FR")}`}
+          subtitle="Taux réel sur période"
           icon={<TruckIcon />}
           accent="green"
         />
         <StatCard
-          label="Rémunération totale"
-          value={`${remunerationTotale.toLocaleString("fr-FR")} F`}
+          label="Commissions Générées"
+          value={`${remunerationTotale.toLocaleString("fr-FR")} FCFA`}
+          subtitle="Closeuses & Livreurs"
           icon={<CoinIcon />}
           accent="purple"
         />
         <StatCard
-          label="Reste à payer"
-          value={`${resteAPayerGlobal.toLocaleString("fr-FR")} F`}
+          label="Solde Net à Régler"
+          value={`${resteAPayerGlobal.toLocaleString("fr-FR")} FCFA`}
+          subtitle="Cumul en attente de paiement"
           icon={<ClockIcon />}
           accent="orange"
         />
       </div>
 
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-1 rounded-xl border border-surface-border bg-surface p-1">
+      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-xs">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex rounded-xl border border-surface-border bg-surface p-1 shadow-xs">
             <button
               onClick={() => setRole("closeuse")}
-              className={`flex-1 rounded-lg px-4 py-1.5 text-sm transition-colors ${
-                role === "closeuse" ? "bg-brand text-white" : "text-slate-400"
+              className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${
+                role === "closeuse" ? "bg-brand text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              Closeuses
+              Closeuses ({closeuses.length})
             </button>
             <button
               onClick={() => setRole("livreur")}
-              className={`flex-1 rounded-lg px-4 py-1.5 text-sm transition-colors ${
-                role === "livreur" ? "bg-brand text-white" : "text-slate-400"
+              className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${
+                role === "livreur" ? "bg-brand text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              Livreurs
+              Livreurs ({livreurs.length})
             </button>
           </div>
           {role === "livreur" && onOpenCaisse && (
             <button
               type="button"
               onClick={onOpenCaisse}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 bg-brand/10 px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/15"
+              className="inline-flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2 text-xs font-semibold text-brand transition-all hover:bg-brand/20 shadow-xs"
             >
-              <Landmark className="h-3.5 w-3.5" />
-              Contrôler Caisse & Versements fin de journée
+              <Landmark className="h-4 w-4" />
+              <span>Pointage de Caisse Livreurs</span>
             </button>
           )}
         </div>
 
         {errorMsg && (
-          <p className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+          <p className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
             {errorMsg}
           </p>
         )}
 
         {!remunPerOrderConfigured && (
-          <p className="mb-3 rounded-lg bg-accent-orange/10 px-3 py-2 text-xs text-accent-orange">
-            Tarif par commande non configuré pour les {role === "closeuse" ? "closeuses" : "livreurs"} —
-            à régler dans Paramètres pour que les montants s'affichent correctement.
+          <p className="mb-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
+            Tarif de commission par commande non configuré pour les {role === "closeuse" ? "closeuses" : "livreurs"} —
+            à ajuster dans Paramètres pour que les montants se calculent automatiquement.
           </p>
         )}
 
         {rows.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-500">Aucun employé sur cette équipe.</p>
+          <p className="py-8 text-center text-xs text-slate-500">Aucun opérateur assigné à cette équipe.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-surface-border text-left text-xs text-slate-500">
-                  <th className="pb-2 font-medium">{role === "closeuse" ? "Closeuse" : "Livreur"}</th>
-                  <th className="pb-2 font-medium">Livrées</th>
-                  {role === "livreur" && <th className="pb-2 font-medium">Statut Caisse Terrain</th>}
-                  <th className="pb-2 font-medium">Rémunération brute</th>
-                  {role === "livreur" && <th className="pb-2 font-medium">Retenues (justifiées)</th>}
-                  <th className="pb-2 font-medium">Net à payer</th>
-                  <th className="pb-2 font-medium"></th>
+                <tr className="border-b border-surface-border text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <th className="pb-3 pr-3 font-semibold">{role === "closeuse" ? "Closeuse" : "Livreur"}</th>
+                  <th className="pb-3 px-3 font-semibold">Colis Livrés</th>
+                  {role === "livreur" && <th className="pb-3 px-3 font-semibold">Statut Caisse Terrain</th>}
+                  <th className="pb-3 px-3 font-semibold">Commissions Brutes</th>
+                  {role === "livreur" && <th className="pb-3 px-3 font-semibold">Retenues Justifiées</th>}
+                  <th className="pb-3 px-3 font-semibold">Net à Régler</th>
+                  <th className="pb-3 pl-3 text-right font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
@@ -267,15 +270,15 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
                   const netAPayer = Math.max(0, baseReste - r.remunDeductions);
                   const isPaid = baseReste <= 0 && (total?.totalAmount ?? 0) > 0;
                   return (
-                    <tr key={r.user.id}>
-                      <td className="py-2.5 font-medium text-slate-200">{r.user.name}</td>
-                      <td className="py-2.5 text-slate-400">{r.livraisons}</td>
+                    <tr key={r.user.id} className="transition-colors hover:bg-surface/30">
+                      <td className="py-3.5 pr-3 font-semibold text-slate-100">{r.user.name}</td>
+                      <td className="py-3.5 px-3 font-mono font-semibold text-slate-200 tabular-nums">{r.livraisons} colis</td>
                       {role === "livreur" && (
-                        <td className="py-2.5">
+                        <td className="py-3.5 px-3">
                           {r.livraisons === 0 ? (
                             <span className="text-xs text-slate-500">Aucun encaissement</span>
                           ) : r.unsettledCash <= 0 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400">
                               <CheckCircle2 className="h-3 w-3" />
                               Caisse soldée ✓
                             </span>
@@ -283,24 +286,24 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
                             <button
                               type="button"
                               onClick={onOpenCaisse}
-                              title="Ouvrir Caisse & Versements pour pointer ce livreur"
-                              className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400 hover:bg-amber-500/20"
+                              title="Ouvrir le pointage de caisse pour vérifier ce livreur"
+                              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-amber-400 transition hover:bg-amber-500/20"
                             >
                               <AlertTriangle className="h-3 w-3" />
-                              {r.unsettledCash.toLocaleString("fr-FR")} F non versé
+                              {r.unsettledCash.toLocaleString("fr-FR")} FCFA dû
                             </button>
                           )}
                         </td>
                       )}
-                      <td className="py-2.5 font-medium text-slate-200">
-                        {r.remuneration.toLocaleString("fr-FR")} F
+                      <td className="py-3.5 px-3 font-mono font-bold tabular-nums text-slate-100">
+                        {r.remuneration.toLocaleString("fr-FR")} FCFA
                       </td>
                       {role === "livreur" && (
-                        <td className="py-2.5">
+                        <td className="py-3.5 px-3">
                           {r.remunDeductions > 0 ? (
                             <div className="space-y-0.5">
-                              <span className="font-mono text-xs font-semibold text-rose-400">
-                                -{r.remunDeductions.toLocaleString("fr-FR")} F
+                              <span className="font-mono text-xs font-bold text-rose-400">
+                                −{r.remunDeductions.toLocaleString("fr-FR")} FCFA
                               </span>
                               <p
                                 className="max-w-[220px] truncate text-[10px] text-slate-400"
@@ -310,26 +313,26 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
                               </p>
                             </div>
                           ) : (
-                            <span className="text-xs text-slate-500">0 F</span>
+                            <span className="font-mono text-xs text-slate-500">0 FCFA</span>
                           )}
                         </td>
                       )}
-                      <td className="py-2.5">
+                      <td className="py-3.5 px-3">
                         {isPaid ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-accent-green/10 px-2 py-0.5 text-xs font-medium text-accent-green">
-                            <CheckIcon /> Payé
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400 shadow-xs">
+                            <CheckIcon /> Payé & Soldé
                           </span>
                         ) : (
-                          <span className="font-semibold text-accent-orange">
-                            {netAPayer.toLocaleString("fr-FR")} F
+                          <span className="font-mono text-xs font-bold text-amber-400 tabular-nums">
+                            {netAPayer.toLocaleString("fr-FR")} FCFA
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 text-right">
+                      <td className="py-3.5 pl-3 text-right">
                         {isPaid ? (
                           <button
                             onClick={() => setCancelTarget({ userId: r.user.id, name: r.user.name })}
-                            className="text-xs text-slate-500 hover:text-accent-red hover:underline"
+                            className="rounded-xl border border-surface-border bg-surface px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:border-rose-500/30 hover:text-rose-400"
                           >
                             Annuler
                           </button>
@@ -343,9 +346,9 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
                                 unsettledCash: role === "livreur" ? r.unsettledCash : 0,
                               })
                             }
-                            className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white"
+                            className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500 active:scale-[0.98]"
                           >
-                            Payer
+                            Régler la paie
                           </button>
                         ) : null}
                       </td>
@@ -360,15 +363,15 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
 
       <ConfirmDialog
         open={!!confirmTarget}
-        title="Confirmer le paiement"
+        title="Validation du règlement"
         message={
           confirmTarget
             ? confirmTarget.unsettledCash && confirmTarget.unsettledCash > 0
-              ? `⚠️ Attention : ${confirmTarget.name} a encore ${confirmTarget.unsettledCash.toLocaleString("fr-FR")} F de caisse terrain non validée dans Caisse & Versements. Confirmer malgré tout le versement de sa prime nette (${confirmTarget.amount.toLocaleString("fr-FR")} F) ?`
-              : `Confirmer le paiement de ${confirmTarget.amount.toLocaleString("fr-FR")} F à ${confirmTarget.name} ?`
+              ? `⚠️ Attention : ${confirmTarget.name} a encore ${confirmTarget.unsettledCash.toLocaleString("fr-FR")} FCFA de cash terrain non reversé dans le pointage de caisse. Confirmer malgré tout le paiement de sa prime nette (${confirmTarget.amount.toLocaleString("fr-FR")} FCFA) ?`
+              : `Confirmer le règlement de ${confirmTarget.amount.toLocaleString("fr-FR")} FCFA à ${confirmTarget.name} ?`
             : ""
         }
-        confirmLabel="Payer"
+        confirmLabel="Valider le règlement"
         danger={!!(confirmTarget?.unsettledCash && confirmTarget.unsettledCash > 0)}
         loading={actionLoading}
         onConfirm={handleConfirmPay}
@@ -377,8 +380,8 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
 
       <ConfirmDialog
         open={!!cancelTarget}
-        title="Annuler le paiement"
-        message={cancelTarget ? `Remettre le paiement de ${cancelTarget.name} en attente ?` : ""}
+        title="Annulation du règlement"
+        message={cancelTarget ? `Remettre le versement de ${cancelTarget.name} en attente ?` : ""}
         confirmLabel="Annuler le paiement"
         danger
         loading={actionLoading}

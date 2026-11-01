@@ -67,16 +67,21 @@ export default function StatusDonut({ counts }: StatusDonutProps) {
           )}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-2xl font-semibold text-slate-100">{total}</span>
-          <span className="text-xs text-slate-500">total</span>
+          <span className="font-mono text-3xl font-bold tracking-tight tabular-nums text-slate-100">
+            {total.toLocaleString("fr-FR")}
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            Commandes
+          </span>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 self-start">
         {entries.map((key) => (
-          <div key={key} className="flex items-center gap-1.5 text-xs text-slate-400">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: STATUS_COLORS[key] }} />
-            {CLOSEUSE_STATUS_LABELS[key]}
+          <div key={key} className="flex items-center gap-1.5 text-xs text-slate-300">
+            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[key] }} />
+            <span className="truncate">{CLOSEUSE_STATUS_LABELS[key]}</span>
+            <span className="font-mono font-medium text-slate-400">({counts[key]})</span>
           </div>
         ))}
       </div>

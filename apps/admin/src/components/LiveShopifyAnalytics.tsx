@@ -194,25 +194,25 @@ export default function LiveShopifyAnalytics({
     <div className="space-y-3.5">
       {/* Bandeau d'alerte opérationnelle — psychologie d'action immédiate */}
       {urgentCount > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 shadow-sm">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
-              <AlertTriangle className="h-3.5 w-3.5" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 shadow-xs">
+              <AlertTriangle className="h-4 w-4" />
             </span>
             <p className="text-xs font-medium text-slate-200">
               <span className="font-bold text-amber-400">
                 {urgentCount} commande{urgentCount > 1 ? "s" : ""}
               </span>{" "}
-              en attente d'appel de confirmation (le taux de conversion chute après 15 min).
+              en attente d'appel prioritaire · Le taux de closing est divisé par 2 après 15 min.
             </p>
           </div>
           {onNavigateToOrders && (
             <button
               type="button"
               onClick={onNavigateToOrders}
-              className="inline-flex items-center gap-1 rounded-lg bg-amber-500 px-3 py-1 text-xs font-semibold text-slate-950 transition-opacity hover:opacity-90"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-amber-400"
             >
-              Traiter maintenant
+              <span>Traiter les fiches</span>
               <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
           )}
@@ -220,91 +220,97 @@ export default function LiveShopifyAnalytics({
       )}
 
       {/* Carte principale Live Analytics style Shopify */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised">
+      <div className="rounded-2xl border border-surface-border bg-surface-raised shadow-xs">
         {/* 4 Onglets de métriques cliquables (sans duplication ailleurs) */}
         <div className="grid grid-cols-2 border-b border-surface-border lg:grid-cols-4">
           <button
             type="button"
             onClick={() => setMetric("ca")}
-            className={`flex flex-col justify-between border-b-2 p-3.5 text-left transition-colors ${
+            className={`flex flex-col justify-between border-b-2 p-4 text-left transition-all ${
               metric === "ca"
-                ? "border-brand bg-surface/40"
-                : "border-transparent hover:bg-surface/25"
+                ? "border-brand bg-brand-light/20"
+                : "border-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-              <span>Chiffre d'affaires encaissé</span>
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+              <span>Chiffre d'Affaires Encaissé</span>
               <TrendingUp className="h-3.5 w-3.5 text-brand" />
             </div>
-            <p className="mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums text-slate-100 sm:text-xl">
+            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
               {displayTotals.ca.toLocaleString("fr-FR")}{" "}
               <span className="text-xs font-semibold text-slate-400">{currency}</span>
             </p>
-            <span className="mt-0.5 text-[11px] text-slate-500">Période : {periodLabel}</span>
+            <span className="mt-1 text-[11px] text-slate-500">Période : {periodLabel}</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMetric("orders")}
-            className={`flex flex-col justify-between border-b-2 border-l border-surface-border p-3.5 text-left transition-colors ${
+            className={`flex flex-col justify-between border-b-2 border-l border-surface-border p-4 text-left transition-all ${
               metric === "orders"
-                ? "border-b-brand bg-surface/40"
-                : "border-b-transparent hover:bg-surface/25"
+                ? "border-b-brand bg-brand-light/20"
+                : "border-b-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-              <span>Flux de commandes</span>
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+              <span>Flux des Commandes</span>
               <PhoneCall className="h-3.5 w-3.5 text-sky-400" />
             </div>
-            <p className="mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums text-slate-100 sm:text-xl">
-              {displayTotals.commandes}
+            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+              {displayTotals.commandes.toLocaleString("fr-FR")}
             </p>
-            <span className="mt-0.5 text-[11px] font-medium text-sky-400">
-              Taux de confirmation : {tauxConfirmation}%
-            </span>
+            <div className="mt-1">
+              <span className="inline-block rounded-md border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400">
+                Confirmation : {tauxConfirmation}%
+              </span>
+            </div>
           </button>
 
           <button
             type="button"
             onClick={() => setMetric("deliveries")}
-            className={`flex flex-col justify-between border-b-2 border-t border-surface-border p-3.5 text-left transition-colors lg:border-l lg:border-t-0 ${
+            className={`flex flex-col justify-between border-b-2 border-t border-surface-border p-4 text-left transition-all lg:border-l lg:border-t-0 ${
               metric === "deliveries"
-                ? "border-b-brand bg-surface/40"
-                : "border-b-transparent hover:bg-surface/25"
+                ? "border-b-brand bg-brand-light/20"
+                : "border-b-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-medium text-slate-400">
-              <span>Livraisons réussies</span>
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+              <span>Livraisons Réussies</span>
               <PackageCheck className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <p className="mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums text-slate-100 sm:text-xl">
-              {displayTotals.livraisons}
+            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+              {displayTotals.livraisons.toLocaleString("fr-FR")}
             </p>
-            <span className="mt-0.5 text-[11px] font-medium text-emerald-400">
-              Livraison réelle : {tauxLivraisonReelle}%
-            </span>
+            <div className="mt-1">
+              <span className="inline-block rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                Succès terrain : {tauxLivraisonReelle}%
+              </span>
+            </div>
           </button>
 
           <button
             type="button"
             onClick={() => setMetric("injoignables")}
-            className={`flex flex-col justify-between border-b-2 border-l border-t border-surface-border p-3.5 text-left transition-colors lg:border-t-0 ${
+            className={`flex flex-col justify-between border-b-2 border-l border-t border-surface-border p-4 text-left transition-all lg:border-t-0 ${
               metric === "injoignables"
-                ? "border-b-brand bg-surface/40"
-                : "border-b-transparent hover:bg-surface/25"
+                ? "border-b-brand bg-brand-light/20"
+                : "border-b-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-medium text-slate-400">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
               <span>Clients Injoignables</span>
               <PhoneOff className="h-3.5 w-3.5 text-rose-400" />
             </div>
-            <p className="mt-1.5 font-mono text-lg font-bold tracking-tight tabular-nums text-slate-100 sm:text-xl">
-              {displayTotals.injoignables}
+            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+              {displayTotals.injoignables.toLocaleString("fr-FR")}
             </p>
-            <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-slate-500">
-              <Radio className="h-3 w-3 text-emerald-400" />
-              À relancer en priorité
-            </span>
+            <div className="mt-1">
+              <span className="inline-flex items-center gap-1 rounded-md border border-rose-500/20 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">
+                <Radio className="h-2.5 w-2.5 text-rose-400 animate-pulse" />
+                À relancer en priorité
+              </span>
+            </div>
           </button>
         </div>
 
@@ -335,8 +341,9 @@ export default function LiveShopifyAnalytics({
                 </>
               )}
             </div>
-            <span className="text-[11px] text-slate-500">
-              Synchronisé en direct
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Flux synchronisé en direct
             </span>
           </div>
 

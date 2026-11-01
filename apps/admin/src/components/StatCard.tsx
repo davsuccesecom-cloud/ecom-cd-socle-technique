@@ -33,13 +33,13 @@ export default function StatCard({
     <Wrapper
       type={onClick ? "button" : undefined}
       onClick={onClick}
-      className={`group relative w-full rounded-xl border border-surface-border bg-surface-raised p-4 text-left transition-all ${
-        onClick ? "cursor-pointer hover:border-slate-600" : ""
+      className={`group relative w-full rounded-2xl border border-surface-border bg-surface-raised p-4 text-left transition-all shadow-xs ${
+        onClick ? "cursor-pointer hover:border-brand/40 hover:bg-surface/20" : ""
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-medium text-slate-400">{label}</span>
-        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${style.badge}`}>
+        <span className="truncate text-xs font-semibold text-slate-400">{label}</span>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${style.badge} shadow-xs`}>
           {icon}
         </div>
       </div>
@@ -55,7 +55,7 @@ export default function StatCard({
         )}
       </div>
 
-      {subtitle && <p className="mt-1 truncate text-[11px] text-slate-500">{subtitle}</p>}
+      {subtitle && <p className="mt-1 truncate text-[11px] font-medium text-slate-400">{subtitle}</p>}
     </Wrapper>
   );
 }

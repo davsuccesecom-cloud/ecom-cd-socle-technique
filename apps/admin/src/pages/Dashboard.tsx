@@ -61,39 +61,39 @@ const EMPTY_COUNTS: Record<CloseuseStatus, number> = {
 const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   overview: {
     title: "Poste de Pilotage",
-    subtitle: "Suivi en temps réel des commandes, confirmations et encaissements COD",
+    subtitle: "Cockpit unifié · Suivi en direct des confirmations, livraisons et flux financiers COD",
   },
   ai_assistant: {
     title: "Analyste Direction",
-    subtitle: "Diagnostic opérationnel, rentabilité et bilans par équipe",
+    subtitle: "Diagnostic opérationnel, rentabilité et bilans stratégiques par marché",
   },
   performance: {
     title: "Performance des Opérateurs",
-    subtitle: "Taux de closing, rapidité de prise en charge et efficacité livreurs",
+    subtitle: "Taux de closing des closeuses, rapidité d'appel et efficacité des livreurs",
   },
   users: {
     title: "Utilisateurs & Accès",
-    subtitle: "Gestion des comptes closeuses et livreurs du marché actif",
+    subtitle: "Gestion sécurisée des comptes closeuses et livreurs du marché actif",
   },
   orders: {
     title: "Registre des Commandes",
-    subtitle: "Traitement, assignation et impression des bons de livraison 3D",
+    subtitle: "Dispatch des colis, impression des bons et traçabilité en temps réel",
   },
   teams: {
     title: "Marchés & Google Sheets",
-    subtitle: "Configuration des équipes par pays et synchronisation tableurs",
+    subtitle: "Configuration des équipes par pays et synchronisation des flux tableurs",
   },
   caisse: {
     title: "Caisse & Versements Livreurs",
-    subtitle: "Vérification des encaissements terrain, déductions d'imprévus avec note justificative et validation avant paie",
+    subtitle: "Pointage de caisse journalier · Contrôle du cash terrain et rapprochement des versements",
   },
   remuneration: {
     title: "Rémunération & Commissions",
-    subtitle: "Calcul automatisé des primes sur livraisons validées et contrôle caisse",
+    subtitle: "Commissions opérateurs calculées sur les livraisons confirmées et soldes nets à régler",
   },
   settings: {
     title: "Paramètres Système",
-    subtitle: "Boutiques Shopify, règles métiers, Meta CAPI et préférences",
+    subtitle: "Boutiques Shopify, règles métiers, Meta CAPI et intégrations",
   },
 };
 
@@ -403,12 +403,12 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 lg:col-span-1">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Répartition des Statuts
+                    Statuts des Commandes
                   </h3>
                   <button
                     type="button"
                     onClick={() => setPage("ai_assistant")}
-                    className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20 transition-colors"
                   >
                     <Sparkles className="h-3 w-3" />
                     Analyser
@@ -431,15 +431,15 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               <StatCard
                 label="Commandes Rejetées"
                 value={String(displayTotals.rejetees)}
-                subtitle="Annulations / refus client"
+                subtitle="Refus client & annulations"
                 icon={<Ban className="h-4 w-4" />}
                 accent="orange"
                 onClick={() => setPage("orders")}
               />
               <StatCard
-                label="En cours de livraison"
+                label="En Cours de Livraison"
                 value={String(stats.statusCounts.en_cours || 0)}
-                subtitle="Colis sur le terrain"
+                subtitle="Colis sortis sur le terrain"
                 icon={<Truck className="h-4 w-4" />}
                 accent="blue"
                 onClick={() => setPage("orders")}
@@ -447,25 +447,25 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               <StatCard
                 label="Programmées & Relances"
                 value={String(stats.statusCounts.programme || 0)}
-                subtitle="Rendez-vous planifiés"
+                subtitle="Rendez-vous calés avec créneau"
                 icon={<CalendarClock className="h-4 w-4" />}
                 accent="purple"
                 onClick={() => setPage("orders")}
               />
               <StatCard
-                label="Panier moyen livré"
+                label="Panier Moyen Encaissé"
                 value={
                   displayTotals.livraisons > 0
                     ? `${Math.round(displayTotals.ca / displayTotals.livraisons).toLocaleString("fr-FR")} ${currency}`
                     : `0 ${currency}`
                 }
-                subtitle="Par commande encaissée"
+                subtitle="Moyenne nette par colis livré"
                 icon={<Receipt className="h-4 w-4" />}
                 accent="green"
               />
             </div>
 
-            {loading && <p className="text-center text-xs text-slate-500">Synchronisation temps réel…</p>}
+            {loading && <p className="text-center text-xs text-slate-500">Mise à jour en direct…</p>}
           </div>
         )}
       </main>

@@ -19,21 +19,23 @@ export default function LivraisonsParLivreur({ orders, livreurs }: LivraisonsPar
 
   return (
     <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-      <h3 className="mb-3 text-sm font-medium text-slate-200">Livraisons par livreur</h3>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        Livraisons par Livreur
+      </h3>
       {ranked.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">Aucune livraison sur la période.</p>
+        <p className="py-6 text-center text-xs text-slate-500">Aucune livraison enregistrée sur la période.</p>
       ) : (
         <ul className="divide-y divide-surface-border">
           {ranked.map(([livreurId, count]) => (
             <li key={livreurId} className="flex items-center gap-3 py-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-light text-xs font-medium text-brand">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-surface-border bg-surface text-xs font-bold text-brand shadow-xs">
                 {(nameById.get(livreurId) ?? "?").charAt(0).toUpperCase()}
               </div>
-              <span className="flex-1 text-sm text-slate-300">
+              <span className="flex-1 text-xs font-semibold text-slate-200 truncate">
                 {nameById.get(livreurId) ?? "Livreur inconnu"}
               </span>
-              <span className="text-sm text-slate-500">
-                {count} livraison{count > 1 ? "s" : ""}
+              <span className="font-mono text-xs font-semibold text-emerald-400 tabular-nums">
+                {count} {count > 1 ? "colis" : "colis"}
               </span>
             </li>
           ))}

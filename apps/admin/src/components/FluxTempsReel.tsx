@@ -28,32 +28,33 @@ export default function FluxTempsReel({ orders }: FluxTempsReelProps) {
 
   return (
     <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
-      <h3 className="mb-3 text-sm font-medium text-slate-200">Flux temps réel</h3>
+      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        Flux Terrain en Direct
+      </h3>
       {recent.length === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">Rien à afficher pour l'instant.</p>
+        <p className="py-6 text-center text-xs text-slate-500">Aucune activité terrain pour le moment.</p>
       ) : (
-        <ul className="max-h-80 divide-y divide-surface-border overflow-y-auto">
+        <ul className="max-h-80 divide-y divide-surface-border overflow-y-auto pr-1">
           {recent.map((order) => {
             const delivered = order.statutLivreur === "livre";
             const ts = order.timestamps.delivered!;
             return (
-              <li key={order.id} className="flex items-center gap-3 py-2.5 text-sm">
+              <li key={order.id} className="flex items-center gap-2.5 py-2.5 text-xs">
                 <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${
-                    delivered ? "bg-accent-green/15 text-accent-green" : "bg-accent-red/15 text-accent-red"
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 font-semibold text-[11px] ${
+                    delivered
+                      ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                      : "border border-rose-500/30 bg-rose-500/10 text-rose-400"
                   }`}
                 >
-                  {delivered ? "✓" : "✕"}
+                  {delivered ? "✓ Livrée" : "✕ Injoignable"}
                 </span>
-                <span className={`w-24 shrink-0 ${delivered ? "text-accent-green" : "text-accent-red"}`}>
-                  {delivered ? "Livrée" : "Injoignable"}
+                <span className="flex-1 truncate font-medium text-slate-200">{order.clientName}</span>
+                <span className="shrink-0 font-mono font-bold text-slate-200 tabular-nums">
+                  {delivered ? `${order.amount.toLocaleString("fr-FR")} FCFA` : "—"}
                 </span>
-                <span className="flex-1 truncate text-slate-300">{order.clientName}</span>
-                <span className="shrink-0 text-slate-400">
-                  {delivered ? `${order.amount.toLocaleString("fr-FR")} F` : "—"}
-                </span>
-                <span className="shrink-0 text-slate-500">{formatTime(ts)}</span>
-                <span className="hidden shrink-0 text-xs text-slate-600 sm:inline">{timeAgo(ts)}</span>
+                <span className="shrink-0 text-[11px] text-slate-400">{formatTime(ts)}</span>
+                <span className="hidden shrink-0 text-[10px] text-slate-500 sm:inline">{timeAgo(ts)}</span>
               </li>
             );
           })}
