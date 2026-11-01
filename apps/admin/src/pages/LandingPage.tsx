@@ -429,14 +429,16 @@ export default function LandingPage({
               </button>
             </div>
 
-            {/* Capture réelle en plein cadre */}
-            <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-[#050814] shadow-inner">
+            {/* Capture réelle en plein cadre avec ratio garanti */}
+            <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-[#050814] shadow-inner min-h-[340px] sm:min-h-[500px] flex items-center justify-center">
               <img
                 src={currentTab.image}
                 alt={currentTab.label}
-                className="w-full object-cover object-top max-h-[520px] transition-opacity duration-300"
+                loading="eager"
+                decoding="sync"
+                className="w-full h-full object-cover object-top max-h-[520px] transition-opacity duration-300"
               />
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#050814]/40 via-transparent to-transparent" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#050814]/30 via-transparent to-transparent" />
             </div>
           </div>
         </div>
