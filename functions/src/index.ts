@@ -745,15 +745,31 @@ export const onOrderCreated = onDocumentCreated(
       "timestamps.assignedToCloseuse": Date.now(),
     });
 
-    await sendPushToUser(workspaceId, chosen.id, "Nouvelle commande", `${order.clientName} - ${order.product}`, snap.id);
+    await sendPushToUser(
+      workspaceId,
+      chosen.id,
+      order.isDuplicatePhone ? "⚠️ Nouvelle commande (Doublon N°)" : "Nouvelle commande",
+      order.isDuplicatePhone
+        ? `${order.clientName} - ${order.product} · Vérifier si 1 ou 2 produits`
+        : `${order.clientName} - ${order.product}`,
+      snap.id
+    );
+
+    if (order.isDuplicatePhone) {
+      await notifyAdmins(
+        workspaceId,
+        "🤖 Vigie IA · Numéro doublon (Accès libre site)",
+        `${order.clientName} (${order.clientPhoneFormatted}) a commandé à nouveau (${order.product}). Isolé de Meta CAPI — vérifier avec ${chosen.data.name} si 1 ou 2 produits.`
+      );
+    }
 
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
     if (chosen.count + 1 >= threshold) {
       await notifyAdmins(
         workspaceId,
-        "Closeuse surchargee",
-        `${chosen.data.name} a ${chosen.count + 1} commandes actives.`
+        "🤖 Vigie IA · Closeuse surchargée",
+        `${chosen.data.name} a ${chosen.count + 1} commandes actives en attente.`
       );
     }
   }
@@ -1111,7 +1127,8 @@ export const scheduledPurge = onSchedule("every 24 hours", async () => {
 // ---------------------------------------------------------------------------
 
 export const scheduledReminders = onSchedule("every 5 minutes", async () => {
-  const cutoff = Date.now() - REMINDER_DELAY_MINUTES * 60 * 1000;
+  const now = Date.now();
+  const cutoff = now - REMINDER_DELAY_MINUTES * 60 * 1000;
   const workspacesSnap = await db.collection("workspaces").get();
 
   for (const wsDoc of workspacesSnap.docs) {
@@ -1139,8 +1156,8 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
     if (byCloseuse.size > 0) {
       const recentAlert = await wsDoc.ref
         .collection("notifications")
-        .where("title", "==", "Commandes en retard")
-        .where("createdAt", ">=", Date.now() - 25 * 60 * 1000)
+        .where("title", "==", "🤖 Vigie IA · Commandes hors délai d'appel")
+        .where("createdAt", ">=", now - 30 * 60 * 1000)
         .limit(1)
         .get();
 
@@ -1148,8 +1165,8 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
         const totalStale = [...byCloseuse.values()].reduce((a, b) => a + b, 0);
         await notifyAdmins(
           wsDoc.id,
-          "Commandes en retard",
-          `${totalStale} commande(s) en attente depuis plus de ${REMINDER_DELAY_MINUTES} min, chez ${byCloseuse.size} closeuse(s)`
+          "🤖 Vigie IA · Commandes hors délai d'appel",
+          `${totalStale} commande(s) "Nouveau" dépassent ${REMINDER_DELAY_MINUTES} min sans appel chez ${byCloseuse.size} closeuse(s).`
         );
       }
     }
@@ -1158,9 +1175,10 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
     const dueScheduled = await wsDoc.ref
       .collection("orders")
       .where("statutCloseuse", "==", "programme")
-      .where("reminderAt", "<=", Date.now())
+      .where("reminderAt", "<=", now)
       .get();
 
+    let overdueAdminCount = 0;
     for (const docSnap of dueScheduled.docs) {
       const o = docSnap.data();
       if (o.closeuseId && !o.reminderNotified) {
@@ -1173,12 +1191,64 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
         );
         await docSnap.ref.update({ reminderNotified: true });
       }
+      if (o.reminderAt && now - o.reminderAt >= 20 * 60 * 1000) {
+        overdueAdminCount += 1;
+      }
+    }
+
+    if (overdueAdminCount > 0) {
+      const recentOverdueAlert = await wsDoc.ref
+        .collection("notifications")
+        .where("title", "==", "🤖 Vigie IA · Rappels programmés oubliés")
+        .where("createdAt", ">=", now - 45 * 60 * 1000)
+        .limit(1)
+        .get();
+
+      if (recentOverdueAlert.empty) {
+        await notifyAdmins(
+          wsDoc.id,
+          "🤖 Vigie IA · Rappels programmés oubliés",
+          `${overdueAdminCount} commande(s) programmée(s) ont dépassé leur heure de rappel de plus de 20 min sans traitement.`
+        );
+      }
+    }
+
+    // Commandes confirmées (en_cours) mais oubliées sans livreur assigné (> 25 min)
+    const confirmedSnap = await wsDoc.ref
+      .collection("orders")
+      .where("statutCloseuse", "==", "en_cours")
+      .get();
+
+    let unassignedCount = 0;
+    confirmedSnap.docs.forEach((d) => {
+      const o = d.data();
+      const refTs = o.timestamps?.closeuseDecidedAt ?? o.timestamps?.received ?? now;
+      if (!o.livreurId && now - refTs >= 25 * 60 * 1000) {
+        unassignedCount += 1;
+      }
+    });
+
+    if (unassignedCount > 0) {
+      const recentUnassigned = await wsDoc.ref
+        .collection("notifications")
+        .where("title", "==", "🤖 Vigie IA · Colis confirmés sans livreur")
+        .where("createdAt", ">=", now - 45 * 60 * 1000)
+        .limit(1)
+        .get();
+
+      if (recentUnassigned.empty) {
+        await notifyAdmins(
+          wsDoc.id,
+          "🤖 Vigie IA · Colis confirmés sans livreur",
+          `${unassignedCount} commande(s) confirmée(s) attendent l'assignation d'un livreur depuis plus de 25 min.`
+        );
+      }
     }
   }
 });
 
 // ---------------------------------------------------------------------------
-// 6. Resume periodique admin (section 5.1)
+// 6. Vigie IA : Bilan periodique, Caisse Livreurs & Suivi Logistique (section 5.1)
 // ---------------------------------------------------------------------------
 
 export const scheduledDigest = onSchedule("every 30 minutes", async () => {
@@ -1187,6 +1257,8 @@ export const scheduledDigest = onSchedule("every 30 minutes", async () => {
 
   for (const wsDoc of workspacesSnap.docs) {
     const teamsSnap = await wsDoc.ref.collection("teams").get();
+    const settlementsSnap = await wsDoc.ref.collection("cashSettlements").get();
+    const allSettlements = settlementsSnap.docs.map((d) => d.data());
 
     for (const teamDoc of teamsSnap.docs) {
       const team = teamDoc.data();
@@ -1198,27 +1270,69 @@ export const scheduledDigest = onSchedule("every 30 minutes", async () => {
       const ordersSnap = await wsDoc.ref
         .collection("orders")
         .where("teamId", "==", teamDoc.id)
-        .where("timestamps.received", ">=", since)
         .get();
 
       let livrees = 0,
         rejetees = 0,
         injoignables = 0,
-        ca = 0;
+        ca = 0,
+        stuckTransit = 0,
+        expectedCashTotal = 0;
+
       ordersSnap.docs.forEach((d) => {
         const o = d.data();
-        if (o.statutCloseuse === "livre") {
-          livrees++;
-          ca += o.amount ?? 0;
+        const recTs = o.timestamps?.received ?? 0;
+        const isDeliv = o.statutLivreur === "livre" || o.statutCloseuse === "livre";
+        if (isDeliv) {
+          expectedCashTotal += o.amount ?? 0;
         }
-        if (o.statutCloseuse === "rejete") rejetees++;
-        if (o.statutCloseuse === "injoignable") injoignables++;
+        if (recTs >= since) {
+          if (isDeliv) {
+            livrees++;
+            ca += o.amount ?? 0;
+          }
+          if (o.statutCloseuse === "rejete") rejetees++;
+          if (o.statutCloseuse === "injoignable" || o.statutLivreur === "injoignable") injoignables++;
+        }
+        if (
+          (o.statutLivreur === "recu" || o.statutLivreur === "en_route") &&
+          !isDeliv &&
+          o.statutCloseuse !== "rejete"
+        ) {
+          const refTs =
+            o.timestamps?.livreurRespondedAt ??
+            o.timestamps?.assignedToLivreur ??
+            o.timestamps?.closeuseDecidedAt ??
+            recTs;
+          if (refTs > 0 && now - refTs >= 3 * 3600 * 1000) {
+            stuckTransit++;
+          }
+        }
       });
+
+      const teamSettlements = allSettlements.filter((s) => s.teamId === teamDoc.id);
+      const remittedTotal = teamSettlements
+        .filter((s) => s.type === "remittance")
+        .reduce((acc, s) => acc + (s.amount || 0), 0);
+      const caisseDedTotal = teamSettlements
+        .filter((s) => s.type === "deduction" && s.impact === "caisse")
+        .reduce((acc, s) => acc + (s.amount || 0), 0);
+      const unsettledCash = Math.max(0, expectedCashTotal - caisseDedTotal - remittedTotal);
+
+      const extraAlerts: string[] = [];
+      if (unsettledCash > 0) {
+        extraAlerts.push(`Caisse livreur à récupérer: ${unsettledCash.toLocaleString("fr-FR")} F`);
+      }
+      if (stuckTransit > 0) {
+        extraAlerts.push(`${stuckTransit} colis sur le terrain > 3h`);
+      }
 
       await notifyAdmins(
         wsDoc.id,
-        `Resume - ${team.name}`,
-        `${livrees} livrees, ${rejetees} rejetees, ${injoignables} injoignables - ${ca} F`
+        `🤖 Vigie IA — ${team.name}`,
+        `${livrees} livrées (${ca.toLocaleString("fr-FR")} F), ${rejetees} rejetées, ${injoignables} injoignables${
+          extraAlerts.length ? ` · ⚠️ ${extraAlerts.join(" | ")}` : ""
+        }`
       );
 
       await teamDoc.ref.update({ lastDigestAt: now });

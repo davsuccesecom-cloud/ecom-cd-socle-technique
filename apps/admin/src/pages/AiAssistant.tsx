@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
-import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy } from "firebase/firestore";
-import { getDb, ConfirmDialog } from "@ecomcod/shared";
-import type { Team, Order } from "@ecomcod/shared";
+import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy, where, addDoc, getDocs, limit } from "firebase/firestore";
+import { getDb, ConfirmDialog, useRemunerationTotals } from "@ecomcod/shared";
+import type { Team, Order, CashSettlementEntry } from "@ecomcod/shared";
 import {
   BarChart3,
   Award,
@@ -18,8 +18,19 @@ import {
   AlertTriangle,
   Sparkles,
   Layers,
+  Landmark,
+  Truck,
+  BellRing,
+  Clock,
+  ArrowUpRight,
 } from "lucide-react";
-import { aiService, type BusinessMetricsContext, type AiChatMessage } from "../services/aiService";
+import {
+  aiService,
+  type BusinessMetricsContext,
+  type AiChatMessage,
+  type LivreurCashAiSummary,
+  type LogisticsAlertsContext,
+} from "../services/aiService";
 import { splitMessage, type ChartSpec } from "../lib/aiChart";
 import ProChart from "../components/ProChart";
 import { fetchDailyStats } from "../lib/dailyStatsSeries";
@@ -29,28 +40,30 @@ import { formatFirebaseError } from "../lib/firebaseErrors";
 
 const SUGGESTIONS = [
   {
+    icon: Landmark,
+    title: "Caisse & Versements Livreurs",
+    desc: "Vérifier qui a versé, les imprévus retranchés et qui payer.",
+    prompt:
+      "Fais-moi le point complet de la page Caisse & Versements Livreurs : quel livreur a encaissé quoi, quels montants ont été retranchés avec leurs notes justificatives, qui n'a pas encore soldé sa caisse et quel est le net à payer en Rémunération ?",
+  },
+  {
+    icon: Clock,
+    title: "Oublis, Retards & Logistique",
+    desc: "Commandes hors délai, rappels oubliés, colis sur le terrain.",
+    prompt:
+      "Agis comme ma Vigie Logistique : liste-moi tout ce que j'ai oublié ou ce qui dépasse les délais d'opération (commandes Nouveau > 15 min, rappels programmés en retard, colis confirmés sans livreur, colis sur le terrain et numéros doublons à vérifier).",
+  },
+  {
     icon: BarChart3,
-    title: "Bilan global",
-    desc: "Synthèse chiffrée, points forts et axes d'amélioration.",
+    title: "Bilan global & Courbe CA",
+    desc: "Synthèse chiffrée, courbe d'évolution et rentabilité.",
     prompt: "Fais-moi le bilan complet de la période : chiffres clés, points forts, courbe d'évolution et points d'amélioration.",
   },
   {
     icon: Award,
-    title: "Audit des opérateurs",
-    desc: "Classement closeuses et livreurs par rendement.",
-    prompt: "Analyse la performance de mes closeuses et livreurs. Qui mérite une prime et qui doit être recadré ? Justifie avec les chiffres.",
-  },
-  {
-    icon: ShieldAlert,
-    title: "Plan anti-rejets",
-    desc: "Réduire les annulations et clients injoignables.",
-    prompt: "Analyse mes rejets et mes injoignables sur cette équipe et propose un plan d'action opérationnel immédiat.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Projection & Courbe CA",
-    desc: "Visualiser la dynamique d'encaissement COD.",
-    prompt: "Trace la courbe du chiffre d'affaires et des livraisons sur la période et commente la tendance.",
+    title: "Audit Closeuses & Livreurs",
+    desc: "Classement par rendement, villes et motifs de rejet.",
+    prompt: "Analyse la performance de mes closeuses, livreurs et villes de livraison, ainsi que les motifs de rejet enregistrés. Qui mérite une prime et qui doit être recadré ?",
   },
 ];
 
@@ -252,6 +265,7 @@ interface AiAssistantProps {
   orders: Order[];
   closeuses: { id: string; name: string }[];
   livreurs: { id: string; name: string }[];
+  onNavigate?: (page: string) => void;
 }
 
 export default function AiAssistant({
@@ -260,6 +274,7 @@ export default function AiAssistant({
   orders,
   closeuses,
   livreurs,
+  onNavigate,
 }: AiAssistantProps) {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [inputPrompt, setInputPrompt] = useState("");
@@ -272,12 +287,39 @@ export default function AiAssistant({
   const [showArtifactsPanel, setShowArtifactsPanel] = useState(true);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [clearingBusy, setClearingBusy] = useState(false);
+  const [cashEntries, setCashEntries] = useState<CashSettlementEntry[]>([]);
+  const [watchdogScanning, setWatchdogScanning] = useState(false);
+  const [watchdogFeedback, setWatchdogFeedback] = useState<string | null>(null);
+
+  const { totals: closeuseRemunTotals } = useRemunerationTotals(workspaceId, "closeuse");
+  const { totals: livreurRemunTotals } = useRemunerationTotals(workspaceId, "livreur");
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const db = getDb();
+    const baseRef = collection(db, `workspaces/${workspaceId}/cashSettlements`);
+    const q = team?.id ? query(baseRef, where("teamId", "==", team.id)) : query(baseRef);
+    const unsub = onSnapshot(q, (snap) => {
+      const list: CashSettlementEntry[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<CashSettlementEntry, "id">),
+      }));
+      setCashEntries(list);
+    });
+    return () => unsub();
+  }, [workspaceId, team?.id]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const stickRef = useRef(true);
 
   const context: BusinessMetricsContext = useMemo(() => {
+    const now = Date.now();
+    const closeuseMap = new Map(closeuses.map((c) => [c.id, c.name]));
+    const livreurMap = new Map(livreurs.map((l) => [l.id, l.name]));
+    const remunCloseuseRate = team?.remunerationCloseusePerOrder ?? 0;
+    const remunLivreurRate = team?.remunerationLivreurPerOrder ?? 0;
+
     const totalOrders = orders.length;
     const confirmedOrders = orders.filter(
       (o) => o.statutCloseuse === "en_cours" || o.statutCloseuse === "programme" || o.statutCloseuse === "livre"
@@ -302,27 +344,229 @@ export default function AiAssistant({
         const conf = cOrders.filter(
           (o) => o.statutCloseuse === "en_cours" || o.statutCloseuse === "programme" || o.statutCloseuse === "livre"
         ).length;
+        const deliv = cOrders.filter(
+          (o) => o.statutLivreur === "livre" || o.statutCloseuse === "livre"
+        ).length;
+        const resteAPayer =
+          closeuseRemunTotals[c.id]?.resteAPayer ?? deliv * remunCloseuseRate;
         return {
           name: c.name,
           confirmed: conf,
           total: cOrders.length,
           rate: cOrders.length > 0 ? Math.round((conf / cOrders.length) * 100) : 0,
+          resteAPayer,
         };
       })
       .sort((a, b) => b.confirmed - a.confirmed);
+
+    const livreurCashSummaries: LivreurCashAiSummary[] = livreurs.map((l) => {
+      const lOrders = orders.filter((o) => o.livreurId === l.id);
+      const delivOrders = lOrders.filter(
+        (o) => o.statutLivreur === "livre" || o.statutCloseuse === "livre"
+      );
+      const expectedCash = delivOrders.reduce((s, o) => s + (o.amount || 0), 0);
+      const myEntries = cashEntries.filter((e) => e.livreurId === l.id);
+      const remittedCash = myEntries
+        .filter((e) => e.type === "remittance")
+        .reduce((s, e) => s + (e.amount || 0), 0);
+      const deductionsCaisse = myEntries
+        .filter((e) => e.type === "deduction" && e.impact === "caisse")
+        .reduce((s, e) => s + (e.amount || 0), 0);
+      const deductionsRemun = myEntries
+        .filter((e) => e.type === "deduction" && e.impact === "remuneration")
+        .reduce((s, e) => s + (e.amount || 0), 0);
+      const unsettledCash = Math.max(0, expectedCash - deductionsCaisse - remittedCash);
+      const notes = myEntries
+        .filter((e) => e.note)
+        .map(
+          (e) =>
+            `${e.type === "remittance" ? "Versement" : e.impact === "caisse" ? "Retranché caisse" : "Retenue prime"} ${e.amount.toLocaleString("fr-FR")} F : ${e.note}`
+        );
+      const baseRemun =
+        livreurRemunTotals[l.id]?.resteAPayer ?? delivOrders.length * remunLivreurRate;
+      const remunResteAPayer = Math.max(0, baseRemun - deductionsRemun);
+
+      return {
+        name: l.name,
+        deliveredCount: delivOrders.length,
+        expectedCash,
+        remittedCash,
+        deductionsCaisse,
+        deductionsRemun,
+        unsettledCash,
+        notes,
+        remunResteAPayer,
+      };
+    });
 
     const topLivreurs = livreurs
       .map((l) => {
         const lOrders = orders.filter((o) => o.livreurId === l.id);
         const del = lOrders.filter((o) => o.statutLivreur === "livre" || o.statutCloseuse === "livre").length;
+        const cashSum = livreurCashSummaries.find((s) => s.name === l.name);
         return {
           name: l.name,
           delivered: del,
           total: lOrders.length,
           rate: lOrders.length > 0 ? Math.round((del / lOrders.length) * 100) : 0,
+          resteAPayer: cashSum?.remunResteAPayer ?? 0,
         };
       })
       .sort((a, b) => b.delivered - a.delivered);
+
+    const totalUnsettledCash = livreurCashSummaries.reduce((s, l) => s + l.unsettledCash, 0);
+    const totalRemunResteAPayer =
+      topCloseuses.reduce((s, c) => s + (c.resteAPayer || 0), 0) +
+      topLivreurs.reduce((s, l) => s + (l.resteAPayer || 0), 0);
+
+    // Logistics & SLA Alerts
+    const staleNewOrders = orders
+      .filter((o) => {
+        const rec = o.timestamps?.received ?? 0;
+        return o.statutCloseuse === "nouveau" && rec > 0 && now - rec >= 15 * 60 * 1000;
+      })
+      .map((o) => ({
+        orderNumber: o.orderNumber ? `#${o.orderNumber}` : `#${o.id.slice(-5)}`,
+        clientName: o.clientName,
+        phone: o.clientPhoneFormatted,
+        product: o.product,
+        city: o.city || "Non précisée",
+        closeuseName: (o.closeuseId && closeuseMap.get(o.closeuseId)) || "Non assignée",
+        minutesWaiting: Math.round((now - (o.timestamps?.received ?? now)) / 60000),
+      }))
+      .sort((a, b) => b.minutesWaiting - a.minutesWaiting);
+
+    const overdueReminders = orders
+      .filter((o) => o.statutCloseuse === "programme" && o.reminderAt && o.reminderAt <= now)
+      .map((o) => ({
+        orderNumber: o.orderNumber ? `#${o.orderNumber}` : `#${o.id.slice(-5)}`,
+        clientName: o.clientName,
+        phone: o.clientPhoneFormatted,
+        product: o.product,
+        closeuseName: (o.closeuseId && closeuseMap.get(o.closeuseId)) || "Non assignée",
+        minutesOverdue: Math.max(1, Math.round((now - (o.reminderAt ?? now)) / 60000)),
+      }))
+      .sort((a, b) => b.minutesOverdue - a.minutesOverdue);
+
+    const unassignedConfirmed = orders
+      .filter((o) => o.statutCloseuse === "en_cours" && !o.livreurId)
+      .map((o) => {
+        const refTs = o.timestamps?.closeuseDecidedAt ?? o.timestamps?.received ?? now;
+        return {
+          orderNumber: o.orderNumber ? `#${o.orderNumber}` : `#${o.id.slice(-5)}`,
+          clientName: o.clientName,
+          phone: o.clientPhoneFormatted,
+          product: o.product,
+          city: o.city || "Non précisée",
+          closeuseName: (o.closeuseId && closeuseMap.get(o.closeuseId)) || "Non assignée",
+          minutesSinceConfirmed: Math.max(1, Math.round((now - refTs) / 60000)),
+        };
+      })
+      .sort((a, b) => b.minutesSinceConfirmed - a.minutesSinceConfirmed);
+
+    const stuckInDelivery = orders
+      .filter(
+        (o) =>
+          (o.statutLivreur === "recu" || o.statutLivreur === "en_route") &&
+          o.statutCloseuse !== "livre" &&
+          o.statutCloseuse !== "rejete"
+      )
+      .map((o) => {
+        const refTs =
+          o.timestamps?.livreurRespondedAt ??
+          o.timestamps?.assignedToLivreur ??
+          o.timestamps?.closeuseDecidedAt ??
+          o.timestamps?.received ??
+          now;
+        return {
+          orderNumber: o.orderNumber ? `#${o.orderNumber}` : `#${o.id.slice(-5)}`,
+          clientName: o.clientName,
+          phone: o.clientPhoneFormatted,
+          product: o.product,
+          city: o.city || "Non précisée",
+          livreurName: (o.livreurId && livreurMap.get(o.livreurId)) || "Non assigné",
+          status: o.statutLivreur === "en_route" ? "En route" : "Reçu (attente départ)",
+          hoursInTransit: Math.max(0.5, Math.round(((now - refTs) / 3600000) * 10) / 10),
+          amount: o.amount || 0,
+        };
+      })
+      .sort((a, b) => b.hoursInTransit - a.hoursInTransit);
+
+    const duplicateOrders = orders
+      .filter((o) => o.isDuplicatePhone)
+      .map((o) => ({
+        orderNumber: o.orderNumber ? `#${o.orderNumber}` : `#${o.id.slice(-5)}`,
+        clientName: o.clientName,
+        phone: o.clientPhoneFormatted,
+        product: o.product,
+        status: `${o.statutCloseuse}${o.statutLivreur ? ` / ${o.statutLivreur}` : ""}`,
+        previousOrdersCount: o.previousOrdersCount ?? 1,
+        amount: o.amount || 0,
+      }));
+
+    const cityMap: Record<
+      string,
+      { total: number; delivered: number; inTransit: number; rejected: number; revenue: number }
+    > = {};
+    const rejectionMap: Record<string, number> = {};
+
+    orders.forEach((o) => {
+      const city = (o.city || "Ville non renseignée").trim();
+      if (!cityMap[city]) {
+        cityMap[city] = { total: 0, delivered: 0, inTransit: 0, rejected: 0, revenue: 0 };
+      }
+      cityMap[city].total += 1;
+      if (o.statutLivreur === "livre" || o.statutCloseuse === "livre") {
+        cityMap[city].delivered += 1;
+        cityMap[city].revenue += o.amount || 0;
+      } else if (o.statutLivreur === "en_route" || o.statutLivreur === "recu" || o.statutCloseuse === "en_cours") {
+        cityMap[city].inTransit += 1;
+      } else if (o.statutCloseuse === "rejete" || o.statutCloseuse === "injoignable" || o.statutLivreur === "injoignable") {
+        cityMap[city].rejected += 1;
+      }
+
+      if (o.statutCloseuse === "rejete") {
+        const reason = o.rejectionReason || "Rejeté sans motif précisé";
+        rejectionMap[reason] = (rejectionMap[reason] || 0) + 1;
+      }
+    });
+
+    const cityBreakdown = Object.entries(cityMap)
+      .map(([city, d]) => ({ city, ...d }))
+      .sort((a, b) => b.total - a.total);
+
+    const rejectionReasons = Object.entries(rejectionMap)
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const recentActiveOrders = [...orders]
+      .sort((a, b) => (b.timestamps?.received ?? 0) - (a.timestamps?.received ?? 0))
+      .slice(0, 30)
+      .map((o) => ({
+        orderNumber: o.orderNumber ? `#${o.orderNumber}` : `#${o.id.slice(-5)}`,
+        clientName: o.clientName,
+        phone: o.clientPhoneFormatted,
+        city: o.city || "Non précisée",
+        product: o.product,
+        quantity: o.quantity || 1,
+        amount: o.amount || 0,
+        statutCloseuse: o.statutCloseuse,
+        statutLivreur: o.statutLivreur || "non_assigne",
+        closeuseName: (o.closeuseId && closeuseMap.get(o.closeuseId)) || "Non assignée",
+        livreurName: (o.livreurId && livreurMap.get(o.livreurId)) || "Non assigné",
+        isDuplicate: !!o.isDuplicatePhone,
+      }));
+
+    const logisticsAlerts: LogisticsAlertsContext = {
+      staleNewOrders,
+      overdueReminders,
+      unassignedConfirmed,
+      stuckInDelivery,
+      duplicateOrders,
+      cityBreakdown,
+      rejectionReasons,
+      recentActiveOrders,
+    };
 
     const productMap: Record<string, { count: number; revenue: number }> = {};
     orders.forEach((o) => {
@@ -392,8 +636,12 @@ export default function AiAssistant({
       topLivreurs,
       topProducts,
       dailyTrends,
+      livreurCashSummaries,
+      logisticsAlerts,
+      totalUnsettledCash,
+      totalRemunResteAPayer,
     };
-  }, [orders, closeuses, livreurs, team]);
+  }, [orders, closeuses, livreurs, team, cashEntries, closeuseRemunTotals, livreurRemunTotals]);
 
   // Extract all chart artifacts generated across the conversation
   const chartArtifacts = useMemo(() => {
@@ -554,6 +802,126 @@ export default function AiAssistant({
       setErrorMsg("Copie impossible sur ce navigateur.");
     }
   };
+
+  const runAiLogisticsWatchdog = async (manual = false) => {
+    if (!workspaceId || watchdogScanning) return;
+    setWatchdogScanning(true);
+    setWatchdogFeedback(null);
+    try {
+      const db = getDb();
+      const notifCol = collection(db, "workspaces", workspaceId, "notifications");
+      const recentSnap = await getDocs(
+        query(notifCol, orderBy("createdAt", "desc"), limit(25))
+      );
+      const cutoffDedupe = Date.now() - 45 * 60 * 1000;
+      const recentTitles = new Set<string>();
+      recentSnap.forEach((d) => {
+        const data = d.data();
+        if ((data.createdAt ?? 0) >= cutoffDedupe && typeof data.title === "string") {
+          recentTitles.add(data.title);
+        }
+      });
+
+      const alerts = context.logisticsAlerts;
+      const toSend: { title: string; body: string }[] = [];
+
+      // 1. Caisse livreurs non versée
+      const unsettledLivreurs = (context.livreurCashSummaries || []).filter((l) => l.unsettledCash > 0);
+      if (unsettledLivreurs.length > 0) {
+        const title = `🤖 Vigie IA · Caisse Livreur à récupérer`;
+        const names = unsettledLivreurs
+          .map((l) => `${l.name} (${l.unsettledCash.toLocaleString("fr-FR")} ${context.currency})`)
+          .join(", ");
+        const body = `${unsettledLivreurs.length} livreur(s) n'ont pas encore soldé leur caisse : ${names}. Vérifiez dans Caisse & Versements avant de verser la paie.`;
+        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+      }
+
+      // 2. Commandes Nouveau dépassant le délai (> 15 min)
+      if (alerts && alerts.staleNewOrders.length > 0) {
+        const title = `🤖 Vigie IA · ${alerts.staleNewOrders.length} commande(s) hors délai d'appel`;
+        const sample = alerts.staleNewOrders
+          .slice(0, 3)
+          .map((o) => `${o.orderNumber} (${o.clientName}, ${o.minutesWaiting} min)`)
+          .join(", ");
+        const body = `Délai > 15 min dépassé sans action closeuse : ${sample}.`;
+        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+      }
+
+      // 3. Rappels programmés oubliés
+      if (alerts && alerts.overdueReminders.length > 0) {
+        const title = `🤖 Vigie IA · ${alerts.overdueReminders.length} rappel(s) programmé(s) oublié(s)`;
+        const sample = alerts.overdueReminders
+          .slice(0, 3)
+          .map((o) => `${o.clientName} (${o.closeuseName}, +${o.minutesOverdue} min)`)
+          .join(", ");
+        const body = `Heure de rappel dépassée pour : ${sample}.`;
+        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+      }
+
+      // 4. Commandes confirmées sans livreur assigné
+      if (alerts && alerts.unassignedConfirmed.length > 0) {
+        const title = `🤖 Vigie IA · ${alerts.unassignedConfirmed.length} colis confirmé(s) sans livreur`;
+        const sample = alerts.unassignedConfirmed
+          .slice(0, 3)
+          .map((o) => `${o.orderNumber} (${o.city})`)
+          .join(", ");
+        const body = `Confirmées mais aucun livreur assigné : ${sample}.`;
+        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+      }
+
+      // 5. Colis sur le terrain depuis > 3h
+      const longStuck = (alerts?.stuckInDelivery || []).filter((o) => o.hoursInTransit >= 3);
+      if (longStuck.length > 0) {
+        const title = `🤖 Vigie IA · ${longStuck.length} colis sur le terrain > 3h`;
+        const sample = longStuck
+          .slice(0, 3)
+          .map((o) => `${o.orderNumber} (${o.livreurName}, ${o.hoursInTransit}h)`)
+          .join(", ");
+        const body = `Livraisons non clôturées sur le terrain : ${sample}.`;
+        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+      }
+
+      // 6. Numéros doublons à vérifier (1 ou 2 produits)
+      const pendingDuplicates = (alerts?.duplicateOrders || []).filter((o) =>
+        o.status.startsWith("nouveau")
+      );
+      if (pendingDuplicates.length > 0) {
+        const title = `🤖 Vigie IA · ${pendingDuplicates.length} numéro(s) doublon(s) à vérifier`;
+        const body = `Isolé(s) en Accès libre site (hors Meta CAPI). Vérifier à l'appel si le client souhaite 1 ou 2 produits.`;
+        if (manual || !recentTitles.has(title)) toSend.push({ title, body });
+      }
+
+      for (const n of toSend) {
+        await addDoc(notifCol, {
+          title: n.title,
+          body: n.body,
+          read: false,
+          createdAt: Date.now(),
+        });
+      }
+
+      if (manual) {
+        setWatchdogFeedback(
+          toSend.length > 0
+            ? `${toSend.length} rappel(s) envoyé(s) dans votre cloche de notifications.`
+            : "Aucun oubli ni dépassement de délai détecté : tout est à jour ✓"
+        );
+        setTimeout(() => setWatchdogFeedback(null), 5000);
+      }
+    } catch {
+      if (manual) setWatchdogFeedback("Impossible d'envoyer les notifications pour l'instant.");
+    } finally {
+      setWatchdogScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!workspaceId || orders.length === 0) return;
+    const timer = window.setTimeout(() => {
+      void runAiLogisticsWatchdog(false);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [workspaceId, team?.id, orders.length]);
 
   const buildBilanReport = async (): Promise<BilanReport> => {
     const lastAssistant = [...messages].reverse().find((m) => m.sender === "assistant");
@@ -933,18 +1301,139 @@ export default function AiAssistant({
                     </p>
                   </div>
                   <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
-                    <p className="text-[10px] text-slate-500">Closing</p>
-                    <p className="mt-0.5 text-xs font-bold tabular-nums text-sky-400">
-                      {context.confirmedOrders}/{context.totalOrders} ({context.confirmationRate}%)
+                    <p className="text-[10px] text-slate-500">Caisse non versée</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-amber-400">
+                      {(context.totalUnsettledCash ?? 0).toLocaleString("fr-FR")} {context.currency}
                     </p>
                   </div>
                   <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
-                    <p className="text-[10px] text-slate-500">Échecs / Rejets</p>
-                    <p className="mt-0.5 text-xs font-bold tabular-nums text-rose-400">
-                      {context.rejectedOrders + context.injoignableOrders}
+                    <p className="text-[10px] text-slate-500">Primes à payer</p>
+                    <p className="mt-0.5 text-xs font-bold tabular-nums text-sky-400">
+                      {(context.totalRemunResteAPayer ?? 0).toLocaleString("fr-FR")} {context.currency}
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Vigie Logistique IA & Monopole des Rappels */}
+              <div className="rounded-xl border border-brand/30 bg-brand/5 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <BellRing className="h-3.5 w-3.5 text-brand" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-200">
+                      Vigie Logistique IA
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={watchdogScanning}
+                    onClick={() => runAiLogisticsWatchdog(true)}
+                    className="rounded-lg bg-brand px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-brand-hover disabled:opacity-50"
+                  >
+                    {watchdogScanning ? "Scan…" : "M'envoyer les rappels"}
+                  </button>
+                </div>
+
+                {watchdogFeedback && (
+                  <p className="rounded-lg border border-brand/30 bg-surface px-2.5 py-1.5 text-[11px] text-slate-200">
+                    {watchdogFeedback}
+                  </p>
+                )}
+
+                <div className="space-y-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        "Quelles sont les commandes en dépassement de délai (>15 min) et les rappels programmés en retard maintenant ?"
+                      )
+                    }
+                    className="flex w-full items-center justify-between rounded-lg border border-surface-border bg-surface/70 px-2.5 py-1.5 text-left hover:border-brand/40"
+                  >
+                    <span className="text-[11px] text-slate-300">Retards d'appel & rappels</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                        (context.logisticsAlerts?.staleNewOrders.length ?? 0) +
+                          (context.logisticsAlerts?.overdueReminders.length ?? 0) >
+                        0
+                          ? "bg-rose-500/20 text-rose-400"
+                          : "bg-emerald-500/15 text-emerald-400"
+                      }`}
+                    >
+                      {(context.logisticsAlerts?.staleNewOrders.length ?? 0) +
+                        (context.logisticsAlerts?.overdueReminders.length ?? 0)}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        "Fais-moi le point sur les colis confirmés sans livreur et les colis actuellement en livraison sur le terrain."
+                      )
+                    }
+                    className="flex w-full items-center justify-between rounded-lg border border-surface-border bg-surface/70 px-2.5 py-1.5 text-left hover:border-brand/40"
+                  >
+                    <span className="text-[11px] text-slate-300">Colis sans livreur / en route</span>
+                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-400">
+                      {(context.logisticsAlerts?.unassignedConfirmed.length ?? 0)} /{" "}
+                      {(context.logisticsAlerts?.stuckInDelivery.length ?? 0)}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleSendMessage(
+                        "Quels sont les numéros doublons isolés en Accès libre site et quel est leur statut de vérification (1 ou 2 produits) ?"
+                      )
+                    }
+                    className="flex w-full items-center justify-between rounded-lg border border-surface-border bg-surface/70 px-2.5 py-1.5 text-left hover:border-brand/40"
+                  >
+                    <span className="text-[11px] text-slate-300">Doublons N° (Accès libre site)</span>
+                    <span className="rounded-full bg-brand/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-brand">
+                      {context.logisticsAlerts?.duplicateOrders.length ?? 0}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Direct Page Access Shortcuts */}
+                {onNavigate && (
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("caisse")}
+                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
+                    >
+                      <span className="truncate">Caisse Livreurs</span>
+                      <ArrowUpRight className="h-3 w-3 shrink-0" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("remuneration")}
+                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
+                    >
+                      <span className="truncate">Rémunération</span>
+                      <ArrowUpRight className="h-3 w-3 shrink-0" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("orders")}
+                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
+                    >
+                      <span className="truncate">Commandes & SAV</span>
+                      <ArrowUpRight className="h-3 w-3 shrink-0" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate("settings")}
+                      className="inline-flex items-center justify-between rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-[11px] font-medium text-slate-200 hover:border-brand/40 hover:text-brand"
+                    >
+                      <span className="truncate">Export Numéros</span>
+                      <ArrowUpRight className="h-3 w-3 shrink-0" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Generated Charts Deck */}

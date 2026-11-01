@@ -259,12 +259,17 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           <NotificationBell
             workspaceId={workspaceId}
             onNotificationClick={(notif) => {
-              if (notif.orderId) {
+              const t = `${notif.title} ${notif.body}`.toLowerCase();
+              if (t.includes("caisse") || t.includes("versement")) {
+                setPage("caisse");
+              } else if (t.includes("rémunération") || t.includes("prime") || t.includes("paie")) {
+                setPage("remuneration");
+              } else if (notif.orderId || t.includes("commande") || t.includes("colis") || t.includes("rappel") || t.includes("doublon") || t.includes("closeuse")) {
                 setPage("orders");
-              } else if (notif.title.toLowerCase().includes("connexion")) {
+              } else if (t.includes("connexion")) {
                 setPage("users");
-              } else if (notif.title.toLowerCase().includes("commande") || notif.title.toLowerCase().includes("closeuse")) {
-                setPage("orders");
+              } else if (t.includes("vigie ia") || t.includes("bilan")) {
+                setPage("ai_assistant");
               }
             }}
           />
@@ -308,15 +313,24 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               <NotificationBell
                 workspaceId={workspaceId}
                 onNotificationClick={(notif) => {
-                  if (notif.orderId) {
-                    setPage("orders");
-                  } else if (notif.title.toLowerCase().includes("connexion")) {
-                    setPage("users");
+                  const t = `${notif.title} ${notif.body}`.toLowerCase();
+                  if (t.includes("caisse") || t.includes("versement")) {
+                    setPage("caisse");
+                  } else if (t.includes("rémunération") || t.includes("prime") || t.includes("paie")) {
+                    setPage("remuneration");
                   } else if (
-                    notif.title.toLowerCase().includes("commande") ||
-                    notif.title.toLowerCase().includes("closeuse")
+                    notif.orderId ||
+                    t.includes("commande") ||
+                    t.includes("colis") ||
+                    t.includes("rappel") ||
+                    t.includes("doublon") ||
+                    t.includes("closeuse")
                   ) {
                     setPage("orders");
+                  } else if (t.includes("connexion")) {
+                    setPage("users");
+                  } else if (t.includes("vigie ia") || t.includes("bilan")) {
+                    setPage("ai_assistant");
                   }
                 }}
               />
@@ -334,6 +348,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             orders={allOrders}
             closeuses={closeuses}
             livreurs={livreurs}
+            onNavigate={setPage}
           />
         ) : page === "performance" ? (
           <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
