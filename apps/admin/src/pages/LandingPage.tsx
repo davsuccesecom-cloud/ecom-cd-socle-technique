@@ -165,7 +165,7 @@ const SHOWCASE_TABS = [
     label: "Tableau de Bord (Direction)",
     icon: Laptop,
     badge: "Temps Réel",
-    image: "/landing/preview-dashboard.png",
+    image: "/landing/preview-dashboard.png?v=3",
     headline: "Cockpit de pilotage unifié multi-marchés",
     sub: "Chiffre d'affaires encaissé, taux de confirmation, volume en cours et livraisons par livreur consolidés en direct.",
   },
@@ -456,13 +456,13 @@ export default function LandingPage({
               </div>
 
               {/* Capture réelle plein cadre avec fond contrasté */}
-              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#020409] min-h-[340px] sm:min-h-[500px] flex items-center justify-center shadow-inner">
+              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#020409] flex items-center justify-center shadow-inner">
                 <img
                   src={currentTab.image}
                   alt={currentTab.label}
                   loading="eager"
                   decoding="sync"
-                  className="w-full h-full object-cover object-top max-h-[520px] transition-opacity duration-300"
+                  className="w-full h-auto object-contain max-h-[600px] transition-opacity duration-300 rounded-xl"
                 />
               </div>
             </div>
