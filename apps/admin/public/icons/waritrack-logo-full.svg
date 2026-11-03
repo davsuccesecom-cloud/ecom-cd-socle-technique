@@ -1,20 +1,43 @@
-<svg width="240" height="56" viewBox="0 0 240 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Emblème Icone -->
-  <rect x="4" y="4" width="48" height="48" rx="14" fill="#090D16" stroke="#1E293B" stroke-width="1.5"/>
-  <circle cx="28" cy="28" r="19" stroke="#10B981" stroke-width="1" stroke-opacity="0.18"/>
-  <path d="M15 19L21.5 37L28 25L34.5 37L41 19" stroke="url(#wariFullGrad)" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="28" cy="25" r="3.5" fill="#10B981"/>
-  <circle cx="28" cy="25" r="1.8" fill="#FFFFFF"/>
-
-  <!-- Typographie WariTrack -->
-  <text x="64" y="32" font-family="system-ui, -apple-system, 'Plus Jakarta Sans', sans-serif" font-size="22" font-weight="900" fill="#FFFFFF" letter-spacing="-0.5">Wari<tspan fill="#10B981">Track</tspan></text>
-  <text x="65" y="45" font-family="system-ui, -apple-system, 'Plus Jakarta Sans', sans-serif" font-size="9" font-weight="600" fill="#64748B" letter-spacing="0.5">OPERATING SYSTEM</text>
-
+<svg width="280" height="70" viewBox="0 0 280 70" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="wariFullGrad" x1="15" y1="19" x2="41" y2="37" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#34D399"/>
-      <stop offset="0.6" stop-color="#10B981"/>
-      <stop offset="1" stop-color="#06B6D4"/>
+    <linearGradient id="wtWVioletFull" x1="16" y1="16" x2="28" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6" />
+      <stop offset="1" stop-color="#6366F1" />
+    </linearGradient>
+    <linearGradient id="wtWCyanFull" x1="28" y1="54" x2="40" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#06B6D4" />
+      <stop offset="1" stop-color="#00D2FF" />
+    </linearGradient>
+    <linearGradient id="wtWGoldFull" x1="40" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FDE047" />
+      <stop offset="1" stop-color="#F59E0B" />
+    </linearGradient>
+    <linearGradient id="wtWOrangeFull" x1="52" y1="54" x2="64" y2="16" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF7A1A" />
+      <stop offset="1" stop-color="#EA580C" />
     </linearGradient>
   </defs>
+
+  <g transform="translate(4, -1)">
+    <g stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 19L27 53" stroke="url(#wtWVioletFull)" />
+      <path d="M53 53L64 19" stroke="url(#wtWOrangeFull)" />
+      <path d="M40 25L53 53" stroke="url(#wtWGoldFull)" />
+      <path d="M27 53L40 25" stroke="url(#wtWCyanFull)" />
+    </g>
+
+    <circle cx="40" cy="25" r="3" fill="#FFFFFF" />
+    <circle cx="40" cy="25" r="1.5" fill="#0F172A" />
+    <circle cx="16" cy="19" r="2" fill="#A78BFA" />
+    <circle cx="27" cy="53" r="2" fill="#38BDF8" />
+    <circle cx="53" cy="53" r="2" fill="#FBBF24" />
+    <circle cx="64" cy="19" r="2" fill="#FB923C" />
+  </g>
+
+  <text x="78" y="44" fill="#FFFFFF" font-size="28" font-weight="700" letter-spacing="-0.3" font-family="system-ui, -apple-system, sans-serif">
+    wari<tspan fill="#FFFFFF" font-weight="800">track</tspan>
+  </text>
+  <text x="79" y="58" fill="#94A3B8" font-size="9" font-weight="700" letter-spacing="2" font-family="system-ui, -apple-system, sans-serif">
+    LOGISTICS PLATFORM
+  </text>
 </svg>

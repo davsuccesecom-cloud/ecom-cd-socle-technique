@@ -3,7 +3,6 @@ import React from "react";
 interface WariTrackLogoProps {
   size?: "sm" | "md" | "lg" | "xl";
   variant?: "icon" | "full";
-  dynamicAccent?: boolean;
   className?: string;
   subtitle?: string;
 }
@@ -11,9 +10,8 @@ interface WariTrackLogoProps {
 export default function WariTrackLogo({
   size = "md",
   variant = "full",
-  dynamicAccent = true,
   className = "",
-  subtitle = "Pilotage Opérationnel",
+  subtitle = "LOGISTICS PLATFORM",
 }: WariTrackLogoProps) {
   const iconDimensions = {
     sm: "w-7 h-7",
@@ -30,57 +28,80 @@ export default function WariTrackLogo({
   }[size];
 
   const subSizes = {
-    sm: "text-[9px]",
-    md: "text-[10px]",
-    lg: "text-xs",
+    sm: "text-[8.5px]",
+    md: "text-[9.5px]",
+    lg: "text-[11px]",
     xl: "text-xs",
   }[size];
 
-  const strokeColor = dynamicAccent ? "var(--brand)" : "url(#wariLogoGrad)";
-
   return (
     <div className={`flex items-center gap-2.5 overflow-hidden ${className}`}>
-      {/* Emblème Vectoriel WariTrack avec Ondes Radar & Balise GPS */}
+      {/* Monogramme 'W' Multi-Couleurs Polyvalent WariTrack */}
       <div
-        className={`${iconDimensions} shrink-0 flex items-center justify-center rounded-xl border border-surface-border bg-surface p-1 shadow-sm relative overflow-hidden`}
+        className={`${iconDimensions} shrink-0 flex items-center justify-center relative select-none`}
+        title="WariTrack — Cash & Logistics OS"
       >
-        <svg viewBox="0 0 64 64" fill="none" className="h-full w-full">
-          {/* Ondes radar d'arrière-plan */}
-          <circle cx="32" cy="32" r="27" stroke={dynamicAccent ? "var(--brand)" : "#10B981"} strokeWidth="1.2" strokeOpacity="0.22" />
-          <circle cx="32" cy="32" r="18" stroke={dynamicAccent ? "var(--brand)" : "#06B6D4"} strokeWidth="1.2" strokeDasharray="3 3" strokeOpacity="0.3" />
-          
-          {/* Monogramme W cinétique */}
-          <path
-            d="M14 19L23 44L32 28L41 44L50 19"
-            stroke={strokeColor}
-            strokeWidth="5.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          
-          {/* Balise de géolocalisation / Cash actif */}
-          <circle cx="32" cy="28" r="4.5" fill={dynamicAccent ? "var(--brand)" : "#10B981"} />
-          <circle cx="32" cy="28" r="2.2" fill="#FFFFFF" />
+        <svg viewBox="0 0 72 72" fill="none" className="h-full w-full drop-shadow-sm">
+          <defs>
+            {/* Branche 1 : Violet Royal (Cockpit & Intelligence) */}
+            <linearGradient id="wtWViolet" x1="16" y1="16" x2="28" y2="54" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#8B5CF6" />
+              <stop offset="1" stopColor="#6366F1" />
+            </linearGradient>
 
-          {!dynamicAccent && (
-            <defs>
-              <linearGradient id="wariLogoGrad" x1="14" y1="19" x2="50" y2="44" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#34D399" />
-                <stop offset="0.55" stopColor="#10B981" />
-                <stop offset="1" stopColor="#06B6D4" />
-              </linearGradient>
-            </defs>
-          )}
+            {/* Branche 2 : Cyan Électrique (Radar & Flotte Livreur) */}
+            <linearGradient id="wtWCyan" x1="28" y1="54" x2="40" y2="24" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#06B6D4" />
+              <stop offset="1" stopColor="#00D2FF" />
+            </linearGradient>
+
+            {/* Branche 3 : Or Ambré Solaire (Wari & Trésorerie Cash) */}
+            <linearGradient id="wtWGold" x1="40" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FDE047" />
+              <stop offset="1" stopColor="#F59E0B" />
+            </linearGradient>
+
+            {/* Branche 4 : Orange Vif (Closing WhatsApp & Ventes) */}
+            <linearGradient id="wtWOrange" x1="52" y1="54" x2="64" y2="16" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FF7A1A" />
+              <stop offset="1" stopColor="#EA580C" />
+            </linearGradient>
+          </defs>
+
+          {/* Les 4 segments du W multi-couleurs */}
+          <g strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+            {/* 1. Violet : Branche descendante gauche */}
+            <path d="M16 19L27 53" stroke="url(#wtWViolet)" />
+
+            {/* 4. Orange : Branche ascendante droite */}
+            <path d="M53 53L64 19" stroke="url(#wtWOrange)" />
+
+            {/* 3. Or : Branche descendante centre-droit */}
+            <path d="M40 25L53 53" stroke="url(#wtWGold)" />
+
+            {/* 2. Cyan : Branche ascendante centre-gauche */}
+            <path d="M27 53L40 25" stroke="url(#wtWCyan)" />
+          </g>
+
+          {/* Nœud Central Apex : Balise GPS & Convergence du Cash */}
+          <circle cx="40" cy="25" r="3.2" fill="#FFFFFF" />
+          <circle cx="40" cy="25" r="1.6" fill="#0F172A" />
+
+          {/* Points de terminaisons douces */}
+          <circle cx="16" cy="19" r="2.4" fill="#A78BFA" />
+          <circle cx="27" cy="53" r="2.4" fill="#38BDF8" />
+          <circle cx="53" cy="53" r="2.4" fill="#FBBF24" />
+          <circle cx="64" cy="19" r="2.4" fill="#FB923C" />
         </svg>
       </div>
 
       {variant === "full" && (
-        <div className="min-w-0">
-          <span className={`block truncate ${textSizes} font-black tracking-tight text-slate-100`}>
-            Wari<span className="text-brand">Track</span>
+        <div className="min-w-0 flex flex-col justify-center">
+          <span className={`block truncate ${textSizes} font-bold tracking-tight text-white leading-tight`}>
+            wari<span className="font-extrabold text-white">track</span>
           </span>
           {subtitle && (
-            <span className={`block truncate ${subSizes} font-medium text-slate-400`}>
+            <span className={`block truncate ${subSizes} font-semibold uppercase tracking-[0.16em] text-slate-400 mt-0.5`}>
               {subtitle}
             </span>
           )}

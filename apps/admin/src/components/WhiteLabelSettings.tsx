@@ -25,7 +25,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
   const [namingOption, setNamingOption] = useState<"standard" | "action" | "custom">("standard");
   const [customCloseuseTitle, setCustomCloseuseTitle] = useState("");
   const [customLivreurTitle, setCustomLivreurTitle] = useState("");
-  const [selectedBadge, setSelectedBadge] = useState("emerald_pulse");
+  const [selectedBadge, setSelectedBadge] = useState("default_native");
   const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(null);
   const [closeuseColor, setCloseuseColor] = useState("#10B981");
   const [livreurColor, setLivreurColor] = useState("#06B6D4");
@@ -48,7 +48,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
           setNamingOption(wl.namingOption || "standard");
           setCustomCloseuseTitle(wl.customCloseuseTitle || "");
           setCustomLivreurTitle(wl.customLivreurTitle || "");
-          setSelectedBadge(wl.badgeId || "emerald_pulse");
+          setSelectedBadge(wl.badgeId || "default_native");
           setCustomLogoUrl(wl.customLogoUrl || null);
           if (wl.closeuseColor) setCloseuseColor(wl.closeuseColor);
           if (wl.livreurColor) setLivreurColor(wl.livreurColor);
@@ -136,14 +136,19 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 border border-brand/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand mb-2">
-              <Sparkles className="h-3 w-3" /> Personnalisation Employés (White-Label PWA)
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 border border-brand/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand">
+                <Sparkles className="h-3 w-3" /> Apps Employés Uniquement
+              </span>
+              <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10.5px] font-bold text-amber-300">
+                ⭐ Option Plan Pro &amp; Entreprise
+              </span>
             </div>
             <h3 className="text-base font-bold text-slate-100">
-              Personnalisation des Applications Closeuse & Livreur
+              Personnalisation des Applications Closeuse &amp; Livreur
             </h3>
             <p className="mt-1 text-xs text-slate-400 max-w-xl">
-              Configurez le nom et l'icône qui s'affichent sur l'écran d'accueil du téléphone de vos équipes. Vos employés utilisent votre marque, propulsée de manière transparente par le moteur WariTrack.
+              Cette option permet de personnaliser <strong>exclusivement les applications mobiles de vos employés</strong> (Closeuse et Livreur). Le Cockpit Admin reste le socle central WariTrack. Par défaut, les icônes officielles familières restent actives tant que vous ne définissez pas de logo propre.
             </p>
           </div>
 

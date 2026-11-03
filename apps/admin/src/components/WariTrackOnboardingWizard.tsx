@@ -45,6 +45,13 @@ const MONTHLY_VOLUMES = [
 
 export const DEFAULT_EMPLOYEE_BADGES = [
   {
+    id: "default_native",
+    label: "Icônes Officielles Standard (Défaut)",
+    desc: "Conserve les icônes natives familières de la Closeuse et du Livreur",
+    color: "#6366F1",
+    bg: "#0B0F19",
+  },
+  {
     id: "emerald_pulse",
     label: "Wari Émeraude & Or",
     desc: "Cash & Prospérité",
@@ -103,7 +110,7 @@ export default function WariTrackOnboardingWizard({
 
   // Étape 4 : Marque Blanche Apps Employés
   const [employeeNamingOption, setEmployeeNamingOption] = useState<"standard" | "action">("standard");
-  const [selectedBadge, setSelectedBadge] = useState("emerald_pulse");
+  const [selectedBadge, setSelectedBadge] = useState("default_native");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
