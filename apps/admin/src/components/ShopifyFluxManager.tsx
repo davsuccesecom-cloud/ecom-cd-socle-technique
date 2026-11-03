@@ -72,8 +72,19 @@ function getShopHealth(conn: Conn): {
   badgeClass: string;
   dotClass: string;
   needsVerification: boolean;
+  isDisconnected: boolean;
 } {
   const DAY = 24 * 60 * 60 * 1000;
+  if (conn.status === "disconnected" || (conn.status as string) === "inactive") {
+    return {
+      label: "Déconnectée (En pause)",
+      detail: "Le flux Shopify est actuellement déconnecté. Cliquez sur « Reconnecter la boutique » pour réactiver la réception.",
+      badgeClass: "bg-rose-500/15 text-rose-300 border border-rose-500/30",
+      dotClass: "bg-rose-400",
+      needsVerification: false,
+      isDisconnected: true,
+    };
+  }
   if (isPending(conn)) {
     return {
       label: "En attente de vérification",
@@ -81,6 +92,7 @@ function getShopHealth(conn: Conn): {
       badgeClass: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
       dotClass: "bg-amber-400",
       needsVerification: true,
+      isDisconnected: false,
     };
   }
   if (conn.lastOrderAt && Date.now() - conn.lastOrderAt < 2 * DAY) {
@@ -90,6 +102,7 @@ function getShopHealth(conn: Conn): {
       badgeClass: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
       dotClass: "bg-emerald-400",
       needsVerification: false,
+      isDisconnected: false,
     };
   }
   if (conn.lastOrderAt) {
@@ -99,6 +112,7 @@ function getShopHealth(conn: Conn): {
       badgeClass: "bg-sky-500/15 text-sky-400 border border-sky-500/30",
       dotClass: "bg-sky-400",
       needsVerification: false,
+      isDisconnected: false,
     };
   }
   if (conn.webhookVerifiedAt) {
@@ -108,6 +122,7 @@ function getShopHealth(conn: Conn): {
       badgeClass: "bg-sky-500/15 text-sky-400 border border-sky-500/30",
       dotClass: "bg-sky-400",
       needsVerification: false,
+      isDisconnected: false,
     };
   }
   return {
@@ -116,6 +131,7 @@ function getShopHealth(conn: Conn): {
     badgeClass: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
     dotClass: "bg-amber-400",
     needsVerification: true,
+    isDisconnected: false,
   };
 }
 
@@ -180,9 +196,16 @@ export default function ShopifyFluxManager({
   const [addCountryModal, setAddCountryModal] = useState<{ connectionId: string } | null>(null);
   const [selectedCountryToAdd, setSelectedCountryToAdd] = useState("");
 
-  // Modale interne de confirmation de déconnexion (remplace window.confirm)
+  // Modale interne de déconnexion (mise en pause sans suppression)
   const [disconnectTarget, setDisconnectTarget] = useState<{ connectionId: string; shopDomain: string } | null>(null);
   const [disconnectBusy, setDisconnectBusy] = useState(false);
+
+  // Modale interne de suppression définitive (bouton distinct avec deleteDoc)
+  const [deleteTarget, setDeleteTarget] = useState<{ connectionId: string; shopDomain: string } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  // Reconnexion rapide 1-clic
+  const [reconnectBusy, setReconnectBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -487,19 +510,66 @@ export default function ShopifyFluxManager({
     }
   };
 
+  // 1. Déconnexion (Mise en pause sans suppression) : status = "disconnected"
   const confirmDisconnectShop = async () => {
     if (!disconnectTarget) return;
     setDisconnectBusy(true);
     setActionError(null);
     try {
       const db = getDb();
-      await deleteDoc(doc(db, "workspaces", workspaceId, "shopifyConnections", disconnectTarget.connectionId));
+      await updateDoc(
+        doc(db, "workspaces", workspaceId, "shopifyConnections", disconnectTarget.connectionId),
+        {
+          status: "disconnected",
+          disconnectedAt: Date.now(),
+        }
+      );
       setDisconnectTarget(null);
     } catch (err) {
       const f = formatFirebaseError(err);
       setActionError(`${f.title} : ${f.message}`);
     } finally {
       setDisconnectBusy(false);
+    }
+  };
+
+  // 2. Reconnexion instantanée 1-clic : status = "active"
+  const handleReconnectShop = async (connectionId: string) => {
+    setReconnectBusy(connectionId);
+    setActionError(null);
+    try {
+      const db = getDb();
+      await updateDoc(
+        doc(db, "workspaces", workspaceId, "shopifyConnections", connectionId),
+        {
+          status: "active",
+          reconnectedAt: Date.now(),
+        }
+      );
+    } catch (err) {
+      const f = formatFirebaseError(err);
+      setActionError(`${f.title} : ${f.message}`);
+    } finally {
+      setReconnectBusy(null);
+    }
+  };
+
+  // 3. Suppression définitive (bouton dédié à part entière) : deleteDoc
+  const confirmDeleteShop = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    setActionError(null);
+    try {
+      const db = getDb();
+      await deleteDoc(
+        doc(db, "workspaces", workspaceId, "shopifyConnections", deleteTarget.connectionId)
+      );
+      setDeleteTarget(null);
+    } catch (err) {
+      const f = formatFirebaseError(err);
+      setActionError(`${f.title} : ${f.message}`);
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -748,7 +818,31 @@ export default function ShopifyFluxManager({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* Bouton Reconnecter / Configurer / Tester */}
+                      {/* 1. État Déconnectée vs Connectée */}
+                      {health.isDisconnected ? (
+                        <button
+                          type="button"
+                          onClick={() => handleReconnectShop(conn.id)}
+                          disabled={reconnectBusy === conn.id}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/25 transition-colors shadow-sm"
+                          title="Reconnecter cette boutique et réactiver immédiatement le flux"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 text-emerald-400 ${reconnectBusy === conn.id ? "animate-spin" : ""}`} />
+                          <span>{reconnectBusy === conn.id ? "Reconnexion…" : "Reconnecter la boutique"}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setDisconnectTarget({ connectionId: conn.id, shopDomain: conn.shopDomain })}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-500/20 shadow-sm"
+                          title="Mettre en pause et déconnecter le flux de cette boutique (conserve vos règles et données)"
+                        >
+                          <Unlink className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Déconnecter la boutique</span>
+                        </button>
+                      )}
+
+                      {/* 2. Bouton Tester le flux / Vérifier */}
                       <button
                         type="button"
                         onClick={() => openVerification(conn as Conn)}
@@ -757,13 +851,13 @@ export default function ShopifyFluxManager({
                             ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 animate-pulse"
                             : "border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20"
                         }`}
-                        title="Vérifier le webhook, tester la détection ou reconnecter la boutique"
+                        title="Vérifier le webhook, tester la détection ou reconfigurer"
                       >
                         <RefreshCw className="h-3.5 w-3.5 text-sky-400" />
-                        <span>{health.needsVerification ? "Reprendre la vérification" : "Reconnecter & Tester"}</span>
+                        <span>{health.needsVerification ? "Reprendre la vérification" : "Tester le flux"}</span>
                       </button>
 
-                      {/* Bouton Ajouter un pays */}
+                      {/* 3. Bouton Ajouter un pays */}
                       <button
                         type="button"
                         onClick={() => setAddCountryModal({ connectionId: conn.id })}
@@ -773,15 +867,15 @@ export default function ShopifyFluxManager({
                         <span>Ajouter un pays</span>
                       </button>
 
-                      {/* Bouton Déconnecter la boutique */}
+                      {/* 4. BOUTON SUPPRIMER DÉFINITIVEMENT (BOUTON À PART ENTIÈRE) */}
                       <button
                         type="button"
-                        onClick={() => setDisconnectTarget({ connectionId: conn.id, shopDomain: conn.shopDomain })}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-500/20 shadow-sm"
-                        title="Déconnecter cette boutique de WariTrack"
+                        onClick={() => setDeleteTarget({ connectionId: conn.id, shopDomain: conn.shopDomain })}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-300 transition-colors hover:bg-rose-500/20 hover:border-rose-500/50 shadow-sm"
+                        title="Supprimer définitivement cette boutique de votre espace WariTrack"
                       >
-                        <Unlink className="h-3.5 w-3.5 text-rose-400" />
-                        <span>Déconnecter la boutique</span>
+                        <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                        <span>Supprimer</span>
                       </button>
                     </div>
                   </div>
@@ -1417,20 +1511,36 @@ export default function ShopifyFluxManager({
         </div>
       )}
 
-      {/* MODALE DE CONFIRMATION DE DÉCONNEXION D'UNE BOUTIQUE */}
+      {/* 1. MODALE DE CONFIRMATION DE DÉCONNEXION (MISE EN PAUSE SANS SUPPRESSION) */}
       <ConfirmDialog
         open={!!disconnectTarget}
-        title="Déconnecter la boutique Shopify"
+        title="Déconnecter la boutique Shopify ?"
         message={
           disconnectTarget
-            ? `Voulez-vous vraiment déconnecter la boutique ${disconnectTarget.shopDomain} ? Vos commandes existantes restent précieusement conservées dans WariTrack. Vous pourrez reconnecter cette boutique ou une nouvelle boutique à tout moment.`
+            ? `Voulez-vous mettre en pause la boutique ${disconnectTarget.shopDomain} ? Le flux sera déconnecté temporairement sans rien supprimer. Toutes vos routes et vos commandes enregistrées restent intactes. Vous pourrez reconnecter cette boutique en 1 clic à tout moment.`
             : ""
         }
         confirmLabel="Déconnecter la boutique"
-        danger
+        danger={false}
         loading={disconnectBusy}
         onConfirm={confirmDisconnectShop}
         onCancel={() => setDisconnectTarget(null)}
+      />
+
+      {/* 2. MODALE DE CONFIRMATION DE SUPPRESSION DÉFINITIVE (BOUTON DISTINCT) */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Supprimer définitivement la boutique Shopify ?"
+        message={
+          deleteTarget
+            ? `Attention : cette action va supprimer définitivement la boutique ${deleteTarget.shopDomain} et l'ensemble de ses règles de routage de votre espace WariTrack. Vos commandes déjà importées dans vos registres restent précieusement conservées. Cette suppression est irréversible.`
+            : ""
+        }
+        confirmLabel="Supprimer définitivement"
+        danger={true}
+        loading={deleteBusy}
+        onConfirm={confirmDeleteShop}
+        onCancel={() => setDeleteTarget(null)}
       />
 
       {/* MODAL DE CONFIRMATION D'ASSIGNATION / RÉVOCATION */}

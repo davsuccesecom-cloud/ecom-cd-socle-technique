@@ -456,9 +456,14 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             });
             return;
         }
+        // Si la boutique est déconnectée par l'administrateur, on suspend l'importation sans erreur (200 OK)
+        if (found.status === "disconnected") {
+            res.status(200).json({ skipped: true, reason: "Boutique temporairement déconnectée par l'administrateur." });
+            return;
+        }
         // Si la boutique était encore marquée "pending", la réception d'une commande valide
         // prouve que la connexion est 100% active. On l'active automatiquement !
-        if (found.status !== "active") {
+        if (found.status === "pending") {
             try {
                 await connDoc.ref.update({
                     status: "active",

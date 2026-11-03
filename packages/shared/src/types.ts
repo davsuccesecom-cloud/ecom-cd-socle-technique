@@ -181,7 +181,7 @@ export interface ShopifyConnection {
   customDomain?: string; // Domaine personnalisé (ex: "maboutique.com")
   domains?: string[]; // Tous les alias de domaines connus pour cette boutique
   shopName?: string;
-  status: "active" | "pending" | "revoked";
+  status: "active" | "pending" | "revoked" | "disconnected";
   connectedAt: number;
   activatedAt?: number;
   accessToken?: string;

@@ -39,7 +39,7 @@ function normalizePhoneE164(raw: string, defaultCountry = "TG"): { normalized: s
   return { normalized: digits ? `+${digits}` : "", hash: sha256(digits) };
 }
 
-type ConnectionStatus = "active" | "pending";
+type ConnectionStatus = "active" | "pending" | "disconnected" | "inactive";
 
 function cleanDomain(d: string): string {
   if (!d) return "";
@@ -460,9 +460,15 @@ export const shopifyWebhook = onRequest(
         return;
       }
 
+      // Si la boutique est déconnectée par l'administrateur, on suspend l'importation sans erreur (200 OK)
+      if (found.status === "disconnected") {
+        res.status(200).json({ skipped: true, reason: "Boutique temporairement déconnectée par l'administrateur." });
+        return;
+      }
+
       // Si la boutique était encore marquée "pending", la réception d'une commande valide
       // prouve que la connexion est 100% active. On l'active automatiquement !
-      if (found.status !== "active") {
+      if (found.status === "pending") {
         try {
           await connDoc.ref.update({
             status: "active",
