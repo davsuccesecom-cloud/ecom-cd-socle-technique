@@ -165,6 +165,24 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
       )}
 
       <main className="space-y-3 px-4">
+        {/* Prise de conscience des appels : banniere motivante pour la closeuse */}
+        {nouveauCount > 0 && activeTab === "nouveau" && !activeSecondary && (
+          <div className="flex items-center gap-3.5 rounded-2xl border border-purple-500/30 bg-purple-500/10 dark:bg-purple-950/40 p-3.5 shadow-sm">
+            <img
+              src="/icons/app-closeuse-native.png"
+              alt="Sac avec appel"
+              className="h-11 w-11 rounded-2xl object-cover border border-purple-400/40 bg-slate-900 shadow-md shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                {nouveauCount} commande{nouveauCount > 1 ? "s" : ""} en attente d'appel !
+              </p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                Appelez le client dès maintenant pour valider la livraison à chaud.
+              </p>
+            </div>
+          </div>
+        )}
         {loading && <p className="pt-10 text-center text-slate-400">Chargement…</p>}
 
         {!loading && visibleOrders.length === 0 && (

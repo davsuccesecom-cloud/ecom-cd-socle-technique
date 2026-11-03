@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNotifications, type AppNotification } from "@ecomcod/shared";
+import { ShoppingBag, Bot } from "lucide-react";
 
 function timeAgo(ts: number) {
   const diffMin = Math.round((Date.now() - ts) / 60000);
@@ -14,6 +15,54 @@ interface NotificationBellProps {
   workspaceId: string;
   userId?: string;
   onNotificationClick?: (notif: AppNotification) => void;
+}
+
+function getNotificationVisual(title: string, body: string) {
+  const t = `${title} ${body}`.toLowerCase();
+  // Livreur en moto
+  if (
+    t.includes("livreur") ||
+    t.includes("livraison") ||
+    t.includes("colis") ||
+    t.includes("tournée") ||
+    t.includes("expédié") ||
+    t.includes("assigné")
+  ) {
+    return {
+      type: "livreur",
+      src: "/icons/app-livreur-native.png",
+      label: "Livreur en Moto",
+    };
+  }
+  // Sac avec appel (Closeuse)
+  if (
+    t.includes("closeuse") ||
+    t.includes("appel") ||
+    t.includes("rappel") ||
+    t.includes("confirmation") ||
+    t.includes("confirmer") ||
+    t.includes("whatsapp")
+  ) {
+    return {
+      type: "closeuse",
+      src: "/icons/app-closeuse-native.png",
+      label: "Sac avec Appel",
+    };
+  }
+  // Vigie IA
+  if (t.includes("🤖") || t.includes("ia") || t.includes("vigie")) {
+    return {
+      type: "ai",
+      src: null,
+      label: "Vigie IA",
+    };
+  }
+  // Sac avec le trait (Commande)
+  return {
+    type: "order",
+    src: null,
+    label: "Commande",
+  };
 }
 
 export default function NotificationBell({
@@ -61,9 +110,16 @@ export default function NotificationBell({
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="surface-popover absolute right-0 top-11 z-50 max-h-96 w-80 overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised shadow-2xl">
+          <div className="surface-popover absolute right-0 top-11 z-50 max-h-[460px] w-84 sm:w-96 overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-surface-border bg-surface-raised/95 px-4 py-3 backdrop-blur-md">
-              <span className="text-sm font-semibold text-slate-100">Notifications</span>
+              <span className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+                <span>Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="rounded-full bg-accent-red/20 px-2 py-0.2 text-[10px] font-bold text-accent-red">
+                    {unreadCount} nouvelle{unreadCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </span>
               <div className="flex items-center gap-3">
                 {unreadCount > 0 && (
                   <button
@@ -90,30 +146,60 @@ export default function NotificationBell({
               <p className="px-4 py-8 text-center text-sm text-slate-500">Rien pour l'instant.</p>
             ) : (
               <ul className="divide-y divide-surface-border">
-                {notifications.map((n) => (
-                  <li key={n.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        dismissNotification(n.id);
-                        if (onNotificationClick) {
-                          onNotificationClick(n);
-                          setOpen(false);
-                        }
-                      }}
-                      className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-surface/80 active:bg-surface"
-                    >
-                      {!n.read && (
-                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand" />
-                      )}
-                      <div className={`min-w-0 flex-1 ${n.read ? "pl-5" : ""}`}>
-                        <p className="text-sm font-medium text-slate-100">{n.title}</p>
-                        <p className="mt-0.5 truncate text-xs text-slate-400">{n.body}</p>
-                        <p className="mt-1 text-[11px] text-slate-500">{timeAgo(n.createdAt)}</p>
-                      </div>
-                    </button>
-                  </li>
-                ))}
+                {notifications.map((n) => {
+                  const visual = getNotificationVisual(n.title, n.body);
+                  return (
+                    <li key={n.id}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          dismissNotification(n.id);
+                          if (onNotificationClick) {
+                            onNotificationClick(n);
+                            setOpen(false);
+                          }
+                        }}
+                        className={`flex w-full items-start gap-3.5 px-4 py-3 text-left transition-colors hover:bg-surface/80 active:bg-surface ${
+                          !n.read ? "bg-brand/5" : ""
+                        }`}
+                      >
+                        {/* Emblème visuel agrandi : Livreur en moto, Sac avec appel, Sac avec trait */}
+                        <div className="relative shrink-0 mt-0.5">
+                          {visual.src ? (
+                            <img
+                              src={visual.src}
+                              alt={visual.label}
+                              className="h-10 w-10 rounded-xl object-cover border border-white/10 bg-slate-900 shadow-md"
+                            />
+                          ) : visual.type === "ai" ? (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-500/15 text-indigo-400 shadow-md">
+                              <Bot className="h-5 w-5" />
+                            </div>
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/15 text-amber-400 shadow-md">
+                              <ShoppingBag className="h-5 w-5" />
+                            </div>
+                          )}
+                          {!n.read && (
+                            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-brand ring-2 ring-surface-raised animate-pulse" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-100 flex items-center justify-between gap-1">
+                            <span className="truncate">{n.title}</span>
+                            <span className="text-[10px] text-slate-500 shrink-0 font-normal">
+                              {timeAgo(n.createdAt)}
+                            </span>
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-300 leading-relaxed line-clamp-2">
+                            {n.body}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

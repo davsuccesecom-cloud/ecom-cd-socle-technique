@@ -190,31 +190,112 @@ export default function LiveShopifyAnalytics({
     [orders]
   );
 
+  // Commandes confirmées en attente d'expédition ou sur le terrain (Prise de conscience livraisons)
+  const pendingDeliveryCount = useMemo(
+    () =>
+      orders.filter(
+        (o) =>
+          (o.statutCloseuse === "en_cours" ||
+            o.statutCloseuse === "programme" ||
+            o.statutLivreur === "recu" ||
+            o.statutLivreur === "en_route") &&
+          o.statutLivreur !== "livre" &&
+          o.statutLivreur !== "injoignable"
+      ).length,
+    [orders]
+  );
+
   return (
     <div className="space-y-3.5">
-      {/* Bandeau d'alerte opérationnelle — psychologie d'action immédiate */}
-      {urgentCount > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 shadow-sm">
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 shadow-xs">
-              <AlertTriangle className="h-4 w-4" />
-            </span>
-            <p className="text-xs font-medium text-slate-200">
-              <span className="font-bold text-amber-400">
-                {urgentCount} commande{urgentCount > 1 ? "s" : ""}
-              </span>{" "}
-              en attente d'appel prioritaire · Le taux de closing est divisé par 2 après 15 min.
-            </p>
-          </div>
-          {onNavigateToOrders && (
-            <button
-              type="button"
-              onClick={onNavigateToOrders}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-amber-400"
-            >
-              <span>Traiter les fiches</span>
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
+      {/* VIGIE OPÉRATIONNELLE : PRISE DE CONSCIENCE DES LIVRAISONS & APPELS */}
+      {(pendingDeliveryCount > 0 || urgentCount > 0) && (
+        <div
+          className={`grid gap-3.5 ${
+            pendingDeliveryCount > 0 && urgentCount > 0
+              ? "grid-cols-1 lg:grid-cols-2"
+              : "grid-cols-1"
+          }`}
+        >
+          {/* Volet 1 : Prise de conscience Commandes à Livrer (Livreur en Moto) */}
+          {pendingDeliveryCount > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 rounded-2xl border border-sky-500/30 bg-gradient-to-r from-sky-950/40 via-sky-900/15 to-surface-raised p-4 shadow-md transition-all hover:border-sky-500/50">
+              <div className="flex items-center gap-3.5">
+                <div className="relative shrink-0">
+                  <img
+                    src="/icons/app-livreur-native.png"
+                    alt="Livreur en moto"
+                    className="h-12 w-12 rounded-2xl object-cover border border-sky-400/40 bg-slate-900 shadow-md ring-2 ring-sky-500/20"
+                  />
+                  <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-sky-500 px-1.5 text-[10px] font-black text-slate-950 ring-2 ring-slate-950 animate-pulse">
+                    {pendingDeliveryCount}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[9.5px] font-bold text-sky-300 uppercase tracking-wider">
+                      Tournées &amp; Livraisons
+                    </span>
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-1 truncate">
+                    {pendingDeliveryCount} commande{pendingDeliveryCount > 1 ? "s" : ""} confirmée{pendingDeliveryCount > 1 ? "s" : ""} à livrer
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                    Chaque heure de retard réduit le taux de succès client · Activez vos livreurs.
+                  </p>
+                </div>
+              </div>
+              {onNavigateToOrders && (
+                <button
+                  type="button"
+                  onClick={onNavigateToOrders}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-500 px-4 py-2 text-xs font-bold text-slate-950 shadow-md transition hover:bg-sky-400 shrink-0 self-end sm:self-auto"
+                >
+                  <span>Livrer</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Volet 2 : Prise de conscience Appels Closeuses (Sac avec Appel) */}
+          {urgentCount > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/40 via-amber-900/15 to-surface-raised p-4 shadow-md transition-all hover:border-amber-500/50">
+              <div className="flex items-center gap-3.5">
+                <div className="relative shrink-0">
+                  <img
+                    src="/icons/app-closeuse-native.png"
+                    alt="Sac avec appel closeuse"
+                    className="h-12 w-12 rounded-2xl object-cover border border-amber-400/40 bg-slate-900 shadow-md ring-2 ring-amber-500/20"
+                  />
+                  <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-black text-slate-950 ring-2 ring-slate-950 animate-pulse">
+                    {urgentCount}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[9.5px] font-bold text-amber-300 uppercase tracking-wider">
+                      Appels WhatsApp
+                    </span>
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-1 truncate">
+                    {urgentCount} commande{urgentCount > 1 ? "s" : ""} à confirmer
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
+                    Le taux de closing est divisé par 2 après 15 min · Intervenez à chaud.
+                  </p>
+                </div>
+              </div>
+              {onNavigateToOrders && (
+                <button
+                  type="button"
+                  onClick={onNavigateToOrders}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 shadow-md transition hover:bg-amber-400 shrink-0 self-end sm:self-auto"
+                >
+                  <span>Appeler</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -159,6 +159,24 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
       </nav>
 
       <main className="space-y-3 px-4">
+        {/* Prise de conscience des livraisons : banniere motivante pour le livreur */}
+        {countFor("a_livrer") > 0 && activeTab === "a_livrer" && (
+          <div className="flex items-center gap-3.5 rounded-2xl border border-sky-500/30 bg-sky-500/10 dark:bg-sky-950/40 p-3.5 shadow-sm">
+            <img
+              src="/icons/app-livreur-native.png"
+              alt="Livreur en moto"
+              className="h-11 w-11 rounded-2xl object-cover border border-sky-400/40 bg-slate-900 shadow-md shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                {countFor("a_livrer")} colis en attente de livraison !
+              </p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                Activez votre tournée terrain pour remettre les colis aux clients et encaisser le cash.
+              </p>
+            </div>
+          </div>
+        )}
         {loading && <p className="pt-10 text-center text-slate-400">Chargement…</p>}
 
         {!loading && visibleOrders.length === 0 && (
