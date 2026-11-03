@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { getFirebaseAuth, useAdminEmailAuth, ConnectionGuard } from "@ecomcod/shared";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { useTheme } from "./hooks/useTheme";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
@@ -37,7 +38,7 @@ export default function App() {
   const [showSlowLoadingNotice, setShowSlowLoadingNotice] = useState(false);
 
   useEffect(() => {
-    let isCancelled = false;
+    let active = true;
 
     if (!firebaseUser) {
       setClaims(null);
@@ -49,40 +50,70 @@ export default function App() {
 
     async function resolveClaims() {
       try {
-        // 1. Lecture directe depuis l'instance firebaseUser (garantie non-nulle)
+        // 1. Lecture directe depuis l'instance firebaseUser locale (quasi-instantané)
         let tokenResult = await firebaseUser!.getIdTokenResult();
         let wsId = tokenResult?.claims?.workspaceId as string | undefined;
         let role = tokenResult?.claims?.role as string | undefined;
 
-        // 2. Si les claims sont encore absents (ex: premier jet après provision ou reload immédiat),
-        // on force un rafraîchissement auprès des serveurs Firebase Auth
+        // 2. Si les claims sont encore absents, tentative rapide auprès du serveur Firebase Auth (max 2.5s)
         if (!wsId || !role) {
           try {
-            tokenResult = await firebaseUser!.getIdTokenResult(true);
+            tokenResult = await Promise.race([
+              firebaseUser!.getIdTokenResult(true),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Timeout getIdTokenResult")), 2500)
+              ),
+            ]);
             wsId = tokenResult?.claims?.workspaceId as string | undefined;
             role = tokenResult?.claims?.role as string | undefined;
           } catch (refreshErr) {
-            console.warn("Échec du rafraîchissement forcé du token Firebase :", refreshErr);
+            console.warn("Rafraîchissement forcé du token ignoré ou timeout :", refreshErr);
           }
         }
 
-        if (isCancelled) return;
+        // 3. Si toujours absents, appel direct de la Cloud Function authenticateAdmin pour récupérer le workspace lié
+        if (!wsId || !role) {
+          try {
+            const functions = getFunctions();
+            const authenticateAdmin = httpsCallable<{ workspaceName?: string }, { workspaceId: string; role?: string }>(
+              functions,
+              "authenticateAdmin"
+            );
+            const authRes = await Promise.race([
+              authenticateAdmin({}),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error("Timeout authenticateAdmin")), 3500)
+              ),
+            ]);
+            if (authRes.data?.workspaceId) {
+              wsId = authRes.data.workspaceId;
+              role = authRes.data.role || "admin";
+              // Rafraîchissement en tâche de fond pour les prochaines requêtes
+              firebaseUser!.getIdTokenResult(true).catch(() => {});
+            }
+          } catch (callErr) {
+            console.warn("Tentative d'auto-rattachement authenticateAdmin :", callErr);
+          }
+        }
 
-        if (wsId && role) {
-          setClaims({
-            workspaceId: wsId,
-            role,
-          });
-        } else {
-          setClaims(null);
+        if (active) {
+          if (wsId) {
+            setClaims({
+              workspaceId: wsId,
+              role: role || "admin",
+            });
+          } else {
+            setClaims(null);
+          }
         }
       } catch (err) {
         console.error("Erreur lors de la résolution des droits admin :", err);
-        if (!isCancelled) {
+        if (active) {
           setClaims(null);
         }
       } finally {
-        if (!isCancelled) {
+        // Déblocage garanti de l'écran quoi qu'il arrive
+        if (active) {
           setClaimsLoading(false);
         }
       }
@@ -90,8 +121,16 @@ export default function App() {
 
     resolveClaims();
 
+    // Filet de sécurité absolu : empêche tout blocage infini du loader après 4 secondes
+    const hardTimeout = setTimeout(() => {
+      if (active) {
+        setClaimsLoading(false);
+      }
+    }, 4000);
+
     return () => {
-      isCancelled = true;
+      active = false;
+      clearTimeout(hardTimeout);
     };
   }, [firebaseUser, needsWorkspaceName, busy]);
 
@@ -191,8 +230,12 @@ export default function App() {
     );
   }
 
-  // Si l'utilisateur est connecté et ses droits admin sont validés, on affiche le tableau de bord
-  if (firebaseUser && claims?.workspaceId && claims.role === "admin") {
+  // Si l'utilisateur est connecté et possède un espace de travail, on affiche le tableau de bord
+  if (
+    firebaseUser &&
+    claims?.workspaceId &&
+    (claims.role === "admin" || !claims.role || claims.role === "owner")
+  ) {
     return (
       <ConnectionGuard appName="Admin">
         <Dashboard
@@ -205,8 +248,8 @@ export default function App() {
     );
   }
 
-  // Si l'utilisateur a créé un compte et doit nommer son workspace
-  if (firebaseUser && needsWorkspaceName) {
+  // Si l'utilisateur a créé un compte et doit nommer son workspace (ou aucun workspace lié à cet email)
+  if (firebaseUser && (needsWorkspaceName || !claims?.workspaceId) && !claimsLoading && !authLoading) {
     return (
       <LandingPage
         sendLoginLink={sendLoginLink}
