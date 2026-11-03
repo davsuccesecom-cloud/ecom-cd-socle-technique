@@ -334,6 +334,10 @@ export const trackSession = onRequest(
         fbp: body.fbp || "",
         fbc: body.fbc || "",
         fbclid: body.fbclid || "",
+        ttclid: body.ttclid || "",
+        ttp: body.ttp || "",
+        gclid: body.gclid || "",
+        referrer: (body.referrer || "").slice(0, 500),
         utmSource: body.utm_source || body.utmSource || "",
         utmMedium: body.utm_medium || body.utmMedium || "",
         utmCampaign: body.utm_campaign || body.utmCampaign || "",
@@ -623,6 +627,10 @@ export const shopifyWebhook = onRequest(
                 fbp: s.fbp || "",
                 fbc: s.fbc || "",
                 fbclid: s.fbclid || "",
+                ttclid: s.ttclid || "",
+                ttp: s.ttp || "",
+                gclid: s.gclid || "",
+                referrer: s.referrer || "",
                 utm: {
                   source: s.utmSource || "",
                   medium: s.utmMedium || "",
@@ -673,6 +681,74 @@ export const shopifyWebhook = onRequest(
         } catch (dupErr) {
           console.warn("shopifyWebhook: vérification doublon numéro ignorée (non bloquant):", dupErr);
         }
+      }
+
+      // =====================================================================
+      // ANALYSE MULTI-CANAUX & VÉRIFICATION D'ATTRIBUTION HORS CAMPAGNE
+      // Vérification fbp/fbc (Meta), ttclid/_ttp (TikTok), gclid (Google) et Trafic Organique
+      // =====================================================================
+      const landingSite = String(orderPayload.landing_site || orderPayload.landing_site_ref || "").toLowerCase();
+      const referringSite = String(orderPayload.referring_site || "").toLowerCase();
+
+      // Extraction des notes Shopify (EasySell / formulaires COD injectent souvent les trackers ici)
+      const noteMap: Record<string, string> = {};
+      if (Array.isArray(noteAttributes)) {
+        for (const attr of noteAttributes) {
+          if (attr && typeof attr.name === "string" && typeof attr.value === "string") {
+            noteMap[attr.name.toLowerCase().trim()] = attr.value.trim();
+          }
+        }
+      }
+
+      const effectiveFbp = String(sessionData.fbp || noteMap["_fbp"] || noteMap["fbp"] || "");
+      const effectiveFbc = String(sessionData.fbc || noteMap["_fbc"] || noteMap["fbc"] || "");
+      const effectiveFbclid = String(sessionData.fbclid || noteMap["fbclid"] || (landingSite.match(/[?&]fbclid=([^&#]+)/i)?.[1] ?? ""));
+      const effectiveTtclid = String(sessionData.ttclid || noteMap["ttclid"] || noteMap["_ttclid"] || (landingSite.match(/[?&]ttclid=([^&#]+)/i)?.[1] ?? ""));
+      const effectiveTtp = String(sessionData.ttp || noteMap["_ttp"] || noteMap["ttp"] || "");
+      const effectiveGclid = String(sessionData.gclid || noteMap["gclid"] || (landingSite.match(/[?&]gclid=([^&#]+)/i)?.[1] ?? ""));
+      const rawUtm = (sessionData.utm as Record<string, string>) || {};
+      const utmSource = String(rawUtm.source || noteMap["utm_source"] || (landingSite.match(/[?&]utm_source=([^&#]+)/i)?.[1] ?? "")).toLowerCase();
+      const utmMedium = String(rawUtm.medium || noteMap["utm_medium"] || (landingSite.match(/[?&]utm_medium=([^&#]+)/i)?.[1] ?? "")).toLowerCase();
+      const utmCampaign = String(rawUtm.campaign || noteMap["utm_campaign"] || (landingSite.match(/[?&]utm_campaign=([^&#]+)/i)?.[1] ?? ""));
+
+      let trafficSource: "meta_ads" | "tiktok_ads" | "google_ads" | "organique" | "acces_libre_site" = "organique";
+      let capiIsolated = false;
+      let attributionDetail = "";
+
+      if (isDuplicatePhone) {
+        trafficSource = "acces_libre_site";
+        capiIsolated = true; // Isolé pour protéger le budget Meta CAPI
+        attributionDetail = "Numéro doublon / Ancien client (Accès libre site)";
+      } else if (
+        effectiveTtclid ||
+        effectiveTtp ||
+        utmSource.includes("tiktok") ||
+        referringSite.includes("tiktok")
+      ) {
+        trafficSource = "tiktok_ads";
+        capiIsolated = true; // Isolé de Meta CAPI car campagne TikTok Ads
+        attributionDetail = "Campagne TikTok Ads";
+      } else if (
+        effectiveGclid ||
+        (utmSource.includes("google") && (utmMedium.includes("cpc") || utmMedium.includes("ads")))
+      ) {
+        trafficSource = "google_ads";
+        capiIsolated = true; // Isolé de Meta CAPI car campagne Google Ads
+        attributionDetail = "Campagne Google Ads";
+      } else if (
+        effectiveFbclid ||
+        (effectiveFbc && effectiveFbc.startsWith("fb.1.")) ||
+        ["facebook", "fb", "instagram", "ig", "meta"].some((s) => utmSource.includes(s))
+      ) {
+        // Campagne Meta Ads vérifiée par fbc ou fbclid
+        trafficSource = "meta_ads";
+        capiIsolated = false; // Validé pour Meta CAPI
+        attributionDetail = "Campagne Meta Ads (fbc/fbclid vérifié)";
+      } else {
+        // Commande hors campagne : trafic naturel, recherche organique, direct
+        trafficSource = "organique";
+        capiIsolated = true; // Isolé de Meta CAPI pour ne pas fausser le pixel sur du trafic non payant
+        attributionDetail = "Organique / Hors campagne (Trafic naturel direct sans clic publicitaire)";
       }
 
       // Création de la commande dans Firestore
@@ -815,6 +891,8 @@ export const getStorefrontTrackerScript = onRequest(
     var params = new URLSearchParams(window.location.search);
     return {
       fbclid: params.get('fbclid') || '',
+      ttclid: params.get('ttclid') || '',
+      gclid: params.get('gclid') || '',
       utm_source: params.get('utm_source') || '',
       utm_medium: params.get('utm_medium') || '',
       utm_campaign: params.get('utm_campaign') || '',
@@ -835,6 +913,10 @@ export const getStorefrontTrackerScript = onRequest(
         fbp: getCookie('_fbp'),
         fbc: getCookie('_fbc') || (p.fbclid ? 'fb.1.' + Date.now() + '.' + p.fbclid : ''),
         fbclid: p.fbclid,
+        ttclid: p.ttclid,
+        ttp: getCookie('_ttp'),
+        gclid: p.gclid,
+        referrer: document.referrer || '',
         utm_source: p.utm_source,
         utm_medium: p.utm_medium,
         utm_campaign: p.utm_campaign,

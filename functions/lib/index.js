@@ -783,7 +783,11 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             catch { }
         }
         // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI) enrichi
+        // Vérification d'attribution stricte : réservé à Meta Ads (fbc/fbclid vérifié),
+        // exclu pour le trafic organique, TikTok Ads, Google Ads ou numéro doublon
         if (!isPhoneAlreadyTracked &&
+            !after.capiIsolated &&
+            (after.trafficSource === "meta_ads" || (!after.trafficSource && !after.isDuplicatePhone)) &&
             team?.metaCapiConfig?.enabled &&
             team.metaCapiConfig.pixelId &&
             team.metaCapiConfig.accessToken) {
@@ -817,12 +821,13 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
         }
     }
-    // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse (hors doublon isolé)
+    // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse (réservé Meta Ads)
     if (statutCloseuseChanged &&
         (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme") &&
         !after.capiConfirmedSent &&
         !after.capiIsolated &&
-        !after.isDuplicatePhone) {
+        !after.isDuplicatePhone &&
+        (after.trafficSource === "meta_ads" || (!after.trafficSource && !after.isDuplicatePhone))) {
         const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(after.teamId).get();
         const team = teamSnap.data();
         if (team?.metaCapiConfig?.enabled &&

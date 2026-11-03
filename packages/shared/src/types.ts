@@ -118,7 +118,7 @@ export interface Order {
   capiSent: boolean;
   capiConfirmedSent?: boolean;
   capiIsolated?: boolean; // true si isolé du tracking Meta (ex: numéro doublon / accès libre site)
-  trafficSource?: "meta_ads" | "acces_libre_site"; // qualification d'attribution
+  trafficSource?: "meta_ads" | "tiktok_ads" | "google_ads" | "organique" | "acces_libre_site"; // qualification d'attribution multi-canaux
   isDuplicatePhone?: boolean; // true si ce numéro a déjà commandé
   previousOrdersCount?: number;
   previousRejectionsCount?: number;
@@ -152,6 +152,13 @@ export interface ShopifyOrderData {
   fbp?: string;
   fbc?: string;
   fbclid?: string;
+  ttclid?: string;
+  ttp?: string;
+  gclid?: string;
+  referrer?: string;
+  landingSite?: string;
+  referringSite?: string;
+  attributionDetail?: string;
   utm?: {
     source?: string;
     medium?: string;
