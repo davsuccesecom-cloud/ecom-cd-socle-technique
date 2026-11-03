@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ThemeQuickPicker from "./ThemeQuickPicker";
+import WariTrackLogo from "./WariTrackLogo";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -95,26 +96,12 @@ export default function Sidebar({
     >
       {/* En-tête marque + bouton réduction */}
       <div className="mb-6 flex items-center justify-between px-1.5">
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-surface-border bg-surface">
-            <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />
-          </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <span className="block truncate text-sm font-bold tracking-tight text-slate-100">
-                Ecom COD
-              </span>
-              <span className="block truncate text-[10px] font-medium text-slate-500">
-                Pilotage Opérationnel
-              </span>
-            </div>
-          )}
-        </div>
+        <WariTrackLogo variant={collapsed ? "icon" : "full"} subtitle="Pilotage Opérationnel" />
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
           title={collapsed ? "Déplier le menu" : "Réduire le menu"}
-          className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-200"
+          className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-200 shrink-0"
         >
           {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>

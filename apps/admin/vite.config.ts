@@ -13,16 +13,16 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
       manifest: {
-        name: "Ecom COD — Admin",
-        short_name: "Admin",
-        description: "Pilotage du business COD",
-        theme_color: "#0B0D10",
-        background_color: "#0B0D10",
+        name: "WariTrack — Cockpit Admin",
+        short_name: "WariTrack",
+        description: "Cash & Logistics Operating System for Africa",
+        theme_color: "#07090F",
+        background_color: "#07090F",
         display: "standalone",
         start_url: "/",
         icons: [
-          { src: "icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "icons/waritrack-3d-192.png", sizes: "192x192", type: "image/png" },
+          { src: "icons/waritrack-3d-512.png", sizes: "512x512", type: "image/png" },
         ],
       },
       workbox: {

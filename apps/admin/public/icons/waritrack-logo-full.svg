@@ -1,0 +1,20 @@
+<svg width="240" height="56" viewBox="0 0 240 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Emblème Icone -->
+  <rect x="4" y="4" width="48" height="48" rx="14" fill="#090D16" stroke="#1E293B" stroke-width="1.5"/>
+  <circle cx="28" cy="28" r="19" stroke="#10B981" stroke-width="1" stroke-opacity="0.18"/>
+  <path d="M15 19L21.5 37L28 25L34.5 37L41 19" stroke="url(#wariFullGrad)" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="28" cy="25" r="3.5" fill="#10B981"/>
+  <circle cx="28" cy="25" r="1.8" fill="#FFFFFF"/>
+
+  <!-- Typographie WariTrack -->
+  <text x="64" y="32" font-family="system-ui, -apple-system, 'Plus Jakarta Sans', sans-serif" font-size="22" font-weight="900" fill="#FFFFFF" letter-spacing="-0.5">Wari<tspan fill="#10B981">Track</tspan></text>
+  <text x="65" y="45" font-family="system-ui, -apple-system, 'Plus Jakarta Sans', sans-serif" font-size="9" font-weight="600" fill="#64748B" letter-spacing="0.5">OPERATING SYSTEM</text>
+
+  <defs>
+    <linearGradient id="wariFullGrad" x1="15" y1="19" x2="41" y2="37" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34D399"/>
+      <stop offset="0.6" stop-color="#10B981"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+</svg>

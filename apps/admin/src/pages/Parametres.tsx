@@ -19,11 +19,13 @@ import {
   Download,
   Copy,
   PhoneCall,
+  Smartphone,
 } from "lucide-react";
 import { useTheme, ACCENT_PRESETS } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import ShopifyFluxManager from "../components/ShopifyFluxManager";
 import PrintReceiptConfig from "../components/PrintReceiptConfig";
+import WhiteLabelSettings from "../components/WhiteLabelSettings";
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
@@ -34,7 +36,7 @@ interface ParametresProps {
   orders?: Order[];
 }
 
-type SettingsTab = "general" | "rules" | "shopify" | "print" | "metacapi" | "phone_export";
+type SettingsTab = "general" | "rules" | "shopify" | "print" | "metacapi" | "phone_export" | "white_label";
 
 const SOUND_KEY = "ecomcod-sound-notifications";
 
@@ -88,6 +90,12 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
       label: "Export Numéros & SAV",
       desc: "Extraction complète des numéros sur une durée",
       icon: PhoneCall,
+    },
+    {
+      id: "white_label",
+      label: "Apps Employés & Marque Blanche",
+      desc: "Nom, icônes & couleurs closeuses/livreurs",
+      icon: Smartphone,
     },
     {
       id: "general",
@@ -323,6 +331,8 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
           )}
 
           {activeTab === "phone_export" && <PhoneExportManager team={team} orders={orders} />}
+
+          {activeTab === "white_label" && <WhiteLabelSettings workspaceId={workspaceId} />}
         </div>
       </div>
     </div>

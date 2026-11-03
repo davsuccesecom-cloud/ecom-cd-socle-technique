@@ -268,18 +268,18 @@ export default function LandingPage({
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050814]/85 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-indigo-500/25 to-purple-600/30 shadow-md">
-              <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-slate-900 shadow-md">
+              <img src="/icons/waritrack-3d-192.png" alt="WariTrack" className="h-full w-full object-cover" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-base font-extrabold tracking-tight text-white">Ecom COD</span>
-                <span className="rounded-full border border-indigo-500/40 bg-indigo-500/15 px-2 py-0.5 text-[10px] font-bold text-indigo-300">
-                  v3.0
+                <span className="text-base font-extrabold tracking-tight text-white">Wari<span className="text-emerald-400">Track</span></span>
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  v3.2
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 hidden sm:block">
-                Système d'Exploitation E-Commerce COD Afrique
+                Cash & Logistics Operating System pour l'Afrique
               </p>
             </div>
           </div>
@@ -923,11 +923,11 @@ export default function LandingPage({
       <footer className="border-t border-white/10 bg-[#040711] px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-gradient-to-br from-indigo-500/20 to-purple-500/20">
-              <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-slate-900 shadow-sm">
+              <img src="/icons/waritrack-3d-192.png" alt="WariTrack" className="h-full w-full object-cover" />
             </div>
             <div>
-              <p className="text-sm font-extrabold text-white">Ecom COD — Socle Technique Opérationnel</p>
+              <p className="text-sm font-extrabold text-white">WariTrack — Cash & Logistics Operating System</p>
               <p className="text-[11px] text-slate-400">
                 Pilotage Cash-On-Delivery Pan-Africain • Togo, Bénin, Côte d'Ivoire, Sénégal, Cameroun & International
               </p>

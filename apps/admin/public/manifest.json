@@ -1,35 +1,35 @@
 {
-    "name":  "Ecom COD — Admin",
-    "short_name":  "Ecom COD",
-    "description":  "Gestion des commandes COD, closeuses et livreurs",
-    "start_url":  "/",
-    "display":  "standalone",
-    "background_color":  "#0B0D10",
-    "theme_color":  "#0B0D10",
-    "icons":  [
-                  {
-                      "purpose":  "any",
-                      "type":  "image/png",
-                      "sizes":  "192x192",
-                      "src":  "/icons/icon-192.png"
-                  },
-                  {
-                      "purpose":  "any",
-                      "type":  "image/png",
-                      "sizes":  "512x512",
-                      "src":  "/icons/icon-512.png"
-                  },
-                  {
-                      "purpose":  "maskable",
-                      "type":  "image/png",
-                      "sizes":  "192x192",
-                      "src":  "/icons/icon-192-maskable.png"
-                  },
-                  {
-                      "purpose":  "maskable",
-                      "type":  "image/png",
-                      "sizes":  "512x512",
-                      "src":  "/icons/icon-512-maskable.png"
-                  }
-              ]
+  "name": "WariTrack — Cockpit Admin",
+  "short_name": "WariTrack",
+  "description": "Cash & Logistics Operating System for Africa",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090F",
+  "theme_color": "#07090F",
+  "icons": [
+    {
+      "purpose": "any",
+      "type": "image/png",
+      "sizes": "192x192",
+      "src": "/icons/waritrack-3d-192.png"
+    },
+    {
+      "purpose": "any",
+      "type": "image/png",
+      "sizes": "512x512",
+      "src": "/icons/waritrack-3d-512.png"
+    },
+    {
+      "purpose": "maskable",
+      "type": "image/png",
+      "sizes": "192x192",
+      "src": "/icons/waritrack-3d-192.png"
+    },
+    {
+      "purpose": "maskable",
+      "type": "image/png",
+      "sizes": "512x512",
+      "src": "/icons/waritrack-3d-512.png"
+    }
+  ]
 }

@@ -20,6 +20,7 @@ import {
 import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
 import CreateTeamForm from "../components/CreateTeamForm";
+import WariTrackOnboardingWizard from "../components/WariTrackOnboardingWizard";
 import MarketSelector from "../components/MarketSelector";
 import StatCard from "../components/StatCard";
 import StatusDonut from "../components/StatusDonut";
@@ -28,6 +29,7 @@ import FluxTempsReel from "../components/FluxTempsReel";
 import PerformanceEmployes from "../components/PerformanceEmployes";
 import NotificationBell from "../components/NotificationBell";
 import ThemeQuickPicker from "../components/ThemeQuickPicker";
+import WariTrackLogo from "../components/WariTrackLogo";
 import CommandPalette from "../components/CommandPalette";
 import LiveShopifyAnalytics from "../components/LiveShopifyAnalytics";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
@@ -247,14 +249,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
 
       {/* Mobile Top Bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-surface-border bg-surface/95 px-4 py-2.5 backdrop-blur-md md:hidden">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-surface-border">
-            <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />
-          </div>
-          <div>
-            <span className="text-sm font-semibold text-slate-100">Ecom COD</span>
-            {activeTeam && <p className="text-[10px] text-slate-500">{activeTeam.name}</p>}
-          </div>
+        <div className="flex items-center gap-2">
+          <WariTrackLogo size="sm" variant="full" subtitle={activeTeam ? activeTeam.name : "Cockpit"} />
         </div>
         <div className="flex items-center gap-1.5">
           <ThemeQuickPicker />
@@ -341,7 +337,11 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         </header>
 
         {teams.length === 0 && !teamsLoading ? (
-          <CreateTeamForm workspaceId={workspaceId} onCreated={(newTeamId) => setTeamId(newTeamId)} />
+          <WariTrackOnboardingWizard
+            workspaceId={workspaceId}
+            adminEmail={userEmail}
+            onCompleted={(newTeamId) => setTeamId(newTeamId)}
+          />
         ) : page === "ai_assistant" ? (
           <AiAssistant
             workspaceId={workspaceId}

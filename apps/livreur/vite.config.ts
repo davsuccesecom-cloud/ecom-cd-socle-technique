@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
       manifest: {
-        name: "Ecom COD — Livreur",
+        name: "WariTrack — Livreur",
         short_name: "Livreur",
-        description: "Suivi des livraisons COD",
+        description: "Feuille de route et encaissements livraisons COD",
         theme_color: "#0EA5E9",
         background_color: "#F8FAFC",
         display: "standalone",

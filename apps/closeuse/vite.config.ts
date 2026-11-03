@@ -12,9 +12,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg"],
       manifest: {
-        name: "Ecom COD — Closeuse",
+        name: "WariTrack — Closeuse",
         short_name: "Closeuse",
-        description: "Gestion des commandes COD",
+        description: "Gestion des commandes COD et qualification WhatsApp",
         theme_color: "#4F46E5",
         background_color: "#F8FAFC",
         display: "standalone",
