@@ -1,43 +1,39 @@
-<svg width="280" height="70" viewBox="0 0 280 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="360" height="90" viewBox="0 0 360 90" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="wtWVioletFull" x1="16" y1="16" x2="28" y2="54" gradientUnits="userSpaceOnUse">
+    <linearGradient id="legVioletFull" x1="24" y1="20" x2="52" y2="82" gradientUnits="userSpaceOnUse">
       <stop stop-color="#8B5CF6" />
       <stop offset="1" stop-color="#6366F1" />
     </linearGradient>
-    <linearGradient id="wtWCyanFull" x1="28" y1="54" x2="40" y2="24" gradientUnits="userSpaceOnUse">
+    <linearGradient id="legCyanFull" x1="52" y1="82" x2="80" y2="35" gradientUnits="userSpaceOnUse">
       <stop stop-color="#06B6D4" />
       <stop offset="1" stop-color="#00D2FF" />
     </linearGradient>
-    <linearGradient id="wtWGoldFull" x1="40" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FDE047" />
+    <linearGradient id="legGoldFull" x1="80" y1="35" x2="108" y2="82" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCD34D" />
       <stop offset="1" stop-color="#F59E0B" />
     </linearGradient>
-    <linearGradient id="wtWOrangeFull" x1="52" y1="54" x2="64" y2="16" gradientUnits="userSpaceOnUse">
+    <linearGradient id="legOrangeFull" x1="108" y1="82" x2="136" y2="20" gradientUnits="userSpaceOnUse">
       <stop stop-color="#FF7A1A" />
       <stop offset="1" stop-color="#EA580C" />
     </linearGradient>
   </defs>
 
-  <g transform="translate(4, -1)">
-    <g stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M16 19L27 53" stroke="url(#wtWVioletFull)" />
-      <path d="M53 53L64 19" stroke="url(#wtWOrangeFull)" />
-      <path d="M40 25L53 53" stroke="url(#wtWGoldFull)" />
-      <path d="M27 53L40 25" stroke="url(#wtWCyanFull)" />
+  <g transform="translate(6, 6) scale(0.76)">
+    <g stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M29 29L54 79" stroke="url(#legVioletFull)" />
+      <path d="M106 79L131 29" stroke="url(#legOrangeFull)" />
+      <path d="M80 37L106 79" stroke="url(#legGoldFull)" />
+      <path d="M54 79L80 37" stroke="url(#legCyanFull)" />
     </g>
 
-    <circle cx="40" cy="25" r="3" fill="#FFFFFF" />
-    <circle cx="40" cy="25" r="1.5" fill="#0F172A" />
-    <circle cx="16" cy="19" r="2" fill="#A78BFA" />
-    <circle cx="27" cy="53" r="2" fill="#38BDF8" />
-    <circle cx="53" cy="53" r="2" fill="#FBBF24" />
-    <circle cx="64" cy="19" r="2" fill="#FB923C" />
+    <circle cx="80" cy="37" r="9.5" fill="#FFFFFF" />
+    <circle cx="80" cy="37" r="4.6" fill="#07090F" />
   </g>
 
-  <text x="78" y="44" fill="#FFFFFF" font-size="28" font-weight="700" letter-spacing="-0.3" font-family="system-ui, -apple-system, sans-serif">
-    wari<tspan fill="#FFFFFF" font-weight="800">track</tspan>
+  <text x="140" y="52" fill="#FFFFFF" font-size="38" font-weight="900" letter-spacing="-0.8" font-family="system-ui, -apple-system, sans-serif">
+    waritrack
   </text>
-  <text x="79" y="58" fill="#94A3B8" font-size="9" font-weight="700" letter-spacing="2" font-family="system-ui, -apple-system, sans-serif">
+  <text x="142" y="70" fill="#38BDF8" font-size="12" font-weight="800" letter-spacing="3" font-family="system-ui, -apple-system, sans-serif">
     LOGISTICS PLATFORM
   </text>
 </svg>

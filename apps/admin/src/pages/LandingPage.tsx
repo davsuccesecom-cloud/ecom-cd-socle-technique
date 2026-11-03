@@ -28,6 +28,7 @@ import {
 import AfricaNetworkMap3D from "../components/AfricaNetworkMap3D";
 import LegalPrivacyModal, { type LegalTab } from "../components/LegalPrivacyModal";
 import WhatsAppIcon from "../components/WhatsAppIcon";
+import WariTrackLogo from "../components/WariTrackLogo";
 
 interface LandingPageProps {
   sendLoginLink?: (email: string) => Promise<void>;
@@ -268,20 +269,10 @@ export default function LandingPage({
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050814]/85 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-slate-900 shadow-md">
-              <img src="/icons/waritrack-3d-192.png" alt="WariTrack" className="h-full w-full object-cover" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-base font-extrabold tracking-tight text-white">Wari<span className="text-emerald-400">Track</span></span>
-                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                  v3.2
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 hidden sm:block">
-                Cash & Logistics Operating System pour l'Afrique
-              </p>
-            </div>
+            <WariTrackLogo size="lg" variant="full" roundedBadge subtitle="Cash & Logistics OS" />
+            <span className="rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10px] font-bold text-sky-300 hidden sm:inline-block">
+              v3.2
+            </span>
           </div>
 
           <nav className="hidden items-center gap-7 text-xs font-semibold text-slate-200 md:flex">
@@ -923,15 +914,7 @@ export default function LandingPage({
       <footer className="border-t border-white/10 bg-[#040711] px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-slate-900 shadow-sm">
-              <img src="/icons/waritrack-3d-192.png" alt="WariTrack" className="h-full w-full object-cover" />
-            </div>
-            <div>
-              <p className="text-sm font-extrabold text-white">WariTrack — Cash & Logistics Operating System</p>
-              <p className="text-[11px] text-slate-400">
-                Pilotage Cash-On-Delivery Pan-Africain • Togo, Bénin, Côte d'Ivoire, Sénégal, Cameroun & International
-              </p>
-            </div>
+            <WariTrackLogo size="md" variant="full" roundedBadge subtitle="Pan-African Cash & Logistics OS" />
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 font-medium">

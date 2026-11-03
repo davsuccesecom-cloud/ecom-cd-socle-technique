@@ -15,6 +15,7 @@ import {
   Layers,
   ShieldCheck,
   Check,
+  X,
 } from "lucide-react";
 import { useTheme, ACCENT_PRESETS, type AccentColor } from "../hooks/useTheme";
 import CountryMapBackdrop, { getCountryMeta } from "./CountryMapBackdrop";
@@ -190,21 +191,34 @@ export default function WariTrackOnboardingWizard({
   };
 
   return (
-    <div className="relative mx-auto max-w-2xl py-6 sm:py-10">
-      {/* Conteneur Principal façon Shopify Plus */}
-      <div className="relative overflow-hidden rounded-3xl border border-surface-border bg-surface-raised p-6 sm:p-10 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-slate-950/65 backdrop-blur-[3px] animate-in fade-in duration-200">
+      {/* Conteneur Principal façon Shopify Plus en Pop-up avec Coins Arrondis */}
+      <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-surface-border bg-surface-raised p-6 sm:p-8 shadow-2xl my-auto">
         
-        {/* En-tête Wizard avec Logo Officiel WariTrack & Progression */}
-        <div className="mb-8 border-b border-surface-border pb-6">
-          <div className="flex items-center justify-between">
-            <WariTrackLogo size="md" variant="full" subtitle="Configuration Initiale Cockpit" />
-            <span className="text-xs font-mono font-bold text-brand">
-              Étape {step} sur 4
-            </span>
+        {/* En-tête Wizard avec Logo Officiel WariTrack, Progression & Bouton Fermer/Skip */}
+        <div className="mb-6 border-b border-surface-border pb-5">
+          <div className="flex items-center justify-between gap-3">
+            <WariTrackLogo size="md" variant="full" roundedBadge subtitle="Configuration Initiale Cockpit" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-brand">
+                Étape {step} sur 4
+              </span>
+              {onSkip && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-surface border border-surface-border transition ml-1"
+                  title="Fermer et configurer plus tard"
+                  aria-label="Fermer et configurer plus tard"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Barre de progression fluide */}
-          <div className="mt-5 grid grid-cols-4 gap-2">
+          <div className="mt-4 grid grid-cols-4 gap-2">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
@@ -586,22 +600,32 @@ export default function WariTrackOnboardingWizard({
         )}
 
         {/* ====================================================================
-            PIED DE PAGE AVEC NAVIGATION
+            PIED DE PAGE AVEC NAVIGATION & BOUTON SKIP
             ==================================================================== */}
         <div className="mt-8 flex items-center justify-between border-t border-surface-border pt-6">
-          {step > 1 ? (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s - 1)}
-              disabled={loading}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-surface-subtle transition"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Retour
-            </button>
-          ) : (
-            <div />
-          )}
+          <div className="flex items-center gap-3">
+            {step > 1 ? (
+              <button
+                type="button"
+                onClick={() => setStep((s) => s - 1)}
+                disabled={loading}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-surface-subtle transition"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Retour
+              </button>
+            ) : null}
+
+            {onSkip && (
+              <button
+                type="button"
+                onClick={onSkip}
+                className="text-xs font-semibold text-slate-400 hover:text-slate-200 underline-offset-4 hover:underline transition px-2 py-1"
+              >
+                Passer pour l'instant
+              </button>
+            )}
+          </div>
 
           {step < 4 ? (
             <button

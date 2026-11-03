@@ -5,6 +5,7 @@ interface WariTrackLogoProps {
   variant?: "icon" | "full";
   className?: string;
   subtitle?: string;
+  roundedBadge?: boolean;
 }
 
 export default function WariTrackLogo({
@@ -12,23 +13,24 @@ export default function WariTrackLogo({
   variant = "full",
   className = "",
   subtitle = "LOGISTICS PLATFORM",
+  roundedBadge = false,
 }: WariTrackLogoProps) {
   const iconDimensions = {
-    sm: "w-7 h-7",
-    md: "w-8 h-8",
-    lg: "w-10 h-10",
-    xl: "w-14 h-14",
+    sm: "w-8 h-8",
+    md: "w-10 h-10",
+    lg: "w-12 h-12",
+    xl: "w-16 h-16",
   }[size];
 
   const textSizes = {
-    sm: "text-xs",
-    md: "text-sm",
-    lg: "text-base",
-    xl: "text-xl",
+    sm: "text-sm",
+    md: "text-base",
+    lg: "text-lg",
+    xl: "text-2xl",
   }[size];
 
   const subSizes = {
-    sm: "text-[8.5px]",
+    sm: "text-[8px]",
     md: "text-[9.5px]",
     lg: "text-[11px]",
     xl: "text-xs",
@@ -36,72 +38,70 @@ export default function WariTrackLogo({
 
   return (
     <div className={`flex items-center gap-2.5 overflow-hidden ${className}`}>
-      {/* Monogramme 'W' Multi-Couleurs Polyvalent WariTrack */}
+      {/* Monogramme 'W' Multi-Couleurs Polyvalent à Pattes Ultra-Larges & Coins Arrondis */}
       <div
-        className={`${iconDimensions} shrink-0 flex items-center justify-center relative select-none`}
+        className={`${iconDimensions} shrink-0 flex items-center justify-center relative select-none ${
+          roundedBadge
+            ? "rounded-2xl border border-white/10 bg-slate-900/90 p-1.5 shadow-md"
+            : ""
+        }`}
         title="WariTrack — Cash & Logistics OS"
       >
-        <svg viewBox="0 0 72 72" fill="none" className="h-full w-full drop-shadow-sm">
+        <svg viewBox="0 0 160 105" fill="none" className="h-full w-full drop-shadow-sm overflow-visible">
           <defs>
-            {/* Branche 1 : Violet Royal (Cockpit & Intelligence) */}
-            <linearGradient id="wtWViolet" x1="16" y1="16" x2="28" y2="54" gradientUnits="userSpaceOnUse">
+            {/* Dégradé Branche 1 : Violet Royal (Cockpit & Intelligence) */}
+            <linearGradient id="legViolet" x1="24" y1="20" x2="52" y2="82" gradientUnits="userSpaceOnUse">
               <stop stopColor="#8B5CF6" />
               <stop offset="1" stopColor="#6366F1" />
             </linearGradient>
 
-            {/* Branche 2 : Cyan Électrique (Radar & Flotte Livreur) */}
-            <linearGradient id="wtWCyan" x1="28" y1="54" x2="40" y2="24" gradientUnits="userSpaceOnUse">
+            {/* Dégradé Branche 2 : Cyan Électrique (Radar & Flotte Livreur) */}
+            <linearGradient id="legCyan" x1="52" y1="82" x2="80" y2="35" gradientUnits="userSpaceOnUse">
               <stop stopColor="#06B6D4" />
               <stop offset="1" stopColor="#00D2FF" />
             </linearGradient>
 
-            {/* Branche 3 : Or Ambré Solaire (Wari & Trésorerie Cash) */}
-            <linearGradient id="wtWGold" x1="40" y1="24" x2="52" y2="54" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#FDE047" />
+            {/* Dégradé Branche 3 : Or Ambré Solaire (Wari & Trésorerie Cash) */}
+            <linearGradient id="legGold" x1="80" y1="35" x2="108" y2="82" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FCD34D" />
               <stop offset="1" stopColor="#F59E0B" />
             </linearGradient>
 
-            {/* Branche 4 : Orange Vif (Closing WhatsApp & Ventes) */}
-            <linearGradient id="wtWOrange" x1="52" y1="54" x2="64" y2="16" gradientUnits="userSpaceOnUse">
+            {/* Dégradé Branche 4 : Orange Solaire Vif (Closing WhatsApp & Ventes) */}
+            <linearGradient id="legOrange" x1="108" y1="82" x2="136" y2="20" gradientUnits="userSpaceOnUse">
               <stop stopColor="#FF7A1A" />
               <stop offset="1" stopColor="#EA580C" />
             </linearGradient>
           </defs>
 
-          {/* Les 4 segments du W multi-couleurs */}
-          <g strokeWidth="6" strokeLinecap="round" strokeLinejoin="round">
+          {/* Les 4 Pattes Ultra-Larges et Fermes du W (Stroke Épais 30px & Extrémités Arrondies) */}
+          <g strokeWidth="30" strokeLinecap="round" strokeLinejoin="round">
             {/* 1. Violet : Branche descendante gauche */}
-            <path d="M16 19L27 53" stroke="url(#wtWViolet)" />
+            <path d="M29 29L54 79" stroke="url(#legViolet)" />
 
             {/* 4. Orange : Branche ascendante droite */}
-            <path d="M53 53L64 19" stroke="url(#wtWOrange)" />
+            <path d="M106 79L131 29" stroke="url(#legOrange)" />
 
             {/* 3. Or : Branche descendante centre-droit */}
-            <path d="M40 25L53 53" stroke="url(#wtWGold)" />
+            <path d="M80 37L106 79" stroke="url(#legGold)" />
 
             {/* 2. Cyan : Branche ascendante centre-gauche */}
-            <path d="M27 53L40 25" stroke="url(#wtWCyan)" />
+            <path d="M54 79L80 37" stroke="url(#legCyan)" />
           </g>
 
-          {/* Nœud Central Apex : Balise GPS & Convergence du Cash */}
-          <circle cx="40" cy="25" r="3.2" fill="#FFFFFF" />
-          <circle cx="40" cy="25" r="1.6" fill="#0F172A" />
-
-          {/* Points de terminaisons douces */}
-          <circle cx="16" cy="19" r="2.4" fill="#A78BFA" />
-          <circle cx="27" cy="53" r="2.4" fill="#38BDF8" />
-          <circle cx="53" cy="53" r="2.4" fill="#FBBF24" />
-          <circle cx="64" cy="19" r="2.4" fill="#FB923C" />
+          {/* Balise Radar / Apex Central (Cercle Blanc avec Pupille Noire) */}
+          <circle cx="80" cy="37" r="9.5" fill="#FFFFFF" />
+          <circle cx="80" cy="37" r="4.6" fill="#07090F" />
         </svg>
       </div>
 
       {variant === "full" && (
         <div className="min-w-0 flex flex-col justify-center">
-          <span className={`block truncate ${textSizes} font-bold tracking-tight text-white leading-tight`}>
+          <span className={`block truncate ${textSizes} font-black tracking-tight text-white leading-tight`}>
             wari<span className="font-extrabold text-white">track</span>
           </span>
           {subtitle && (
-            <span className={`block truncate ${subSizes} font-semibold uppercase tracking-[0.16em] text-slate-400 mt-0.5`}>
+            <span className={`block truncate ${subSizes} font-bold uppercase tracking-[0.18em] text-sky-400 mt-0.5`}>
               {subtitle}
             </span>
           )}
