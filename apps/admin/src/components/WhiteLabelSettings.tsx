@@ -577,13 +577,13 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
               </span>
             </div>
 
-            {/* Cadre Smartphone Réaliste */}
-            <div className="mx-auto max-w-[280px] rounded-[36px] border-[6px] border-slate-800 bg-[#07090E] p-4 shadow-2xl relative overflow-hidden text-center text-white min-h-[380px] flex flex-col justify-between">
+            {/* Cadre Smartphone Réaliste Amélioré */}
+            <div className="mx-auto max-w-[310px] rounded-[40px] border-[7px] border-slate-800 bg-[#07090E] p-4.5 shadow-2xl relative overflow-hidden text-center text-white min-h-[420px] flex flex-col justify-between">
               
               {/* Barre de statut du smartphone */}
-              <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-0.5 mb-6">
+              <div className="flex items-center justify-between text-[10px] text-slate-400 px-2 pt-0.5 mb-6">
                 <span className="font-semibold">09:41</span>
-                <div className="h-3 w-16 bg-slate-900 rounded-full mx-auto" />
+                <div className="h-3 w-20 bg-slate-900 rounded-full mx-auto" />
                 <span className="font-semibold">5G</span>
               </div>
 
@@ -592,7 +592,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Écran d'accueil de vos employés
                 </p>
-                <p className="text-[9px] text-slate-500 mt-0.5">
+                <p className="text-[9.5px] text-slate-500 mt-0.5">
                   Raccourcis PWA installés
                 </p>
               </div>
@@ -602,7 +602,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                 
                 {/* Icône Closeuse */}
                 <div className="flex flex-col items-center">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg relative border border-white/10 bg-slate-900 overflow-hidden">
+                  <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center shadow-lg relative border border-white/10 bg-slate-900 overflow-hidden">
                     {customLogoUrl ? (
                       <img
                         src={customLogoUrl}
@@ -616,19 +616,19 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                         className="w-full h-full object-cover"
                       />
                     )}
-                    <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-slate-900" />
+                    <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-slate-900" />
                   </div>
-                  <span className="text-[11px] font-bold text-slate-100 mt-2 truncate max-w-[110px] block">
+                  <span className="text-xs font-bold text-slate-100 mt-2 truncate max-w-[125px] block">
                     {closeuseTitle}
                   </span>
-                  <span className="text-[8.5px] text-emerald-400 font-semibold block">
+                  <span className="text-[9px] text-emerald-400 font-semibold block">
                     WhatsApp 1-Clic
                   </span>
                 </div>
 
                 {/* Icône Livreur */}
                 <div className="flex flex-col items-center">
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg relative border border-white/10 bg-slate-900 overflow-hidden">
+                  <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center shadow-lg relative border border-white/10 bg-slate-900 overflow-hidden">
                     {customLogoUrl ? (
                       <img
                         src={customLogoUrl}
@@ -642,12 +642,12 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                         className="w-full h-full object-cover"
                       />
                     )}
-                    <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full bg-sky-400 ring-2 ring-slate-900" />
+                    <span className="absolute bottom-1 right-1 h-3.5 w-3.5 rounded-full bg-sky-400 ring-2 ring-slate-900" />
                   </div>
-                  <span className="text-[11px] font-bold text-slate-100 mt-2 truncate max-w-[110px] block">
+                  <span className="text-xs font-bold text-slate-100 mt-2 truncate max-w-[125px] block">
                     {livreurTitle}
                   </span>
-                  <span className="text-[8.5px] text-sky-400 font-semibold block">
+                  <span className="text-[9px] text-sky-400 font-semibold block">
                     Feuille de Route
                   </span>
                 </div>
@@ -655,7 +655,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
               </div>
 
               {/* Bas du smartphone avec dock */}
-              <div className="pt-4 border-t border-white/5 text-[9px] text-slate-500">
+              <div className="pt-4 border-t border-white/5 text-[9.5px] text-slate-500">
                 Propulsé de manière transparente par le moteur WariTrack OS
               </div>
 

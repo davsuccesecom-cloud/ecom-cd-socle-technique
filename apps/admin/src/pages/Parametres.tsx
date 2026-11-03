@@ -21,6 +21,8 @@ import {
   PhoneCall,
   Smartphone,
   Sparkles,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useTheme, ACCENT_PRESETS } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
@@ -47,6 +49,34 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) return false;
+    try {
+      return localStorage.getItem("waritrack_settings_nav_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleNav = (targetState?: boolean) => {
+    setNavCollapsed((prev) => {
+      const next = typeof targetState === "boolean" ? targetState : !prev;
+      try {
+        localStorage.setItem("waritrack_settings_nav_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSelectTab = (tabId: SettingsTab) => {
+    setActiveTab(tabId);
+    if (tabId === "white_label") {
+      // Rétractation automatique sur ordi pour libérer 100% de l'espace de personnalisation
+      if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+        handleToggleNav(true);
+      }
+    }
+  };
 
   useEffect(() => {
     setSoundEnabled(localStorage.getItem(SOUND_KEY) !== "off");
@@ -109,7 +139,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
   ];
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5">
+    <div className="mx-auto w-full max-w-[1440px] space-y-5">
       {/* Top Status Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface-raised px-5 py-3.5">
         <div>
@@ -139,9 +169,41 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
-        {/* Left Navigation Rail */}
-        <nav className="flex gap-1.5 overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised p-2 lg:col-span-4 lg:flex-col">
+      <div className="flex flex-col lg:flex-row items-start gap-5">
+        {/* Left Navigation Rail avec Rétractation Automatique & Manuelle */}
+        <nav
+          className={`flex gap-1.5 overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised p-2 transition-all duration-200 shrink-0 ${
+            navCollapsed
+              ? "lg:w-16 lg:flex-col lg:items-center"
+              : "lg:w-72 lg:flex-col"
+          }`}
+        >
+          {/* Header de rétractation desktop */}
+          <div className="hidden lg:flex w-full items-center justify-between px-1.5 py-1 mb-1 border-b border-surface-border/50">
+            {!navCollapsed && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Rubriques ({navItems.length})
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => handleToggleNav()}
+              title={navCollapsed ? "Déplier le menu des paramètres" : "Réduire pour libérer l'espace"}
+              className={`rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-surface transition ${
+                navCollapsed ? "mx-auto" : ""
+              }`}
+            >
+              {navCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4 text-brand" />
+              ) : (
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-white">
+                  <span>Réduire</span>
+                  <PanelLeftClose className="h-3.5 w-3.5" />
+                </div>
+              )}
+            </button>
+          </div>
+
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
@@ -149,33 +211,59 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
-                className={`flex shrink-0 items-center gap-3 rounded-xl px-3.5 py-3 text-left transition lg:w-full ${
+                onClick={() => handleSelectTab(item.id)}
+                title={navCollapsed ? `${item.label} — ${item.desc}` : undefined}
+                className={`flex shrink-0 items-center rounded-xl transition ${
+                  navCollapsed
+                    ? "lg:h-11 lg:w-11 lg:justify-center p-2"
+                    : "gap-3 px-3.5 py-3 lg:w-full text-left"
+                } ${
                   active
                     ? "bg-brand/15 text-slate-100 ring-1 ring-brand/40"
                     : "text-slate-400 hover:bg-surface hover:text-slate-200"
                 }`}
               >
                 <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition ${
                     active
-                      ? "border-brand/40 bg-brand text-white"
+                      ? "border-brand/40 bg-brand text-white shadow-sm"
                       : "border-surface-border bg-surface text-slate-400"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold">{item.label}</p>
-                  <p className="hidden truncate text-[11px] text-slate-500 lg:block">{item.desc}</p>
-                </div>
+                {!navCollapsed && (
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold">{item.label}</p>
+                    <p className="hidden truncate text-[11px] text-slate-500 lg:block">{item.desc}</p>
+                  </div>
+                )}
               </button>
             );
           })}
         </nav>
 
         {/* Right Content Area */}
-        <div className="min-w-0 lg:col-span-8">
+        <div className="min-w-0 flex-1 w-full">
+          {/* Bannière de focus / espace élargi si rétracté */}
+          {navCollapsed && activeTab === "white_label" && (
+            <div className="hidden lg:flex items-center justify-between rounded-2xl border border-sky-500/20 bg-gradient-to-r from-sky-950/30 via-indigo-950/20 to-sky-950/30 px-4 py-2.5 text-xs text-sky-300 mb-4 shadow-sm">
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                <span>
+                  <strong>Environnement de personnalisation libéré à 100%</strong> · Le volet paramètres a été rétracté automatiquement pour donner libre cours aux éléments et au simulateur mobile.
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleToggleNav(false)}
+                className="inline-flex items-center gap-1 font-bold text-sky-400 hover:text-sky-200 shrink-0 ml-4 hover:underline"
+              >
+                <PanelLeftOpen className="h-3.5 w-3.5" />
+                <span>Déplier le volet</span>
+              </button>
+            </div>
+          )}
           {activeTab === "general" && (
             <div className="space-y-5">
               {/* Theme & Accent Card */}
