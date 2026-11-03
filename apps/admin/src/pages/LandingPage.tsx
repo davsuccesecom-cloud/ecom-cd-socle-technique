@@ -29,6 +29,7 @@ import AfricaNetworkMap3D from "../components/AfricaNetworkMap3D";
 import LegalPrivacyModal, { type LegalTab } from "../components/LegalPrivacyModal";
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import WariTrackLogo from "../components/WariTrackLogo";
+import WhatsNewModal from "../components/WhatsNewModal";
 
 interface LandingPageProps {
   sendLoginLink?: (email: string) => Promise<void>;
@@ -218,6 +219,7 @@ export default function LandingPage({
     return false;
   });
   const [legalModalTab, setLegalModalTab] = useState<LegalTab | null>(null);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [comparisonMode, setComparisonMode] = useState<"avec" | "sans">("avec");
   const [activeShowcaseIndex, setActiveShowcaseIndex] = useState(0);
 
@@ -270,9 +272,15 @@ export default function LandingPage({
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <WariTrackLogo size="lg" variant="full" roundedBadge subtitle="Cash & Logistics OS" />
-            <span className="rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10px] font-bold text-sky-300 hidden sm:inline-block">
-              v3.2
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowWhatsNew(true)}
+              className="rounded-full border border-sky-500/40 bg-sky-500/15 px-2.5 py-0.5 text-[10px] font-bold text-sky-300 hover:bg-sky-500/30 transition cursor-pointer hidden sm:inline-flex items-center gap-1"
+              title="Consulter les nouveautés de la mise à jour v3.2"
+            >
+              <Sparkles className="h-3 w-3 text-sky-400" />
+              <span>v3.2</span>
+            </button>
           </div>
 
           <nav className="hidden items-center gap-7 text-xs font-semibold text-slate-200 md:flex">
@@ -1137,6 +1145,12 @@ export default function LandingPage({
           onClose={() => setLegalModalTab(null)}
         />
       )}
+
+      {/* Modal Notes de Version & Mises à Jour v3.2 */}
+      <WhatsNewModal
+        isOpen={showWhatsNew}
+        onClose={() => setShowWhatsNew(false)}
+      />
     </div>
   );
 }

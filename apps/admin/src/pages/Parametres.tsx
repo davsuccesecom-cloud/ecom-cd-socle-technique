@@ -20,12 +20,14 @@ import {
   Copy,
   PhoneCall,
   Smartphone,
+  Sparkles,
 } from "lucide-react";
 import { useTheme, ACCENT_PRESETS } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import ShopifyFluxManager from "../components/ShopifyFluxManager";
 import PrintReceiptConfig from "../components/PrintReceiptConfig";
 import WhiteLabelSettings from "../components/WhiteLabelSettings";
+import WhatsNewModal from "../components/WhatsNewModal";
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
@@ -44,6 +46,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
   const { theme, setTheme, accent, setAccent } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   useEffect(() => {
     setSoundEnabled(localStorage.getItem(SOUND_KEY) !== "off");
@@ -115,14 +118,25 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
             Les paramètres opérationnels s'appliquent au marché sélectionné dans la barre supérieure.
           </p>
         </div>
-        {team && (
-          <div className="inline-flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand">
-            <span className="h-2 w-2 rounded-full bg-brand" />
-            <span>
-              Marché actif : {team.name} ({team.defaultCountry})
-            </span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {team && (
+            <div className="inline-flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand">
+              <span className="h-2 w-2 rounded-full bg-brand" />
+              <span>
+                Marché actif : {team.name} ({team.defaultCountry})
+              </span>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowWhatsNew(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-bold text-sky-300 hover:bg-sky-500/20 hover:border-sky-400/40 transition shadow-sm"
+            title="Consulter les nouveautés de la mise à jour v3.2"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-sky-400" />
+            <span>Mode Mise à Jour v3.2</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
@@ -335,6 +349,12 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
           {activeTab === "white_label" && <WhiteLabelSettings workspaceId={workspaceId} />}
         </div>
       </div>
+
+      {/* Modal Notes de Version v3.2 */}
+      <WhatsNewModal
+        isOpen={showWhatsNew}
+        onClose={() => setShowWhatsNew(false)}
+      />
     </div>
   );
 }
