@@ -34,25 +34,78 @@ export default function App() {
 
   const [claims, setClaims] = useState<SessionClaims | null>(null);
   const [claimsLoading, setClaimsLoading] = useState(true);
+  const [showSlowLoadingNotice, setShowSlowLoadingNotice] = useState(false);
 
   useEffect(() => {
+    let isCancelled = false;
+
     if (!firebaseUser) {
       setClaims(null);
       setClaimsLoading(false);
       return;
     }
+
     setClaimsLoading(true);
-    getFirebaseAuth()
-      .currentUser?.getIdTokenResult()
-      .then((result) => {
-        console.log("DEBUG claims recus :", result.claims, "busy:", busy);
-        setClaims({
-          workspaceId: result.claims.workspaceId as string,
-          role: result.claims.role as string,
-        });
-        setClaimsLoading(false);
-      });
+
+    async function resolveClaims() {
+      try {
+        // 1. Lecture directe depuis l'instance firebaseUser (garantie non-nulle)
+        let tokenResult = await firebaseUser!.getIdTokenResult();
+        let wsId = tokenResult?.claims?.workspaceId as string | undefined;
+        let role = tokenResult?.claims?.role as string | undefined;
+
+        // 2. Si les claims sont encore absents (ex: premier jet après provision ou reload immédiat),
+        // on force un rafraîchissement auprès des serveurs Firebase Auth
+        if (!wsId || !role) {
+          try {
+            tokenResult = await firebaseUser!.getIdTokenResult(true);
+            wsId = tokenResult?.claims?.workspaceId as string | undefined;
+            role = tokenResult?.claims?.role as string | undefined;
+          } catch (refreshErr) {
+            console.warn("Échec du rafraîchissement forcé du token Firebase :", refreshErr);
+          }
+        }
+
+        if (isCancelled) return;
+
+        if (wsId && role) {
+          setClaims({
+            workspaceId: wsId,
+            role,
+          });
+        } else {
+          setClaims(null);
+        }
+      } catch (err) {
+        console.error("Erreur lors de la résolution des droits admin :", err);
+        if (!isCancelled) {
+          setClaims(null);
+        }
+      } finally {
+        if (!isCancelled) {
+          setClaimsLoading(false);
+        }
+      }
+    }
+
+    resolveClaims();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [firebaseUser, needsWorkspaceName, busy]);
+
+  // Alerte douce si la synchronisation réseau met plus de 4 secondes
+  useEffect(() => {
+    if (!authLoading && !(firebaseUser && claimsLoading)) {
+      setShowSlowLoadingNotice(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setShowSlowLoadingNotice(true);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [authLoading, firebaseUser, claimsLoading]);
 
   // Revalidation au retour de connexion reseau : force le rafraichissement
   // du token Firebase. Si le compte a ete desactive/supprime entre-temps
@@ -187,6 +240,19 @@ export default function App() {
               Synchronisation du poste de pilotage…
             </span>
           </div>
+
+          {showSlowLoadingNotice && (
+            <div className="mt-4 flex flex-col items-center gap-2 animate-in fade-in duration-300">
+              <p className="text-xs text-slate-400">La synchronisation réseau tarde un peu</p>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-surface-raised border border-surface-border px-3 py-1.5 text-xs font-medium text-slate-200 hover:text-white hover:border-slate-500 transition shadow"
+              >
+                Actualiser la connexion
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

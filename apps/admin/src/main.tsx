@@ -3,7 +3,17 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./styles/index.css";
 import App from "./App";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { registerSW } from "virtual:pwa-register";
+
+// Sécurité anti-écran noir sur mise à jour Vite/PWA :
+// Quand une nouvelle version est déployée avec de nouveaux hash de fichiers,
+// toute tentative de chargement d'un ancien chunk déclenche "vite:preloadError".
+// On force le rechargement immédiat pour charger la nouvelle version sans écran noir.
+window.addEventListener("vite:preloadError", (event) => {
+  console.warn("[Vite] Chunk obsolète détecté suite à une mise à jour, rechargement automatique...", event);
+  window.location.reload();
+});
 
 // Avec skipWaiting/clientsClaim actives cote Workbox, le nouveau service
 // worker prend le controle des qu'il est pret. On recharge alors la page
@@ -29,6 +39,8 @@ registerSW({
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </React.StrictMode>
 );
