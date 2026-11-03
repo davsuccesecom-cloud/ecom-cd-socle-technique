@@ -96,7 +96,7 @@ export default function Sidebar({
     >
       {/* En-tête marque + bouton réduction */}
       <div className="mb-6 flex items-center justify-between px-1.5">
-        <WariTrackLogo variant={collapsed ? "icon" : "full"} subtitle="Pilotage Opérationnel" />
+        <WariTrackLogo variant={collapsed ? "icon" : "full"} subtitle="LOGISTICS OS" />
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}

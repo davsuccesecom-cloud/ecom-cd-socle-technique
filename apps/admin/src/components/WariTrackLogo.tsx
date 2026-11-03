@@ -97,11 +97,11 @@ export default function WariTrackLogo({
 
       {variant === "full" && (
         <div className="min-w-0 flex flex-col justify-center">
-          <span className={`block truncate ${textSizes} font-black tracking-tight text-white leading-tight`}>
-            wari<span className="font-extrabold text-white">track</span>
+          <span className={`block truncate ${textSizes} font-black tracking-tight text-slate-900 dark:text-white leading-tight`}>
+            wari<span className="font-extrabold text-slate-900 dark:text-white">track</span>
           </span>
           {subtitle && (
-            <span className={`block truncate ${subSizes} font-bold uppercase tracking-[0.18em] text-sky-400 mt-0.5`}>
+            <span className={`block truncate ${subSizes} font-bold uppercase tracking-[0.18em] text-sky-600 dark:text-sky-400 mt-0.5`}>
               {subtitle}
             </span>
           )}
