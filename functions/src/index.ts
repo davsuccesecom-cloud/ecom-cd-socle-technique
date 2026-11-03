@@ -6,7 +6,12 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import * as bcrypt from "bcryptjs";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-import { writeOrderStatusToSheet } from "./sheetsSync";
+import {
+  writeOrderStatusToSheet,
+  detectAndEnsureSheetColumns,
+  getServiceAccountEmail,
+  getSheetsClient,
+} from "./sheetsSync";
 import { sendMetaPurchaseEvent, sendMetaConfirmedEvent } from "./metaCapi";
 import {
   fetchMetaAdAccountsAndPixels,
@@ -870,7 +875,7 @@ export const onOrderUpdated = onDocumentUpdated(
       // qui ne reflete pas cette ecriture faite DANS cette meme execution ;
       // corrige le bug "Livre ne remonte pas sur le Sheet").
       if (after.sheetId && after.sourceRowId) {
-        await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "livre");
+        await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "livre", null, after.assignedLivreurName || after.livreurName || null);
       }
 
       const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(after.teamId).get();
@@ -999,7 +1004,7 @@ export const onOrderUpdated = onDocumentUpdated(
 
       // Meme correctif que ci-dessus, pour ce cas aussi.
       if (after.sheetId && after.sourceRowId) {
-        await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "injoignable");
+        await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, "injoignable", null, after.assignedLivreurName || after.livreurName || null);
       }
 
       // Injoignable declenche cote livreur (client ne repond pas a la
@@ -1039,7 +1044,7 @@ export const onOrderUpdated = onDocumentUpdated(
       after.sheetId &&
       after.sourceRowId
     ) {
-      await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, after.statutCloseuse, after.reminderAt);
+      await writeOrderStatusToSheet(after.sheetId, after.sourceRowId, after.statutCloseuse, after.reminderAt, after.assignedLivreurName || after.livreurName || null);
     }
   }
 );
@@ -1751,3 +1756,88 @@ export const migrateUsers = onCall(async (request) => {
   return { totalUsers, created, alreadyExists, errors, details };
 });
 
+
+
+// ---------------------------------------------------------------------------
+// Diagnostic & Test de connexion Google Sheets en direct
+// ---------------------------------------------------------------------------
+export const testSheetConnection = onCall(async (request) => {
+  const { sheetId } = (request.data || {}) as { sheetId?: string };
+  if (!sheetId) {
+    throw new HttpsError("invalid-argument", "sheetId est requis.");
+  }
+
+  const serviceEmail = getServiceAccountEmail();
+  try {
+    const sheets = getSheetsClient();
+    const structure = await detectAndEnsureSheetColumns(sheets, sheetId);
+
+    let title = "Feuille Google Sheets";
+    try {
+      const meta = await sheets.spreadsheets.get({
+        spreadsheetId: sheetId,
+        fields: "properties.title",
+      });
+      if (meta.data.properties?.title) {
+        title = meta.data.properties.title;
+      }
+    } catch {}
+
+    return {
+      success: true,
+      serviceEmail,
+      title: structure.spreadsheetTitle || title,
+      sheetName: structure.sheetName,
+      columnsCount: structure.headers.length,
+      totalRows: structure.totalRows,
+      statusColCreated: structure.statusColumnCreated,
+      statusColLetter: structure.statusColLetter,
+      detectedColumns: {
+        phone: structure.phoneColIndex !== null,
+        clientName: structure.clientColIndex !== null,
+        city: structure.cityColIndex !== null,
+        product: structure.productColIndex !== null,
+        amount: structure.amountColIndex !== null,
+        quantity: structure.quantityColIndex !== null,
+        status: structure.statusColIndex !== null,
+        livreur: structure.livreurColIndex !== null,
+        updatedAt: structure.updatedAtColIndex !== null,
+      },
+      message: structure.statusColumnCreated
+        ? `Feuille connectée ! Les colonnes "Statut WariTrack", "Livreur Assigné" et "Dernière Mise à Jour" ont été créées automatiquement en temps réel.`
+        : `Feuille connectée ! Colonne de statut WariTrack détectée (Colonne ${structure.statusColLetter}) et prête à synchroniser en direct.`,
+    };
+  } catch (err: any) {
+    const errorMsg = String(err?.message || err);
+    console.error("testSheetConnection échec:", errorMsg);
+
+    if (
+      errorMsg.includes("403") ||
+      errorMsg.includes("permission") ||
+      errorMsg.includes("caller does not have permission")
+    ) {
+      return {
+        success: false,
+        serviceEmail,
+        errorCode: "PERMISSION_DENIED",
+        message: `Accès non autorisé. Veuillez ouvrir votre Google Sheet, cliquer sur "Partager" (en haut à droite), ajouter l'adresse robot "${serviceEmail}" avec le rôle "Éditeur", puis relancer le test.`,
+      };
+    }
+
+    if (errorMsg.includes("404") || errorMsg.includes("not found")) {
+      return {
+        success: false,
+        serviceEmail,
+        errorCode: "NOT_FOUND",
+        message: `Feuille introuvable. Veuillez vérifier l'ID ou l'URL du Google Sheet saisi.`,
+      };
+    }
+
+    return {
+      success: false,
+      serviceEmail,
+      errorCode: "UNKNOWN",
+      message: `Erreur de connexion : ${errorMsg}`,
+    };
+  }
+});

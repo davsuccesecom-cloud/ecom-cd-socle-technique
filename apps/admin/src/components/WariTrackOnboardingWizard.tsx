@@ -16,6 +16,9 @@ import {
   ShieldCheck,
   Check,
   X,
+  Upload,
+  Trash2,
+  Info,
 } from "lucide-react";
 import { useTheme, ACCENT_PRESETS, type AccentColor } from "../hooks/useTheme";
 import CountryMapBackdrop, { getCountryMeta } from "./CountryMapBackdrop";
@@ -42,44 +45,6 @@ const MONTHLY_VOLUMES = [
   { id: "growth", label: "250 à 1 000 colis / mois", desc: "Phase de scale avec 1 ou 2 livreurs" },
   { id: "scale", label: "1 000 à 3 000 colis / mois", desc: "Équipe closeuses + stock multi-pays" },
   { id: "enterprise", label: "Plus de 3 000 colis / mois", desc: "Gros volume, multi-boutiques Shopify" },
-];
-
-export const DEFAULT_EMPLOYEE_BADGES = [
-  {
-    id: "default_native",
-    label: "Icônes Officielles Standard (Défaut)",
-    desc: "Conserve les icônes natives familières de la Closeuse et du Livreur",
-    color: "#6366F1",
-    bg: "#0B0F19",
-  },
-  {
-    id: "emerald_pulse",
-    label: "Wari Émeraude & Or",
-    desc: "Cash & Prospérité",
-    color: "#10B981",
-    bg: "#081510",
-  },
-  {
-    id: "cyan_radar",
-    label: "Colis Radar Cyan",
-    desc: "Tracking & Vitesse",
-    color: "#06B6D4",
-    bg: "#07121E",
-  },
-  {
-    id: "indigo_vault",
-    label: "Bouclier Saphir",
-    desc: "Sécurité & Rapprochement",
-    color: "#6366F1",
-    bg: "#090C15",
-  },
-  {
-    id: "cacao_gold",
-    label: "Terre d'Afrique & Cuivre",
-    desc: "Chaleur & Proximité",
-    color: "#D4874D",
-    bg: "#18110C",
-  },
 ];
 
 export default function WariTrackOnboardingWizard({
@@ -109,9 +74,10 @@ export default function WariTrackOnboardingWizard({
   const [remunLivreur, setRemunLivreur] = useState("1500");
   const [deliveryTarget, setDeliveryTarget] = useState(85);
 
-  // Étape 4 : Marque Blanche Apps Employés
+  // Étape 4 : Marque Blanche Apps Employés (Vraies Icônes ou Vrai Logo)
   const [employeeNamingOption, setEmployeeNamingOption] = useState<"standard" | "action">("standard");
-  const [selectedBadge, setSelectedBadge] = useState("default_native");
+  const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(null);
+  const [logoNotice, setLogoNotice] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +95,30 @@ export default function WariTrackOnboardingWizard({
   const handlePaletteSelect = (newAccent: AccentColor) => {
     setSelectedAccent(newAccent);
     setAccent(newAccent);
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError(null);
+    setLogoNotice(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Format d'image non reconnu (sélectionnez PNG, JPG ou WebP).");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Taille d'image supérieure à 2 Mo. Recommandé : logo carré 512×512 px.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCustomLogoUrl(reader.result as string);
+      setLogoNotice("Logo importé avec succès pour vos applications livreur et closeuse !");
+    };
+    reader.readAsDataURL(file);
   };
 
   // Validation finale & enregistrement dans Firestore
@@ -158,15 +148,24 @@ export default function WariTrackOnboardingWizard({
             employeeNamingOption === "standard"
               ? `${finalBrand} • Livreur`
               : `${finalBrand} • Tournées`,
-          badgeId: selectedBadge,
+          customLogoUrl: customLogoUrl,
+          useNativeIcons: !customLogoUrl,
+        },
+        thresholdAdaptation: {
+          autoTuneDeliveryRate: true,
+          deliveryRateThreshold: deliveryTarget,
+          autoTuneClosingSpeed: true,
+          closingDelayMinutes: 30,
+          positiveCashProtection: true,
+          updatedAt: Date.now(),
         },
         onboardingCompleted: true,
         updatedAt: Date.now(),
       });
 
-      // 2. Création de la première équipe marché pays
-      const teamRef = await addDoc(collection(db, "workspaces", workspaceId, "teams"), {
-        workspaceId,
+      // 2. Création de la 1ère équipe locale de livraison
+      const teamsCol = collection(db, "workspaces", workspaceId, "teams");
+      const teamRef = await addDoc(teamsCol, {
         name: teamName.trim() || `Équipe ${countryMeta.name}`,
         sheetIds: [],
         defaultCountry: country,
@@ -190,16 +189,22 @@ export default function WariTrackOnboardingWizard({
     }
   };
 
+  const displayBrand = brandName.trim() || "Ma Boutique";
+  const closeuseLabel =
+    employeeNamingOption === "standard" ? `${displayBrand} • Closeuse` : `${displayBrand} • Ventes`;
+  const livreurLabel =
+    employeeNamingOption === "standard" ? `${displayBrand} • Livreur` : `${displayBrand} • Tournées`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-slate-950/65 backdrop-blur-[3px] animate-in fade-in duration-200">
-      {/* Conteneur Principal façon Shopify Plus en Pop-up avec Coins Arrondis */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-slate-950/70 backdrop-blur-sm sm:backdrop-blur-md animate-in fade-in duration-200">
+      {/* Conteneur Principal en Pop-up avec Coins Arrondis et Ombre Douce */}
       <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-surface-border bg-surface-raised p-6 sm:p-8 shadow-2xl my-auto">
         
         {/* En-tête Wizard avec Logo Officiel WariTrack, Progression & Bouton Fermer/Skip */}
         <div className="mb-6 border-b border-surface-border pb-5">
           <div className="flex items-center justify-between gap-3">
             <WariTrackLogo size="md" variant="full" roundedBadge subtitle="Configuration Initiale Cockpit" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <span className="text-xs font-mono font-bold text-brand">
                 Étape {step} sur 4
               </span>
@@ -207,26 +212,26 @@ export default function WariTrackOnboardingWizard({
                 <button
                   type="button"
                   onClick={onSkip}
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-surface border border-surface-border transition ml-1"
-                  title="Fermer et configurer plus tard"
-                  aria-label="Fermer et configurer plus tard"
+                  className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-white hover:bg-surface border border-surface-border transition"
+                  title="Configurer plus tard"
                 >
-                  <X className="h-4 w-4" />
+                  <span className="hidden sm:inline">Passer</span>
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
           </div>
 
           {/* Barre de progression fluide */}
-          <div className="mt-4 grid grid-cols-4 gap-2">
+          <div className="mt-4 flex items-center gap-2">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
+                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
                   i < step
                     ? "bg-brand"
                     : i === step
-                    ? "bg-brand animate-pulse"
+                    ? "bg-brand ring-2 ring-brand/30"
                     : "bg-surface-border"
                 }`}
               />
@@ -235,47 +240,54 @@ export default function WariTrackOnboardingWizard({
         </div>
 
         {error && (
-          <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-300">
+          <div className="mb-5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
             {error}
           </div>
         )}
 
+        {logoNotice && (
+          <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span>{logoNotice}</span>
+          </div>
+        )}
+
         {/* ====================================================================
-            ÉTAPE 1 : PROFIL & AMBITION BUSINESS
+            ÉTAPE 1 : PROFIL DE L'ENSEIGNE & VOLUMÉTRIE
             ==================================================================== */}
         {step === 1 && (
           <div className="space-y-6">
             <div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 border border-brand/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand mb-2">
-                <Sparkles className="h-3 w-3" /> Personnalisation de votre expérience
+                <Store className="h-3 w-3" /> Identité Opérationnelle
               </span>
               <h2 className="text-xl font-bold tracking-tight text-slate-100">
-                Parlez-nous de votre boutique e-commerce
+                Bienvenue sur WariTrack
               </h2>
               <p className="mt-1 text-xs text-slate-400">
-                WariTrack calibre vos seuils d'alertes, ratios de caisse et commissions selon votre secteur.
+                Configurez l'identité de votre boutique pour calibrer le poste de pilotage selon votre volume de commandes.
               </p>
             </div>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-200 mb-1.5">
-                  Nom commercial de votre marque / enseigne
+                  Nom commercial de votre boutique / enseigne e-commerce
                 </label>
                 <input
                   type="text"
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
-                  placeholder="Ex : BelleAfrik, Kossi Store, Sahel Express..."
-                  className="w-full rounded-xl border border-surface-border bg-surface px-4 py-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition focus:border-brand"
+                  placeholder="Ex : Kossi Store, Sahel Express, BelleAfrik..."
+                  className="w-full rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-brand"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-2">
-                  Votre secteur principal de vente
+                <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+                  Secteur d'activité principal
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {BUSINESS_SECTORS.map((s) => (
                     <button
                       key={s.id}
@@ -283,7 +295,7 @@ export default function WariTrackOnboardingWizard({
                       onClick={() => setSector(s.id)}
                       className={`rounded-xl border p-3 text-left transition ${
                         sector === s.id
-                          ? "border-brand bg-brand-light shadow-sm"
+                          ? "border-brand bg-brand-light ring-1 ring-brand"
                           : "border-surface-border bg-surface hover:border-slate-600"
                       }`}
                     >
@@ -291,25 +303,25 @@ export default function WariTrackOnboardingWizard({
                         <span className="text-xs font-bold text-slate-100">{s.label}</span>
                         {sector === s.id && <Check className="h-3.5 w-3.5 text-brand" />}
                       </div>
-                      <p className="mt-1 text-[11px] text-slate-400 leading-tight">{s.desc}</p>
+                      <p className="text-[10px] text-slate-400 mt-1">{s.desc}</p>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-2">
-                  Volume de commandes COD mensuel estimé
+                <label className="block text-xs font-semibold text-slate-200 mb-1.5">
+                  Volume mensuel moyen de commandes COD traitées
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {MONTHLY_VOLUMES.map((v) => (
                     <button
                       key={v.id}
                       type="button"
                       onClick={() => setVolume(v.id)}
-                      className={`rounded-xl border p-3 text-left transition ${
+                      className={`rounded-xl border p-2.5 text-left transition ${
                         volume === v.id
-                          ? "border-brand bg-brand-light shadow-sm"
+                          ? "border-brand bg-brand-light ring-1 ring-brand"
                           : "border-surface-border bg-surface hover:border-slate-600"
                       }`}
                     >
@@ -317,7 +329,7 @@ export default function WariTrackOnboardingWizard({
                         <span className="text-xs font-bold text-slate-100">{v.label}</span>
                         {volume === v.id && <Check className="h-3.5 w-3.5 text-brand" />}
                       </div>
-                      <p className="mt-1 text-[11px] text-slate-400 leading-tight">{v.desc}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">{v.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -327,76 +339,99 @@ export default function WariTrackOnboardingWizard({
         )}
 
         {/* ====================================================================
-            ÉTAPE 2 : ENVIRONNEMENT & PALETTE SIGNATURE
+            ÉTAPE 2 : PALETTE & AMBIANCE DU POSTE DE PILOTAGE
             ==================================================================== */}
         {step === 2 && (
           <div className="space-y-6">
             <div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 border border-brand/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand mb-2">
-                <Palette className="h-3 w-3" /> Ambiance de Travail
+                <Palette className="h-3 w-3" /> Ambiance Visuelle
               </span>
               <h2 className="text-xl font-bold tracking-tight text-slate-100">
-                Personnalisez la couleur de votre Cockpit
+                Personnalisez votre Poste de Pilotage
               </h2>
               <p className="mt-1 text-xs text-slate-400">
-                La palette choisie s'applique immédiatement en direct sur votre interface et colore le logo WariTrack.
+                Sélectionnez votre univers chromatique. Vous pourrez alterner entre mode sombre et clair à tout instant.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {ACCENT_PRESETS.map((preset) => {
-                const isSelected = selectedAccent === preset.id;
-                return (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-200 mb-2">
+                  Palette d'accentuation (6 univers professionnels)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {ACCENT_PRESETS.map((p) => {
+                    const isSelected = selectedAccent === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => handlePaletteSelect(p.id)}
+                        className={`rounded-2xl border p-3.5 text-left transition ${
+                          isSelected
+                            ? "border-brand bg-brand-light ring-1 ring-brand shadow-md"
+                            : "border-surface-border bg-surface hover:border-slate-600"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span
+                            className="h-4 w-4 rounded-full shadow-sm ring-1 ring-white/20"
+                            style={{ backgroundColor: p.swatch }}
+                          />
+                          <span className="text-xs font-bold text-slate-100">{p.label}</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-snug">{p.subtitle}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-200 mb-2">
+                  Mode jour / nuit
+                </label>
+                <div className="grid grid-cols-2 gap-3">
                   <button
-                    key={preset.id}
                     type="button"
-                    onClick={() => handlePaletteSelect(preset.id)}
-                    className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition ${
-                      isSelected
-                        ? "border-brand bg-brand-light shadow-md ring-1 ring-brand"
+                    onClick={() => setTheme("dark")}
+                    className={`rounded-xl border p-3 text-left transition flex items-center justify-between ${
+                      theme === "dark"
+                        ? "border-brand bg-brand-light ring-1 ring-brand"
                         : "border-surface-border bg-surface hover:border-slate-600"
                     }`}
                   >
-                    <span
-                      className="mt-0.5 h-6 w-6 shrink-0 rounded-lg shadow-sm border border-white/20"
-                      style={{ backgroundColor: preset.swatch }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-100">{preset.label}</span>
-                        {isSelected && <Check className="h-3.5 w-3.5 text-brand" />}
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-slate-400 leading-tight">
-                        {preset.subtitle}
-                      </p>
+                    <div>
+                      <span className="text-xs font-bold text-slate-100 block">🌙 Mode Nuit (Recommandé)</span>
+                      <span className="text-[10px] text-slate-400">Ardoise &amp; contraste élevé</span>
                     </div>
+                    {theme === "dark" && <Check className="h-4 w-4 text-brand" />}
                   </button>
-                );
-              })}
-            </div>
 
-            {/* Aperçu Dynamique de la Palette */}
-            <div className="rounded-2xl border border-surface-border bg-surface p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <WariTrackLogo size="sm" variant="icon" />
-                <div>
-                  <span className="text-xs font-bold text-slate-100 block">
-                    Aperçu du Logo & des Cartes en direct
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    Palette active : {ACCENT_PRESETS.find((p) => p.id === selectedAccent)?.label}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTheme("light")}
+                    className={`rounded-xl border p-3 text-left transition flex items-center justify-between ${
+                      theme === "light"
+                        ? "border-brand bg-brand-light ring-1 ring-brand"
+                        : "border-surface-border bg-surface hover:border-slate-600"
+                    }`}
+                  >
+                    <div>
+                      <span className="text-xs font-bold text-slate-100 block">☀️ Mode Jour</span>
+                      <span className="text-[10px] text-slate-400">Fond blanc cassé ultra-lumineux</span>
+                    </div>
+                    {theme === "light" && <Check className="h-4 w-4 text-brand" />}
+                  </button>
                 </div>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-brand text-white shadow-sm">
-                Bouton Signature
-              </span>
             </div>
           </div>
         )}
 
         {/* ====================================================================
-            ÉTAPE 3 : 1ER MARCHÉ PAYS & OBJECTIF
+            ÉTAPE 3 : PREMIER MARCHÉ PAYS
             ==================================================================== */}
         {step === 3 && (
           <div className="space-y-6">
@@ -408,7 +443,7 @@ export default function WariTrackOnboardingWizard({
                 Déployez votre premier marché pays
               </h2>
               <p className="mt-1 text-xs text-slate-400">
-                Vous pourrez ajouter autant de pays supplémentaires que vous souhaitez par la suite.
+                Vous pourrez ajouter d'autres pays à tout moment dans l'onglet Équipes &amp; Marchés.
               </p>
             </div>
 
@@ -497,7 +532,7 @@ export default function WariTrackOnboardingWizard({
                   className="mt-3 w-full accent-brand cursor-pointer"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  WariTrack déclenchera des alertes intelligentes dès que le taux de livraison de la tournée passe sous ce seuil.
+                  WariTrack adapte automatiquement les flux sans blocage punitif dès que la tournée approche ce seuil.
                 </p>
               </div>
             </div>
@@ -505,96 +540,191 @@ export default function WariTrackOnboardingWizard({
         )}
 
         {/* ====================================================================
-            ÉTAPE 4 : MARQUE BLANCHE APPS EMPLOYÉS
+            ÉTAPE 4 : APPS EMPLOYÉS (VRAIES ICÔNES NATIVES OU VRAI LOGO)
             ==================================================================== */}
         {step === 4 && (
           <div className="space-y-6">
             <div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 border border-brand/20 px-2.5 py-0.5 text-[11px] font-semibold text-brand mb-2">
-                <Smartphone className="h-3 w-3" /> Fierté d'Entreprise
+                <Smartphone className="h-3 w-3" /> Applications Closeuse &amp; Livreur
               </span>
               <h2 className="text-xl font-bold tracking-tight text-slate-100">
-                Personnalisez les applications de votre équipe
+                Vos applications d'équipe terrain
               </h2>
               <p className="mt-1 text-xs text-slate-400">
-                Sur le smartphone de vos livreurs et closeuses, l'application portera le nom et le badge de votre enseigne.
+                Par défaut, vos employés conservent les <strong>vraies icônes natives WariTrack</strong> familières. Vous pouvez également importer votre propre logo.
               </p>
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-2">
-                  Format de Nommage affiché sous l'icône smartphone
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEmployeeNamingOption("standard")}
-                    className={`rounded-xl border p-3 text-left transition ${
-                      employeeNamingOption === "standard"
-                        ? "border-brand bg-brand-light shadow-sm"
-                        : "border-surface-border bg-surface hover:border-slate-600"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-100">Rôles Directs (Recommandé)</span>
-                      {employeeNamingOption === "standard" && <Check className="h-3.5 w-3.5 text-brand" />}
+              
+              {/* Option A : Vraies Icônes Natives (Recommandé) */}
+              <div
+                onClick={() => setCustomLogoUrl(null)}
+                className={`cursor-pointer rounded-2xl border p-4 transition ${
+                  !customLogoUrl
+                    ? "border-brand bg-brand-light ring-1 ring-brand shadow-sm"
+                    : "border-surface-border bg-surface hover:border-slate-600"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <img
+                        src="/icons/app-closeuse-native.png"
+                        alt="Icône Native Closeuse"
+                        className="h-11 w-11 rounded-xl object-cover shadow-md border border-white/10"
+                      />
+                      <img
+                        src="/icons/app-livreur-native.png"
+                        alt="Icône Native Livreur"
+                        className="h-11 w-11 rounded-xl object-cover shadow-md border border-white/10"
+                      />
                     </div>
-                    <div className="mt-2 space-y-1 font-mono text-[11px] text-slate-300">
-                      <p>📱 {brandName.trim() || "Ma Marque"} • Closeuse</p>
-                      <p>🛵 {brandName.trim() || "Ma Marque"} • Livreur</p>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-100">
+                        Icônes Officielles Natives (Recommandé par défaut)
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Conserve les icônes réelles familières du livreur en moto et de la closeuse au casque.
+                      </p>
                     </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setEmployeeNamingOption("action")}
-                    className={`rounded-xl border p-3 text-left transition ${
-                      employeeNamingOption === "action"
-                        ? "border-brand bg-brand-light shadow-sm"
-                        : "border-surface-border bg-surface hover:border-slate-600"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-100">Missions Métier</span>
-                      {employeeNamingOption === "action" && <Check className="h-3.5 w-3.5 text-brand" />}
-                    </div>
-                    <div className="mt-2 space-y-1 font-mono text-[11px] text-slate-300">
-                      <p>📱 {brandName.trim() || "Ma Marque"} • Ventes</p>
-                      <p>🛵 {brandName.trim() || "Ma Marque"} • Tournées</p>
-                    </div>
-                  </button>
+                  </div>
+                  {!customLogoUrl && <Check className="h-4 w-4 text-brand shrink-0" />}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-200 mb-2">
-                  Insigne officiel par défaut pour vos employés
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {DEFAULT_EMPLOYEE_BADGES.map((b) => (
+              {/* Option B : Téléversement du Vrai Logo de la Marque */}
+              <div className="rounded-2xl border border-surface-border bg-surface p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Upload className="h-4 w-4 text-brand" />
+                    <h4 className="text-xs font-bold text-slate-100">
+                      Ou téléverser le vrai logo de votre marque
+                    </h4>
+                  </div>
+                  {customLogoUrl && (
                     <button
-                      key={b.id}
                       type="button"
-                      onClick={() => setSelectedBadge(b.id)}
-                      className={`rounded-xl border p-3 flex flex-col items-center text-center transition ${
-                        selectedBadge === b.id
-                          ? "border-brand bg-brand-light shadow-md ring-1 ring-brand"
-                          : "border-surface-border bg-surface hover:border-slate-600"
-                      }`}
+                      onClick={() => setCustomLogoUrl(null)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-400 hover:underline"
                     >
-                      <div
-                        className="h-10 w-10 rounded-xl flex items-center justify-center font-black text-sm mb-2 shadow"
-                        style={{ backgroundColor: b.bg, color: b.color, borderColor: b.color, borderWidth: 1 }}
-                      >
-                        {(brandName.trim() || "W")[0]?.toUpperCase()}
-                      </div>
-                      <span className="text-[11px] font-bold text-slate-100 leading-tight">{b.label}</span>
-                      <span className="text-[9px] text-slate-400 mt-0.5">{b.desc}</span>
+                      <Trash2 className="h-3 w-3" />
+                      Revenir aux icônes natives
                     </button>
-                  ))}
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3 text-[11px] text-slate-300 space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-indigo-300">
+                    <Info className="h-3.5 w-3.5 shrink-0" />
+                    <span>Recommandations Graphiques pour Smartphones</span>
+                  </div>
+                  <ul className="list-disc list-inside text-slate-400 space-y-0.5">
+                    <li><strong>Format idéal</strong> : Carré <code>512 × 512 px</code> (ratio 1:1)</li>
+                    <li><strong>Fichier</strong> : PNG avec transparence ou JPG / WebP net (max 2 Mo)</li>
+                  </ul>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                    id="wizard-logo-upload"
+                  />
+                  <label
+                    htmlFor="wizard-logo-upload"
+                    className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-surface-border bg-surface-raised p-4 cursor-pointer hover:border-brand hover:bg-surface-subtle transition"
+                  >
+                    {customLogoUrl ? (
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={customLogoUrl}
+                          alt="Logo entreprise"
+                          className="h-12 w-12 rounded-xl object-contain border border-white/20 bg-slate-900 p-1 shadow-md"
+                        />
+                        <div className="text-left">
+                          <span className="text-xs font-bold text-emerald-400 block">✓ Logo d'entreprise chargé</span>
+                          <span className="text-[10px] text-slate-400">Cliquez pour remplacer par une autre image</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-brand">
+                          <Upload className="h-4 w-4" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-200">
+                          Sélectionner votre logo (PNG, JPG, WebP)
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Glissez-déposez ou cliquez ici pour parcourir
+                        </span>
+                      </>
+                    )}
+                  </label>
                 </div>
               </div>
+
+              {/* Aperçu Réaliste Smartphone sans boîtes T */}
+              <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold text-slate-300">
+                    Aperçu sur l'écran d'accueil du smartphone
+                  </span>
+                  <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] font-bold text-brand">
+                    {customLogoUrl ? "Marque Entreprise" : "Icônes Natives"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto">
+                  {/* Closeuse Card */}
+                  <div className="flex flex-col items-center rounded-2xl border border-surface-border bg-surface p-3 text-center">
+                    <div className="relative h-14 w-14 rounded-2xl overflow-hidden shadow-md border border-white/10 bg-slate-900">
+                      <img
+                        src={customLogoUrl || "/icons/app-closeuse-native.png"}
+                        alt="Closeuse"
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-slate-900" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-100 mt-2 truncate max-w-[130px] block">
+                      {closeuseLabel}
+                    </span>
+                    <span className="text-[9.5px] font-semibold text-emerald-400 mt-0.5">
+                      WhatsApp 1-Clic
+                    </span>
+                  </div>
+
+                  {/* Livreur Card */}
+                  <div className="flex flex-col items-center rounded-2xl border border-surface-border bg-surface p-3 text-center">
+                    <div className="relative h-14 w-14 rounded-2xl overflow-hidden shadow-md border border-white/10 bg-slate-900">
+                      <img
+                        src={customLogoUrl || "/icons/app-livreur-native.png"}
+                        alt="Livreur"
+                        className="h-full w-full object-cover"
+                      />
+                      <span className="absolute bottom-1 right-1 h-3 w-3 rounded-full bg-sky-400 ring-2 ring-slate-900" />
+                    </div>
+                    <span className="text-xs font-bold text-slate-100 mt-2 truncate max-w-[130px] block">
+                      {livreurLabel}
+                    </span>
+                    <span className="text-[9.5px] font-semibold text-sky-400 mt-0.5">
+                      Feuille de Route
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Règle d'adaptation positive des seuils */}
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 flex items-start gap-2.5">
+                <TrendingUp className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="text-[11px] leading-relaxed text-slate-300">
+                  <strong className="text-emerald-300">Gestion positive et constructive :</strong> En cas de baisse sous votre objectif de {deliveryTarget}% ou de commandes non traitées après 30 min, WariTrack adapte automatiquement les tournées sans bloquer vos opérations.
+                </div>
+              </div>
+
             </div>
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { doc, updateDoc, collection, onSnapshot } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDb, AFRICA_COUNTRIES, ConfirmDialog } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
 import {
@@ -12,6 +13,14 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Copy,
+  Check,
+  RefreshCw,
+  Sparkles,
+  ShieldCheck,
+  Sliders,
+  ChevronRight,
+  Info,
 } from "lucide-react";
 import CreateTeamForm from "../components/CreateTeamForm";
 import CountryMapBackdrop, { getCountryMeta } from "../components/CountryMapBackdrop";
@@ -23,6 +32,7 @@ interface EquipesSheetsProps {
 }
 
 const MAX_SHEETS_PER_TEAM = 5;
+const SERVICE_ACCOUNT_EMAIL = "meta-capi-app@appspot.gserviceaccount.com";
 
 function countryFor(code: string) {
   return AFRICA_COUNTRIES.find((c) => c.code === code) ?? null;
@@ -82,7 +92,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
             Cartographie des Marchés ({teams.length})
           </h2>
           <p className="text-xs text-slate-500">
-            Sélectionnez une équipe pays pour superviser son flux d'entrée (Shopify ou Google Sheets).
+            Supervisez les équipes pays et synchronisez vos feuilles de commandes Google Sheets en temps réel.
           </p>
         </div>
         <button
@@ -99,101 +109,74 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
         {teams.map((team) => {
           const country = countryFor(team.defaultCountry);
           const meta = getCountryMeta(team.defaultCountry);
-          const active = team.id === selectedTeam?.id;
-          const shopifyDomain = shopifyByTeam[team.id];
-          const hasSheets = team.sheetIds.length > 0;
+          const isSelected = team.id === (selectedTeam?.id ?? null);
+          const shopifyInfo = shopifyByTeam[team.id] ?? null;
 
           return (
             <button
               key={team.id}
-              type="button"
               onClick={() => setSelectedTeamId(team.id)}
-              className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all ${
-                active
-                  ? "border-brand bg-surface-raised ring-1 ring-brand/40 shadow-md"
-                  : "border-surface-border bg-surface-raised/80 hover:border-slate-600 hover:bg-surface-raised"
+              className={`relative overflow-hidden rounded-2xl border p-4 text-left transition-all ${
+                isSelected
+                  ? "border-brand bg-brand-light ring-1 ring-brand shadow-md"
+                  : "border-surface-border bg-surface-raised hover:border-slate-600"
               }`}
             >
-              {/* Calm Country Map Silhouette Backdrop */}
               <CountryMapBackdrop countryCode={team.defaultCountry} />
 
-              <div className="relative z-10 flex flex-col justify-between gap-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    {country && (
-                      <img
-                        src={flagUrl(country.code)}
-                        alt={country.name}
-                        className="h-4 w-6 shrink-0 rounded-[3px] object-cover shadow-sm"
-                      />
-                    )}
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-100">{team.name}</h3>
-                      <p className="flex items-center gap-1 text-[11px] text-slate-400">
-                        <span>{country?.name ?? team.defaultCountry}</span>
-                        {meta.capital && (
-                          <>
-                            <span>·</span>
-                            <MapPin className="h-2.5 w-2.5 text-brand" />
-                            <span>{meta.capital}</span>
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="rounded-md border border-surface-border bg-surface/90 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-300">
-                    {team.currency || meta.currency}
-                  </span>
-                </div>
-
-                {/* Operational Source Status Badge */}
-                <div className="flex items-center justify-between border-t border-surface-border/60 pt-3">
-                  {shopifyDomain ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Flux Shopify actif
-                    </span>
-                  ) : hasSheets ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-medium text-sky-400">
-                      <FileSpreadsheet className="h-3 w-3" />
-                      {team.sheetIds.length} Sheet{team.sheetIds.length > 1 ? "s" : ""} actif{team.sheetIds.length > 1 ? "s" : ""}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-400">
-                      <Clock className="h-3 w-3" />
-                      Source à relier
-                    </span>
+              <div className="relative z-10 flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  {country && (
+                    <img
+                      src={flagUrl(country.code)}
+                      alt={country.name}
+                      className="h-4 w-5 rounded object-cover shadow-sm"
+                    />
                   )}
-
-                  <span className="font-mono text-[10px] text-slate-500">{meta.dialCode}</span>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-100">{team.name}</h3>
+                    <p className="text-[10px] text-slate-400">
+                      Devise : <span className="font-mono font-semibold text-slate-300">{team.currency}</span>
+                    </p>
+                  </div>
                 </div>
+                {isSelected && (
+                  <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[9.5px] font-bold text-brand">
+                    Actif
+                  </span>
+                )}
+              </div>
+
+              <div className="relative z-10 mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-surface-border/60 pt-2.5">
+                <div className="flex items-center gap-1.5">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>{team.sheetIds.length} tableurs connectés</span>
+                </div>
+                {shopifyInfo && (
+                  <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300">
+                    Shopify
+                  </span>
+                )}
               </div>
             </button>
           );
         })}
       </div>
 
-      {/* Selected Team Detail Panel */}
-      {selectedTeam ? (
+      {/* Selected Team Details & Google Sheets Manager */}
+      {selectedTeam && (
         <TeamDetail
           key={selectedTeam.id}
           workspaceId={workspaceId}
           team={selectedTeam}
           shopifyActiveInfo={shopifyByTeam[selectedTeam.id] ?? null}
         />
-      ) : (
-        <div className="rounded-2xl border border-surface-border bg-surface-raised p-8 text-center text-sm text-slate-500">
-          Sélectionnez une équipe ci-dessus pour gérer ses connexions.
-        </div>
       )}
 
+      {/* Modal Création Marché */}
       {showCreate && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
-          onClick={() => setShowCreate(false)}
-        >
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="relative w-full max-w-lg rounded-3xl border border-surface-border bg-surface-raised p-6 shadow-2xl">
             <CreateTeamForm
               workspaceId={workspaceId}
               onCreated={(newTeamId) => {
@@ -209,6 +192,30 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
   );
 }
 
+interface TestResult {
+  success: boolean;
+  serviceEmail: string;
+  title?: string;
+  sheetName?: string;
+  columnsCount?: number;
+  totalRows?: number;
+  statusColCreated?: boolean;
+  statusColLetter?: string;
+  detectedColumns?: {
+    phone: boolean;
+    clientName: boolean;
+    city: boolean;
+    product: boolean;
+    amount: boolean;
+    quantity: boolean;
+    status: boolean;
+    livreur: boolean;
+    updatedAt: boolean;
+  };
+  message: string;
+  errorCode?: string;
+}
+
 function TeamDetail({
   workspaceId,
   team,
@@ -220,19 +227,51 @@ function TeamDetail({
 }) {
   const [sheetInput, setSheetInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [copiedEmail, setCopiedEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmRemoveSheetId, setConfirmRemoveSheetId] = useState<string | null>(null);
 
   const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
 
-  const handleAddSheet = async () => {
-    if (shopifyActiveInfo) {
-      setError("La source Shopify est active pour cette équipe. La synchronisation Google Sheet est désactivée.");
-      return;
-    }
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText(SERVICE_ACCOUNT_EMAIL);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2500);
+  };
+
+  const handleTestConnection = async () => {
+    setError(null);
+    setTestResult(null);
     const id = extractSheetId(sheetInput);
     if (!id) {
-      setError("ID ou lien Google Sheets invalide. Collez l'URL complète de votre tableur.");
+      setError("ID ou URL Google Sheets invalide. Veuillez coller le lien complet de votre tableur.");
+      return;
+    }
+
+    setTesting(true);
+    try {
+      const functions = getFunctions();
+      const testFn = httpsCallable(functions, "testSheetConnection");
+      const res = await testFn({ sheetId: id, workspaceId });
+      setTestResult(res.data as TestResult);
+    } catch (err: any) {
+      console.error("Erreur test sheet:", err);
+      setTestResult({
+        success: false,
+        serviceEmail: SERVICE_ACCOUNT_EMAIL,
+        errorCode: "CALL_ERROR",
+        message: err?.message || "Impossible de joindre le service de test.",
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleAddSheetWithId = async (id: string) => {
+    if (shopifyActiveInfo) {
+      setError("La source Shopify est active pour cette équipe. La synchronisation Google Sheet est désactivée.");
       return;
     }
     if (team.sheetIds.includes(id)) {
@@ -248,12 +287,22 @@ function TeamDetail({
     try {
       await updateDoc(teamRef(), { sheetIds: [...team.sheetIds, id] });
       setSheetInput("");
+      setTestResult(null);
     } catch (err) {
       const formatted = formatFirebaseError(err);
       setError(`${formatted.title} : ${formatted.message}`);
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleAddSheet = async () => {
+    const id = extractSheetId(sheetInput);
+    if (!id) {
+      setError("ID ou lien Google Sheets invalide. Collez l'URL complète de votre tableur.");
+      return;
+    }
+    await handleAddSheetWithId(id);
   };
 
   const handleRemoveSheet = async (id: string) => {
@@ -270,7 +319,86 @@ function TeamDetail({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* 1. Carte Officielle du Compte de Service WariTrack */}
+      <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-sky-500/10 p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-slate-100">
+                  Connexion Immédiate par Compte de Service (Méthode A)
+                </h4>
+                <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  24h/24 Actif
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Zéro validation Google requise, aucune expiration de token au bout de 7 jours, synchronisation automatique continue.
+              </p>
+            </div>
+          </div>
+
+          {/* Bouton de copie de l'adresse robot */}
+          <div className="flex items-center gap-2 bg-surface/80 border border-surface-border rounded-xl p-1.5 shrink-0">
+            <span className="font-mono text-xs text-slate-200 px-2 select-all truncate max-w-[240px] sm:max-w-none">
+              {SERVICE_ACCOUNT_EMAIL}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyEmail}
+              className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-95 transition shrink-0"
+            >
+              {copiedEmail ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-300" />
+                  <span>Copié !</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copier</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Étapes Visuelles de Configuration */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 1
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Ouvrez votre tableur Google Sheets</p>
+          </div>
+
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 2
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Cliquez sur <strong className="text-sky-300">Partager</strong> (en haut à droite)</p>
+          </div>
+
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 3
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Collez l'adresse robot en rôle <strong className="text-emerald-300">Éditeur</strong></p>
+          </div>
+
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 4
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Collez l'URL ci-dessous et lancez le <strong className="text-amber-300">Test</strong></p>
+          </div>
+        </div>
+      </div>
+
       {shopifyActiveInfo && (
         <div className="rounded-2xl border border-brand/30 bg-brand/10 p-4">
           <div className="flex items-start gap-3">
@@ -289,20 +417,21 @@ function TeamDetail({
         </div>
       )}
 
+      {/* 2. Gestionnaire des Tableurs Connectés */}
       <div
         className={`rounded-2xl border border-surface-border bg-surface-raised p-5 transition-opacity ${
           shopifyActiveInfo ? "opacity-65" : ""
         }`}
       >
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+            <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
             <div>
-              <h3 className="text-sm font-semibold text-slate-100">
+              <h3 className="text-sm font-bold text-slate-100">
                 Tableurs Google Sheets — {team.name}
               </h3>
-              <p className="text-xs text-slate-500">
-                Collez l'URL complète ou l'identifiant du Google Sheet partagé en mode Éditeur.
+              <p className="text-xs text-slate-400">
+                WariTrack numérise automatiquement les colonnes de votre feuille et crée la colonne statut en temps réel si elle n'existe pas.
               </p>
             </div>
           </div>
@@ -313,7 +442,9 @@ function TeamDetail({
 
         {team.sheetIds.length === 0 ? (
           <div className="mb-4 rounded-xl border border-dashed border-surface-border bg-surface/40 p-6 text-center">
-            <p className="text-xs text-slate-400">Aucun tableur Google Sheets connecté à ce marché.</p>
+            <p className="text-xs text-slate-400">
+              Aucun tableur Google Sheets rattaché à {team.name}. Collez l'URL d'un tableur pour démarrer.
+            </p>
           </div>
         ) : (
           <ul className="mb-4 space-y-2">
@@ -349,27 +480,164 @@ function TeamDetail({
           </ul>
         )}
 
+        {/* Formulaire de saisie & Test de synchronisation */}
         {team.sheetIds.length < MAX_SHEETS_PER_TEAM && (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              value={sheetInput}
-              disabled={busy || !!shopifyActiveInfo}
-              onChange={(e) => setSheetInput(e.target.value)}
-              placeholder={
-                shopifyActiveInfo
-                  ? "Désactivé tant que le flux Shopify est actif"
-                  : "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-              }
-              className="flex-1 rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-50"
-            />
-            <button
-              disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo}
-              onClick={handleAddSheet}
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Connecter le Sheet
-            </button>
+          <div className="space-y-3 pt-1">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={sheetInput}
+                disabled={busy || !!shopifyActiveInfo || testing}
+                onChange={(e) => setSheetInput(e.target.value)}
+                placeholder={
+                  shopifyActiveInfo
+                    ? "Désactivé tant que le flux Shopify est actif"
+                    : "Collez le lien : https://docs.google.com/spreadsheets/d/1BxiMVs.../edit"
+                }
+                className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-50"
+              />
+              
+              {/* Bouton Diagnostic / Test */}
+              <button
+                disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
+                onClick={handleTestConnection}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-xs font-bold text-indigo-300 hover:bg-indigo-500/20 transition disabled:opacity-40"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${testing ? "animate-spin" : ""}`} />
+                {testing ? "Analyse en direct…" : "Tester les Colonnes"}
+              </button>
+
+              {/* Bouton Connexion directe */}
+              <button
+                disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
+                onClick={handleAddSheet}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Connecter le Sheet
+              </button>
+            </div>
+
+            {/* Résultat du Test de Connexion & Numérisation des colonnes */}
+            {testResult && (
+              <div
+                className={`rounded-2xl border p-4 text-xs space-y-3 animate-in fade-in duration-200 ${
+                  testResult.success
+                    ? "border-emerald-500/30 bg-emerald-500/5 text-slate-200"
+                    : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {testResult.success ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0" />
+                    )}
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-100">
+                        {testResult.success
+                          ? `Feuille validée : "${testResult.title}"`
+                          : "Échec de connexion au Google Sheet"}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{testResult.message}</p>
+                    </div>
+                  </div>
+
+                  {testResult.success && sheetInput.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = extractSheetId(sheetInput);
+                        if (id) handleAddSheetWithId(id);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-500 transition shrink-0"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Valider &amp; Rattacher
+                    </button>
+                  )}
+                </div>
+
+                {testResult.success && testResult.detectedColumns && (
+                  <div className="rounded-xl border border-surface-border bg-surface/70 p-3 space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Numérisation des colonnes détectées sur la feuille :
+                    </span>
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.phone
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.phone ? "✓ Téléphone Client" : "— Téléphone"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.clientName
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.clientName ? "✓ Nom du Client" : "— Nom"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.city
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.city ? "✓ Ville / Adresse" : "— Adresse"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.product
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.product ? "✓ Produit Commandé" : "— Produit"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.amount
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.amount ? "✓ Montant COD" : "— Montant"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.status
+                            ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        ✓ Colonne Statut ({testResult.statusColLetter || "WariTrack"})
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.livreur
+                            ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        ✓ Livreur Assigné
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -379,6 +647,15 @@ function TeamDetail({
             <span>{error}</span>
           </div>
         )}
+      </div>
+
+      {/* 3. Note Architecturale : Transition Production OAuth 2.0 */}
+      <div className="rounded-2xl border border-surface-border bg-surface p-4 flex items-start gap-3 text-xs text-slate-400">
+        <Info className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
+        <div>
+          <strong className="text-slate-200">Évolution vers la Méthode B (OAuth 2.0 &amp; Refresh Token) :</strong>{" "}
+          Le socle technique WariTrack intègre la double architecture. Le compte de service est actif et opérationnel immédiatement sans aucune contrainte de quota ou de validation Google. Le flux OAuth 2.0 (avec écran de consentement Google et rafraîchissement automatique de token offline) sera déployé en option cette semaine pour les marchands préférant le bouton 1-clic « Se connecter avec Google ».
+        </div>
       </div>
 
       <ConfirmDialog

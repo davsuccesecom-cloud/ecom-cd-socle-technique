@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   useOrders,
   useTeams,
@@ -103,6 +103,14 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
 export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }: DashboardProps) {
   useRegisterPushNotifications(workspaceId, adminId, import.meta.env.VITE_FIREBASE_VAPID_KEY);
   const [page, setPage] = useState<string>("overview");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Rétractation automatique sur ordi pour libérer 100% de l'espace de personnalisation
+  useEffect(() => {
+    if (page === "settings" && typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setSidebarCollapsed(true);
+    }
+  }, [page]);
   const { teams, loading: teamsLoading } = useTeams(workspaceId);
   const [teamId, setTeamId] = useState<string | null>(null);
   const [period, setPeriod] = useState<Period>({ type: "preset", value: "jour" });
@@ -260,6 +268,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       <Sidebar
         active={page}
         userEmail={userEmail}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={setSidebarCollapsed}
         onLogout={onLogout}
         onNavigate={setPage}
         onOpenWhatsNew={() => setShowWhatsNew(true)}

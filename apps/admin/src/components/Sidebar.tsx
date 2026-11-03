@@ -22,6 +22,8 @@ interface SidebarProps {
   active: string;
   userEmail: string | null;
   pendingOrdersCount?: number;
+  collapsed?: boolean;
+  onToggleCollapse?: (collapsed: boolean) => void;
   onLogout: () => void;
   onNavigate: (key: string) => void;
   onOpenWhatsNew?: () => void;
@@ -72,11 +74,24 @@ export default function Sidebar({
   active,
   userEmail,
   pendingOrdersCount = 0,
+  collapsed: controlledCollapsed,
+  onToggleCollapse,
   onLogout,
   onNavigate,
   onOpenWhatsNew,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const isControlled = typeof controlledCollapsed === "boolean";
+  const collapsed = isControlled ? controlledCollapsed : internalCollapsed;
+
+  const toggleCollapsed = () => {
+    if (isControlled && onToggleCollapse) {
+      onToggleCollapse(!controlledCollapsed);
+    } else {
+      setInternalCollapsed((v) => !v);
+    }
+  };
+
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
@@ -102,7 +117,7 @@ export default function Sidebar({
         <WariTrackLogo variant={collapsed ? "icon" : "full"} subtitle="LOGISTICS OS" />
         <button
           type="button"
-          onClick={() => setCollapsed((v) => !v)}
+          onClick={toggleCollapsed}
           title={collapsed ? "Déplier le menu" : "Réduire le menu"}
           className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-200 shrink-0"
         >
@@ -110,8 +125,8 @@ export default function Sidebar({
         </button>
       </div>
 
-      {/* Navigation structurée par pôles */}
-      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto">
+      {/* Navigation structurée par pôles (scrollbar invisible & propre) */}
+      <nav className="flex flex-1 flex-col gap-5 overflow-y-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {GROUPS.map((group) => (
           <div key={group.title} className="space-y-1">
             {!collapsed && (
