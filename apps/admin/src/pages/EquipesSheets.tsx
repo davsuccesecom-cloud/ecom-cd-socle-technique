@@ -21,6 +21,7 @@ import {
   Sliders,
   ChevronRight,
   Info,
+  Unlink,
 } from "lucide-react";
 import CreateTeamForm from "../components/CreateTeamForm";
 import CountryMapBackdrop, { getCountryMeta } from "../components/CountryMapBackdrop";
@@ -51,32 +52,56 @@ function extractSheetId(input: string): string | null {
   return null;
 }
 
+export interface TeamShopifyConnectionInfo {
+  connectionId: string;
+  shopDomain: string;
+  isOwner: boolean;
+  countryCode?: string;
+  label: string;
+}
+
 export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps) {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(teams[0]?.id ?? null);
   const [showCreate, setShowCreate] = useState(false);
   const [shopifyByTeam, setShopifyByTeam] = useState<Record<string, string>>({});
+  const [shopifyDetailsByTeam, setShopifyDetailsByTeam] = useState<Record<string, TeamShopifyConnectionInfo>>({});
 
   useEffect(() => {
     const db = getDb();
     const connCol = collection(db, "workspaces", workspaceId, "shopifyConnections");
     const unsub = onSnapshot(connCol, (snap) => {
       const map: Record<string, string> = {};
+      const details: Record<string, TeamShopifyConnectionInfo> = {};
       snap.forEach((d) => {
         const c = d.data();
         if (c.status === "active") {
           if (c.ownerTeamId) {
             map[c.ownerTeamId] = `${c.shopDomain} (Propriétaire)`;
+            details[c.ownerTeamId] = {
+              connectionId: d.id,
+              shopDomain: c.shopDomain,
+              isOwner: true,
+              label: `${c.shopDomain} (Propriétaire)`,
+            };
           }
           if (c.countryRoutes) {
-            Object.values(c.countryRoutes).forEach((r: any) => {
+            Object.entries(c.countryRoutes).forEach(([code, r]: any) => {
               if (r.assignedTeamId && r.status === "active") {
-                map[r.assignedTeamId] = `${c.shopDomain} (Flux délégué)`;
+                map[r.assignedTeamId] = `${c.shopDomain} (Flux délégué ${code})`;
+                details[r.assignedTeamId] = {
+                  connectionId: d.id,
+                  shopDomain: c.shopDomain,
+                  isOwner: false,
+                  countryCode: code,
+                  label: `${c.shopDomain} (Flux délégué ${code})`,
+                };
               }
             });
           }
         }
       });
       setShopifyByTeam(map);
+      setShopifyDetailsByTeam(details);
     });
     return () => unsub();
   }, [workspaceId]);
@@ -170,6 +195,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
           workspaceId={workspaceId}
           team={selectedTeam}
           shopifyActiveInfo={shopifyByTeam[selectedTeam.id] ?? null}
+          shopifyDetail={shopifyDetailsByTeam[selectedTeam.id] ?? null}
         />
       )}
 
@@ -220,10 +246,12 @@ function TeamDetail({
   workspaceId,
   team,
   shopifyActiveInfo,
+  shopifyDetail,
 }: {
   workspaceId: string;
   team: Team;
   shopifyActiveInfo: string | null;
+  shopifyDetail: TeamShopifyConnectionInfo | null;
 }) {
   const [sheetInput, setSheetInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -232,6 +260,34 @@ function TeamDetail({
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmRemoveSheetId, setConfirmRemoveSheetId] = useState<string | null>(null);
+  const [confirmDisconnectShopify, setConfirmDisconnectShopify] = useState(false);
+
+  const handleDisconnectShopify = async () => {
+    if (!shopifyDetail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const db = getDb();
+      const connRef = doc(db, "workspaces", workspaceId, "shopifyConnections", shopifyDetail.connectionId);
+      if (shopifyDetail.isOwner) {
+        await updateDoc(connRef, {
+          status: "inactive",
+          ownerTeamId: "",
+        });
+      } else if (shopifyDetail.countryCode) {
+        await updateDoc(connRef, {
+          [`countryRoutes.${shopifyDetail.countryCode}.assignedTeamId`]: "",
+          [`countryRoutes.${shopifyDetail.countryCode}.status`]: "inactive",
+        });
+      }
+      setConfirmDisconnectShopify(false);
+    } catch (err) {
+      const formatted = formatFirebaseError(err);
+      setError(`${formatted.title} : ${formatted.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
 
@@ -399,20 +455,33 @@ function TeamDetail({
         </div>
       </div>
 
-      {shopifyActiveInfo && (
+      {shopifyDetail && (
         <div className="rounded-2xl border border-brand/30 bg-brand/10 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/20 text-brand">
-              <Store className="h-4 w-4" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/20 text-brand">
+                <Store className="h-4 w-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold text-slate-100">
+                  Flux Temps Réel Shopify Actif — {shopifyDetail.label}
+                </h4>
+                <p className="mt-1 text-xs leading-relaxed text-slate-300">
+                  Les commandes de <strong>{team.name}</strong> arrivent directement par webhook Shopify. La synchronisation Google Sheets est mise en veille pour éviter les doublons.
+                </p>
+              </div>
             </div>
-            <div>
-              <h4 className="text-xs font-semibold text-slate-100">
-                Flux Temps Réel Shopify Actif — {shopifyActiveInfo}
-              </h4>
-              <p className="mt-1 text-xs leading-relaxed text-slate-300">
-                Les commandes de <strong>{team.name}</strong> arrivent directement par webhook Shopify sécurisé. La synchronisation Google Sheets est mise en veille pour garantir zéro doublon.
-              </p>
-            </div>
+
+            <button
+              type="button"
+              onClick={() => setConfirmDisconnectShopify(true)}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/15 px-3.5 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/25 transition shadow-sm shrink-0"
+              title="Déconnecter le flux Shopify pour ce marché et réactiver Google Sheets"
+            >
+              <Unlink className="h-3.5 w-3.5" />
+              <span>Déconnecter Shopify</span>
+            </button>
           </div>
         </div>
       )}
@@ -657,6 +726,17 @@ function TeamDetail({
           Le socle technique WariTrack intègre la double architecture. Le compte de service est actif et opérationnel immédiatement sans aucune contrainte de quota ou de validation Google. Le flux OAuth 2.0 (avec écran de consentement Google et rafraîchissement automatique de token offline) sera déployé en option cette semaine pour les marchands préférant le bouton 1-clic « Se connecter avec Google ».
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDisconnectShopify}
+        title="Déconnecter le flux Shopify de ce marché ?"
+        message={`Voulez-vous vraiment déconnecter la boutique Shopify (${shopifyDetail?.shopDomain || ""}) de l'équipe ${team.name} ? La synchronisation Google Sheets sera immédiatement réactivée et vous pourrez reconnecter votre boutique à tout moment.`}
+        confirmLabel="Déconnecter Shopify"
+        danger={true}
+        loading={busy}
+        onConfirm={handleDisconnectShopify}
+        onCancel={() => setConfirmDisconnectShopify(false)}
+      />
 
       <ConfirmDialog
         open={!!confirmRemoveSheetId}

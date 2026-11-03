@@ -27,6 +27,8 @@ import {
   Trash2,
   X,
   Zap,
+  RefreshCw,
+  Unlink,
 } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
@@ -746,15 +748,22 @@ export default function ShopifyFluxManager({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      {health.needsVerification && (
-                        <button
-                          type="button"
-                          onClick={() => openVerification(conn as Conn)}
-                          className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20"
-                        >
-                          {isPending(conn) ? "Reprendre la vérification" : "Vérifier"}
-                        </button>
-                      )}
+                      {/* Bouton Reconnecter / Configurer / Tester */}
+                      <button
+                        type="button"
+                        onClick={() => openVerification(conn as Conn)}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors shadow-sm ${
+                          health.needsVerification
+                            ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 animate-pulse"
+                            : "border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20"
+                        }`}
+                        title="Vérifier le webhook, tester la détection ou reconnecter la boutique"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 text-sky-400" />
+                        <span>{health.needsVerification ? "Reprendre la vérification" : "Reconnecter & Tester"}</span>
+                      </button>
+
+                      {/* Bouton Ajouter un pays */}
                       <button
                         type="button"
                         onClick={() => setAddCountryModal({ connectionId: conn.id })}
@@ -763,13 +772,16 @@ export default function ShopifyFluxManager({
                         <Plus className="h-3.5 w-3.5" />
                         <span>Ajouter un pays</span>
                       </button>
+
+                      {/* Bouton Déconnecter la boutique */}
                       <button
                         type="button"
                         onClick={() => setDisconnectTarget({ connectionId: conn.id, shopDomain: conn.shopDomain })}
-                        className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-400 transition-colors hover:bg-rose-500/20"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/35 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-500/20 shadow-sm"
+                        title="Déconnecter cette boutique de WariTrack"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span>Déconnecter</span>
+                        <Unlink className="h-3.5 w-3.5 text-rose-400" />
+                        <span>Déconnecter la boutique</span>
                       </button>
                     </div>
                   </div>
@@ -1411,7 +1423,7 @@ export default function ShopifyFluxManager({
         title="Déconnecter la boutique Shopify"
         message={
           disconnectTarget
-            ? `Voulez-vous vraiment déconnecter la boutique ${disconnectTarget.shopDomain} ? Les nouvelles commandes entrantes ne seront plus synchronisées.`
+            ? `Voulez-vous vraiment déconnecter la boutique ${disconnectTarget.shopDomain} ? Vos commandes existantes restent précieusement conservées dans WariTrack. Vous pourrez reconnecter cette boutique ou une nouvelle boutique à tout moment.`
             : ""
         }
         confirmLabel="Déconnecter la boutique"

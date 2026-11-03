@@ -5,6 +5,7 @@ import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import MetaOAuthBridgePage from "./pages/MetaOAuthBridgePage";
 import LegalPrivacyModal, { type LegalTab } from "./components/LegalPrivacyModal";
+import WariTrackLogo from "./components/WariTrackLogo";
 
 interface SessionClaims {
   workspaceId: string;
@@ -167,11 +168,26 @@ export default function App() {
     );
   }
 
-  // Si l'utilisateur est connecté mais ses claims sont en cours de chargement
-  if (firebaseUser && claimsLoading) {
+  // État de chargement initial fluide : évite tout flash de la landing page lors d'une actualisation F5
+  if (authLoading || (firebaseUser && claimsLoading)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface text-slate-500">
-        Chargement de l'espace...
+      <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 select-none">
+        <div className="relative flex flex-col items-center animate-in fade-in duration-300">
+          <div className="relative mb-6 flex items-center justify-center">
+            <div className="absolute -inset-4 rounded-3xl bg-brand/10 blur-xl animate-pulse" />
+            <WariTrackLogo size="lg" variant="full" roundedBadge subtitle="LOGISTICS OS" />
+          </div>
+
+          <div className="flex items-center gap-2.5 rounded-full border border-surface-border bg-surface-raised px-4 py-2 shadow-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
+            </span>
+            <span className="text-xs font-semibold text-slate-300">
+              Synchronisation du poste de pilotage…
+            </span>
+          </div>
+        </div>
       </div>
     );
   }
