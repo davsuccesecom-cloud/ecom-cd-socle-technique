@@ -64,6 +64,9 @@ export interface Team {
     companyAddress: string;
     footerNote: string;
     paperWidth: "58mm" | "80mm";
+    receiptTitle?: string;
+    enableWhatsAppShare?: boolean;
+    showLivreurInfo?: boolean;
   };
   createdAt: number;
 }
@@ -90,9 +93,11 @@ export interface Order {
   quantity?: number;
   amount: number;
   orderNumber?: string;
+  deliverySlipNumber?: string;
 
   closeuseId: string | null;
   livreurId: string | null;
+  assignedLivreurName?: string;
 
   statutCloseuse: CloseuseStatus;
   statutLivreur: LivreurStatus | null;

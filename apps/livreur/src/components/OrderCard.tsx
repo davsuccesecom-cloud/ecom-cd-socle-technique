@@ -4,6 +4,9 @@ import {
   buildWhatsAppLink,
   LIVREUR_STATUS_LABELS,
   ConfirmDialog,
+  openPrintDialog,
+  openWhatsAppReceipt,
+  generateDeliverySlipNumber,
   type LivreurStatus,
   type Order,
   type Team,
@@ -12,6 +15,7 @@ import {
 interface OrderCardProps {
   order: Order;
   team?: Team | null;
+  livreurName?: string;
   onChangeStatus: (status: LivreurStatus) => void;
 }
 
@@ -22,68 +26,7 @@ const STATUS_BADGE_CLASS: Record<LivreurStatus, string> = {
   injoignable: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400",
 };
 
-function printThermalReceipt(order: Order, team?: Team | null) {
-  const cfg = team?.printReceiptConfig;
-  const company = cfg?.companyName || team?.name || "Boutique Express";
-  const phone = cfg?.companyPhone || "";
-  const address = cfg?.companyAddress || "";
-  const footer = cfg?.footerNote || "Merci pour votre achat !";
-  const currency = team?.currency || "XOF";
-  const paperWidth = cfg?.paperWidth || "58mm";
-
-  const win = window.open("", "_blank", "width=350,height=500");
-  if (!win) return;
-
-  win.document.write(`
-    <html>
-      <head>
-        <title>Ticket - #${order.orderNumber || order.id.slice(0, 8)}</title>
-        <style>
-          @page { margin: 0; }
-          body {
-            font-family: monospace;
-            width: ${paperWidth === "58mm" ? "58mm" : "80mm"};
-            margin: 0 auto;
-            padding: 8px;
-            color: #000;
-            font-size: 11px;
-          }
-          .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .line { border-top: 1px dashed #000; margin: 5px 0; }
-          .row { display: flex; justify-content: space-between; margin: 3px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="center bold" style="font-size: 13px;">${company}</div>
-        ${phone ? `<div class="center">${phone}</div>` : ""}
-        ${address ? `<div class="center">${address}</div>` : ""}
-        <div class="line"></div>
-        <div class="row"><span>Reçu N° :</span><span class="bold">#${order.orderNumber || order.id.slice(0, 8)}</span></div>
-        <div class="row"><span>Date :</span><span>${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</span></div>
-        <div class="line"></div>
-        <div class="row bold"><span>Client :</span><span>${order.clientName}</span></div>
-        <div class="row"><span>Tél :</span><span>${order.clientPhoneRaw}</span></div>
-        <div class="row"><span>Ville :</span><span>${order.city || "Livraison locale"}</span></div>
-        <div class="line"></div>
-        <div class="row"><span>${order.product} ${order.quantity ? `x${order.quantity}` : ""}</span><span>${order.amount.toLocaleString("fr-FR")} ${currency}</span></div>
-        <div class="line"></div>
-        <div class="row bold" style="font-size: 12px;"><span>TOTAL PAYÉ :</span><span>${order.amount.toLocaleString("fr-FR")} ${currency}</span></div>
-        <div class="line"></div>
-        <div class="center" style="margin-top: 6px;">${footer}</div>
-        <script>
-          window.onload = function() {
-            window.print();
-            setTimeout(function() { window.close(); }, 500);
-          };
-        </script>
-      </body>
-    </html>
-  `);
-  win.document.close();
-}
-
-export default function OrderCard({ order, team, onChangeStatus }: OrderCardProps) {
+export default function OrderCard({ order, team, livreurName, onChangeStatus }: OrderCardProps) {
   const status = order.statutLivreur ?? "recu";
   const isFinal = status === "livre" || status === "injoignable";
   const [pendingFinalStatus, setPendingFinalStatus] = useState<LivreurStatus | null>(null);
@@ -245,19 +188,44 @@ export default function OrderCard({ order, team, onChangeStatus }: OrderCardProp
           if (!target) return;
           onChangeStatus(target);
           if (target === "livre" && team?.printReceiptConfig?.enabled && team?.printReceiptConfig?.autoPrintOnDelivery) {
-            printThermalReceipt(order, team);
+            openPrintDialog(order, team, { livreurName });
           }
         }}
         onCancel={() => setPendingFinalStatus(null)}
       />
 
       {status === "livre" && team?.printReceiptConfig?.enabled && (
-        <button
-          onClick={() => printThermalReceipt(order, team)}
-          className="w-full mt-2 rounded-xl border border-slate-200 dark:border-slate-700 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
-        >
-          🖨️ Imprimer le bon de commande
-        </button>
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <span>🧾</span>
+              <span>Bon de Livraison : <strong className="font-mono text-brand">{order.deliverySlipNumber || generateDeliverySlipNumber(order)}</strong></span>
+            </span>
+            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">Encaissé ✓</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => openPrintDialog(order, team, { livreurName })}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/40 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+            >
+              <span>🖨️</span>
+              <span>Imprimer Bon</span>
+            </button>
+
+            {team?.printReceiptConfig?.enableWhatsAppShare !== false && (
+              <button
+                type="button"
+                onClick={() => openWhatsAppReceipt(order, team, { livreurName })}
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/30 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition"
+              >
+                <span>📲</span>
+                <span>Reçu WhatsApp</span>
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

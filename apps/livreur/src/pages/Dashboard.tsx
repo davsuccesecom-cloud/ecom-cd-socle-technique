@@ -23,6 +23,7 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
   const { updateLivreurStatus } = useUpdateOrderStatus(workspaceId);
   const { theme, toggleTheme } = useTheme("light");
   const [team, setTeam] = useState<Team | null>(null);
+  const [livreurName, setLivreurName] = useState<string>('');
   useRegisterPushNotifications(workspaceId, livreurId, import.meta.env.VITE_FIREBASE_VAPID_KEY);
 
   useEffect(() => {
@@ -35,6 +36,17 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
     });
     return () => unsub();
   }, [workspaceId, teamId]);
+
+  useEffect(() => {
+    if (!workspaceId || !livreurId) return;
+    const db = getDb();
+    const unsub = onSnapshot(doc(db, "workspaces", workspaceId, "users", livreurId), (snap) => {
+      if (snap.exists()) {
+        setLivreurName((snap.data() as any)?.name || "");
+      }
+    });
+    return () => unsub();
+  }, [workspaceId, livreurId]);
 
   const [activeTab, setActiveTab] = useState<LivreurTab>("a_livrer");
 
@@ -188,6 +200,7 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
             key={order.id}
             order={order}
             team={team}
+            livreurName={livreurName}
             onChangeStatus={(status) => updateLivreurStatus(order.id, status)}
           />
         ))}
