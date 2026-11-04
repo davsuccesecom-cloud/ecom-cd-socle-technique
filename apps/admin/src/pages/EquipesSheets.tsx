@@ -161,7 +161,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                   <div>
                     <h3 className="text-xs font-bold text-slate-100">{team.name}</h3>
                     <p className="text-[10px] text-slate-400">
-                      Devise : <span className="font-mono font-semibold text-slate-300">{team.currency}</span>
+                      Devise : <span className="font-semibold text-slate-300">{team.currency}</span>
                     </p>
                   </div>
                 </div>

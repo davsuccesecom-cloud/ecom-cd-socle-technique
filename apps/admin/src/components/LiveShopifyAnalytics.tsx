@@ -317,7 +317,7 @@ export default function LiveShopifyAnalytics({
               <span>Chiffre d'Affaires Encaissé</span>
               <TrendingUp className="h-3.5 w-3.5 text-brand" />
             </div>
-            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
               {displayTotals.ca.toLocaleString("fr-FR")}{" "}
               <span className="text-xs font-semibold text-slate-400">{currency}</span>
             </p>
@@ -337,7 +337,7 @@ export default function LiveShopifyAnalytics({
               <span>Flux des Commandes</span>
               <PhoneCall className="h-3.5 w-3.5 text-sky-400" />
             </div>
-            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
               {displayTotals.commandes.toLocaleString("fr-FR")}
             </p>
             <div className="mt-1">
@@ -360,7 +360,7 @@ export default function LiveShopifyAnalytics({
               <span>Livraisons Réussies</span>
               <PackageCheck className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
               {displayTotals.livraisons.toLocaleString("fr-FR")}
             </p>
             <div className="mt-1">
@@ -383,7 +383,7 @@ export default function LiveShopifyAnalytics({
               <span>Clients Injoignables</span>
               <PhoneOff className="h-3.5 w-3.5 text-rose-400" />
             </div>
-            <p className="mt-2 font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
               {displayTotals.injoignables.toLocaleString("fr-FR")}
             </p>
             <div className="mt-1">
@@ -459,7 +459,7 @@ export default function LiveShopifyAnalytics({
                       return (
                         <div className="surface-popover rounded-xl px-3.5 py-2.5 text-xs">
                           <p className="font-semibold text-slate-300">{pt.label}</p>
-                          <p className="mt-1 font-mono text-sm font-bold text-slate-100">
+                          <p className="mt-1 text-sm font-semibold tabular-nums text-slate-100">
                             {pt.ca.toLocaleString("fr-FR")} {currency}
                           </p>
                           <p className="mt-0.5 text-[11px] text-slate-400">

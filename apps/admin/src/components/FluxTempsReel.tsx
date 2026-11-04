@@ -50,7 +50,7 @@ export default function FluxTempsReel({ orders }: FluxTempsReelProps) {
                   {delivered ? "✓ Livrée" : "✕ Injoignable"}
                 </span>
                 <span className="flex-1 truncate font-medium text-slate-200">{order.clientName}</span>
-                <span className="shrink-0 font-mono font-bold text-slate-200 tabular-nums">
+                <span className="shrink-0 font-semibold text-slate-200 tabular-nums">
                   {delivered ? `${order.amount.toLocaleString("fr-FR")} FCFA` : "—"}
                 </span>
                 <span className="shrink-0 text-[11px] text-slate-400">{formatTime(ts)}</span>

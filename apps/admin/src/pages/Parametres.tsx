@@ -899,7 +899,7 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
             <tbody className="divide-y divide-surface-border">
               {filteredEntries.slice(0, 60).map(({ order: o, phone, ordersCount, isDuplicate }) => (
                 <tr key={o.id} className="hover:bg-surface/80">
-                  <td className="px-3.5 py-2 font-mono text-slate-200">
+                  <td className="px-3.5 py-2 text-slate-200 tabular-nums">
                     <div className="flex items-center gap-2">
                       <span>{phone}</span>
                       <a

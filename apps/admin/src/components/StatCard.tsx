@@ -45,7 +45,7 @@ export default function StatCard({
       </div>
 
       <div className="mt-2.5 flex items-baseline justify-between gap-2">
-        <span className="font-mono text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+        <span className="text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
           {value}
         </span>
         {trendPoints && trendPoints.length > 1 && (

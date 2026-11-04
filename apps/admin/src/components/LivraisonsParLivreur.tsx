@@ -34,7 +34,7 @@ export default function LivraisonsParLivreur({ orders, livreurs }: LivraisonsPar
               <span className="flex-1 text-xs font-semibold text-slate-200 truncate">
                 {nameById.get(livreurId) ?? "Livreur inconnu"}
               </span>
-              <span className="font-mono text-xs font-semibold text-emerald-400 tabular-nums">
+              <span className="text-xs font-semibold text-emerald-400 tabular-nums">
                 {count} {count > 1 ? "colis" : "colis"}
               </span>
             </li>

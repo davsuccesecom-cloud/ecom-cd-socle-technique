@@ -67,7 +67,7 @@ export default function StatusDonut({ counts }: StatusDonutProps) {
           )}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-mono text-3xl font-bold tracking-tight tabular-nums text-slate-100">
+          <span className="text-3xl font-bold tracking-tight tabular-nums text-slate-100">
             {total.toLocaleString("fr-FR")}
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -81,7 +81,7 @@ export default function StatusDonut({ counts }: StatusDonutProps) {
           <div key={key} className="flex items-center gap-1.5 text-xs text-slate-300">
             <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[key] }} />
             <span className="truncate">{CLOSEUSE_STATUS_LABELS[key]}</span>
-            <span className="font-mono font-medium text-slate-400">({counts[key]})</span>
+            <span className="tabular-nums font-medium text-slate-400">({counts[key]})</span>
           </div>
         ))}
       </div>

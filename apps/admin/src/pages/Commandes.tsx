@@ -350,7 +350,7 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-slate-300">{order.clientPhoneFormatted}</span>
+                          <span className="text-xs text-slate-300 tabular-nums">{order.clientPhoneFormatted}</span>
                           {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
                             <a
                               href={buildSavWhatsAppMessage ? buildWhatsAppLink(order.clientPhoneFormatted, buildSavWhatsAppMessage(order)) : "#"}
@@ -670,7 +670,7 @@ function OrderDetail({
                 <span className="text-slate-500">Téléphone</span>
                 <span className="flex items-center gap-2 font-medium text-slate-200">
                   <Phone className="h-3.5 w-3.5 text-slate-500" />
-                  <span className="font-mono">{order.clientPhoneFormatted}</span>
+                  <span className="tabular-nums">{order.clientPhoneFormatted}</span>
                   {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
                     <a
                       href={buildWhatsAppLink(

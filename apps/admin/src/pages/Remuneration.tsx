@@ -61,6 +61,7 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
     return () => unsub();
   }, [team?.workspaceId, team?.id]);
 
+  const currency = team?.currency || "XOF";
   const remunCloseuse = team?.remunerationCloseusePerOrder ?? 0;
   const remunLivreur = team?.remunerationLivreurPerOrder ?? 0;
 
@@ -175,7 +176,7 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
           label="Chiffre d'Affaires Livré"
-          value={`${caTotal.toLocaleString("fr-FR")} FCFA`}
+          value={`${caTotal.toLocaleString("fr-FR")} ${currency}`}
           icon={<CaIcon />}
           accent="blue"
         />
@@ -188,14 +189,14 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
         />
         <StatCard
           label="Commissions Générées"
-          value={`${remunerationTotale.toLocaleString("fr-FR")} FCFA`}
+          value={`${remunerationTotale.toLocaleString("fr-FR")} ${currency}`}
           subtitle="Closeuses & Livreurs"
           icon={<CoinIcon />}
           accent="purple"
         />
         <StatCard
           label="Solde Net à Régler"
-          value={`${resteAPayerGlobal.toLocaleString("fr-FR")} FCFA`}
+          value={`${resteAPayerGlobal.toLocaleString("fr-FR")} ${currency}`}
           subtitle="Cumul en attente de paiement"
           icon={<ClockIcon />}
           accent="orange"
@@ -204,44 +205,40 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
 
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-xs">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex rounded-xl border border-surface-border bg-surface p-1 shadow-xs">
-            <button
-              onClick={() => setRole("closeuse")}
-              className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${
-                role === "closeuse" ? "bg-brand text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Closeuses ({closeuses.length})
-            </button>
-            <button
-              onClick={() => setRole("livreur")}
-              className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${
-                role === "livreur" ? "bg-brand text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              Livreurs ({livreurs.length})
-            </button>
+          <div className="flex rounded-xl border border-surface-border bg-surface p-1">
+            {(["closeuse", "livreur"] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRole(r)}
+                className={`rounded-lg px-4 py-1.5 text-sm capitalize transition-colors ${
+                  role === r ? "bg-brand text-white font-medium" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {r === "closeuse" ? `Closeuses (${closeuses.length})` : `Livreurs (${livreurs.length})`}
+              </button>
+            ))}
           </div>
+
           {role === "livreur" && onOpenCaisse && (
             <button
               type="button"
               onClick={onOpenCaisse}
-              className="inline-flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2 text-xs font-semibold text-brand transition-all hover:bg-brand/20 shadow-xs"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-surface-raised hover:text-white transition"
             >
-              <Landmark className="h-4 w-4" />
-              <span>Pointage de Caisse Livreurs</span>
+              <Landmark className="h-4 w-4 text-brand" />
+              <span>Pointage de caisse</span>
             </button>
           )}
         </div>
 
         {errorMsg && (
-          <p className="mb-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+          <p className="mb-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-xs text-rose-300">
             {errorMsg}
           </p>
         )}
 
         {!remunPerOrderConfigured && (
-          <p className="mb-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-300">
+          <p className="mb-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-300">
             Tarif de commission par commande non configuré pour les {role === "closeuse" ? "closeuses" : "livreurs"} —
             à ajuster dans Paramètres pour que les montants se calculent automatiquement.
           </p>
@@ -250,89 +247,175 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
         {rows.length === 0 ? (
           <p className="py-8 text-center text-xs text-slate-500">Aucun opérateur assigné à cette équipe.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-surface-border text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                  <th className="pb-3 pr-3 font-semibold">{role === "closeuse" ? "Closeuse" : "Livreur"}</th>
-                  <th className="pb-3 px-3 font-semibold">Colis Livrés</th>
-                  {role === "livreur" && <th className="pb-3 px-3 font-semibold">Statut Caisse Terrain</th>}
-                  <th className="pb-3 px-3 font-semibold">Commissions Brutes</th>
-                  {role === "livreur" && <th className="pb-3 px-3 font-semibold">Retenues Justifiées</th>}
-                  <th className="pb-3 px-3 font-semibold">Net à Régler</th>
-                  <th className="pb-3 pl-3 text-right font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-border">
-                {rows.map((r) => {
-                  const total = totals[r.user.id];
-                  const baseReste = total?.resteAPayer ?? r.remuneration;
-                  const netAPayer = Math.max(0, baseReste - r.remunDeductions);
-                  const isPaid = baseReste <= 0 && (total?.totalAmount ?? 0) > 0;
-                  return (
-                    <tr key={r.user.id} className="transition-colors hover:bg-surface/30">
-                      <td className="py-3.5 pr-3 font-semibold text-slate-100">{r.user.name}</td>
-                      <td className="py-3.5 px-3 font-mono font-semibold text-slate-200 tabular-nums">{r.livraisons} colis</td>
-                      {role === "livreur" && (
-                        <td className="py-3.5 px-3">
-                          {r.livraisons === 0 ? (
-                            <span className="text-xs text-slate-500">Aucun encaissement</span>
-                          ) : r.unsettledCash <= 0 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-400">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Caisse soldée ✓
+          <>
+            {/* Tableau Desktop */}
+            <div className="hidden overflow-x-auto sm:block">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-surface-border text-xs text-slate-500 font-normal">
+                    <th className="px-4 py-3 font-normal">{role === "closeuse" ? "Closeuse" : "Livreur"}</th>
+                    <th className="px-4 py-3 font-normal">Colis livrés</th>
+                    {role === "livreur" && <th className="px-4 py-3 font-normal">Caisse terrain</th>}
+                    <th className="px-4 py-3 font-normal">Commissions</th>
+                    {role === "livreur" && <th className="px-4 py-3 font-normal">Retenues</th>}
+                    <th className="px-4 py-3 font-normal">Net à régler</th>
+                    <th className="px-4 py-3 font-normal text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-border">
+                  {rows.map((r) => {
+                    const total = totals[r.user.id];
+                    const baseReste = total?.resteAPayer ?? r.remuneration;
+                    const netAPayer = Math.max(0, baseReste - r.remunDeductions);
+                    const isPaid = baseReste <= 0 && (total?.totalAmount ?? 0) > 0;
+                    return (
+                      <tr key={r.user.id} className="transition-colors hover:bg-surface/30">
+                        <td className="px-4 py-3 font-medium text-slate-200">{r.user.name}</td>
+                        <td className="px-4 py-3 text-slate-300 tabular-nums">{r.livraisons} colis</td>
+                        {role === "livreur" && (
+                          <td className="px-4 py-3">
+                            {r.livraisons === 0 ? (
+                              <span className="text-xs text-slate-500">—</span>
+                            ) : r.unsettledCash <= 0 ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Caisse soldée
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={onOpenCaisse}
+                                title="Ouvrir le pointage de caisse pour vérifier ce livreur"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium tabular-nums text-amber-400 transition hover:bg-amber-500/20"
+                              >
+                                <AlertTriangle className="h-3 w-3" />
+                                {r.unsettledCash.toLocaleString("fr-FR")} {currency} à verser
+                              </button>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 font-medium tabular-nums text-slate-200">
+                          {r.remuneration.toLocaleString("fr-FR")} {currency}
+                        </td>
+                        {role === "livreur" && (
+                          <td className="px-4 py-3">
+                            {r.remunDeductions > 0 ? (
+                              <div className="space-y-0.5">
+                                <span className="text-xs font-medium tabular-nums text-rose-400">
+                                  −{r.remunDeductions.toLocaleString("fr-FR")} {currency}
+                                </span>
+                                <p
+                                  className="max-w-[220px] truncate text-[11px] text-slate-500"
+                                  title={r.remunDeductionNotes.join(" • ")}
+                                >
+                                  {r.remunDeductionNotes.join(" • ")}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-500">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-3">
+                          {isPaid ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                              <CheckIcon /> Réglé
+                            </span>
+                          ) : netAPayer > 0 ? (
+                            <span className="text-sm font-semibold tabular-nums text-slate-100">
+                              {netAPayer.toLocaleString("fr-FR")} {currency}
                             </span>
                           ) : (
+                            <span className="text-xs text-slate-500">0 {currency}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {isPaid ? (
                             <button
-                              type="button"
-                              onClick={onOpenCaisse}
-                              title="Ouvrir le pointage de caisse pour vérifier ce livreur"
-                              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 font-mono text-[11px] font-bold text-amber-400 transition hover:bg-amber-500/20"
+                              onClick={() => setCancelTarget({ userId: r.user.id, name: r.user.name })}
+                              className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-400 transition hover:border-rose-500/30 hover:text-rose-400"
                             >
-                              <AlertTriangle className="h-3 w-3" />
-                              {r.unsettledCash.toLocaleString("fr-FR")} FCFA dû
+                              Annuler
                             </button>
-                          )}
-                        </td>
-                      )}
-                      <td className="py-3.5 px-3 font-mono font-bold tabular-nums text-slate-100">
-                        {r.remuneration.toLocaleString("fr-FR")} FCFA
-                      </td>
-                      {role === "livreur" && (
-                        <td className="py-3.5 px-3">
-                          {r.remunDeductions > 0 ? (
-                            <div className="space-y-0.5">
-                              <span className="font-mono text-xs font-bold text-rose-400">
-                                −{r.remunDeductions.toLocaleString("fr-FR")} FCFA
-                              </span>
-                              <p
-                                className="max-w-[220px] truncate text-[10px] text-slate-400"
-                                title={r.remunDeductionNotes.join(" • ")}
-                              >
-                                {r.remunDeductionNotes.join(" • ")}
-                              </p>
-                            </div>
+                          ) : netAPayer > 0 ? (
+                            <button
+                              onClick={() =>
+                                setConfirmTarget({
+                                  userId: r.user.id,
+                                  name: r.user.name,
+                                  amount: netAPayer,
+                                  unsettledCash: role === "livreur" ? r.unsettledCash : 0,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1 text-xs font-medium text-white transition hover:bg-brand-hover active:scale-[0.98]"
+                            >
+                              Régler
+                            </button>
                           ) : (
-                            <span className="font-mono text-xs text-slate-500">0 FCFA</span>
+                            <span className="text-xs text-slate-600">—</span>
                           )}
                         </td>
-                      )}
-                      <td className="py-3.5 px-3">
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Cartes Mobile (format compact et lisible comme Utilisateurs) */}
+            <div className="space-y-3 sm:hidden">
+              {rows.map((r) => {
+                const total = totals[r.user.id];
+                const baseReste = total?.resteAPayer ?? r.remuneration;
+                const netAPayer = Math.max(0, baseReste - r.remunDeductions);
+                const isPaid = baseReste <= 0 && (total?.totalAmount ?? 0) > 0;
+                return (
+                  <div key={r.user.id} className="rounded-xl border border-surface-border bg-surface p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-100">{r.user.name}</span>
+                      <span className="text-xs text-slate-400">{r.livraisons} colis livrés</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs border-y border-surface-border/50 py-2.5">
+                      <div>
+                        <span className="text-slate-500 text-[11px] block">Commissions</span>
+                        <span className="font-medium text-slate-200 tabular-nums">
+                          {r.remuneration.toLocaleString("fr-FR")} {currency}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-slate-500 text-[11px] block">Net à régler</span>
                         {isPaid ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400 shadow-xs">
-                            <CheckIcon /> Payé & Soldé
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                            <CheckIcon /> Réglé
+                          </span>
+                        ) : netAPayer > 0 ? (
+                          <span className="font-bold text-slate-100 tabular-nums">
+                            {netAPayer.toLocaleString("fr-FR")} {currency}
                           </span>
                         ) : (
-                          <span className="font-mono text-xs font-bold text-amber-400 tabular-nums">
-                            {netAPayer.toLocaleString("fr-FR")} FCFA
-                          </span>
+                          <span className="text-slate-500">0 {currency}</span>
                         )}
-                      </td>
-                      <td className="py-3.5 pl-3 text-right">
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      {role === "livreur" && (
+                        <div>
+                          {r.unsettledCash <= 0 ? (
+                            <span className="text-[11px] text-emerald-400 font-medium">✓ Caisse soldée</span>
+                          ) : (
+                            <span className="text-[11px] text-amber-400 font-medium">
+                              {r.unsettledCash.toLocaleString("fr-FR")} {currency} en caisse
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className="ml-auto">
                         {isPaid ? (
                           <button
                             onClick={() => setCancelTarget({ userId: r.user.id, name: r.user.name })}
-                            className="rounded-xl border border-surface-border bg-surface px-2.5 py-1 text-xs font-medium text-slate-400 transition hover:border-rose-500/30 hover:text-rose-400"
+                            className="rounded-lg border border-surface-border px-3 py-1 text-xs text-slate-400 hover:text-rose-400"
                           >
                             Annuler
                           </button>
@@ -346,18 +429,18 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
                                 unsettledCash: role === "livreur" ? r.unsettledCash : 0,
                               })
                             }
-                            className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-500 active:scale-[0.98]"
+                            className="rounded-lg bg-brand px-3.5 py-1 text-xs font-medium text-white"
                           >
-                            Régler la paie
+                            Régler
                           </button>
                         ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -367,8 +450,8 @@ export default function Remuneration({ team, closeuses, livreurs, orders, onOpen
         message={
           confirmTarget
             ? confirmTarget.unsettledCash && confirmTarget.unsettledCash > 0
-              ? `⚠️ Attention : ${confirmTarget.name} a encore ${confirmTarget.unsettledCash.toLocaleString("fr-FR")} FCFA de cash terrain non reversé dans le pointage de caisse. Confirmer malgré tout le paiement de sa prime nette (${confirmTarget.amount.toLocaleString("fr-FR")} FCFA) ?`
-              : `Confirmer le règlement de ${confirmTarget.amount.toLocaleString("fr-FR")} FCFA à ${confirmTarget.name} ?`
+              ? `Attention : ${confirmTarget.name} a encore ${confirmTarget.unsettledCash.toLocaleString("fr-FR")} ${currency} de cash terrain non reversé dans le pointage de caisse. Confirmer malgré tout le paiement de sa prime nette (${confirmTarget.amount.toLocaleString("fr-FR")} ${currency}) ?`
+              : `Confirmer le règlement de ${confirmTarget.amount.toLocaleString("fr-FR")} ${currency} à ${confirmTarget.name} ?`
             : ""
         }
         confirmLabel="Valider le règlement"
