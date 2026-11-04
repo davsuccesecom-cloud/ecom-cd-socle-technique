@@ -119,22 +119,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
 
-  // État pour savoir si l'utilisateur a passé la configuration initiale au démarrage
-  const [onboardingSkipped, setOnboardingSkipped] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem(`waritrack_onboarding_skipped_${workspaceId}`) === "true";
-    } catch {
-      return false;
-    }
-  });
-
-  const handleSkipOnboarding = () => {
-    setOnboardingSkipped(true);
-    try {
-      localStorage.setItem(`waritrack_onboarding_skipped_${workspaceId}`, "true");
-    } catch {}
-  };
-
   const activeTeamId = teamId ?? teams[0]?.id ?? null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
 
@@ -385,43 +369,14 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           </div>
         </header>
 
-        {/* BANNIÈRE DE REPRISE DE CONFIGURATION (SI SKIPPÉE ET AUCUNE ÉQUIPE) */}
-        {teams.length === 0 && !teamsLoading && onboardingSkipped && (
-          <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-purple-950/30 to-indigo-950/40 p-4 shadow-lg backdrop-blur-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-white">
-                  Configuration initiale en attente
-                </h4>
-                <p className="text-[11px] text-slate-400">
-                  Déployez votre premier marché pays et calibrez vos règles de caisse pour activer vos équipes.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOnboardingSkipped(false)}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-white shadow-md shadow-brand/20 hover:opacity-95 transition shrink-0"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Lancer la Configuration
-            </button>
-          </div>
-        )}
-
-        {/* POP-UP MODAL ONBOARDING FLOTTANT AVEC FOND LÉGÈREMENT FLOU */}
-        {teams.length === 0 && !teamsLoading && !onboardingSkipped && (
+        {/* WIZARD ONBOARDING OBLIGATOIRE TANT QU'AUCUNE ÉQUIPE N'EST CRÉÉE (PAS DE SKIP VERS UN COCKPIT VIDE) */}
+        {teams.length === 0 && !teamsLoading && (
           <WariTrackOnboardingWizard
             workspaceId={workspaceId}
             adminEmail={userEmail}
             onCompleted={(newTeamId) => {
               setTeamId(newTeamId);
-              setOnboardingSkipped(true);
             }}
-            onSkip={handleSkipOnboarding}
           />
         )}
 
