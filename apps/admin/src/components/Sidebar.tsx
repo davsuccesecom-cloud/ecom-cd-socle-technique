@@ -113,16 +113,32 @@ export default function Sidebar({
       }`}
     >
       {/* En-tête marque + bouton réduction */}
-      <div className="mb-6 flex items-center justify-between px-1.5">
-        <WariTrackLogo variant={collapsed ? "icon" : "full"} subtitle="LOGISTICS OS" />
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          title={collapsed ? "Déplier le menu" : "Réduire le menu"}
-          className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-200 shrink-0"
-        >
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
+      <div className={`mb-5 flex items-center ${collapsed ? "flex-col gap-2.5 justify-center" : "justify-between px-1.5"}`}>
+        {collapsed ? (
+          <>
+            <WariTrackLogo size="sm" variant="icon" subtitle="" />
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title="Déplier le menu de navigation"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-200 transition"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          </>
+        ) : (
+          <>
+            <WariTrackLogo variant="full" subtitle="LOGISTICS OS" />
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              title="Réduire le menu"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-surface hover:text-slate-200 shrink-0 transition"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Navigation structurée par pôles (scrollbar invisible & propre) */}
@@ -205,26 +221,44 @@ export default function Sidebar({
       <div className="mt-3 space-y-2.5 border-t border-surface-border pt-3">
         <ThemeQuickPicker variant="sidebar" collapsed={collapsed} />
 
-        <div className={`flex items-center gap-2.5 px-1.5 ${collapsed ? "justify-center" : ""}`}>
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand">
-            {(userEmail ?? "A").charAt(0).toUpperCase()}
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand shadow-xs"
+              title={userEmail ?? "Direction Admin"}
+            >
+              {(userEmail ?? "A").charAt(0).toUpperCase()}
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              title="Se déconnecter"
+              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+            >
+              <LogOut className={`h-4 w-4 ${loggingOut ? "animate-spin" : ""}`} />
+            </button>
           </div>
-          {!collapsed && (
+        ) : (
+          <div className="flex items-center gap-2.5 px-1.5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand">
+              {(userEmail ?? "A").charAt(0).toUpperCase()}
+            </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-slate-200">Direction Admin</p>
               <p className="truncate text-[11px] text-slate-500">{userEmail}</p>
             </div>
-          )}
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={loggingOut}
-            title="Se déconnecter"
-            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
-          >
-            <LogOut className={`h-4 w-4 ${loggingOut ? "animate-spin" : ""}`} />
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              title="Se déconnecter"
+              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+            >
+              <LogOut className={`h-4 w-4 ${loggingOut ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );
