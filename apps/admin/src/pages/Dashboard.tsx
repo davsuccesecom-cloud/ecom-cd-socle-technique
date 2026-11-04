@@ -110,7 +110,22 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const [period, setPeriod] = useState<Period>({ type: "preset", value: "jour" });
   const [showAddMarket, setShowAddMarket] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
-  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const CURRENT_APP_VERSION = "3.2";
+  const VERSION_STORAGE_KEY = "waritrack_acknowledged_version";
+  const [showWhatsNew, setShowWhatsNew] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(VERSION_STORAGE_KEY) !== CURRENT_APP_VERSION;
+    } catch {
+      return false;
+    }
+  });
+
+  const handleAcknowledgeWhatsNew = () => {
+    setShowWhatsNew(false);
+    try {
+      localStorage.setItem(VERSION_STORAGE_KEY, CURRENT_APP_VERSION);
+    } catch {}
+  };
 
   const activeTeamId = teamId ?? teams[0]?.id ?? null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
@@ -250,7 +265,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         onToggleCollapse={setSidebarCollapsed}
         onLogout={onLogout}
         onNavigate={setPage}
-        onOpenWhatsNew={() => setShowWhatsNew(true)}
         pendingOrdersCount={totalPendingOrders}
       />
 
@@ -260,14 +274,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           <WariTrackLogo size="sm" variant="full" subtitle={activeTeam ? activeTeam.name : "Cockpit"} />
         </div>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setShowWhatsNew(true)}
-            title="Notes de version v3.2"
-            className="rounded-lg p-1.5 text-sky-400 hover:bg-surface border border-sky-500/20"
-          >
-            <Sparkles className="h-4 w-4" />
-          </button>
           <ThemeQuickPicker />
           <NotificationBell
             workspaceId={workspaceId}
@@ -321,16 +327,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
 
             {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
 
-            {/* Version Updates Button */}
-            <button
-              type="button"
-              onClick={() => setShowWhatsNew(true)}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-bold text-sky-300 hover:bg-sky-500/20 hover:border-sky-400/40 transition shadow-sm"
-              title="Consulter les nouveautés de la mise à jour v3.2"
-            >
-              <Sparkles className="h-3.5 w-3.5 text-sky-400" />
-              <span>v3.2 Nouveautés</span>
-            </button>
+            {/* Contrôleur de thème & Palette */}
+            <div className="hidden md:flex md:items-center">
+              <ThemeQuickPicker />
+            </div>
 
             {/* Notification Bell anchored at top-right corner on desktop */}
             <div className="hidden md:flex md:items-center">
@@ -516,10 +516,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         />
       )}
 
-      {/* Modal Notes de version & Nouveautés v3.2 */}
+      {/* Modal Notes de version & Nouveautés v3.2 (popup automatique sur fond flouté) */}
       <WhatsNewModal
         isOpen={showWhatsNew}
-        onClose={() => setShowWhatsNew(false)}
+        onClose={handleAcknowledgeWhatsNew}
       />
 
       {showAddMarket && (

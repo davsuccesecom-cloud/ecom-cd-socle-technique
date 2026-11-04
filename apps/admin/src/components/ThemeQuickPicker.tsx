@@ -67,8 +67,15 @@ export default function ThemeQuickPicker({
 
       {open && (
         <div
-          className={`surface-popover absolute z-50 w-72 rounded-2xl p-4 ${
-            isSidebar ? "bottom-full left-0 mb-2" : "right-0 top-11"
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseMove={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className={`absolute z-[100] w-72 rounded-2xl p-4 border border-surface-border bg-surface-raised shadow-2xl ${
+            isSidebar
+              ? collapsed
+                ? "left-full bottom-0 ml-3.5"
+                : "bottom-full left-0 mb-2"
+              : "right-0 top-11"
           }`}
         >
           <div className="mb-3 flex items-center justify-between">

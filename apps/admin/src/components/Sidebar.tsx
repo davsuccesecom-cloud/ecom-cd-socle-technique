@@ -15,7 +15,6 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  Sparkles,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -78,7 +77,6 @@ export default function Sidebar({
   onToggleCollapse,
   onLogout,
   onNavigate,
-  onOpenWhatsNew,
 }: SidebarProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = typeof controlledCollapsed === "boolean";
@@ -108,7 +106,7 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`sidebar-surface sticky top-0 hidden h-screen shrink-0 flex-col border-r border-surface-border py-4 transition-all duration-150 md:flex ${
+      className={`sidebar-surface sticky top-0 z-40 hidden h-screen shrink-0 flex-col border-r border-surface-border py-4 transition-all duration-150 md:flex ${
         collapsed ? "w-16 px-2" : "w-60 px-3.5"
       }`}
     >
@@ -172,7 +170,7 @@ export default function Sidebar({
                   <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-brand" : "text-slate-400 group-hover:text-slate-200"}`} />
                   {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                   {showBadge && !collapsed && (
-                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-400">
+                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-400 tabular-nums">
                       {pendingOrdersCount}
                     </span>
                   )}
@@ -186,39 +184,8 @@ export default function Sidebar({
         ))}
       </nav>
 
-      {/* Mode Mise à jour (v3.2) */}
-      {onOpenWhatsNew && (
-        <div className="pt-2">
-          {!collapsed ? (
-            <button
-              type="button"
-              onClick={onOpenWhatsNew}
-              className="flex w-full items-center justify-between rounded-xl border border-sky-500/25 bg-gradient-to-r from-sky-500/10 via-purple-500/10 to-sky-500/10 px-2.5 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 transition group shadow-sm"
-              title="Consulter les nouveautés de la mise à jour v3.2"
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-3.5 w-3.5 text-sky-400 group-hover:rotate-12 transition-transform" />
-                <span>Mode Mise à Jour</span>
-              </div>
-              <span className="rounded-md bg-sky-500/25 px-1.5 py-0.2 text-[9.5px] text-sky-200 font-mono font-bold">
-                v3.2
-              </span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenWhatsNew}
-              className="flex w-full justify-center rounded-xl border border-sky-500/25 bg-sky-500/10 p-2 text-sky-400 hover:bg-sky-500/20 transition"
-              title="Mode Mise à Jour (v3.2)"
-            >
-              <Sparkles className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Pied de barre : contrôleur de couleur & compte administrateur */}
-      <div className="mt-3 space-y-2.5 border-t border-surface-border pt-3">
+      <div className="mt-auto space-y-2.5 border-t border-surface-border pt-3">
         <ThemeQuickPicker variant="sidebar" collapsed={collapsed} />
 
         {collapsed ? (

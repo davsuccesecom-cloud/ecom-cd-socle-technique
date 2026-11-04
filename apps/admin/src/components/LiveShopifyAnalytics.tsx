@@ -453,6 +453,7 @@ export default function LiveShopifyAnalytics({
                     width={44}
                   />
                   <Tooltip
+                    wrapperStyle={{ zIndex: 10, pointerEvents: "none" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const pt = payload[0].payload as DayPoint;
@@ -496,6 +497,7 @@ export default function LiveShopifyAnalytics({
                     width={36}
                   />
                   <Tooltip
+                    wrapperStyle={{ zIndex: 10, pointerEvents: "none" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const pt = payload[0].payload as DayPoint;
@@ -526,6 +528,7 @@ export default function LiveShopifyAnalytics({
                     width={36}
                   />
                   <Tooltip
+                    wrapperStyle={{ zIndex: 10, pointerEvents: "none" }}
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const pt = payload[0].payload as DayPoint;
