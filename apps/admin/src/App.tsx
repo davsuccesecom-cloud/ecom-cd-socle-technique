@@ -33,9 +33,31 @@ export default function App() {
     error,
   } = useAdminEmailAuth();
 
-  const [claims, setClaims] = useState<SessionClaims | null>(null);
-  const [claimsLoading, setClaimsLoading] = useState(true);
+  const [claims, setClaims] = useState<SessionClaims | null>(() => {
+    try {
+      const cached = localStorage.getItem("waritrack_cached_workspace_claims");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.workspaceId) return parsed as SessionClaims;
+      }
+    } catch {}
+    return null;
+  });
+  const [claimsLoading, setClaimsLoading] = useState(() => {
+    try {
+      return !localStorage.getItem("waritrack_cached_workspace_claims");
+    } catch {
+      return true;
+    }
+  });
   const [showSlowLoadingNotice, setShowSlowLoadingNotice] = useState(false);
+
+  const handleLogout = useCallback(async () => {
+    try {
+      localStorage.removeItem("waritrack_cached_workspace_claims");
+    } catch {}
+    await logout();
+  }, [logout]);
 
   useEffect(() => {
     let active = true;
@@ -43,6 +65,9 @@ export default function App() {
     if (!firebaseUser) {
       setClaims(null);
       setClaimsLoading(false);
+      try {
+        localStorage.removeItem("waritrack_cached_workspace_claims");
+      } catch {}
       return;
     }
 
@@ -96,19 +121,51 @@ export default function App() {
           }
         }
 
+        // 4. Si le réseau est récalcitrant, repli sur le cache local sécurisé
+        if (!wsId) {
+          try {
+            const cached = localStorage.getItem("waritrack_cached_workspace_claims");
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (parsed?.workspaceId) {
+                wsId = parsed.workspaceId;
+                role = parsed.role || "admin";
+              }
+            }
+          } catch {}
+        }
+
         if (active) {
           if (wsId) {
-            setClaims({
+            const resolvedClaims: SessionClaims = {
               workspaceId: wsId,
               role: role || "admin",
-            });
+            };
+            setClaims(resolvedClaims);
+            try {
+              localStorage.setItem("waritrack_cached_workspace_claims", JSON.stringify(resolvedClaims));
+            } catch {}
           } else {
             setClaims(null);
+            try {
+              localStorage.removeItem("waritrack_cached_workspace_claims");
+            } catch {}
           }
         }
       } catch (err) {
         console.error("Erreur lors de la résolution des droits admin :", err);
         if (active) {
+          // Repli sur le cache avant d'abandonner
+          try {
+            const cached = localStorage.getItem("waritrack_cached_workspace_claims");
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (parsed?.workspaceId) {
+                setClaims(parsed as SessionClaims);
+                return;
+              }
+            }
+          } catch {}
           setClaims(null);
         }
       } finally {
@@ -240,7 +297,7 @@ export default function App() {
       <ConnectionGuard appName="Admin">
         <Dashboard
           workspaceId={claims.workspaceId}
-          onLogout={logout}
+          onLogout={handleLogout}
           userEmail={firebaseUser.email}
           adminId={firebaseUser.uid}
         />

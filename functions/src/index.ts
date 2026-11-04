@@ -189,6 +189,21 @@ export const authenticateAdmin = onCall(async (request) => {
     return { workspaceId, role: "admin" as const, isNewWorkspace: false };
   }
 
+  // Auto-recuperation dun workspace existant pour cet email
+  const existingWsSnap = await db
+    .collection("workspaces")
+    .where("ownerEmail", "==", email)
+    .limit(1)
+    .get();
+
+  if (!existingWsSnap.empty) {
+    const existingWsDoc = existingWsSnap.docs[0];
+    const wsId = existingWsDoc.id;
+    await mappingRef.set({ workspaceId: wsId, uid, createdAt: Date.now() });
+    await admin.auth().setCustomUserClaims(uid, { workspaceId: wsId, role: "admin" });
+    return { workspaceId: wsId, role: "admin" as const, isNewWorkspace: false };
+  }
+
   const { workspaceName } = request.data as { workspaceName?: string };
   if (!workspaceName || !workspaceName.trim()) {
     throw new HttpsError("failed-precondition", "NEW_WORKSPACE_NEEDS_NAME");

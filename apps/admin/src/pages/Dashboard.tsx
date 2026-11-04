@@ -31,6 +31,7 @@ import NotificationBell from "../components/NotificationBell";
 import ThemeQuickPicker from "../components/ThemeQuickPicker";
 import WariTrackLogo from "../components/WariTrackLogo";
 import CommandPalette from "../components/CommandPalette";
+import TabErrorBoundary from "../components/TabErrorBoundary";
 import LiveShopifyAnalytics from "../components/LiveShopifyAnalytics";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
 import WhatsNewModal from "../components/WhatsNewModal";
@@ -424,132 +425,135 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           />
         )}
 
-        {page === "ai_assistant" ? (
-          <AiAssistant
-            workspaceId={workspaceId}
-            team={activeTeam}
-            allTeams={teams}
-            orders={allOrders}
-            closeuses={closeuses}
-            livreurs={livreurs}
-            onNavigate={setPage}
-          />
-        ) : page === "performance" ? (
-          <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
-        ) : page === "users" ? (
-          <Utilisateurs workspaceId={workspaceId} team={activeTeam} closeuses={closeuses} livreurs={livreurs} />
-        ) : page === "orders" ? (
-          <Commandes
-            workspaceId={workspaceId}
-            team={activeTeam}
-            orders={allOrders}
-            closeuses={closeuses}
-            livreurs={livreurs}
-          />
-        ) : page === "teams" ? (
-          <EquipesSheets workspaceId={workspaceId} teams={teams} />
-        ) : page === "caisse" ? (
-          <CaisseLivreurs
-            workspaceId={workspaceId}
-            team={activeTeam}
-            livreurs={livreurs}
-            orders={orders}
-            onNavigateToRemuneration={() => setPage("remuneration")}
-          />
-        ) : page === "remuneration" ? (
-          <Remuneration
-            team={activeTeam}
-            closeuses={closeuses}
-            livreurs={livreurs}
-            orders={orders}
-            onOpenCaisse={() => setPage("caisse")}
-          />
-        ) : page === "settings" ? (
-          <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} orders={allOrders} />
-        ) : (
-          <div className="space-y-4">
-            {/* 1. Primary Live Shopify-Style Analytics Deck */}
-            <LiveShopifyAnalytics
-              dailyStats={dailyStatsInPeriod}
-              orders={orders}
-              currency={currency}
-              periodLabel={periodLabel(period)}
-              displayTotals={displayTotals}
-              tauxConfirmation={stats.tauxConfirmation}
-              tauxLivraisonReelle={stats.tauxLivraisonReelle}
-              onNavigateToOrders={() => setPage("orders")}
+        {/* CONTENU PRINCIPAL DE L'ONGLET AVEC PROTECTION ANTI-CRASH ISOLÉE */}
+        <TabErrorBoundary key={page} tabName={page}>
+          {page === "ai_assistant" ? (
+            <AiAssistant
+              workspaceId={workspaceId}
+              team={activeTeam}
+              allTeams={teams}
+              orders={allOrders}
+              closeuses={closeuses}
+              livreurs={livreurs}
+              onNavigate={setPage}
             />
+          ) : page === "performance" ? (
+            <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
+          ) : page === "users" ? (
+            <Utilisateurs workspaceId={workspaceId} team={activeTeam} closeuses={closeuses} livreurs={livreurs} />
+          ) : page === "orders" ? (
+            <Commandes
+              workspaceId={workspaceId}
+              team={activeTeam}
+              orders={allOrders}
+              closeuses={closeuses}
+              livreurs={livreurs}
+            />
+          ) : page === "teams" ? (
+            <EquipesSheets workspaceId={workspaceId} teams={teams} />
+          ) : page === "caisse" ? (
+            <CaisseLivreurs
+              workspaceId={workspaceId}
+              team={activeTeam}
+              livreurs={livreurs}
+              orders={orders}
+              onNavigateToRemuneration={() => setPage("remuneration")}
+            />
+          ) : page === "remuneration" ? (
+            <Remuneration
+              team={activeTeam}
+              closeuses={closeuses}
+              livreurs={livreurs}
+              orders={orders}
+              onOpenCaisse={() => setPage("caisse")}
+            />
+          ) : page === "settings" ? (
+            <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} orders={allOrders} />
+          ) : (
+            <div className="space-y-4">
+              {/* 1. Primary Live Shopify-Style Analytics Deck */}
+              <LiveShopifyAnalytics
+                dailyStats={dailyStatsInPeriod}
+                orders={orders}
+                currency={currency}
+                periodLabel={periodLabel(period)}
+                displayTotals={displayTotals}
+                tauxConfirmation={stats.tauxConfirmation}
+                tauxLivraisonReelle={stats.tauxLivraisonReelle}
+                onNavigateToOrders={() => setPage("orders")}
+              />
 
-            {/* 2. Operational Companion Grid (immediately visible alongside the chart) */}
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 lg:col-span-1">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Statuts des Commandes
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setPage("ai_assistant")}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20 transition-colors"
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    Analyser
-                  </button>
+              {/* 2. Operational Companion Grid (immediately visible alongside the chart) */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 lg:col-span-1">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Statuts des Commandes
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setPage("ai_assistant")}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20 transition-colors"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Analyser
+                    </button>
+                  </div>
+                  <StatusDonut counts={stats.statusCounts} />
                 </div>
-                <StatusDonut counts={stats.statusCounts} />
+
+                <div className="lg:col-span-1">
+                  <LivraisonsParLivreur orders={orders} livreurs={livreurs} />
+                </div>
+
+                <div className="lg:col-span-1">
+                  <FluxTempsReel orders={orders} />
+                </div>
               </div>
 
-              <div className="lg:col-span-1">
-                <LivraisonsParLivreur orders={orders} livreurs={livreurs} />
+              {/* 3. Complementary Non-Redundant Indicators (Rejetées, Terrain & Panier Moyen) */}
+              <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-4">
+                <StatCard
+                  label="Commandes Rejetées"
+                  value={String(displayTotals.rejetees)}
+                  subtitle="Refus client & annulations"
+                  icon={<Ban className="h-4 w-4" />}
+                  accent="orange"
+                  onClick={() => setPage("orders")}
+                />
+                <StatCard
+                  label="En Cours de Livraison"
+                  value={String(stats.statusCounts.en_cours || 0)}
+                  subtitle="Colis sortis sur le terrain"
+                  icon={<Truck className="h-4 w-4" />}
+                  accent="blue"
+                  onClick={() => setPage("orders")}
+                />
+                <StatCard
+                  label="Programmées & Relances"
+                  value={String(stats.statusCounts.programme || 0)}
+                  subtitle="Rendez-vous calés avec créneau"
+                  icon={<CalendarClock className="h-4 w-4" />}
+                  accent="purple"
+                  onClick={() => setPage("orders")}
+                />
+                <StatCard
+                  label="Panier Moyen Encaissé"
+                  value={
+                    displayTotals.livraisons > 0
+                      ? `${Math.round(displayTotals.ca / displayTotals.livraisons).toLocaleString("fr-FR")} ${currency}`
+                      : `0 ${currency}`
+                  }
+                  subtitle="Moyenne nette par colis livré"
+                  icon={<Receipt className="h-4 w-4" />}
+                  accent="green"
+                />
               </div>
 
-              <div className="lg:col-span-1">
-                <FluxTempsReel orders={orders} />
-              </div>
+              {loading && <p className="text-center text-xs text-slate-500">Mise à jour en direct…</p>}
             </div>
-
-            {/* 3. Complementary Non-Redundant Indicators (Rejetées, Terrain & Panier Moyen) */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-3.5 lg:grid-cols-4">
-              <StatCard
-                label="Commandes Rejetées"
-                value={String(displayTotals.rejetees)}
-                subtitle="Refus client & annulations"
-                icon={<Ban className="h-4 w-4" />}
-                accent="orange"
-                onClick={() => setPage("orders")}
-              />
-              <StatCard
-                label="En Cours de Livraison"
-                value={String(stats.statusCounts.en_cours || 0)}
-                subtitle="Colis sortis sur le terrain"
-                icon={<Truck className="h-4 w-4" />}
-                accent="blue"
-                onClick={() => setPage("orders")}
-              />
-              <StatCard
-                label="Programmées & Relances"
-                value={String(stats.statusCounts.programme || 0)}
-                subtitle="Rendez-vous calés avec créneau"
-                icon={<CalendarClock className="h-4 w-4" />}
-                accent="purple"
-                onClick={() => setPage("orders")}
-              />
-              <StatCard
-                label="Panier Moyen Encaissé"
-                value={
-                  displayTotals.livraisons > 0
-                    ? `${Math.round(displayTotals.ca / displayTotals.livraisons).toLocaleString("fr-FR")} ${currency}`
-                    : `0 ${currency}`
-                }
-                subtitle="Moyenne nette par colis livré"
-                icon={<Receipt className="h-4 w-4" />}
-                accent="green"
-              />
-            </div>
-
-            {loading && <p className="text-center text-xs text-slate-500">Mise à jour en direct…</p>}
-          </div>
-        )}
+          )}
+        </TabErrorBoundary>
       </main>
 
       <MobileNav active={page} onNavigate={setPage} pendingOrdersCount={totalPendingOrders} />

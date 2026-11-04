@@ -9,30 +9,31 @@ import { registerSW } from "virtual:pwa-register";
 // Sécurité anti-écran noir sur mise à jour Vite/PWA :
 // Quand une nouvelle version est déployée avec de nouveaux hash de fichiers,
 // toute tentative de chargement d'un ancien chunk déclenche "vite:preloadError".
-// On force le rechargement immédiat pour charger la nouvelle version sans écran noir.
+// On protège contre les boucles de rafraîchissement avec un cooldown de 15 secondes.
 window.addEventListener("vite:preloadError", (event) => {
-  console.warn("[Vite] Chunk obsolète détecté suite à une mise à jour, rechargement automatique...", event);
-  window.location.reload();
+  console.warn("[Vite] Chunk obsolète détecté suite à une mise à jour :", event);
+  try {
+    const lastReload = sessionStorage.getItem("waritrack_last_preload_reload");
+    const now = Date.now();
+    if (!lastReload || now - parseInt(lastReload, 10) > 15000) {
+      sessionStorage.setItem("waritrack_last_preload_reload", String(now));
+      window.location.reload();
+    }
+  } catch {
+    window.location.reload();
+  }
 });
 
-// Avec skipWaiting/clientsClaim actives cote Workbox, le nouveau service
-// worker prend le controle des qu'il est pret. On recharge alors la page
-// pour que le JS en memoire (React, etc.) corresponde a la nouvelle
-// version -- evite d'avoir a vider le cache manuellement a chaque mise
-// a jour.
+// Enregistrement PWA propre
 registerSW({
   immediate: true,
   onNeedRefresh() {
-    window.location.reload();
+    console.log("[PWA] Nouvelle version prête.");
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
-    // SPA : naviguer entre les pages ne declenche jamais de vrai
-    // rechargement, donc le navigateur ne revérifie jamais tout seul
-    // si une nouvelle version du service worker existe. On force ce
-    // check nous-memes, a intervalle regulier.
     setInterval(() => {
-      registration.update();
+      registration.update().catch(() => {});
     }, 5 * 60 * 1000);
   },
 });
