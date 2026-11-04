@@ -21,6 +21,8 @@ import {
   PhoneCall,
   Smartphone,
   Sparkles,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useTheme, ACCENT_PRESETS } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
@@ -45,6 +47,24 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
   const { theme, setTheme, accent, setAccent } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) return false;
+    try {
+      return localStorage.getItem("waritrack_settings_nav_collapsed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleNav = (targetState?: boolean) => {
+    setNavCollapsed((prev) => {
+      const next = typeof targetState === "boolean" ? targetState : !prev;
+      try {
+        localStorage.setItem("waritrack_settings_nav_collapsed", String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     setSoundEnabled(localStorage.getItem(SOUND_KEY) !== "off");
@@ -128,9 +148,41 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
         </div>
       </div>
 
-      {/* Barre d'onglets horizontale moderne */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-1.5 shadow-xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex flex-col lg:flex-row items-start gap-5">
+        {/* Navigation verticale des Paramètres avec contrôle manuel élégant (sans rétractation automatique forcée) */}
+        <nav
+          className={`flex gap-1.5 overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised p-2 transition-all duration-200 shrink-0 ${
+            navCollapsed
+              ? "lg:w-16 lg:flex-col lg:items-center"
+              : "lg:w-72 lg:flex-col"
+          }`}
+        >
+          {/* Bouton de contrôle manuel desktop */}
+          <div className="hidden lg:flex w-full items-center justify-between px-2 py-1 mb-1 border-b border-surface-border/50">
+            {!navCollapsed && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Rubriques ({navItems.length})
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => handleToggleNav()}
+              title={navCollapsed ? "Déplier le menu des paramètres" : "Réduire pour libérer l'espace"}
+              className={`rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-surface transition ${
+                navCollapsed ? "mx-auto" : ""
+              }`}
+            >
+              {navCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4 text-brand" />
+              ) : (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white">
+                  <span>Réduire</span>
+                  <PanelLeftClose className="h-3.5 w-3.5" />
+                </div>
+              )}
+            </button>
+          </div>
+
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
@@ -139,28 +191,39 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.id)}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
+                title={navCollapsed ? `${item.label} — ${item.desc}` : undefined}
+                className={`flex shrink-0 items-center rounded-xl transition ${
+                  navCollapsed
+                    ? "lg:h-11 lg:w-11 lg:justify-center p-2"
+                    : "gap-3 px-3.5 py-3 lg:w-full text-left"
+                } ${
                   active
-                    ? "bg-brand text-white shadow-sm ring-1 ring-brand/30"
+                    ? "bg-brand/15 text-slate-100 ring-1 ring-brand/40"
                     : "text-slate-400 hover:bg-surface hover:text-slate-200"
                 }`}
               >
                 <div
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
-                    active ? "bg-white/20 text-white" : "text-slate-400"
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition ${
+                    active
+                      ? "border-brand/40 bg-brand text-white shadow-sm"
+                      : "border-surface-border bg-surface text-slate-400"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                 </div>
-                <span className="whitespace-nowrap">{item.label}</span>
+                {!navCollapsed && (
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold">{item.label}</p>
+                    <p className="hidden truncate text-[11px] text-slate-500 lg:block">{item.desc}</p>
+                  </div>
+                )}
               </button>
             );
           })}
-        </div>
-      </div>
+        </nav>
 
-      {/* Zone de contenu principale (Pleine largeur 100%) */}
-      <div className="min-w-0 w-full">
+        {/* Zone de contenu principale */}
+        <div className="min-w-0 flex-1 w-full">
           {activeTab === "general" && (
             <div className="space-y-5">
               {/* Theme & Accent Card */}
@@ -333,6 +396,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
 
           {activeTab === "white_label" && <WhiteLabelSettings workspaceId={workspaceId} />}
         </div>
+      </div>
     </div>
   );
 }
