@@ -579,8 +579,8 @@ function ActivityGraph({
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible">
             <defs>
               <linearGradient id="employeeCurveFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--brand)" stopOpacity="0.38" />
-                <stop offset="100%" stopColor="var(--brand)" stopOpacity="0.0" />
+                <stop offset="0%" style={{ stopColor: "var(--brand)", stopOpacity: 0.38 }} />
+                <stop offset="100%" style={{ stopColor: "var(--brand)", stopOpacity: 0.0 }} />
               </linearGradient>
             </defs>
 
@@ -590,7 +590,7 @@ function ActivityGraph({
               y1={baselineY}
               x2={width - paddingX + 15}
               y2={baselineY}
-              stroke="var(--surface-border)"
+              style={{ stroke: "var(--surface-border)" }}
               strokeWidth="1.5"
               strokeDasharray="4 4"
             />
@@ -602,7 +602,7 @@ function ActivityGraph({
             <path
               d={pathD}
               fill="none"
-              stroke="var(--brand)"
+              style={{ stroke: "var(--brand)" }}
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -617,10 +617,9 @@ function ActivityGraph({
                   y1={pt.y}
                   x2={pt.x}
                   y2={baselineY}
-                  stroke="var(--brand)"
+                  style={{ stroke: "var(--brand)", strokeOpacity: pt.count > 0 ? 0.6 : 0.15 }}
                   strokeWidth="1.5"
                   strokeDasharray="2 2"
-                  strokeOpacity={pt.count > 0 ? "0.6" : "0.15"}
                 />
 
                 {/* Badge valeur au-dessus du point */}
@@ -632,15 +631,14 @@ function ActivityGraph({
                       width="22"
                       height="16"
                       rx="5"
-                      fill="var(--surface-raised)"
-                      stroke="var(--brand)"
+                      style={{ fill: "var(--surface-raised)", stroke: "var(--brand)" }}
                       strokeWidth="1.2"
                     />
                     <text
                       x="0"
                       y="0"
                       textAnchor="middle"
-                      fill="var(--brand)"
+                      style={{ fill: "var(--brand)" }}
                       fontSize="10"
                       fontWeight="bold"
                     >
@@ -653,9 +651,11 @@ function ActivityGraph({
                 <circle
                   cx={pt.x}
                   cy={pt.y}
-                  r={pt.count > 0 ? "5" : "3.5"}
-                  fill={pt.count > 0 ? "var(--brand)" : "var(--surface)"}
-                  stroke={pt.count > 0 ? "#ffffff" : "var(--surface-border)"}
+                  r={pt.count > 0 ? 5 : 3.5}
+                  style={{
+                    fill: pt.count > 0 ? "var(--brand)" : "var(--surface)",
+                    stroke: pt.count > 0 ? "#ffffff" : "var(--surface-border)",
+                  }}
                   strokeWidth="2"
                 />
 

@@ -158,8 +158,8 @@ export default function CountryMapBackdrop({
       />
 
       {/* Point du hub logistique / capitale */}
-      <circle cx={info.hub.x} cy={info.hub.y} r="5.5" fill="var(--brand)" fillOpacity="0.18" />
-      <circle cx={info.hub.x} cy={info.hub.y} r="2.2" fill="var(--brand)" />
+      <circle cx={info.hub.x} cy={info.hub.y} r="5.5" style={{ fill: "var(--brand)", fillOpacity: 0.18 }} />
+      <circle cx={info.hub.x} cy={info.hub.y} r="2.2" style={{ fill: "var(--brand)" }} />
     </svg>
   );
 }

@@ -1,17 +1,12 @@
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { getDb, ConfirmDialog, buildWhatsAppLink } from "@ecomcod/shared";
 import type { Team, Order } from "@ecomcod/shared";
 import {
-  Palette,
   Sliders,
   Store,
   Printer,
   Share2,
-  Sun,
-  Moon,
-  Volume2,
-  VolumeX,
   Check,
   RotateCcw,
   Save,
@@ -20,11 +15,7 @@ import {
   Copy,
   PhoneCall,
   Smartphone,
-  Sparkles,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from "lucide-react";
-import { useTheme, ACCENT_PRESETS } from "../hooks/useTheme";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import ShopifyFluxManager from "../components/ShopifyFluxManager";
 import PrintReceiptConfig from "../components/PrintReceiptConfig";
@@ -39,47 +30,10 @@ interface ParametresProps {
   orders?: Order[];
 }
 
-type SettingsTab = "general" | "rules" | "shopify" | "print" | "metacapi" | "phone_export" | "white_label";
-
-const SOUND_KEY = "ecomcod-sound-notifications";
+type SettingsTab = "rules" | "shopify" | "print" | "metacapi" | "phone_export" | "white_label";
 
 export default function Parametres({ workspaceId, team, teams = [], orders = [] }: ParametresProps) {
-  const { theme, setTheme, accent, setAccent } = useTheme();
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
-    if (typeof window !== "undefined" && window.innerWidth < 1024) return false;
-    try {
-      return localStorage.getItem("waritrack_settings_nav_collapsed") === "true";
-    } catch {
-      return false;
-    }
-  });
-
-  const handleToggleNav = (targetState?: boolean) => {
-    setNavCollapsed((prev) => {
-      const next = typeof targetState === "boolean" ? targetState : !prev;
-      try {
-        localStorage.setItem("waritrack_settings_nav_collapsed", String(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    setSoundEnabled(localStorage.getItem(SOUND_KEY) !== "off");
-  }, []);
-
-  const toggleSound = () => {
-    const next = !soundEnabled;
-    setSoundEnabled(next);
-    localStorage.setItem(SOUND_KEY, next ? "on" : "off");
-  };
-
-  const playTestSound = () => {
-    const audio = new Audio("/notification-ping.mp3");
-    audio.play().catch(() => {});
-  };
 
   const navItems: { id: SettingsTab; label: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
     {
@@ -118,12 +72,6 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
       desc: "Nom, icônes & couleurs closeuses/livreurs",
       icon: Smartphone,
     },
-    {
-      id: "general",
-      label: "Apparence & Audio",
-      desc: "Thème, couleur d'accent & alertes",
-      icon: Palette,
-    },
   ];
 
   return (
@@ -148,41 +96,9 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row items-start gap-5">
-        {/* Navigation verticale des Paramètres avec contrôle manuel élégant (sans rétractation automatique forcée) */}
-        <nav
-          className={`flex gap-1.5 overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised p-2 transition-all duration-200 shrink-0 ${
-            navCollapsed
-              ? "lg:w-16 lg:flex-col lg:items-center"
-              : "lg:w-72 lg:flex-col"
-          }`}
-        >
-          {/* Bouton de contrôle manuel desktop */}
-          <div className="hidden lg:flex w-full items-center justify-between px-2 py-1 mb-1 border-b border-surface-border/50">
-            {!navCollapsed && (
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                Rubriques ({navItems.length})
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => handleToggleNav()}
-              title={navCollapsed ? "Déplier le menu des paramètres" : "Réduire pour libérer l'espace"}
-              className={`rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-surface transition ${
-                navCollapsed ? "mx-auto" : ""
-              }`}
-            >
-              {navCollapsed ? (
-                <PanelLeftOpen className="h-4 w-4 text-brand" />
-              ) : (
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-white">
-                  <span>Réduire</span>
-                  <PanelLeftClose className="h-3.5 w-3.5" />
-                </div>
-              )}
-            </button>
-          </div>
-
+      {/* Barre d'onglets horizontale moderne (Navigation 100% pleine largeur) */}
+      <div className="rounded-2xl border border-surface-border bg-surface-raised p-1.5 shadow-xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
@@ -191,211 +107,63 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.id)}
-                title={navCollapsed ? `${item.label} — ${item.desc}` : undefined}
-                className={`flex shrink-0 items-center rounded-xl transition ${
-                  navCollapsed
-                    ? "lg:h-11 lg:w-11 lg:justify-center p-2"
-                    : "gap-3 px-3.5 py-3 lg:w-full text-left"
-                } ${
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
                   active
-                    ? "bg-brand/15 text-slate-100 ring-1 ring-brand/40"
+                    ? "bg-brand text-white shadow-sm ring-1 ring-brand/30"
                     : "text-slate-400 hover:bg-surface hover:text-slate-200"
                 }`}
               >
                 <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition ${
-                    active
-                      ? "border-brand/40 bg-brand text-white shadow-sm"
-                      : "border-surface-border bg-surface text-slate-400"
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
+                    active ? "bg-white/20 text-white" : "text-slate-400"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
                 </div>
-                {!navCollapsed && (
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold">{item.label}</p>
-                    <p className="hidden truncate text-[11px] text-slate-500 lg:block">{item.desc}</p>
-                  </div>
-                )}
+                <span className="whitespace-nowrap">{item.label}</span>
               </button>
             );
           })}
-        </nav>
-
-        {/* Zone de contenu principale */}
-        <div className="min-w-0 flex-1 w-full">
-          {activeTab === "general" && (
-            <div className="space-y-5">
-              {/* Theme & Accent Card */}
-              <div className="rounded-2xl border border-surface-border bg-surface-raised p-6 space-y-6">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-100">Mode d'affichage</h3>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Basculez entre l'interface sombre haute densité et le mode clair. Également accessible à tout moment dans l'en-tête.
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setTheme("dark")}
-                      className={`flex items-center justify-between rounded-xl border p-3.5 text-left transition ${
-                        theme === "dark"
-                          ? "border-brand bg-brand/10 text-slate-100 ring-1 ring-brand/40"
-                          : "border-surface-border bg-surface text-slate-400 hover:border-slate-600 hover:text-slate-200"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Moon className="h-4 w-4 text-brand" />
-                        <div>
-                          <p className="text-xs font-semibold">Mode Sombre</p>
-                          <p className="text-[11px] text-slate-500">Contraste reposant</p>
-                        </div>
-                      </div>
-                      {theme === "dark" && <Check className="h-4 w-4 text-brand" />}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setTheme("light")}
-                      className={`flex items-center justify-between rounded-xl border p-3.5 text-left transition ${
-                        theme === "light"
-                          ? "border-brand bg-brand/10 text-slate-100 ring-1 ring-brand/40"
-                          : "border-surface-border bg-surface text-slate-400 hover:border-slate-600 hover:text-slate-200"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Sun className="h-4 w-4 text-amber-400" />
-                        <div>
-                          <p className="text-xs font-semibold">Mode Clair</p>
-                          <p className="text-[11px] text-slate-500">Lecture plein jour</p>
-                        </div>
-                      </div>
-                      {theme === "light" && <Check className="h-4 w-4 text-brand" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="border-t border-surface-border pt-5">
-                  <h3 className="text-sm font-semibold text-slate-100">Palette d'ambiance complète (Fond + Barre + Accent)</h3>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    Chaque palette harmonise la couleur du fond, de la barre latérale et des boutons en mode clair comme en mode sombre.
-                  </p>
-                  <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                    {ACCENT_PRESETS.map((preset) => {
-                      const active = accent === preset.id;
-                      const surfaceBg = theme === "light" ? preset.lightSurface : preset.darkSurface;
-                      const barBg = theme === "light" ? preset.lightBar : preset.darkBar;
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => setAccent(preset.id)}
-                          className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-left text-xs transition ${
-                            active
-                              ? "border-brand bg-brand/10 text-slate-100 ring-1 ring-brand/30"
-                              : "border-surface-border bg-surface text-slate-300 hover:border-slate-500 hover:text-slate-100"
-                          }`}
-                        >
-                          <span className="flex items-center gap-3 min-w-0">
-                            <span
-                              className="relative flex h-8 w-11 shrink-0 overflow-hidden rounded-lg border border-slate-500/30 shadow-inner"
-                              style={{ backgroundColor: surfaceBg }}
-                            >
-                              <span
-                                className="h-full w-3.5 border-r border-slate-500/20"
-                                style={{ backgroundColor: barBg }}
-                              />
-                              <span
-                                className="absolute bottom-1.5 right-1.5 h-3 w-3 rounded-full shadow-sm"
-                                style={{ backgroundColor: preset.swatch }}
-                              />
-                            </span>
-                            <span className="min-w-0 truncate">
-                              <span className="block truncate font-semibold text-slate-100">{preset.label}</span>
-                              <span className="block truncate text-[10px] text-slate-500">{preset.subtitle}</span>
-                            </span>
-                          </span>
-                          {active && <Check className="h-4 w-4 shrink-0 text-brand" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="border-t border-surface-border pt-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-100">Alertes sonores temps réel</h3>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        Émet un signal discret à la réception d'une nouvelle commande sur cet appareil.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={soundEnabled}
-                      onClick={toggleSound}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-                        soundEnabled ? "bg-brand" : "bg-slate-700"
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                          soundEnabled ? "translate-x-6" : "translate-x-1"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      onClick={playTestSound}
-                      className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-slate-100"
-                    >
-                      {soundEnabled ? <Volume2 className="h-3.5 w-3.5 text-brand" /> : <VolumeX className="h-3.5 w-3.5 text-slate-500" />}
-                      <span>Tester la tonalité de notification</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "rules" && (
-            team ? (
-              <TeamSettingsForm key={team.id} workspaceId={workspaceId} team={team} />
-            ) : (
-              <EmptyTeamNotice />
-            )
-          )}
-
-          {activeTab === "shopify" && (
-            team ? (
-              <ShopifyFluxManager workspaceId={workspaceId} team={team} allTeams={teams} />
-            ) : (
-              <EmptyTeamNotice />
-            )
-          )}
-
-          {activeTab === "print" && (
-            team ? (
-              <PrintReceiptConfig workspaceId={workspaceId} team={team} />
-            ) : (
-              <EmptyTeamNotice />
-            )
-          )}
-
-          {activeTab === "metacapi" && (
-            team ? (
-              <MetaCapiConnector workspaceId={workspaceId} team={team} allTeams={teams} />
-            ) : (
-              <EmptyTeamNotice />
-            )
-          )}
-
-          {activeTab === "phone_export" && <PhoneExportManager team={team} orders={orders} />}
-
-          {activeTab === "white_label" && <WhiteLabelSettings workspaceId={workspaceId} />}
         </div>
+      </div>
+
+      {/* Zone de contenu principale (100% pleine largeur) */}
+      <div className="min-w-0 w-full">
+        {activeTab === "rules" && (
+          team ? (
+            <TeamSettingsForm key={team.id} workspaceId={workspaceId} team={team} />
+          ) : (
+            <EmptyTeamNotice />
+          )
+        )}
+
+        {activeTab === "shopify" && (
+          team ? (
+            <ShopifyFluxManager workspaceId={workspaceId} team={team} allTeams={teams} />
+          ) : (
+            <EmptyTeamNotice />
+          )
+        )}
+
+        {activeTab === "print" && (
+          team ? (
+            <PrintReceiptConfig workspaceId={workspaceId} team={team} />
+          ) : (
+            <EmptyTeamNotice />
+          )
+        )}
+
+        {activeTab === "metacapi" && (
+          team ? (
+            <MetaCapiConnector workspaceId={workspaceId} team={team} allTeams={teams} />
+          ) : (
+            <EmptyTeamNotice />
+          )
+        )}
+
+        {activeTab === "phone_export" && <PhoneExportManager team={team} orders={orders} />}
+
+        {activeTab === "white_label" && <WhiteLabelSettings workspaceId={workspaceId} />}
       </div>
     </div>
   );
