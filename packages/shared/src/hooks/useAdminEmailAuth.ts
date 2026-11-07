@@ -28,6 +28,25 @@ interface AdminAuthResult {
  * Systeme multi-entreprises inchange : chaque email obtient son propre
  * workspace isole, la Cloud Function reste agnostique du fournisseur.
  */
+function formatAuthError(err: unknown, fallback: string): string {
+  if (err && typeof err === "object" && "code" in err) {
+    const code = String((err as any).code);
+    if (code === "auth/unauthorized-domain") {
+      return "Ce domaine n'est pas autorisé pour la connexion sécurisée. Veuillez vous connecter depuis l'adresse officielle de votre plateforme.";
+    }
+    if (code === "auth/unauthorized-continue-uri") {
+      return "L'adresse de redirection n'est pas autorisée. Veuillez vous connecter depuis l'adresse officielle de votre plateforme.";
+    }
+    if (code === "auth/network-request-failed") {
+      return "Impossible de joindre les serveurs sécurisés. Vérifiez votre connexion Internet.";
+    }
+    if (code === "auth/invalid-email") {
+      return "Adresse email invalide. Veuillez vérifier votre saisie.";
+    }
+  }
+  return err instanceof Error ? err.message : fallback;
+}
+
 export function useAdminEmailAuth() {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -121,7 +140,7 @@ export function useAdminEmailAuth() {
       window.localStorage.setItem(STORAGE_KEY, email);
       setLinkSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Envoi impossible.");
+      setError(formatAuthError(err, "Envoi impossible."));
     } finally {
       setBusy(false);
     }
@@ -141,7 +160,7 @@ export function useAdminEmailAuth() {
         setBusy(false);
         return;
       }
-      setError(err instanceof Error ? err.message : "Connexion Google impossible.");
+      setError(formatAuthError(err, "Connexion Google impossible."));
       setBusy(false);
     }
   }, [provision]);
@@ -159,7 +178,7 @@ export function useAdminEmailAuth() {
         setBusy(false);
         return;
       }
-      setError(err instanceof Error ? err.message : "Connexion Facebook impossible.");
+      setError(formatAuthError(err, "Connexion Facebook impossible."));
       setBusy(false);
     }
   }, [provision]);
