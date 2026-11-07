@@ -1,6 +1,14 @@
 import { useState, useMemo } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb, ConfirmDialog, buildWhatsAppLink } from "@ecomcod/shared";
+import {
+  getDb,
+  ConfirmDialog,
+  buildWhatsAppLink,
+  cleanAfricanPhone,
+  cleanOrderNumber,
+  cleanProductTitle,
+  buildSavWhatsAppMessage,
+} from "@ecomcod/shared";
 import type { Team, Order } from "@ecomcod/shared";
 import {
   Sliders,
@@ -477,24 +485,31 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
       endMs = endDate ? new Date(`${endDate}T23:59:59`).getTime() : now + 86400000;
     }
 
-    // Comptage global des numéros pour identifier les doublons
+    const defaultCountry = team?.defaultCountry || "TG";
+
+    // Comptage global des numéros normalisés pour identifier les doublons
     const phoneCounts = new Map<string, number>();
     for (const o of orders) {
-      const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
-      if (p && p !== "Non renseigné") {
-        phoneCounts.set(p, (phoneCounts.get(p) ?? 0) + 1);
+      const raw = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+      if (raw && raw !== "Non renseigné") {
+        const cleanP = cleanAfricanPhone(raw, defaultCountry);
+        if (cleanP) {
+          phoneCounts.set(cleanP, (phoneCounts.get(cleanP) ?? 0) + 1);
+        }
       }
     }
 
     const inRange = orders
       .filter((o) => o.timestamps.received >= startMs && o.timestamps.received <= endMs)
       .filter((o) => {
-        const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
-        if (!p || p === "Non renseigné") return false;
+        const raw = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+        if (!raw || raw === "Non renseigné") return false;
+        const cleanP = cleanAfricanPhone(raw, defaultCountry);
+        if (!cleanP) return false;
         if (segment === "livre") return o.statutCloseuse === "livre";
         if (segment === "relance") return o.statutCloseuse === "injoignable" || o.statutCloseuse === "rejete";
         if (segment === "duplicates") {
-          return Boolean(o.isDuplicatePhone || o.capiIsolated || (phoneCounts.get(p) ?? 0) > 1);
+          return Boolean(o.isDuplicatePhone || o.capiIsolated || (phoneCounts.get(cleanP) ?? 0) > 1);
         }
         return true;
       })
@@ -502,11 +517,12 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
 
     if (!deduplicate) {
       return inRange.map((o) => {
-        const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
-        const totalForPhone = phoneCounts.get(p) ?? 1;
+        const raw = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+        const cleanP = cleanAfricanPhone(raw, defaultCountry);
+        const totalForPhone = phoneCounts.get(cleanP) ?? 1;
         return {
           order: o,
-          phone: p,
+          phone: cleanP,
           ordersCount: totalForPhone,
           isDuplicate: Boolean(o.isDuplicatePhone || o.capiIsolated || totalForPhone > 1),
         };
@@ -516,19 +532,20 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
     const seen = new Set<string>();
     const unique: { order: Order; phone: string; ordersCount: number; isDuplicate: boolean }[] = [];
     for (const o of inRange) {
-      const p = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
-      if (seen.has(p)) continue;
-      seen.add(p);
-      const totalForPhone = phoneCounts.get(p) ?? 1;
+      const raw = (o.clientPhoneFormatted || o.clientPhoneRaw || "").trim();
+      const cleanP = cleanAfricanPhone(raw, defaultCountry);
+      if (seen.has(cleanP)) continue;
+      seen.add(cleanP);
+      const totalForPhone = phoneCounts.get(cleanP) ?? 1;
       unique.push({
         order: o,
-        phone: p,
+        phone: cleanP,
         ordersCount: totalForPhone,
         isDuplicate: Boolean(o.isDuplicatePhone || o.capiIsolated || totalForPhone > 1),
       });
     }
     return unique;
-  }, [orders, rangePreset, startDate, endDate, segment, deduplicate]);
+  }, [orders, rangePreset, startDate, endDate, segment, deduplicate, team]);
 
   const handleCopyNumbers = () => {
     const text = filteredEntries.map((e) => e.phone).join("\n");
@@ -539,35 +556,52 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
 
   const handleExportCsv = () => {
     const headers = [
-      "Téléphone Formaté",
-      "Téléphone Brut",
+      "N° Commande",
+      "Téléphone WhatsApp (E.164)",
+      "Téléphone Brut Saisi",
       "Nom Client",
-      "Ville",
+      "Ville & Quartier",
+      "Adresse / Repère",
       "Produit",
       "Quantité",
       `Montant (${currency})`,
-      "Statut",
+      "Statut Commande",
+      "Statut Livreur",
+      "Livreur Assigné",
       "Nb Commandes Numéro",
       "Qualification Tracking",
+      "Lien WhatsApp Direct",
+      "Message SAV Auto",
       "Date Réception",
     ];
     const escapeCsv = (val: string | number) => {
       const s = String(val ?? "").replace(/"/g, '""');
       return `"${s}"`;
     };
-    const rows = filteredEntries.map(({ order: o, phone, ordersCount, isDuplicate }) => [
-      escapeCsv(phone),
-      escapeCsv(o.clientPhoneRaw || phone),
-      escapeCsv(o.clientName),
-      escapeCsv(o.city || o.shopifyData?.locationHint || ""),
-      escapeCsv(o.product),
-      escapeCsv(o.quantity || 1),
-      escapeCsv(o.amount),
-      escapeCsv(o.statutCloseuse),
-      escapeCsv(ordersCount),
-      escapeCsv(isDuplicate ? "Accès libre site (Isolé Meta)" : "Meta CAPI Standard"),
-      escapeCsv(new Date(o.timestamps.received).toLocaleString("fr-FR")),
-    ]);
+    const rows = filteredEntries.map(({ order: o, phone, ordersCount, isDuplicate }) => {
+      const orderRef = cleanOrderNumber(o.shopifyData?.orderNumber || o.orderNumber);
+      const savMsg = buildSavWhatsAppMessage(o, team);
+      const waLink = buildWhatsAppLink(phone, savMsg);
+      return [
+        escapeCsv(orderRef ? `#${orderRef}` : ""),
+        escapeCsv(phone),
+        escapeCsv(o.clientPhoneRaw || phone),
+        escapeCsv(o.clientName),
+        escapeCsv(o.city || o.shopifyData?.locationHint || ""),
+        escapeCsv(o.addressNote || ""),
+        escapeCsv(cleanProductTitle(o.product)),
+        escapeCsv(o.quantity || 1),
+        escapeCsv(o.amount),
+        escapeCsv(o.statutCloseuse),
+        escapeCsv(o.statutLivreur || "non_assigné"),
+        escapeCsv(o.assignedLivreurName || ""),
+        escapeCsv(ordersCount),
+        escapeCsv(isDuplicate ? "Accès libre site (Isolé Meta)" : "Meta CAPI Standard"),
+        escapeCsv(waLink),
+        escapeCsv(savMsg),
+        escapeCsv(new Date(o.timestamps.received).toLocaleString("fr-FR")),
+      ];
+    });
 
     const csvContent = "\uFEFF" + [headers.map(escapeCsv).join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -575,6 +609,29 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
     const a = document.createElement("a");
     a.href = url;
     a.download = `numeros-clients-${team?.name.toLowerCase().replace(/\s+/g, "-") || "export"}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportBroadcastCsv = () => {
+    const headers = ["Téléphone (E.164)", "Nom Client", "Ville", "Message WhatsApp SAV"];
+    const escapeCsv = (val: string | number) => {
+      const s = String(val ?? "").replace(/"/g, '""');
+      return `"${s}"`;
+    };
+    const rows = filteredEntries.map(({ order: o, phone }) => [
+      escapeCsv(phone),
+      escapeCsv(o.clientName),
+      escapeCsv(o.city || o.shopifyData?.locationHint || ""),
+      escapeCsv(buildSavWhatsAppMessage(o, team)),
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.map(escapeCsv).join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campagne-whatsapp-sms-${team?.name.toLowerCase().replace(/\s+/g, "-") || "export"}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -682,7 +739,17 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
           className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-40"
         >
           <Download className="h-4 w-4" />
-          Exporter en Excel / CSV ({filteredEntries.length})
+          Exporter CSV Complet ({filteredEntries.length})
+        </button>
+
+        <button
+          type="button"
+          disabled={filteredEntries.length === 0}
+          onClick={handleExportBroadcastCsv}
+          className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-40"
+        >
+          <WhatsAppIcon size={16} />
+          Format Campagne WhatsApp / SMS ({filteredEntries.length})
         </button>
 
         <button
@@ -692,7 +759,7 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
           className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-medium text-slate-200 transition hover:border-brand/50 disabled:opacity-40"
         >
           {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-slate-400" />}
-          {copied ? "Numéros copiés dans le presse-papiers !" : "Copier uniquement la liste des numéros"}
+          {copied ? "Numéros copiés !" : "Copier la liste des numéros"}
         </button>
       </div>
 
@@ -718,13 +785,10 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
                     <div className="flex items-center gap-2">
                       <span>{phone}</span>
                       <a
-                        href={buildWhatsAppLink(
-                          phone,
-                          `Bonjour ${o.clientName}, ici le service client de la boutique concernant votre commande (${o.product}).`
-                        )}
+                        href={buildWhatsAppLink(phone, buildSavWhatsAppMessage(o, team))}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Écrire sur WhatsApp"
+                        title="Écrire sur WhatsApp (Script SAV / Suivi personnalisé)"
                         className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110"
                       >
                         <WhatsAppIcon size={20} />

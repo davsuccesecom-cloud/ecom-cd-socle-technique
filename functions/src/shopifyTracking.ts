@@ -15,17 +15,65 @@ function sha256(str: string): string {
     .digest("hex");
 }
 
-function cleanPhone(raw: string): string {
-  if (!raw) return "";
-  return raw.replace(/[^\d+]/g, "").trim();
+const AFRICAN_DIAL_CODES: Record<string, string> = {
+  BJ: "229", // Bénin
+  TG: "228", // Togo
+  CI: "225", // Côte d'Ivoire
+  SN: "221", // Sénégal
+  CM: "237", // Cameroun
+  ML: "223", // Mali
+  GN: "224", // Guinée
+  BF: "226", // Burkina Faso
+  NE: "227", // Niger
+  GA: "241", // Gabon
+  CG: "242", // Congo
+  CD: "243", // RDC
+};
+
+const ALL_AFRICAN_PREFIXES = Array.from(new Set(Object.values(AFRICAN_DIAL_CODES))).sort(
+  (a, b) => b.length - a.length
+);
+
+function cleanAfricanPhone(raw: string, defaultCountry = "TG"): string {
+  const s = String(raw || "").trim();
+  if (!s || s === "Non renseigné") return "";
+
+  let digits = s.replace(/[^\d]/g, "");
+  if (!digits) return "";
+
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+
+  // Détection d'un double indicatif involontaire (ex: 228 + 22966860045)
+  for (const p1 of ALL_AFRICAN_PREFIXES) {
+    if (digits.startsWith(p1)) {
+      const sub = digits.slice(p1.length);
+      for (const p2 of ALL_AFRICAN_PREFIXES) {
+        if (sub.startsWith(p2) && sub.length >= 8 + p2.length) {
+          return `+${sub}`;
+        }
+      }
+    }
+  }
+
+  // Si le numéro commence déjà par un indicatif africain reconnu
+  for (const p of ALL_AFRICAN_PREFIXES) {
+    if (digits.startsWith(p) && digits.length >= 8 + p.length) {
+      return `+${digits}`;
+    }
+  }
+
+  const defaultDial = AFRICAN_DIAL_CODES[defaultCountry.toUpperCase()] || "228";
+  return `+${defaultDial}${digits}`;
 }
 
 function normalizePhoneE164(raw: string, defaultCountry = "TG"): { normalized: string; hash: string } {
-  const cleaned = cleanPhone(raw);
-  if (!cleaned) return { normalized: "", hash: "" };
+  const preCleaned = cleanAfricanPhone(raw, defaultCountry);
+  if (!preCleaned) return { normalized: "", hash: "" };
 
   try {
-    const parsed = parsePhoneNumberFromString(cleaned, defaultCountry as never);
+    const parsed = parsePhoneNumberFromString(preCleaned);
     if (parsed && parsed.isValid()) {
       const e164 = parsed.format("E.164");
       return { normalized: e164, hash: sha256(e164.replace(/[^\d]/g, "")) };
@@ -35,7 +83,7 @@ function normalizePhoneE164(raw: string, defaultCountry = "TG"): { normalized: s
   }
 
   // Format de secours : supprimer tout sauf les chiffres
-  const digits = cleaned.replace(/[^\d]/g, "");
+  const digits = preCleaned.replace(/[^\d]/g, "");
   return { normalized: digits ? `+${digits}` : "", hash: sha256(digits) };
 }
 

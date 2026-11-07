@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb, ConfirmDialog, buildWhatsAppLink, openBatchPrintDialog } from "@ecomcod/shared";
+import {
+  getDb,
+  ConfirmDialog,
+  buildWhatsAppLink,
+  cleanAfricanPhone,
+  cleanOrderNumber,
+  cleanProductTitle,
+  buildSavWhatsAppMessage,
+  openBatchPrintDialog,
+} from "@ecomcod/shared";
 import type { AppUser, CloseuseStatus, LivreurStatus, Order, Team } from "@ecomcod/shared";
 import {
   Search,
@@ -18,6 +27,8 @@ import {
   ChevronRight,
   SlidersHorizontal,
   CheckCheck,
+  Copy,
+  Check,
 } from "lucide-react";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
 import WhatsAppIcon from "../components/WhatsAppIcon";
@@ -104,17 +115,6 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
     }
     return map;
   }, [orders]);
-
-  const buildSavWhatsAppMessage = (o: Order) => {
-    const ref = o.shopifyData?.orderNumber || o.orderNumber ? ` (#${o.shopifyData?.orderNumber || o.orderNumber})` : "";
-    if (o.statutCloseuse === "livre") {
-      return `Bonjour ${o.clientName}, ici le service après-vente de la boutique concernant votre commande${ref} (${o.product}). Tout se passe-t-il bien avec votre produit ?`;
-    }
-    if (o.statutCloseuse === "injoignable" || o.statutCloseuse === "rejete") {
-      return `Bonjour ${o.clientName}, nous avons tenté de vous joindre pour la livraison de votre commande${ref} (${o.product} — ${o.amount.toLocaleString("fr-FR")} ${currency}). Souhaitez-vous que l'on reprogramme votre livraison ?`;
-    }
-    return `Bonjour ${o.clientName}, ici la direction de la boutique concernant votre commande${ref} de ${o.product} (${o.amount.toLocaleString("fr-FR")} ${currency}).`;
-  };
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -441,13 +441,18 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                       </td>
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-300 tabular-nums">{order.clientPhoneFormatted}</span>
+                          <span className="text-xs text-slate-300 tabular-nums">
+                            {cleanAfricanPhone(order.clientPhoneFormatted || order.clientPhoneRaw || "", team?.defaultCountry || "TG") || order.clientPhoneFormatted}
+                          </span>
                           {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
                             <a
-                              href={buildSavWhatsAppMessage ? buildWhatsAppLink(order.clientPhoneFormatted, buildSavWhatsAppMessage(order)) : "#"}
+                              href={buildWhatsAppLink(
+                                cleanAfricanPhone(order.clientPhoneFormatted || order.clientPhoneRaw || "", team?.defaultCountry || "TG"),
+                                buildSavWhatsAppMessage(order, team)
+                              )}
                               target="_blank"
                               rel="noopener noreferrer"
-                              title="Écrire au client sur WhatsApp (SAV / Relance)"
+                              title="Écrire au client sur WhatsApp (Script Auto SAV / Suivi personnalisé)"
                               className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110"
                             >
                               <WhatsAppIcon size={22} />
@@ -598,6 +603,7 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
       {selected && (
         <OrderDetail
           order={selected}
+          team={team}
           currency={currency}
           closeuses={closeuses}
           livreurs={livreurs}
@@ -629,6 +635,7 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
 
 function OrderDetail({
   order,
+  team,
   currency,
   closeuses,
   livreurs,
@@ -637,6 +644,7 @@ function OrderDetail({
   onSave,
 }: {
   order: Order;
+  team: Team | null;
   currency: string;
   closeuses: AppUser[];
   livreurs: AppUser[];
@@ -650,8 +658,19 @@ function OrderDetail({
   const [closeuseId, setCloseuseId] = useState(order.closeuseId ?? "");
   const [livreurId, setLivreurId] = useState(order.livreurId ?? "");
   const [overrideStatus, setOverrideStatus] = useState<CloseuseStatus>(order.statutCloseuse);
+  const [scriptMode, setScriptMode] = useState<"auto" | "sav" | "relance" | "confirmation" | "doublon">("auto");
+  const [copiedScript, setCopiedScript] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const cleanPhone = cleanAfricanPhone(order.clientPhoneFormatted || order.clientPhoneRaw || "", team?.defaultCountry || "TG");
+  const currentScript = buildSavWhatsAppMessage(order, team, scriptMode);
+
+  const handleCopyScript = () => {
+    navigator.clipboard.writeText(currentScript);
+    setCopiedScript(true);
+    setTimeout(() => setCopiedScript(false), 2000);
+  };
   const [confirmAction, setConfirmAction] = useState<{
     title: string;
     message: string;
@@ -826,23 +845,106 @@ function OrderDetail({
                 <span className="text-slate-500">Téléphone</span>
                 <span className="flex items-center gap-2 font-medium text-slate-200">
                   <Phone className="h-3.5 w-3.5 text-slate-500" />
-                  <span className="tabular-nums">{order.clientPhoneFormatted}</span>
-                  {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
-                    <a
-                      href={buildWhatsAppLink(
-                        order.clientPhoneFormatted,
-                        `Bonjour ${order.clientName}, ici le service client de la boutique concernant votre commande (${order.product}).`
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 py-0.5 pl-1 pr-2.5 text-[11px] font-semibold text-emerald-400 transition hover:bg-emerald-500/20"
-                    >
-                      <WhatsAppIcon size={18} />
-                      <span>WhatsApp SAV</span>
-                    </a>
-                  )}
+                  <span className="tabular-nums">{cleanPhone || order.clientPhoneFormatted}</span>
                 </span>
               </div>
+
+              {/* Module Script WhatsApp SAV / Relance Intelligent */}
+              {cleanPhone && (
+                <div className="mt-2.5 space-y-2.5 rounded-xl border border-surface-border bg-surface/70 p-3.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                      <WhatsAppIcon size={14} />
+                      Scripts WhatsApp 1-Clic
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyScript}
+                        className="inline-flex items-center gap-1 rounded-md border border-surface-border px-2 py-1 text-[10px] font-medium text-slate-300 transition hover:border-brand/40"
+                      >
+                        {copiedScript ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3 text-slate-400" />}
+                        {copiedScript ? "Copié !" : "Copier"}
+                      </button>
+                      <a
+                        href={buildWhatsAppLink(cleanPhone, currentScript)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/25"
+                      >
+                        <WhatsAppIcon size={14} />
+                        Ouvrir WhatsApp
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Boutons modes */}
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setScriptMode("auto")}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                        scriptMode === "auto"
+                          ? "bg-brand text-white"
+                          : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      🎯 Auto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScriptMode("sav")}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                        scriptMode === "sav"
+                          ? "bg-brand text-white"
+                          : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      📦 SAV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScriptMode("relance")}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                        scriptMode === "relance"
+                          ? "bg-brand text-white"
+                          : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      📞 Relance
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScriptMode("confirmation")}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                        scriptMode === "confirmation"
+                          ? "bg-brand text-white"
+                          : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      🕒 Prise RDV
+                    </button>
+                    {order.isDuplicatePhone && (
+                      <button
+                        type="button"
+                        onClick={() => setScriptMode("doublon")}
+                        className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                          scriptMode === "doublon"
+                            ? "bg-amber-500 text-black font-semibold"
+                            : "border border-amber-500/30 bg-amber-500/10 text-amber-400"
+                        }`}
+                      >
+                        🔄 Vérif Doublon
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Aperçu du texte */}
+                  <div className="rounded-lg border border-surface-border bg-surface/90 p-2.5 text-xs text-slate-300 whitespace-pre-line leading-relaxed select-all">
+                    {currentScript}
+                  </div>
+                </div>
+              )}
               <Row label="Produit" value={order.product} />
               <Row label="Montant" value={`${order.amount.toLocaleString("fr-FR")} ${currency}`} />
               <Row label="Reçue le" value={formatDate(order.timestamps.received)} />
