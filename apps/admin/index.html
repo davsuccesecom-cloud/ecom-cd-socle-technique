@@ -35,19 +35,6 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=3" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
     <style>
-      *, *::before, *::after {
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        -ms-user-select: none !important;
-        user-select: none !important;
-        -webkit-touch-callout: none !important;
-      }
-      input, textarea, [contenteditable="true"], .select-text, .select-all, [data-allow-copy="true"] {
-        -webkit-user-select: text !important;
-        -moz-user-select: text !important;
-        -ms-user-select: text !important;
-        user-select: text !important;
-      }
       img, svg, a {
         -webkit-user-drag: none !important;
         user-drag: none !important;
@@ -71,7 +58,7 @@
             '</div>' +
             '<h1 style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#F87171;margin-bottom:8px;">COPIE LOCALE OU CLONE NON AUTORISÉ</h1>' +
             '<p style="font-size:13px;color:#94A3B8;max-width:440px;line-height:1.6;margin-bottom:24px;">Cette interface et son code sont protégés contre la copie et l\'usurpation. L\'exécution hors-ligne d\'une page sauvegardée (« Enregistrer sous ») ou sur un domaine tiers non autorisé est strictement verrouillée.</p>' +
-            '<a href="https://ecom-cd-socle-technique-admin.vercel.app" style="background:#6366F1;color:#FFFFFF;padding:10px 22px;border-radius:12px;text-decoration:none;font-weight:600;font-size:13px;box-shadow:0 4px 14px rgba(99,102,241,0.4);">Accéder à la plateforme officielle</a>' +
+            '<a href="https://waritrack-admin.vercel.app" style="background:#6366F1;color:#FFFFFF;padding:10px 22px;border-radius:12px;text-decoration:none;font-weight:600;font-size:13px;box-shadow:0 4px 14px rgba(99,102,241,0.4);">Accéder à la plateforme officielle</a>' +
             '</div>';
           throw new Error("WariTrack Security: Offline or unauthorized clone execution terminated.");
         }
@@ -102,64 +89,13 @@
           }).catch(function() {});
         }
 
-        window.__isInputTarget = function(el) {
-          if (!el) return false;
-          var t = el.tagName;
-          if (t === 'INPUT' || t === 'TEXTAREA' || el.isContentEditable) return true;
-          return Boolean(el.closest && el.closest('input, textarea, [contenteditable="true"], .select-text, .select-all, [data-allow-copy="true"]'));
-        };
-
-        // Blocage natif de la sélection au curseur
-        document.addEventListener('selectstart', function(e) {
-          if (!window.__isInputTarget(e.target)) {
-            e.preventDefault();
-            return false;
-          }
-        }, true);
-
-        // Blocage natif du clic droit
-        document.addEventListener('contextmenu', function(e) {
-          if (!window.__isInputTarget(e.target) && !(e.target.closest && e.target.closest('[data-allow-context="true"]'))) {
-            e.preventDefault();
-            return false;
-          }
-        }, true);
-
-        // Blocage natif des raccourcis
+        // Protection ciblée : interdiction du téléchargement direct de la page ("Save As" / Ctrl+S)
         document.addEventListener('keydown', function(e) {
           var k = (e.key || '').toLowerCase();
           var ctrl = e.ctrlKey || e.metaKey;
-          var inp = window.__isInputTarget(e.target);
 
-          if (ctrl && (k === 's' || k === 'u' || k === 'p')) {
-            e.preventDefault();
-            return false;
-          }
-          if (k === 'f12' || (ctrl && e.shiftKey && (k === 'i' || k === 'j' || k === 'c'))) {
-            e.preventDefault();
-            return false;
-          }
-          if (ctrl && (k === 'a' || k === 'c' || k === 'x') && !inp) {
-            e.preventDefault();
-            return false;
-          }
-        }, true);
-
-        // Blocage natif de copie avec empoisonnement du presse-papier
-        document.addEventListener('copy', function(e) {
-          if (!window.__isInputTarget(document.activeElement) && !window.__isInputTarget(e.target)) {
-            e.preventDefault();
-            if (e.clipboardData) {
-              e.clipboardData.setData('text/plain', '🔒 Contenu protégé — WariTrack Security Shield (Copie interdite).');
-            }
-            return false;
-          }
-        }, true);
-
-        // Blocage natif drag
-        document.addEventListener('dragstart', function(e) {
-          var t = e.target;
-          if (t && (t.tagName === 'IMG' || t.tagName === 'SVG' || (t.closest && t.closest('svg, img, a')))) {
+          // Bloquer uniquement le téléchargement sauvage de la page et l'affichage brut de source
+          if (ctrl && (k === 's' || k === 'u')) {
             e.preventDefault();
             return false;
           }
@@ -179,13 +115,7 @@
       } catch (e) {}
     </script>
   </head>
-  <body
-    oncontextmenu="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); return false; }"
-    onselectstart="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); return false; }"
-    oncopy="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); if (event.clipboardData) event.clipboardData.setData('text/plain', '🔒 Contenu protégé — WariTrack Security Shield'); return false; }"
-    oncut="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); return false; }"
-    ondragstart="event.preventDefault(); return false;"
-  >
+  <body>
     <div id="root">
       <div id="pwa-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#07090F;color:#94a3b8;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;user-select:none;z-index:9999;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">

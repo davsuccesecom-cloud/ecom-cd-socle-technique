@@ -50,134 +50,27 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
       "color: #94A3B8; font-size: 12px; padding: 4px;"
     );
 
-    const isInputOrSelectable = (el: HTMLElement | null | undefined): boolean => {
-      if (!el) return false;
-      const tag = el.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable) return true;
-      if (el.closest?.("input, textarea, [contenteditable='true'], .select-text, .select-all, [data-allow-copy='true']")) {
-        return true;
-      }
-      return false;
-    };
-
-    // 3. Blocage total de la sélection de texte au curseur (selectstart)
-    const handleSelectStart = (e: Event) => {
-      const target = e.target as HTMLElement | null;
-      if (!isInputOrSelectable(target)) {
-        e.preventDefault();
-        try {
-          window.getSelection()?.removeAllRanges();
-        } catch {}
-        return false;
-      }
-    };
-
-    // 4. Surveillance continue de la sélection (selectionchange)
-    const handleSelectionChange = () => {
-      const activeEl = document.activeElement as HTMLElement | null;
-      if (!isInputOrSelectable(activeEl)) {
-        const sel = window.getSelection();
-        if (sel && sel.toString().length > 0) {
-          const anchor = sel.anchorNode?.parentElement;
-          if (!isInputOrSelectable(anchor)) {
-            sel.removeAllRanges();
-          }
-        }
-      }
-    };
-
-    // 5. Blocage du Clic Droit (Context Menu)
-    const handleContextMenu = (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.closest?.("[data-allow-context='true']")) {
-        return;
-      }
-      e.preventDefault();
-      showSecurityToast("🔒 Clic droit désactivé — Interface & données protégées.");
-      return false;
-    };
-
-    // 6. Blocage des raccourcis clavier de vol de code, sélection et copie
+    // 3. Blocage ciblé uniquement des raccourcis de téléchargement brut de page et de code source
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = (e.key || "").toLowerCase();
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
-      const target = e.target as HTMLElement | null;
-      const isInput = isInputOrSelectable(target);
 
-      // Ctrl+A / Cmd+A : Tout sélectionner
-      if (isCtrlOrMeta && key === "a") {
-        if (!isInput) {
-          e.preventDefault();
-          try {
-            window.getSelection()?.removeAllRanges();
-          } catch {}
-          showSecurityToast("🔒 Sélection globale désactivée.");
-          return false;
-        }
-      }
-
-      // Ctrl+C / Cmd+C : Copier
-      if (isCtrlOrMeta && key === "c") {
-        if (!isInput) {
-          e.preventDefault();
-          try {
-            window.getSelection()?.removeAllRanges();
-          } catch {}
-          showSecurityToast("🔒 Copie désactivée — Utilisez les boutons d'export officiels.");
-          return false;
-        }
-      }
-
-      // Ctrl+X / Cmd+X : Couper
-      if (isCtrlOrMeta && key === "x") {
-        if (!isInput) {
-          e.preventDefault();
-          return false;
-        }
-      }
-
-      // Ctrl+S / Cmd+S : Enregistrer la page sous...
+      // Ctrl+S / Cmd+S : Bloquer uniquement "Enregistrer la page sous..."
       if (isCtrlOrMeta && key === "s") {
         e.preventDefault();
-        showSecurityToast("🔒 Téléchargement direct de la page désactivé pour la sécurité de vos données.");
+        showSecurityToast("🔒 Enregistrement brut de la page désactivé pour la sécurité de vos données.");
         return false;
       }
 
-      // Ctrl+U / Cmd+U : Afficher le code source
+      // Ctrl+U / Cmd+U : Bloquer l'affichage direct du code source HTML
       if (isCtrlOrMeta && key === "u") {
         e.preventDefault();
-        showSecurityToast("🔒 Affichage du code source désactivé.");
+        showSecurityToast("🔒 Affichage direct du code source désactivé.");
         return false;
-      }
-
-      // F12 : Outils de développement
-      if (e.key === "F12") {
-        e.preventDefault();
-        showSecurityToast("🔒 Outils d'inspection désactivés sur le cockpit sécurisé.");
-        return false;
-      }
-
-      // Ctrl+Shift+I / Cmd+Opt+I : Inspecter
-      // Ctrl+Shift+J / Cmd+Opt+J : Console
-      // Ctrl+Shift+C / Cmd+Opt+C : Inspect element
-      if (isCtrlOrMeta && e.shiftKey && (key === "i" || key === "j" || key === "c")) {
-        e.preventDefault();
-        showSecurityToast("🔒 Inspection d'éléments restreinte sur cette plateforme.");
-        return false;
-      }
-
-      // Ctrl+P / Cmd+P : Impression sauvage de la page entière
-      if (isCtrlOrMeta && key === "p") {
-        const isReceiptOpen = Boolean(document.querySelector(".printable-receipt"));
-        if (!isReceiptOpen) {
-          e.preventDefault();
-          showSecurityToast("🔒 Utilisez le bouton dédié « Imprimer Bon » pour générer les reçus officiels.");
-          return false;
-        }
       }
     };
 
-    // 7. Blocage du glisser-déposer sauvage des images et logos
+    // 4. Blocage du glisser-déposer sauvage des images et logos
     const handleDragStart = (e: DragEvent) => {
       const target = e.target as HTMLElement | null;
       if (target?.tagName === "IMG" || target?.tagName === "SVG" || target?.closest?.("svg, a, img")) {
@@ -186,48 +79,12 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
       }
     };
 
-    // 8. Blocage strict de l'événement copy + empoisonnement presse-papier
-    const handleCopy = (e: ClipboardEvent) => {
-      const activeEl = document.activeElement as HTMLElement | null;
-      const targetEl = e.target as HTMLElement | null;
-      if (!isInputOrSelectable(activeEl) && !isInputOrSelectable(targetEl)) {
-        e.preventDefault();
-        if (e.clipboardData) {
-          e.clipboardData.setData("text/plain", "🔒 Contenu protégé — WariTrack Security Shield (Copie interdite).");
-        }
-        try {
-          window.getSelection()?.removeAllRanges();
-        } catch {}
-        showSecurityToast("🔒 Copie désactivée — Contenu protégé.");
-        return false;
-      }
-    };
-
-    // 9. Blocage de cut
-    const handleCut = (e: ClipboardEvent) => {
-      const activeEl = document.activeElement as HTMLElement | null;
-      if (!isInputOrSelectable(activeEl)) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    document.addEventListener("selectstart", handleSelectStart, { capture: true });
-    document.addEventListener("selectionchange", handleSelectionChange);
-    window.addEventListener("contextmenu", handleContextMenu, { capture: true });
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     window.addEventListener("dragstart", handleDragStart, { capture: true });
-    document.addEventListener("copy", handleCopy, { capture: true });
-    document.addEventListener("cut", handleCut, { capture: true });
 
     return () => {
-      document.removeEventListener("selectstart", handleSelectStart, { capture: true });
-      document.removeEventListener("selectionchange", handleSelectionChange);
-      window.removeEventListener("contextmenu", handleContextMenu, { capture: true });
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
       window.removeEventListener("dragstart", handleDragStart, { capture: true });
-      document.removeEventListener("copy", handleCopy, { capture: true });
-      document.removeEventListener("cut", handleCut, { capture: true });
     };
   }, [showSecurityToast]);
 
