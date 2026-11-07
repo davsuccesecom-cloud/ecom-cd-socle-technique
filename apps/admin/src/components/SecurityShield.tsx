@@ -27,7 +27,6 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
         window.top.location.href = window.self.location.href;
       }
     } catch {
-      // Si une sandbox tierce bloque la redirection, on masque tout
       document.body.style.display = "none";
     }
 
@@ -35,46 +34,116 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
     console.log(
       "%c⚠️ ZONE SÉCURISÉE WARITRACK ⚠️\n" +
         "%cCette application est protégée par un protocole de sécurité strict.\n" +
-        "Toute tentative d'usurpation de session, d'injection de script ou de vol de données est enregistrée et formellement interdite.",
+        "Toute tentative d'usurpation de session, d'injection de script ou de vol de données est formellement interdite.",
       "color: #EF4444; font-size: 18px; font-weight: 800; background: #0F172A; padding: 6px 12px; border-radius: 6px;",
       "color: #94A3B8; font-size: 12px; padding: 4px;"
     );
 
-    // 3. Blocage du Clic Droit (Context Menu)
+    const isInputOrSelectable = (el: HTMLElement | null | undefined): boolean => {
+      if (!el) return false;
+      const tag = el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable) return true;
+      if (el.closest?.("input, textarea, [contenteditable='true'], .select-text, .select-all, [data-allow-copy='true']")) {
+        return true;
+      }
+      return false;
+    };
+
+    // 3. Blocage total de la sélection de texte au curseur (selectstart)
+    const handleSelectStart = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (!isInputOrSelectable(target)) {
+        e.preventDefault();
+        try {
+          window.getSelection()?.removeAllRanges();
+        } catch {}
+        return false;
+      }
+    };
+
+    // 4. Surveillance continue de la sélection (selectionchange)
+    const handleSelectionChange = () => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (!isInputOrSelectable(activeEl)) {
+        const sel = window.getSelection();
+        if (sel && sel.toString().length > 0) {
+          const anchor = sel.anchorNode?.parentElement;
+          if (!isInputOrSelectable(anchor)) {
+            sel.removeAllRanges();
+          }
+        }
+      }
+    };
+
+    // 5. Blocage du Clic Droit (Context Menu)
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
-      // Permettre le clic droit uniquement si explicitement autorisé
-      if (target?.closest?.("[data-allow-context='true']")) {
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.closest?.("[data-allow-context='true']")) {
         return;
       }
       e.preventDefault();
       showSecurityToast("🔒 Clic droit désactivé — Interface & données protégées.");
+      return false;
     };
 
-    // 4. Blocage des raccourcis clavier de vol de code et d'enregistrement
+    // 6. Blocage des raccourcis clavier de vol de code, sélection et copie
     const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key.toLowerCase();
+      const key = (e.key || "").toLowerCase();
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+      const target = e.target as HTMLElement | null;
+      const isInput = isInputOrSelectable(target);
+
+      // Ctrl+A / Cmd+A : Tout sélectionner
+      if (isCtrlOrMeta && key === "a") {
+        if (!isInput) {
+          e.preventDefault();
+          try {
+            window.getSelection()?.removeAllRanges();
+          } catch {}
+          showSecurityToast("🔒 Sélection globale désactivée.");
+          return false;
+        }
+      }
+
+      // Ctrl+C / Cmd+C : Copier
+      if (isCtrlOrMeta && key === "c") {
+        if (!isInput) {
+          e.preventDefault();
+          try {
+            window.getSelection()?.removeAllRanges();
+          } catch {}
+          showSecurityToast("🔒 Copie désactivée — Utilisez les boutons d'export officiels.");
+          return false;
+        }
+      }
+
+      // Ctrl+X / Cmd+X : Couper
+      if (isCtrlOrMeta && key === "x") {
+        if (!isInput) {
+          e.preventDefault();
+          return false;
+        }
+      }
 
       // Ctrl+S / Cmd+S : Enregistrer la page sous...
       if (isCtrlOrMeta && key === "s") {
         e.preventDefault();
         showSecurityToast("🔒 Téléchargement direct de la page désactivé pour la sécurité de vos données.");
-        return;
+        return false;
       }
 
       // Ctrl+U / Cmd+U : Afficher le code source
       if (isCtrlOrMeta && key === "u") {
         e.preventDefault();
         showSecurityToast("🔒 Affichage du code source désactivé.");
-        return;
+        return false;
       }
 
       // F12 : Outils de développement
       if (e.key === "F12") {
         e.preventDefault();
         showSecurityToast("🔒 Outils d'inspection désactivés sur le cockpit sécurisé.");
-        return;
+        return false;
       }
 
       // Ctrl+Shift+I / Cmd+Opt+I : Inspecter
@@ -83,7 +152,7 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
       if (isCtrlOrMeta && e.shiftKey && (key === "i" || key === "j" || key === "c")) {
         e.preventDefault();
         showSecurityToast("🔒 Inspection d'éléments restreinte sur cette plateforme.");
-        return;
+        return false;
       }
 
       // Ctrl+P / Cmd+P : Impression sauvage de la page entière
@@ -92,54 +161,61 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
         if (!isReceiptOpen) {
           e.preventDefault();
           showSecurityToast("🔒 Utilisez le bouton dédié « Imprimer Bon » pour générer les reçus officiels.");
-          return;
+          return false;
         }
       }
     };
 
-    // 5. Blocage du glisser-déposer sauvage des images et logos
+    // 7. Blocage du glisser-déposer sauvage des images et logos
     const handleDragStart = (e: DragEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target?.tagName === "IMG" || target?.tagName === "SVG" || target?.closest?.("svg")) {
+      if (target?.tagName === "IMG" || target?.tagName === "SVG" || target?.closest?.("svg, a, img")) {
         e.preventDefault();
+        return false;
       }
     };
 
-    // 6. Blocage du copier-coller sauvage global (Ctrl+A / Ctrl+C global sur l'interface)
+    // 8. Blocage strict de l'événement copy
     const handleCopy = (e: ClipboardEvent) => {
       const activeEl = document.activeElement as HTMLElement | null;
-      const isInput =
-        activeEl?.tagName === "INPUT" ||
-        activeEl?.tagName === "TEXTAREA" ||
-        activeEl?.isContentEditable ||
-        Boolean(activeEl?.closest?.(".select-text, .select-all, [data-allow-copy='true']"));
-
-      // Si l'utilisateur est dans un champ de saisie légitime, la copie reste 100% fonctionnelle
-      if (isInput) return;
-
-      const selection = window.getSelection()?.toString() || "";
-      // Si la sélection provient d'un élément explicitement sélectionnable
-      const anchorNode = window.getSelection()?.anchorNode?.parentElement;
-      if (anchorNode?.closest?.(".select-text, .select-all, [data-allow-copy='true']")) {
-        return;
-      }
-
-      if (selection.length > 0) {
+      if (!isInputOrSelectable(activeEl)) {
         e.preventDefault();
-        showSecurityToast("🔒 Copie globale désactivée — Utilisez les boutons d'export officiels.");
+        if (e.clipboardData) {
+          e.clipboardData.setData("text/plain", "");
+        }
+        try {
+          window.getSelection()?.removeAllRanges();
+        } catch {}
+        showSecurityToast("🔒 Copie désactivée — Contenu protégé.");
+        return false;
       }
     };
 
+    // 9. Blocage de cut
+    const handleCut = (e: ClipboardEvent) => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (!isInputOrSelectable(activeEl)) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    document.addEventListener("selectstart", handleSelectStart, { capture: true });
+    document.addEventListener("selectionchange", handleSelectionChange);
     window.addEventListener("contextmenu", handleContextMenu, { capture: true });
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     window.addEventListener("dragstart", handleDragStart, { capture: true });
     document.addEventListener("copy", handleCopy, { capture: true });
+    document.addEventListener("cut", handleCut, { capture: true });
 
     return () => {
+      document.removeEventListener("selectstart", handleSelectStart, { capture: true });
+      document.removeEventListener("selectionchange", handleSelectionChange);
       window.removeEventListener("contextmenu", handleContextMenu, { capture: true });
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
       window.removeEventListener("dragstart", handleDragStart, { capture: true });
       document.removeEventListener("copy", handleCopy, { capture: true });
+      document.removeEventListener("cut", handleCut, { capture: true });
     };
   }, [showSecurityToast]);
 

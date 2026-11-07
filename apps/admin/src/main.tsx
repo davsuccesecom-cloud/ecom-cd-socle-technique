@@ -25,17 +25,18 @@ window.addEventListener("vite:preloadError", (event) => {
   }
 });
 
-// Enregistrement PWA propre
-registerSW({
+// Enregistrement PWA avec auto-mise à jour immédiate
+const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    console.log("[PWA] Nouvelle version prête.");
+    console.log("[PWA] Nouvelle version prête — actualisation immédiate.");
+    updateSW(true);
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
     setInterval(() => {
       registration.update().catch(() => {});
-    }, 5 * 60 * 1000);
+    }, 15 * 1000);
   },
 });
 

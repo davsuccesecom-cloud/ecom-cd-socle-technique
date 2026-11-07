@@ -34,6 +34,103 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=3" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=3" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
+    <style>
+      *, *::before, *::after {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+      }
+      input, textarea, [contenteditable="true"], .select-text, .select-all, [data-allow-copy="true"] {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+      }
+      img, svg, a {
+        -webkit-user-drag: none !important;
+        user-drag: none !important;
+      }
+    </style>
+    <script>
+      (function() {
+        // Anti-Clickjacking
+        try {
+          if (window.top && window.top !== window.self) {
+            window.top.location.href = window.self.location.href;
+          }
+        } catch(e) {}
+
+        // Auto-update du Service Worker pour purger le cache obsolète
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var r of regs) { r.update(); }
+          }).catch(function() {});
+        }
+
+        function isInput(el) {
+          if (!el) return false;
+          var t = el.tagName;
+          if (t === 'INPUT' || t === 'TEXTAREA' || el.isContentEditable) return true;
+          return Boolean(el.closest && el.closest('input, textarea, [contenteditable="true"], .select-text, .select-all, [data-allow-copy="true"]'));
+        }
+
+        // Blocage natif de la sélection au curseur
+        document.addEventListener('selectstart', function(e) {
+          if (!isInput(e.target)) {
+            e.preventDefault();
+            return false;
+          }
+        }, true);
+
+        // Blocage natif du clic droit
+        document.addEventListener('contextmenu', function(e) {
+          if (!isInput(e.target) && !(e.target.closest && e.target.closest('[data-allow-context="true"]'))) {
+            e.preventDefault();
+            return false;
+          }
+        }, true);
+
+        // Blocage natif des raccourcis
+        document.addEventListener('keydown', function(e) {
+          var k = (e.key || '').toLowerCase();
+          var ctrl = e.ctrlKey || e.metaKey;
+          var inp = isInput(e.target);
+
+          if (ctrl && (k === 's' || k === 'u' || k === 'p')) {
+            e.preventDefault();
+            return false;
+          }
+          if (k === 'f12' || (ctrl && e.shiftKey && (k === 'i' || k === 'j' || k === 'c'))) {
+            e.preventDefault();
+            return false;
+          }
+          if (ctrl && (k === 'a' || k === 'c' || k === 'x') && !inp) {
+            e.preventDefault();
+            return false;
+          }
+        }, true);
+
+        // Blocage natif de copie
+        document.addEventListener('copy', function(e) {
+          if (!isInput(document.activeElement)) {
+            e.preventDefault();
+            if (e.clipboardData) e.clipboardData.setData('text/plain', '');
+            return false;
+          }
+        }, true);
+
+        // Blocage natif drag
+        document.addEventListener('dragstart', function(e) {
+          var t = e.target;
+          if (t && (t.tagName === 'IMG' || t.tagName === 'SVG' || (t.closest && t.closest('svg, img, a')))) {
+            e.preventDefault();
+            return false;
+          }
+        }, true);
+      })();
+    </script>
     <script>
       try {
         var t = localStorage.getItem("ecomcod-theme");
