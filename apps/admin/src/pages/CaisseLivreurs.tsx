@@ -9,7 +9,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { getDb, ConfirmDialog } from "@ecomcod/shared";
+import { getDb, ConfirmDialog, buildWhatsAppLink, buildCashSettlementWhatsAppMessage } from "@ecomcod/shared";
 import type { AppUser, CashSettlementEntry, Order, Team } from "@ecomcod/shared";
 import {
   Landmark,
@@ -23,6 +23,7 @@ import {
   Truck,
   Wallet,
 } from "lucide-react";
+import WhatsAppIcon from "../components/WhatsAppIcon";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface CaisseLivreursProps {
@@ -201,6 +202,22 @@ export default function CaisseLivreurs({
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleShareWhatsAppReceipt = (s: (typeof livreurSummaries)[number]) => {
+    const msg = buildCashSettlementWhatsAppMessage({
+      livreurName: s.livreur.name,
+      marketName: team?.name || "Boutique WariTrack",
+      deliveredCount: s.deliveredCount,
+      encaisseTerrain: s.encaisseTerrain,
+      deductionsCaisse: s.deductionsCaisse,
+      totalRemitted: s.totalRemitted,
+      resteAVerser: s.resteAVerser,
+      currency,
+    });
+    const phone = s.livreur.phone || "";
+    const link = buildWhatsAppLink(phone, msg);
+    window.open(link, "_blank");
   };
 
   const handleDeleteEntry = async () => {
@@ -402,6 +419,15 @@ export default function CaisseLivreurs({
                         <div className="flex flex-wrap justify-end gap-2">
                           <button
                             type="button"
+                            onClick={() => handleShareWhatsAppReceipt(s)}
+                            title="Partager le récapitulatif de caisse et la décharge sur WhatsApp"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition active:scale-[0.98]"
+                          >
+                            <WhatsAppIcon size={14} />
+                            <span>Décharge</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => openModal(s.livreur, "deduction", 0)}
                             className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 transition-all hover:bg-surface hover:text-white"
                           >
@@ -459,7 +485,15 @@ export default function CaisseLivreurs({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end gap-2 pt-0.5">
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleShareWhatsAppReceipt(s)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400"
+                    >
+                      <WhatsAppIcon size={13} />
+                      <span>Décharge</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => openModal(s.livreur, "deduction", 0)}

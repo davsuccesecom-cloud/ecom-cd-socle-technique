@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb, ConfirmDialog, buildWhatsAppLink } from "@ecomcod/shared";
+import { getDb, ConfirmDialog, buildWhatsAppLink, openBatchPrintDialog } from "@ecomcod/shared";
 import type { AppUser, CloseuseStatus, LivreurStatus, Order, Team } from "@ecomcod/shared";
 import {
   Search,
@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  CheckCheck,
 } from "lucide-react";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
 import WhatsAppIcon from "../components/WhatsAppIcon";
@@ -133,6 +134,70 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // État de sélection groupée (Batch actions)
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [batchAssigning, setBatchAssigning] = useState(false);
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
+
+  const allPageSelected = pageItems.length > 0 && pageItems.every((o) => selectedOrderIds.has(o.id));
+
+  const toggleSelectAllPage = () => {
+    const next = new Set(selectedOrderIds);
+    if (allPageSelected) {
+      pageItems.forEach((o) => next.delete(o.id));
+    } else {
+      pageItems.forEach((o) => next.add(o.id));
+    }
+    setSelectedOrderIds(next);
+  };
+
+  const toggleOrderSelect = (orderId: string) => {
+    const next = new Set(selectedOrderIds);
+    if (next.has(orderId)) {
+      next.delete(orderId);
+    } else {
+      next.add(orderId);
+    }
+    setSelectedOrderIds(next);
+  };
+
+  const selectedOrdersList = useMemo(() => {
+    return orders.filter((o) => selectedOrderIds.has(o.id));
+  }, [orders, selectedOrderIds]);
+
+  const selectedOrdersTotal = useMemo(() => {
+    return selectedOrdersList.reduce((sum, o) => sum + (o.amount || 0), 0);
+  }, [selectedOrdersList]);
+
+  const handleBatchAssignLivreur = async (livreurId: string) => {
+    if (!livreurId || selectedOrderIds.size === 0) return;
+    const targetLivreur = livreurs.find((l) => l.id === livreurId);
+    const livreurName = targetLivreur?.name || "Livreur";
+    setBatchAssigning(true);
+    setBatchNotice(null);
+    try {
+      const db = getDb();
+      const count = selectedOrderIds.size;
+      const updates = Array.from(selectedOrderIds).map((orderId) =>
+        updateDoc(doc(db, "workspaces", workspaceId, "orders", orderId), {
+          livreurId,
+          assignedLivreurName: livreurName,
+          statutLivreur: "recu",
+          "timestamps.dispatched": Date.now(),
+        })
+      );
+      await Promise.all(updates);
+      setBatchNotice(`${count} commande(s) assignée(s) avec succès à ${livreurName}.`);
+      setSelectedOrderIds(new Set());
+      setTimeout(() => setBatchNotice(null), 4500);
+    } catch (err) {
+      const f = formatFirebaseError(err);
+      setBatchNotice(`Erreur : ${f.message}`);
+    } finally {
+      setBatchAssigning(false);
+    }
+  };
 
   const nameFor = (userId: string | null, list: AppUser[]) =>
     userId ? list.find((u) => u.id === userId)?.name ?? "—" : "—";
@@ -256,6 +321,13 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
         </div>
       </div>
 
+      {batchNotice && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs font-semibold text-emerald-300 shadow-sm animate-in fade-in">
+          <CheckCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>{batchNotice}</span>
+        </div>
+      )}
+
       {/* Orders Table */}
       <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised">
         {pageItems.length === 0 ? (
@@ -270,6 +342,15 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-surface-border bg-surface/40 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="w-10 px-3 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={allPageSelected}
+                      onChange={toggleSelectAllPage}
+                      title="Sélectionner toutes les commandes de cette page"
+                      className="h-4 w-4 rounded border-surface-border bg-surface accent-brand cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3">Client & Produit</th>
                   <th className="px-4 py-3">Téléphone</th>
                   <th className="px-4 py-3">Montant</th>
@@ -291,8 +372,18 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                     <tr
                       key={order.id}
                       onClick={() => setSelected(order)}
-                      className="group cursor-pointer transition-colors hover:bg-surface/60"
+                      className={`group cursor-pointer transition-colors ${
+                        selectedOrderIds.has(order.id) ? "bg-brand/10 hover:bg-brand/15" : "hover:bg-surface/60"
+                      }`}
                     >
+                      <td className="w-10 px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedOrderIds.has(order.id)}
+                          onChange={() => toggleOrderSelect(order.id)}
+                          className="h-4 w-4 rounded border-surface-border bg-surface accent-brand cursor-pointer"
+                        />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-medium text-slate-100">{order.clientName}</span>
@@ -438,6 +529,71 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
           </div>
         )}
       </div>
+
+      {/* Barre d'actions groupées flottante (Batch Operations) */}
+      {selectedOrderIds.size > 0 && (
+        <div className="sticky bottom-4 z-30 mx-auto flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/40 bg-slate-900/95 p-3.5 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-xs font-bold text-white shadow-sm">
+              {selectedOrderIds.size}
+            </span>
+            <div>
+              <p className="text-xs font-bold text-slate-100">
+                {selectedOrderIds.size} commande{selectedOrderIds.size > 1 ? "s" : ""} sélectionnée{selectedOrderIds.size > 1 ? "s" : ""}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Total à percevoir : <strong className="text-emerald-400 tabular-nums">{selectedOrdersTotal.toLocaleString("fr-FR")} {currency}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Bouton Impression Groupée */}
+            <button
+              type="button"
+              onClick={() => openBatchPrintDialog(selectedOrdersList, team)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-brand hover:opacity-95 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition active:scale-[0.98]"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span>Imprimer {selectedOrderIds.size} bordereaux (80mm)</span>
+            </button>
+
+            {/* Assigner en masse à un livreur */}
+            <div className="flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-2.5 py-1.5">
+              <Truck className="h-3.5 w-3.5 text-slate-400" />
+              <select
+                disabled={batchAssigning}
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleBatchAssignLivreur(e.target.value);
+                    e.target.value = "";
+                  }
+                }}
+                className="bg-transparent text-xs font-medium text-slate-200 outline-none cursor-pointer"
+              >
+                <option value="" disabled className="bg-slate-900">
+                  {batchAssigning ? "Assignation en cours..." : "Assigner au livreur…"}
+                </option>
+                {livreurs.map((l) => (
+                  <option key={l.id} value={l.id} className="bg-slate-900">
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Bouton Tout désélectionner */}
+            <button
+              type="button"
+              onClick={() => setSelectedOrderIds(new Set())}
+              className="rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 transition"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       {selected && (
         <OrderDetail

@@ -205,8 +205,61 @@ export default function LiveShopifyAnalytics({
     [orders]
   );
 
+  // Cash en circulation sur le terrain (colis sortis avec les coursiers)
+  const cashEnRoute = useMemo(
+    () =>
+      orders
+        .filter(
+          (o) =>
+            (o.statutCloseuse === "en_cours" ||
+              o.statutCloseuse === "programme" ||
+              o.statutLivreur === "recu" ||
+              o.statutLivreur === "en_route") &&
+            o.statutLivreur !== "livre" &&
+            o.statutLivreur !== "injoignable"
+        )
+        .reduce((sum, o) => sum + (o.amount || 0), 0),
+    [orders]
+  );
+
   return (
     <div className="space-y-3.5">
+      {/* Synthèse Trésorerie : Cash Sécurisé en Caisse vs Cash en Circulation */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-500/25 bg-emerald-950/20 p-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-400">
+              <PackageCheck className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400">Cash Sécurisé (Encaissé)</p>
+              <p className="text-sm sm:text-base font-bold tabular-nums text-emerald-400">
+                {displayTotals.ca.toLocaleString("fr-FR")} <span className="text-xs font-semibold text-emerald-400/80">{currency}</span>
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400">
+            {displayTotals.livraisons} livraisons validées
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded-xl border border-sky-500/25 bg-sky-950/20 p-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/20 text-sky-400">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-400">Cash en Circulation (Sur la route)</p>
+              <p className="text-sm sm:text-base font-bold tabular-nums text-sky-400">
+                {cashEnRoute.toLocaleString("fr-FR")} <span className="text-xs font-semibold text-sky-400/80">{currency}</span>
+              </p>
+            </div>
+          </div>
+          <span className="rounded-full bg-sky-500/15 border border-sky-500/30 px-2.5 py-0.5 text-[10px] font-bold text-sky-300">
+            {pendingDeliveryCount} colis sur le terrain
+          </span>
+        </div>
+      </div>
       {/* VIGIE OPÉRATIONNELLE : PRISE DE CONSCIENCE DES LIVRAISONS & APPELS */}
       {(pendingDeliveryCount > 0 || urgentCount > 0) && (
         <div
