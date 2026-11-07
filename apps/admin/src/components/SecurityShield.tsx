@@ -186,13 +186,14 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
       }
     };
 
-    // 8. Blocage strict de l'événement copy
+    // 8. Blocage strict de l'événement copy + empoisonnement presse-papier
     const handleCopy = (e: ClipboardEvent) => {
       const activeEl = document.activeElement as HTMLElement | null;
-      if (!isInputOrSelectable(activeEl)) {
+      const targetEl = e.target as HTMLElement | null;
+      if (!isInputOrSelectable(activeEl) && !isInputOrSelectable(targetEl)) {
         e.preventDefault();
         if (e.clipboardData) {
-          e.clipboardData.setData("text/plain", "");
+          e.clipboardData.setData("text/plain", "🔒 Contenu protégé — WariTrack Security Shield (Copie interdite).");
         }
         try {
           window.getSelection()?.removeAllRanges();

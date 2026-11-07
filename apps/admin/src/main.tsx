@@ -31,6 +31,9 @@ const updateSW = registerSW({
   onNeedRefresh() {
     console.log("[PWA] Nouvelle version prête — actualisation immédiate.");
     updateSW(true);
+    setTimeout(() => {
+      window.location.reload();
+    }, 600);
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;

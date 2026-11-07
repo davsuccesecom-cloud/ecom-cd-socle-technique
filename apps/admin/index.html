@@ -82,23 +82,35 @@
           }
         } catch(e) {}
 
-        // Auto-update du Service Worker pour purger le cache obsolète
+        // Invalidation et purge des anciens caches de Service Worker
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            for (var k of keys) {
+              if (!k.includes('v4-lock')) {
+                caches.delete(k);
+              }
+            }
+          }).catch(function() {});
+        }
         if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            window.location.reload();
+          });
           navigator.serviceWorker.getRegistrations().then(function(regs) {
             for (var r of regs) { r.update(); }
           }).catch(function() {});
         }
 
-        function isInput(el) {
+        window.__isInputTarget = function(el) {
           if (!el) return false;
           var t = el.tagName;
           if (t === 'INPUT' || t === 'TEXTAREA' || el.isContentEditable) return true;
           return Boolean(el.closest && el.closest('input, textarea, [contenteditable="true"], .select-text, .select-all, [data-allow-copy="true"]'));
-        }
+        };
 
         // Blocage natif de la sélection au curseur
         document.addEventListener('selectstart', function(e) {
-          if (!isInput(e.target)) {
+          if (!window.__isInputTarget(e.target)) {
             e.preventDefault();
             return false;
           }
@@ -106,7 +118,7 @@
 
         // Blocage natif du clic droit
         document.addEventListener('contextmenu', function(e) {
-          if (!isInput(e.target) && !(e.target.closest && e.target.closest('[data-allow-context="true"]'))) {
+          if (!window.__isInputTarget(e.target) && !(e.target.closest && e.target.closest('[data-allow-context="true"]'))) {
             e.preventDefault();
             return false;
           }
@@ -116,7 +128,7 @@
         document.addEventListener('keydown', function(e) {
           var k = (e.key || '').toLowerCase();
           var ctrl = e.ctrlKey || e.metaKey;
-          var inp = isInput(e.target);
+          var inp = window.__isInputTarget(e.target);
 
           if (ctrl && (k === 's' || k === 'u' || k === 'p')) {
             e.preventDefault();
@@ -132,11 +144,13 @@
           }
         }, true);
 
-        // Blocage natif de copie
+        // Blocage natif de copie avec empoisonnement du presse-papier
         document.addEventListener('copy', function(e) {
-          if (!isInput(document.activeElement)) {
+          if (!window.__isInputTarget(document.activeElement) && !window.__isInputTarget(e.target)) {
             e.preventDefault();
-            if (e.clipboardData) e.clipboardData.setData('text/plain', '');
+            if (e.clipboardData) {
+              e.clipboardData.setData('text/plain', '🔒 Contenu protégé — WariTrack Security Shield (Copie interdite).');
+            }
             return false;
           }
         }, true);
@@ -164,7 +178,13 @@
       } catch (e) {}
     </script>
   </head>
-  <body>
+  <body
+    oncontextmenu="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); return false; }"
+    onselectstart="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); return false; }"
+    oncopy="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); if (event.clipboardData) event.clipboardData.setData('text/plain', '🔒 Contenu protégé — WariTrack Security Shield'); return false; }"
+    oncut="if (!window.__isInputTarget || !window.__isInputTarget(event.target)) { event.preventDefault(); return false; }"
+    ondragstart="event.preventDefault(); return false;"
+  >
     <div id="root">
       <div id="pwa-preloader" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:#07090F;color:#94a3b8;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;user-select:none;z-index:9999;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
