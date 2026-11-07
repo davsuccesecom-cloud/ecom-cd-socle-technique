@@ -86,7 +86,7 @@
         if ('caches' in window) {
           caches.keys().then(function(keys) {
             for (var k of keys) {
-              if (!k.includes('v4-lock')) {
+              if (!k.includes('v5-live')) {
                 caches.delete(k);
               }
             }

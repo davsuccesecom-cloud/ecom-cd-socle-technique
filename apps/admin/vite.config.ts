@@ -28,8 +28,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        cacheId: "waritrack-admin-v4-lock",
-        globPatterns: ["**/*.{js,css,html,png,svg}"],
+        cacheId: "waritrack-admin-v5-live",
+        globPatterns: ["**/*.{js,css,png,svg,ico,woff2}"],
+        navigateFallback: null,
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
