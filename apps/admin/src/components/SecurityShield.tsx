@@ -21,6 +21,17 @@ export default function SecurityShield({ children }: SecurityShieldProps) {
   }, [toastMessage]);
 
   useEffect(() => {
+    // 0. Anti-Save As & Anti-Cloning Shield
+    const proto = window.location.protocol;
+    const host = (window.location.hostname || "").toLowerCase();
+    const isLocal = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+    const isAuthorized = isLocal || host.endsWith(".vercel.app") || host.endsWith("waritrack.com") || host.endsWith("waritrack.net");
+    if (proto === "file:" || proto === "about:" || !isAuthorized) {
+      document.body.innerHTML = "";
+      window.location.href = "https://ecom-cd-socle-technique-admin.vercel.app";
+      return;
+    }
+
     // 1. Anti-Clickjacking (Frame Buster)
     try {
       if (window.top && window.top !== window.self) {
