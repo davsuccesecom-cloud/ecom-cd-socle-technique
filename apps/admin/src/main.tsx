@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import "./styles/index.css";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
+import SecurityShield from "./components/SecurityShield";
 import { registerSW } from "virtual:pwa-register";
 
 // Sécurité anti-écran noir sur mise à jour Vite/PWA :
@@ -41,7 +42,9 @@ registerSW({
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <SecurityShield>
+        <App />
+      </SecurityShield>
     </ErrorBoundary>
   </React.StrictMode>
 );
