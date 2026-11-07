@@ -63,7 +63,8 @@
 
         if (proto === 'file:' || proto === 'about:' || !isAuthorizedHost) {
           window.stop && window.stop();
-          document.documentElement.innerHTML = '<head><meta charset="utf-8"><title>🔒 Copie non autorisée — WariTrack Security</title></head><body style="background:#07090F;margin:0;">' +
+          document.title = "🔒 Copie non autorisée — WariTrack Security";
+          document.documentElement.innerHTML =
             '<div style="position:fixed;inset:0;background:#07090F;color:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;text-align:center;padding:24px;z-index:999999;">' +
             '<div style="width:56px;height:56px;border-radius:16px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);display:flex;align-items:center;justify-content:center;margin-bottom:20px;">' +
             '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' +
@@ -71,7 +72,7 @@
             '<h1 style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#F87171;margin-bottom:8px;">COPIE LOCALE OU CLONE NON AUTORISÉ</h1>' +
             '<p style="font-size:13px;color:#94A3B8;max-width:440px;line-height:1.6;margin-bottom:24px;">Cette interface et son code sont protégés contre la copie et l\'usurpation. L\'exécution hors-ligne d\'une page sauvegardée (« Enregistrer sous ») ou sur un domaine tiers non autorisé est strictement verrouillée.</p>' +
             '<a href="https://ecom-cd-socle-technique-admin.vercel.app" style="background:#6366F1;color:#FFFFFF;padding:10px 22px;border-radius:12px;text-decoration:none;font-weight:600;font-size:13px;box-shadow:0 4px 14px rgba(99,102,241,0.4);">Accéder à la plateforme officielle</a>' +
-            '</div></body>';
+            '</div>';
           throw new Error("WariTrack Security: Offline or unauthorized clone execution terminated.");
         }
 
