@@ -565,6 +565,29 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
         }
         const phoneParsed = (0, libphonenumber_js_1.parsePhoneNumberFromString)(body.phone, team.defaultCountry);
         const clientPhoneFormatted = phoneParsed?.formatInternational() ?? body.phone;
+        // Routage intelligent multi-pays : si un tableur partagé contient des commandes
+        // destinées à différents pays (ex: +229 Bénin, +225 Côte d'Ivoire, +228 Togo),
+        // WariTrack réoriente automatiquement la commande vers l'équipe locale correspondante.
+        let assignedTeamId = teamId;
+        const detectedCountry = phoneParsed?.country;
+        if (detectedCountry && detectedCountry !== team.defaultCountry) {
+            try {
+                const altTeamSnap = await db
+                    .collection("workspaces")
+                    .doc(workspaceId)
+                    .collection("teams")
+                    .where("defaultCountry", "==", detectedCountry)
+                    .limit(1)
+                    .get();
+                if (!altTeamSnap.empty) {
+                    assignedTeamId = altTeamSnap.docs[0].id;
+                    console.log(`receiveSheetOrder: routage multi-pays automatique depuis ${team.defaultCountry} vers ${detectedCountry} (teamId=${assignedTeamId})`);
+                }
+            }
+            catch (routingErr) {
+                console.warn("receiveSheetOrder: échec vérification routage multi-pays:", routingErr);
+            }
+        }
         let isDuplicatePhone = false;
         let previousOrdersCount = 0;
         let previousRejectionsCount = 0;
@@ -589,7 +612,7 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
         const orderRef = db.collection("workspaces").doc(workspaceId).collection("orders").doc();
         await orderRef.set({
             workspaceId,
-            teamId,
+            teamId: assignedTeamId,
             sheetId: body.sheetId,
             sourceRowId: uniqueSourceId,
             clientName: body.clientName,

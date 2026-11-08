@@ -14,12 +14,12 @@ import {
   Check,
   RefreshCw,
   ShieldCheck,
-  Info,
   Unlink,
   Sparkles,
   Edit2,
   ChevronDown,
   ChevronUp,
+  Globe2,
 } from "lucide-react";
 import CreateTeamForm from "../components/CreateTeamForm";
 import CountryMapBackdrop, { getCountryMeta } from "../components/CountryMapBackdrop";
@@ -146,7 +146,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
             Cartographie des Marchés ({teams.length})
           </h2>
           <p className="text-xs text-slate-500">
-            Supervisez les équipes pays, leurs devises et synchronisez vos feuilles de commandes Google Sheets en direct.
+            Cliquez sur un marché pour visualiser et configurer ses flux Google Sheets et Shopify.
           </p>
         </div>
         <button
@@ -165,12 +165,12 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
         </div>
       )}
 
-      {/* Geographic Team Cards Grid */}
+      {/* Grille des cartes géographiques des équipes */}
       {teams.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-surface-border bg-surface-raised p-8 text-center">
           <p className="text-sm font-semibold text-slate-300">Aucun marché configuré</p>
           <p className="mt-1 text-xs text-slate-500">
-            Créez votre première équipe opérationnelle pour activer le routage des commandes et la gestion de vos flux.
+            Créez votre première équipe opérationnelle pour activer le routage des commandes et la synchronisation des flux.
           </p>
           <button
             onClick={() => setShowCreate(true)}
@@ -228,9 +228,13 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                     <img src="/icons/google-sheets.png" alt="" className="h-3.5 w-3.5 object-contain" />
                     <span>{team.sheetIds.length} tableurs connectés</span>
                   </div>
-                  {shopifyInfo && (
-                    <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300">
-                      Shopify
+                  {shopifyInfo ? (
+                    <span className="rounded bg-sky-500/15 border border-sky-500/30 px-1.5 py-0.5 text-[9px] font-bold text-sky-300">
+                      Shopify Actif
+                    </span>
+                  ) : (
+                    <span className="text-[9.5px] text-slate-500">
+                      Hors Shopify
                     </span>
                   )}
                 </div>
@@ -240,7 +244,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
         </div>
       )}
 
-      {/* Selected Team Details & Google Sheets Manager */}
+      {/* Détail du Marché Sélectionné : Configuration Sheet & Shopify */}
       {selectedTeam && (
         <TeamDetail
           key={selectedTeam.id}
@@ -369,6 +373,8 @@ function TeamDetail({
         });
       }
       setConfirmDisconnectShopify(false);
+      setSuccessMsg("Flux Shopify dissocié pour ce marché.");
+      setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       const formatted = formatFirebaseError(err);
       setError(`${formatted.title} : ${formatted.message}`);
@@ -406,10 +412,6 @@ function TeamDetail({
   };
 
   const handleAddSheetWithId = async (id: string) => {
-    if (shopifyActiveInfo) {
-      setError("La source Shopify est active pour cette équipe. La synchronisation Google Sheet est désactivée.");
-      return;
-    }
     if (team.sheetIds.includes(id)) {
       setError("Ce tableur Google Sheets est déjà rattaché à cette équipe.");
       return;
@@ -425,8 +427,8 @@ function TeamDetail({
       setSheetInput("");
       setTestResult(null);
       setShowAssistant(false);
-      setSuccessMsg("Tableur Google Sheets rattaché avec succès à l'équipe !");
-      setTimeout(() => setSuccessMsg(null), 4000);
+      setSuccessMsg("Tableur Google Sheets rattaché avec succès ! Les commandes (y compris multi-pays et hors campagnes) sont synchronisées.");
+      setTimeout(() => setSuccessMsg(null), 5000);
     } catch (err) {
       const formatted = formatFirebaseError(err);
       setError(`${formatted.title} : ${formatted.message}`);
@@ -472,7 +474,7 @@ function TeamDetail({
 
   return (
     <div className="space-y-5">
-      {/* 0. Barre d'identification du Marché & Actions Globales */}
+      {/* 0. En-tête du Marché & Contrôles */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface-raised p-4">
         <div className="flex items-center gap-3">
           {country && (
@@ -491,6 +493,11 @@ function TeamDetail({
               <span className="rounded-full bg-surface border border-surface-border px-2 py-0.5 text-xs font-mono text-slate-300">
                 {countryMeta.dialCode}
               </span>
+              {shopifyActiveInfo ? (
+                <span className="rounded-full bg-sky-500/15 border border-sky-500/30 px-2 py-0.5 text-[10.5px] font-semibold text-sky-300">
+                  Shopify Connecté
+                </span>
+              ) : null}
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
               Pays : <strong className="text-slate-300">{country?.name || team.defaultCountry}</strong> • Hub : <strong className="text-slate-300">{countryMeta.capital}</strong>
@@ -607,98 +614,25 @@ function TeamDetail({
         </form>
       )}
 
-      {/* 1. Carte Officielle du Compte de Service WariTrack */}
-      <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-sky-500/10 p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-slate-100">
-                  Connexion Immédiate par Compte de Service (Méthode A)
-                </h4>
-                <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                  24h/24 Actif
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Zéro validation Google requise, aucune expiration de token, synchronisation automatique continue.
-              </p>
-            </div>
-          </div>
-
-          {/* Bouton de copie de l'adresse robot */}
-          <div className="flex items-center gap-2 bg-surface/80 border border-surface-border rounded-xl p-1.5 shrink-0">
-            <span className="font-mono text-xs text-slate-200 px-2 select-all truncate max-w-[240px] sm:max-w-none">
-              {SERVICE_ACCOUNT_EMAIL}
-            </span>
-            <button
-              type="button"
-              onClick={handleCopyEmail}
-              className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-95 transition shrink-0"
-            >
-              {copiedEmail ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-emerald-300" />
-                  <span>Copié !</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  <span>Copier</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* 4 Étapes Visuelles de Configuration */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
-          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
-              Étape 1
-            </span>
-            <p className="text-xs text-slate-300 font-medium">Ouvrez votre tableur Google Sheets</p>
-          </div>
-
-          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
-              Étape 2
-            </span>
-            <p className="text-xs text-slate-300 font-medium">Cliquez sur <strong className="text-sky-300">Partager</strong> (en haut à droite)</p>
-          </div>
-
-          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
-              Étape 3
-            </span>
-            <p className="text-xs text-slate-300 font-medium">Collez l'adresse robot en rôle <strong className="text-emerald-300">Éditeur</strong></p>
-          </div>
-
-          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
-            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
-              Étape 4
-            </span>
-            <p className="text-xs text-slate-300 font-medium">Lancez l'assistant ci-dessous et validez le test</p>
-          </div>
-        </div>
-      </div>
-
-      {shopifyDetail && (
-        <div className="rounded-2xl border border-brand/30 bg-brand/10 p-4">
+      {/* 1. Configuration du Flux Shopify pour cette équipe */}
+      {shopifyDetail ? (
+        <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/20 text-brand">
-                <Store className="h-4 w-4" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/20 text-sky-400">
+                <Store className="h-5 w-5" />
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-slate-100">
-                  Flux Temps Réel Shopify Actif — {shopifyDetail.label}
-                </h4>
-                <p className="mt-1 text-xs leading-relaxed text-slate-300">
-                  Les commandes de <strong>{team.name}</strong> arrivent directement par webhook Shopify. La synchronisation Google Sheets est mise en veille pour éviter les doublons.
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wide">
+                    Flux Temps Réel Shopify — {shopifyDetail.label}
+                  </h4>
+                  <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                    Actif
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-300">
+                  Les commandes de votre boutique arrivent directement par webhook pour l'équipe <strong>{team.name}</strong>. Vos tableurs Google Sheets ci-dessous fonctionnent en parallèle pour vos commandes hors campagnes.
                 </p>
               </div>
             </div>
@@ -708,22 +642,41 @@ function TeamDetail({
               onClick={() => setConfirmDisconnectShopify(true)}
               disabled={busy}
               className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/15 px-3.5 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/25 transition shadow-sm shrink-0"
-              title="Déconnecter le flux Shopify pour ce marché et réactiver Google Sheets"
+              title="Dissocier ce flux Shopify de ce marché"
             >
               <Unlink className="h-3.5 w-3.5" />
-              <span>Déconnecter Shopify</span>
+              <span>Dissocier Shopify</span>
             </button>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-slate-400">
+                <Store className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-semibold text-slate-200">
+                    Boutique Shopify — {team.name}
+                  </h4>
+                  <span className="rounded-full bg-slate-800 border border-slate-700 px-2 py-0.5 text-[9.5px] text-slate-400">
+                    Non rattachée à cette équipe
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Ce marché fonctionne avec vos tableurs Google Sheets (commandes directes, influenceurs, formulaires, WhatsApp). Vous pouvez router une boutique dans <span className="font-semibold text-slate-300">Paramètres &amp; Flux</span>.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 2. Stack Officiel Google Sheets & Assistant de Liaison */}
-      <div
-        className={`rounded-2xl border border-surface-border bg-surface-raised p-5 transition-opacity ${
-          shopifyActiveInfo ? "opacity-65" : ""
-        }`}
-      >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      {/* 2. Configuration des Tableurs Google Sheets (Flux Directs, Hors Campagnes & Multi-Pays) */}
+      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 p-2 border border-emerald-500/25 shadow-sm">
               <img
@@ -733,37 +686,64 @@ function TeamDetail({
               />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-bold text-slate-100">
                   Tableurs Google Sheets — {team.name}
                 </h3>
                 <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                  Temps Réel
+                  Synchronisation 24h/24
+                </span>
+                <span className="rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-bold text-indigo-300 flex items-center gap-1">
+                  <Globe2 className="h-3 w-3" />
+                  Routage multi-pays auto
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                WariTrack numérise automatiquement les colonnes de votre feuille et crée la colonne statut en temps réel si elle n'existe pas.
+                Alimente l'équipe en temps réel. Idéal pour vos ventes hors campagnes (influenceurs, formulaires externes, WhatsApp). Si un tableur contient plusieurs pays, WariTrack oriente automatiquement chaque commande vers l'équipe locale du pays.
               </p>
             </div>
           </div>
 
-          <span className="rounded-lg border border-surface-border bg-surface px-2.5 py-1 font-mono text-xs text-slate-300">
+          <span className="rounded-lg border border-surface-border bg-surface px-2.5 py-1 font-mono text-xs text-slate-300 shrink-0">
             {team.sheetIds.length} / {MAX_SHEETS_PER_TEAM} tableurs connectés
           </span>
         </div>
 
+        {/* Rappel du compte de service robot */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-surface-border bg-surface/70 p-3 text-xs">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+            <span className="text-slate-300">
+              Adresse robot WariTrack à inviter en rôle <strong className="text-emerald-300">Éditeur</strong> sur votre Google Sheet :
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="font-mono text-xs text-slate-200 select-all truncate max-w-[220px] sm:max-w-none">
+              {SERVICE_ACCOUNT_EMAIL}
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyEmail}
+              className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:opacity-95 transition shrink-0"
+            >
+              {copiedEmail ? <Check className="h-3 w-3 text-emerald-300" /> : <Copy className="h-3 w-3" />}
+              <span>{copiedEmail ? "Copié !" : "Copier"}</span>
+            </button>
+          </div>
+        </div>
+
         {/* Liste des Tableurs Rattachés */}
         {team.sheetIds.length === 0 ? (
-          <div className="mb-4 rounded-xl border border-dashed border-surface-border bg-surface/40 p-6 text-center space-y-1">
+          <div className="rounded-xl border border-dashed border-surface-border bg-surface/40 p-6 text-center space-y-1">
             <p className="text-xs font-medium text-slate-300">
               Aucun tableur Google Sheets rattaché à {team.name}.
             </p>
             <p className="text-xs text-slate-500">
-              Cliquez sur le bouton ci-dessous pour lancer l'assistant et synchroniser votre première feuille de commandes.
+              Cliquez sur le bouton ci-dessous pour lancer l'assistant de liaison et synchroniser votre première feuille de commandes.
             </p>
           </div>
         ) : (
-          <ul className="mb-4 space-y-2">
+          <ul className="space-y-2">
             {team.sheetIds.map((id, idx) => (
               <li
                 key={id}
@@ -800,14 +780,12 @@ function TeamDetail({
         {team.sheetIds.length < MAX_SHEETS_PER_TEAM && (
           <div className="pt-2 border-t border-surface-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p className="text-xs text-slate-400">
-              {shopifyActiveInfo
-                ? "Désactivé tant que le flux Shopify est actif pour cette équipe."
-                : "Associez vos tableurs de commandes facilement avec l'assistant de liaison."}
+              Rattachez vos feuilles Google Sheets en quelques clics via l'assistant pas-à-pas.
             </p>
 
             <button
               type="button"
-              disabled={busy || !!shopifyActiveInfo}
+              disabled={busy}
               onClick={() => {
                 setShowAssistant(!showAssistant);
                 setError(null);
@@ -849,7 +827,7 @@ function TeamDetail({
               </button>
             </div>
 
-            {/* Étape A : Partager avec le robot WariTrack */}
+            {/* Étape 1 : Partager avec le robot WariTrack */}
             <div className="rounded-xl border border-surface-border bg-surface/70 p-3.5 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
@@ -873,7 +851,7 @@ function TeamDetail({
               </div>
             </div>
 
-            {/* Étape B : Coller l'URL du fichier & Tester */}
+            {/* Étape 2 : Coller l'URL du fichier & Tester */}
             <div className="rounded-xl border border-surface-border bg-surface/70 p-3.5 space-y-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
                 Étape 2 : Coller le lien &amp; Analyser les colonnes
@@ -881,7 +859,7 @@ function TeamDetail({
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   value={sheetInput}
-                  disabled={busy || !!shopifyActiveInfo || testing}
+                  disabled={busy || testing}
                   onChange={(e) => {
                     setSheetInput(e.target.value);
                     if (testResult) setTestResult(null);
@@ -891,7 +869,7 @@ function TeamDetail({
                 />
 
                 <button
-                  disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
+                  disabled={busy || !sheetInput.trim() || testing}
                   onClick={handleTestConnection}
                   className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/15 px-4 py-2.5 text-xs font-bold text-indigo-300 hover:bg-indigo-500/25 transition disabled:opacity-40"
                 >
@@ -901,7 +879,7 @@ function TeamDetail({
               </div>
             </div>
 
-            {/* Étape C : Résultat du Test & Validation */}
+            {/* Étape 3 : Résultat du Test & Validation */}
             {testResult && (
               <div
                 className={`rounded-2xl border p-4 text-xs space-y-3 animate-in fade-in duration-200 ${
@@ -1034,20 +1012,11 @@ function TeamDetail({
         )}
       </div>
 
-      {/* 3. Note Architecturale : Transition Production OAuth 2.0 */}
-      <div className="rounded-2xl border border-surface-border bg-surface p-4 flex items-start gap-3 text-xs text-slate-400">
-        <Info className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
-        <div>
-          <strong className="text-slate-200">Évolution vers la Méthode B (OAuth 2.0 &amp; Refresh Token) :</strong>{" "}
-          Le socle technique WariTrack intègre la double architecture. Le compte de service est actif et opérationnel immédiatement sans aucune contrainte de quota ou de validation Google. Le flux OAuth 2.0 (avec écran de consentement Google et rafraîchissement automatique de token offline) sera déployé en option cette semaine pour les marchands préférant le bouton 1-clic « Se connecter avec Google ».
-        </div>
-      </div>
-
       {/* Boîtes de Dialogue de Confirmation */}
       <ConfirmDialog
         open={confirmDisconnectShopify}
         title="Déconnecter le flux Shopify de ce marché ?"
-        message={`Voulez-vous vraiment déconnecter la boutique Shopify (${shopifyDetail?.shopDomain || ""}) de l'équipe ${team.name} ? La synchronisation Google Sheets sera immédiatement réactivée et vous pourrez reconnecter votre boutique à tout moment.`}
+        message={`Voulez-vous vraiment déconnecter la boutique Shopify (${shopifyDetail?.shopDomain || ""}) de l'équipe ${team.name} ? Vous pourrez reconnecter votre boutique à tout moment.`}
         confirmLabel="Déconnecter Shopify"
         danger={true}
         loading={busy}
