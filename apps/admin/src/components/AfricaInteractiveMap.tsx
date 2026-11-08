@@ -352,26 +352,14 @@ export default function AfricaInteractiveMap({
 
               let stateClass = "map-ct";
               if (hasTeam && !activeIso3) stateClass += " has-team";
+              if (isSelectedCountry) stateClass += " is-selected";
               if (isDimmed) stateClass += " is-dimmed";
-
-              const colorClass = isSelectedCountry
-                ? "stroke-brand stroke-[1.2]"
-                : hasTeam && !activeIso3
-                ? "dark:fill-[#1b223d] fill-[#dbe2f9] stroke-surface-border dark:stroke-[#101426] stroke-white"
-                : "dark:fill-[#131627] fill-[#e8ecf7] stroke-surface-border dark:stroke-[#0c0e1a] stroke-white";
 
               return (
                 <path
                   key={iso3}
                   d={d}
-                  style={{
-                    fill: isSelectedCountry
-                      ? "var(--brand-surface, rgba(79, 70, 229, 0.12))"
-                      : hasTeam && !activeIso3
-                      ? "var(--brand-surface-subtle, rgba(99, 102, 241, 0.18))"
-                      : undefined,
-                  }}
-                  className={`${stateClass} ${colorClass}`}
+                  className={stateClass}
                   onClick={() => {
                     if (!activeIso3 && hasTeam) {
                       const t = teams.find((x) => COUNTRY_ISO2_TO_ISO3[x.defaultCountry] === iso3);
@@ -387,17 +375,12 @@ export default function AfricaInteractiveMap({
           {activeIso3 && (
             <g id="regions-layer">
               {regionsList.map((r, i) => {
-                const isActive = activeRegions ? activeRegions.includes(i) : true;
                 const isFocused = selectedRegionIndex === i;
 
                 return (
                   <path
                     key={i}
-                    className={`map-rg transition-all ${
-                      isFocused
-                        ? "stroke-brand stroke-[2] fill-brand/40"
-                        : "stroke-brand/40 stroke-[0.8] fill-brand/15 hover:fill-brand/30"
-                    }`}
+                    className={`map-rg ${isFocused ? "is-focused" : ""}`}
                     d={r.d}
                     onClick={() => {
                       onSelectRegionIndex(selectedRegionIndex === i ? null : i);
@@ -414,7 +397,7 @@ export default function AfricaInteractiveMap({
           {activeIso3 && (
             <g id="flux-layer">
               {flowCurves.map((curve) => (
-                <path key={curve.id} className="map-fx stroke-brand/70" d={curve.d} />
+                <path key={curve.id} className="map-fx" d={curve.d} />
               ))}
             </g>
           )}
@@ -465,31 +448,13 @@ export default function AfricaInteractiveMap({
               <button
                 key={cityName}
                 type="button"
-                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-semibold"
+                className={`map-cty ${isHub ? "is-hub" : ""} ${isFocusedRegion ? "is-focused" : ""}`}
                 style={pos(cx, cy)}
                 onClick={() => onSelectRegionIndex(selectedRegionIndex === ri ? null : ri)}
               >
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ring-2 ${
-                    isHub
-                      ? "bg-brand ring-brand/40"
-                      : "bg-slate-400 dark:bg-slate-500 ring-slate-400/20"
-                  }`}
-                />
-                <span
-                  className={`rounded-full border px-2.5 py-0.5 shadow-sm backdrop-blur-sm transition-all ${
-                    isHub || isFocusedRegion
-                      ? "border-brand bg-brand/10 text-brand font-bold"
-                      : "border-surface-border dark:bg-[#14182b]/90 bg-white/95 text-slate-700 dark:text-slate-200"
-                  }`}
-                >
-                  {cityName}
-                </span>
-                {cityOrdersCount > 0 && (
-                  <span className="rounded-full bg-brand px-1.5 py-0.2 text-[9.5px] font-bold text-white">
-                    {cityOrdersCount}
-                  </span>
-                )}
+                <s></s>
+                <span>{cityName}</span>
+                {cityOrdersCount > 0 && <i>{cityOrdersCount}</i>}
               </button>
             );
           })}

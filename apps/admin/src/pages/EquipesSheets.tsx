@@ -342,7 +342,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
       </div>
 
       {/* 2. Rail Horizontal de Navigation des Équipes */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         <button
           type="button"
           onClick={() => {

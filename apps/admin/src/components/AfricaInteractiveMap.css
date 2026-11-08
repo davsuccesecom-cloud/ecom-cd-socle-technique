@@ -1,6 +1,6 @@
 /* ==========================================================================
-   CARTE INTERACTIVE DE L'AFRIQUE — ANIMATIONS & STYLES VECTORIELS SCOPÉS
-   Design System WariTrack : Aucune pollution globale, 100% cohérent.
+   CARTE INTERACTIVE DE L'AFRIQUE — WARITRACK NATIVE VECTOR ENGINE
+   Couleurs solides garanties : Fini les aplats noirs par défaut SVG !
    ========================================================================== */
 
 @keyframes map-dash {
@@ -33,15 +33,31 @@
   transition: transform 1s cubic-bezier(0.65, 0, 0.25, 1);
 }
 
-/* Contours pays */
+/* ==========================================================================
+   CONTOURS PAYS (LAND) : Couleurs claires & sombres explicites
+   ========================================================================== */
+
 .map-ct {
-  stroke-width: 0.75;
+  fill: #e8ecf8;
+  stroke: #ffffff;
+  stroke-width: 0.8;
   vector-effect: non-scaling-stroke;
-  transition: fill 0.4s ease, opacity 0.5s ease;
+  transition: fill 0.35s ease, opacity 0.4s ease;
 }
 
 .map-ct.has-team {
+  fill: #d5def6;
   cursor: pointer;
+}
+
+.map-ct.has-team:hover {
+  fill: #c5d2f4;
+}
+
+.map-ct.is-selected {
+  fill: #f4f6fd;
+  stroke: #4f46e5;
+  stroke-width: 1.2;
 }
 
 .map-ct.is-dimmed {
@@ -49,21 +65,88 @@
   pointer-events: none;
 }
 
-/* Subdivisions régionales */
+/* Mode sombre */
+html.dark .map-ct,
+.dark .map-ct,
+[data-theme="dark"] .map-ct {
+  fill: #13172c;
+  stroke: #0a0d1a;
+}
+
+html.dark .map-ct.has-team,
+.dark .map-ct.has-team,
+[data-theme="dark"] .map-ct.has-team {
+  fill: #1c2242;
+}
+
+html.dark .map-ct.has-team:hover,
+.dark .map-ct.has-team:hover,
+[data-theme="dark"] .map-ct.has-team:hover {
+  fill: #272f5c;
+}
+
+html.dark .map-ct.is-selected,
+.dark .map-ct.is-selected,
+[data-theme="dark"] .map-ct.is-selected {
+  fill: #1e2446;
+  stroke: #6366f1;
+}
+
+/* ==========================================================================
+   SUBDIVISIONS RÉGIONALES (REGIONS) : FOND PASTEL TRANSLUCIDE, JAMAIS NOIR !
+   ========================================================================== */
+
 .map-rg {
-  stroke-width: 0.85;
+  fill: #4f46e5 !important;
+  fill-opacity: 0.18;
+  stroke: #818cf8;
+  stroke-width: 0.9;
   vector-effect: non-scaling-stroke;
   cursor: pointer;
-  transition: fill-opacity 0.3s ease, stroke-width 0.2s ease;
+  transition: fill-opacity 0.25s ease, stroke-width 0.2s ease, stroke 0.2s ease;
 }
 
 .map-rg:hover {
-  fill-opacity: 0.45 !important;
+  fill-opacity: 0.42 !important;
 }
 
-/* Lignes de flux logistiques animées vers le hub */
+.map-rg.is-focused {
+  fill: #4338ca !important;
+  fill-opacity: 0.38 !important;
+  stroke: #4338ca !important;
+  stroke-width: 2.2 !important;
+}
+
+html.dark .map-rg,
+.dark .map-rg,
+[data-theme="dark"] .map-rg {
+  fill: #6366f1 !important;
+  fill-opacity: 0.26;
+  stroke: #818cf8;
+}
+
+html.dark .map-rg:hover,
+.dark .map-rg:hover,
+[data-theme="dark"] .map-rg:hover {
+  fill-opacity: 0.50 !important;
+}
+
+html.dark .map-rg.is-focused,
+.dark .map-rg.is-focused,
+[data-theme="dark"] .map-rg.is-focused {
+  fill: #818cf8 !important;
+  fill-opacity: 0.45 !important;
+  stroke: #c7d2fe !important;
+  stroke-width: 2.2 !important;
+}
+
+/* ==========================================================================
+   LIGNES DE FLUX LOGISTIQUES ANIMÉES VERS LE HUB
+   ========================================================================== */
+
 .map-fx {
-  fill: none;
+  fill: none !important;
+  stroke: #6366f1;
   stroke-width: 1.8;
   vector-effect: non-scaling-stroke;
   stroke-dasharray: 4 8;
@@ -72,7 +155,108 @@
   pointer-events: none;
 }
 
-/* Onde radar sur activité temps réel */
+html.dark .map-fx,
+.dark .map-fx,
+[data-theme="dark"] .map-fx {
+  stroke: #818cf8;
+}
+
+/* ==========================================================================
+   ÉTIQUETTES DE VILLES COMPACTES SUR LA CARTE
+   ========================================================================== */
+
+.map-cty {
+  position: absolute;
+  transform: translate(-6px, -50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 0;
+  padding: 0;
+  z-index: 5;
+  cursor: pointer;
+}
+
+.map-cty s {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #64748b;
+  border: 2px solid #ffffff;
+  flex: none;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.map-cty.is-hub s,
+.map-cty.is-focused s {
+  background: #4f46e5;
+  box-shadow: 0 0 0 3.5px rgba(79, 70, 229, 0.25);
+}
+
+.map-cty span {
+  font-size: 11px;
+  font-weight: 600;
+  background: #ffffff;
+  color: #1e293b;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.map-cty.is-hub span,
+.map-cty.is-focused span {
+  border-color: #4f46e5;
+  color: #4f46e5;
+}
+
+.map-cty i {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  background: #4f46e5;
+  color: #ffffff;
+  border-radius: 999px;
+  min-width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  margin-left: -2px;
+}
+
+/* Mode sombre pour les étiquettes de villes */
+html.dark .map-cty s,
+.dark .map-cty s,
+[data-theme="dark"] .map-cty s {
+  border-color: #0d1020;
+}
+
+html.dark .map-cty span,
+.dark .map-cty span,
+[data-theme="dark"] .map-cty span {
+  background: #15192e;
+  color: #e2e8f0;
+  border-color: #272f52;
+}
+
+html.dark .map-cty.is-hub span,
+html.dark .map-cty.is-focused span,
+.dark .map-cty.is-hub span,
+.dark .map-cty.is-focused span,
+[data-theme="dark"] .map-cty.is-hub span,
+[data-theme="dark"] .map-cty.is-focused span {
+  border-color: #818cf8;
+  color: #a5b4fc;
+}
+
+/* ==========================================================================
+   ONDE RADAR SUR ARRIVAGE DE COMMANDE
+   ========================================================================== */
+
 .map-rip {
   position: absolute;
   width: 22px;
