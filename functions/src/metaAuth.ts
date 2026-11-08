@@ -276,15 +276,28 @@ export async function setupMetaSystemUserAndPixel(params: SetupMetaParams) {
   }
 
   // =========================================================================
-  // Sauvegarde dans Firestore
+  // Sauvegarde sécurisée dans Firestore
   // =========================================================================
   const db = admin.firestore();
   const teamRef = db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId);
 
+  // 1. Sauvegarde du jeton d'accès dans la sous-collection secrète teams/{teamId}/secrets/metaCapi
+  // Protégé par les règles Firestore (accessible uniquement aux admins du workspace, invisible aux employés)
+  const secretRef = teamRef.collection("secrets").doc("metaCapi");
+  await secretRef.set(
+    {
+      accessToken: finalAccessToken.trim(),
+      updatedAt: Date.now(),
+    },
+    { merge: true }
+  );
+
+  // 2. Configuration publique de l'équipe (sans le jeton d'accès pour éviter toute fuite vers les livreurs/closeuses)
   const metaCapiConfig = {
     enabled: true,
     pixelId: pixelId.trim(),
-    accessToken: finalAccessToken.trim(),
+    accessToken: "", // Supprimé du document principal d'équipe pour étanchéité sécurité
+    hasAccessToken: true,
     currency: (currency || "XOF").toUpperCase(),
     adAccountId,
     adAccountName: adAccountName || "",
@@ -304,9 +317,12 @@ export async function setupMetaSystemUserAndPixel(params: SetupMetaParams) {
     success: true,
     isSystemUser,
     message: isSystemUser
-      ? "✓ Connecté avec succès ! Jeton permanent (Système Utilisateur) actif."
+      ? "✓ Connecté avec succès ! Jeton permanent (Système Utilisateur) actif et sécurisé."
       : "✓ Connecté avec succès ! Jeton sécurisé 60 jours actif.",
-    metaCapiConfig,
+    metaCapiConfig: {
+      ...metaCapiConfig,
+      accessToken: finalAccessToken.trim(), // Renvoyé uniquement à l'admin qui effectue la connexion
+    },
   };
 }
 
@@ -315,15 +331,20 @@ export async function disconnectMetaCapiConfig(workspaceId: string, teamId: stri
     throw new Error("workspaceId et teamId requis.");
   }
   const db = admin.firestore();
-  await db
+  const teamRef = db
     .collection("workspaces")
     .doc(workspaceId)
     .collection("teams")
-    .doc(teamId)
-    .update({
-      "metaCapiConfig.enabled": false,
-      "metaCapiConfig.accessToken": "",
-    });
+    .doc(teamId);
+
+  await teamRef.update({
+    "metaCapiConfig.enabled": false,
+    "metaCapiConfig.accessToken": "",
+    "metaCapiConfig.hasAccessToken": false,
+  });
+
+  // Suppression du jeton secret
+  await teamRef.collection("secrets").doc("metaCapi").delete().catch(() => {});
 
   return { success: true, message: "Meta CAPI désactivé avec succès." };
 }

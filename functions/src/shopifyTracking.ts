@@ -494,6 +494,35 @@ export const shopifyWebhook = onRequest(
       const connection = connDoc.data();
       const workspaceId = connection.workspaceId;
 
+      // SÉCURITÉ : Vérification de la signature cryptographique HMAC officielle Shopify
+      // Shopify envoie l'en-tête X-Shopify-Hmac-Sha256 calculé avec le webhookSecret partagé.
+      const hmacHeader = String(req.headers["x-shopify-hmac-sha256"] || "");
+      if (connection.webhookSecret) {
+        if (!hmacHeader) {
+          console.warn("shopifyWebhook: rejeté car aucun en-tête HMAC présent pour", shopDomain);
+          res.status(401).send("Unauthorized: En-tête X-Shopify-Hmac-Sha256 manquant.");
+          return;
+        }
+
+        const rawBody = (req.rawBody)
+          ? req.rawBody.toString("utf8")
+          : JSON.stringify(orderPayload);
+
+        const calculatedHmac = crypto
+          .createHmac("sha256", connection.webhookSecret)
+          .update(rawBody, "utf8")
+          .digest("base64");
+
+        const hmacBuf = Buffer.from(hmacHeader);
+        const calcBuf = Buffer.from(calculatedHmac);
+
+        if (hmacBuf.length !== calcBuf.length || !crypto.timingSafeEqual(hmacBuf, calcBuf)) {
+          console.error("shopifyWebhook: signature HMAC invalide pour la boutique", shopDomain);
+          res.status(401).send("Unauthorized: Signature HMAC invalide.");
+          return;
+        }
+      }
+
       // Détection notification de test Shopify (bouton "Envoyer une notification de test" dans l'admin Shopify)
       const isShopifyTest =
         String(req.headers["x-shopify-test"] || "").toLowerCase() === "true" ||
@@ -679,6 +708,9 @@ export const shopifyWebhook = onRequest(
                 ttp: s.ttp || "",
                 gclid: s.gclid || "",
                 referrer: s.referrer || "",
+                browserIp: s.ip || "",
+                browserUserAgent: s.userAgent || "",
+                pageUrl: s.pageUrl || "",
                 utm: {
                   source: s.utmSource || "",
                   medium: s.utmMedium || "",
@@ -841,8 +873,9 @@ export const shopifyWebhook = onRequest(
         isDuplicatePhone,
         previousOrdersCount,
         previousRejectionsCount,
-        capiIsolated: isDuplicatePhone,
-        trafficSource: isDuplicatePhone ? "acces_libre_site" : "meta_ads",
+        capiIsolated,
+        trafficSource,
+        attributionDetail,
 
         // Données Shopify & EasySell enrichies
         shopifyData: {
@@ -854,7 +887,9 @@ export const shopifyWebhook = onRequest(
           province: province || "",
           zip: zip || "",
           locationHint: locationHint || "",
-          browserIp: String(orderPayload.browser_ip || ""),
+          browserIp: String(orderPayload.browser_ip || (orderPayload.client_details && orderPayload.client_details.browser_ip) || sessionData.browserIp || ""),
+          browserUserAgent: String((orderPayload.client_details && orderPayload.client_details.user_agent) || sessionData.browserUserAgent || ""),
+          pageUrl: String(orderPayload.landing_site || sessionData.pageUrl || ""),
           noteAttributes: Array.isArray(noteAttributes) ? noteAttributes : [],
           rawCustomerNotes: String(orderPayload.note || ""),
           ...sessionData,

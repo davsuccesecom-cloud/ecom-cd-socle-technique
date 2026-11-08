@@ -16,6 +16,7 @@ import {
   CalendarClock,
   Receipt,
   Globe,
+  Keyboard,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
@@ -35,6 +36,10 @@ import TabErrorBoundary from "../components/TabErrorBoundary";
 import LiveShopifyAnalytics from "../components/LiveShopifyAnalytics";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
 import WhatsNewModal from "../components/WhatsNewModal";
+import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal";
+import SequenceIndicator from "../components/SequenceIndicator";
+import { useGlobalShortcuts } from "../hooks/useGlobalShortcuts";
+import { useTheme } from "../hooks/useTheme";
 import Utilisateurs from "./Utilisateurs";
 import Commandes from "./Commandes";
 import EquipesSheets from "./EquipesSheets";
@@ -110,6 +115,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const [period, setPeriod] = useState<Period>({ type: "preset", value: "jour" });
   const [showAddMarket, setShowAddMarket] = useState(false);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const { toggleTheme } = useTheme();
+
   const CURRENT_APP_VERSION = "3.2";
   const VERSION_STORAGE_KEY = "waritrack_acknowledged_version";
   const [showWhatsNew, setShowWhatsNew] = useState<boolean>(() => {
@@ -126,6 +135,22 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       localStorage.setItem(VERSION_STORAGE_KEY, CURRENT_APP_VERSION);
     } catch {}
   };
+
+  const { pendingSequence } = useGlobalShortcuts({
+    onNavigate: setPage,
+    onOpenCommandPalette: () => setCommandPaletteOpen(true),
+    onOpenShortcutsModal: () => setShowShortcutsModal(true),
+    onToggleTheme: toggleTheme,
+    onAddMarket: () => setShowAddMarket(true),
+    isModalOpen: showShortcutsModal || commandPaletteOpen || showAddMarket || !!receiptOrder || showWhatsNew,
+    onCloseModals: () => {
+      setShowShortcutsModal(false);
+      setCommandPaletteOpen(false);
+      setShowAddMarket(false);
+      setReceiptOrder(null);
+      setShowWhatsNew(false);
+    },
+  });
 
   const activeTeamId = teamId ?? teams[0]?.id ?? null;
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
@@ -314,7 +339,24 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               onNavigate={setPage}
               onSelectTeam={setTeamId}
               onInspectOrder={(order) => setReceiptOrder(order)}
+              isOpenExternal={commandPaletteOpen}
+              onCloseExternal={() => setCommandPaletteOpen(false)}
+              onOpenShortcuts={() => setShowShortcutsModal(true)}
             />
+
+            {/* Bouton d'aide Raccourcis Clavier (?) style grand SaaS */}
+            <button
+              type="button"
+              onClick={() => setShowShortcutsModal(true)}
+              title="Raccourcis clavier (? ou ⌘/)"
+              className="inline-flex min-h-[44px] md:h-9 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
+            >
+              <Keyboard className="h-3.5 w-3.5 text-slate-400" />
+              <span className="hidden xl:inline">Raccourcis</span>
+              <kbd className="rounded border border-surface-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+                ?
+              </kbd>
+            </button>
 
             {teams.length > 0 && page !== "teams" && (
               <MarketSelector
@@ -504,7 +546,23 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         </TabErrorBoundary>
       </main>
 
-      <MobileNav active={page} onNavigate={setPage} pendingOrdersCount={totalPendingOrders} />
+      <MobileNav
+        active={page}
+        onNavigate={setPage}
+        pendingOrdersCount={totalPendingOrders}
+        onOpenShortcuts={() => setShowShortcutsModal(true)}
+        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+      />
+
+      {/* Indicateur visuel flottant du mode séquence (style Linear/Raycast HUD) */}
+      <SequenceIndicator pendingSequence={pendingSequence} />
+
+      {/* Modale d'aide complète des raccourcis clavier (?) */}
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsModal}
+        onClose={() => setShowShortcutsModal(false)}
+        onNavigate={setPage}
+      />
 
       {receiptOrder && (
         <OrderReceipt3DModal

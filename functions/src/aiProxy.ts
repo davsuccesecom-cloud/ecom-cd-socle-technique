@@ -1,34 +1,33 @@
-import { onRequest } from "firebase-functions/v2/https";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { chatCompletion, AiGatewayError, configuredProviderIds, AI_PROVIDERS, type AiMessage } from "./aiGateway";
 
 /**
- * Proxy IA côté serveur — fournisseur unique : Groq.
+ * Vérification des autorisations : seul un administrateur connecté à son workspace
+ * peut utiliser l'analyste IA et consommer les quotas d'API.
+ */
+function requireAdminAuth(request: { auth?: { token?: Record<string, unknown> } }): string {
+  const workspaceId = request.auth?.token?.workspaceId as string | undefined;
+  const role = request.auth?.token?.role as string | undefined;
+  if (!workspaceId || role !== "admin") {
+    throw new HttpsError("permission-denied", "Accès réservé aux administrateurs connectés.");
+  }
+  return workspaceId;
+}
+
+/**
+ * Proxy IA sécurisé côté serveur — fournisseur : Groq.
  *
  * La clé vit dans l'environnement de la fonction (functions/.env, non versionné) :
- * elle n'est jamais exposée au navigateur. Les messages d'erreur renvoyés au client
- * sont neutres (aucun nom de fournisseur ni de modèle) ; le détail technique
- * reste dans les journaux serveur.
- *
- * Réponse : { text }
+ * elle n'est jamais exposée au navigateur.
+ * Authentification Firebase requise avec rôle admin.
  */
-export const aiChatProxy = onRequest(
-  { cors: true, timeoutSeconds: 120, memory: "256MiB" },
-  async (req, res): Promise<void> => {
-    if (req.method === "OPTIONS") {
-      res.set("Access-Control-Allow-Origin", "*");
-      res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-      res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-      res.status(204).send("");
-      return;
-    }
-
-    if (req.method !== "POST") {
-      res.status(405).json({ error: "Méthode non autorisée." });
-      return;
-    }
+export const aiChatProxy = onCall(
+  { timeoutSeconds: 120, memory: "256MiB" },
+  async (request): Promise<{ text: string }> => {
+    requireAdminAuth(request);
 
     try {
-      const { messages = [], temperature, maxTokens } = req.body || {};
+      const { messages = [], temperature, maxTokens } = request.data || {};
 
       const result = await chatCompletion({
         temperature: typeof temperature === "number" ? temperature : undefined,
@@ -39,32 +38,26 @@ export const aiChatProxy = onRequest(
       if (result.attempts.length) {
         console.warn("aiChatProxy: réponse obtenue après bascule.", { model: result.model, attempts: result.attempts });
       }
-      res.status(200).json({ text: result.text });
-    } catch (err) {
+      return { text: result.text };
+    } catch (err: any) {
       if (err instanceof AiGatewayError) {
         console.error("aiChatProxy: échec.", err.message, err.attempts);
-        res.status(503).json({
-          error: err.message,
-          retryAfterMs: err.retryAfterMs,
-        });
-        return;
+        throw new HttpsError("unavailable", err.message);
       }
       console.error("aiChatProxy: erreur inattendue.", err);
-      res.status(500).json({ error: "Erreur interne de l'assistant. Réessaie dans un instant." });
+      throw new HttpsError("internal", "Erreur interne de l'assistant. Réessaie dans un instant.");
     }
   }
 );
 
-/** État de configuration (diagnostic interne). */
-export const aiProviders = onRequest(
-  { cors: true },
-  async (_req, res): Promise<void> => {
-    const configured = new Set(configuredProviderIds());
-    res.status(200).json({
-      providers: AI_PROVIDERS.map((p) => ({
-        id: p.id,
-        configured: configured.has(p.id),
-      })),
-    });
-  }
-);
+/** État de configuration (diagnostic interne, réservé aux admins). */
+export const aiProviders = onCall(async (request) => {
+  requireAdminAuth(request);
+  const configured = new Set(configuredProviderIds());
+  return {
+    providers: AI_PROVIDERS.map((p) => ({
+      id: p.id,
+      configured: configured.has(p.id),
+    })),
+  };
+});

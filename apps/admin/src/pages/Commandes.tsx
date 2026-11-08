@@ -80,6 +80,30 @@ function formatDate(ts: number) {
   });
 }
 
+export function getEffectiveTrafficSource(order: Order): "meta_ads" | "tiktok_ads" | "google_ads" | "organique" | "acces_libre_site" {
+  if (order.isDuplicatePhone || order.trafficSource === "acces_libre_site") return "acces_libre_site";
+  if (order.trafficSource === "tiktok_ads") return "tiktok_ads";
+  if (order.trafficSource === "google_ads") return "google_ads";
+  if (order.trafficSource === "organique") return "organique";
+
+  // Si marqué meta_ads, vérifier si la commande comporte une preuve réelle de clic publicitaire ou UTM Meta
+  if (order.trafficSource === "meta_ads") {
+    const sData = order.shopifyData;
+    const hasMetaProof = Boolean(
+      (sData?.fbc && sData.fbc.startsWith("fb.1.")) ||
+      sData?.fbclid ||
+      ["facebook", "fb", "instagram", "ig", "meta"].some((s) => String(sData?.utm?.source || "").toLowerCase().includes(s))
+    );
+    // Si aucune preuve Meta n'existe et que la commande provient de Shopify/site
+    if (!hasMetaProof && sData) {
+      return "organique";
+    }
+    return "meta_ads";
+  }
+
+  return "organique";
+}
+
 export default function Commandes({ workspaceId, team, orders, closeuses, livreurs }: CommandesProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<CloseuseStatus | "tous">("tous");
@@ -115,6 +139,29 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
     }
     return map;
   }, [orders]);
+
+  const handleUpdateAttribution = async (
+    orderId: string,
+    newSource: "meta_ads" | "tiktok_ads" | "google_ads" | "organique" | "acces_libre_site"
+  ) => {
+    try {
+      const db = getDb();
+      const orderRef = doc(db, "workspaces", workspaceId, "orders", orderId);
+      await updateDoc(orderRef, {
+        trafficSource: newSource,
+        capiIsolated: newSource !== "meta_ads",
+      });
+      if (selected && selected.id === orderId) {
+        setSelected({
+          ...selected,
+          trafficSource: newSource,
+          capiIsolated: newSource !== "meta_ads",
+        });
+      }
+    } catch (err) {
+      console.error("Échec mise à jour attribution:", err);
+    }
+  };
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -367,6 +414,7 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                   const isDup =
                     Boolean(order.isDuplicatePhone || order.capiIsolated) ||
                     Boolean(pStats && pStats.total > 1 && pStats.firstOrderId !== order.id);
+                  const effSource = getEffectiveTrafficSource(order);
 
                   return (
                     <tr
@@ -389,49 +437,49 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                           <span className="font-medium text-slate-100">{order.clientName}</span>
                           {order.shopifyData?.orderNumber && (
                             <span className="rounded bg-brand/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-brand">
-                              #{order.shopifyData.orderNumber}
+                              #{cleanOrderNumber(order.shopifyData.orderNumber)}
                             </span>
                           )}
 
                           {/* Badge d'Attribution & Canal */}
-                          {order.trafficSource === "meta_ads" && (
+                          {effSource === "meta_ads" && (
                             <span
-                              title={`Attribué Meta Ads · fbc: ${order.shopifyData?.fbc || "oui"} · fbp: ${order.shopifyData?.fbp || "oui"} (Éligible Meta CAPI)`}
+                              title={`Attribué Meta Ads · fbc: ${order.shopifyData?.fbc || "non"} · fbp: ${order.shopifyData?.fbp || "non"} (Éligible Meta CAPI)`}
                               className="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300"
                             >
                               🎯 Meta Ads
                             </span>
                           )}
-                          {order.trafficSource === "tiktok_ads" && (
+                          {effSource === "tiktok_ads" && (
                             <span
-                              title={`Attribué TikTok Ads · ttclid: ${order.shopifyData?.ttclid || "oui"} (Isolé de Meta CAPI)`}
+                              title={`Attribué TikTok Ads · ttclid: ${order.shopifyData?.ttclid || "non"} (Isolé de Meta CAPI)`}
                               className="inline-flex items-center gap-1 rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-300"
                             >
                               🎵 TikTok Ads
                             </span>
                           )}
-                          {order.trafficSource === "google_ads" && (
+                          {effSource === "google_ads" && (
                             <span
-                              title={`Attribué Google Ads · gclid: ${order.shopifyData?.gclid || "oui"} (Isolé de Meta CAPI)`}
+                              title={`Attribué Google Ads · gclid: ${order.shopifyData?.gclid || "non"} (Isolé de Meta CAPI)`}
                               className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300"
                             >
                               🔍 Google Ads
                             </span>
                           )}
-                          {order.trafficSource === "organique" && !isDup && (
+                          {effSource === "organique" && !isDup && (
                             <span
-                              title="Trafic organique / Hors campagne (SEO, direct ou bouche-à-oreille sans clic publicitaire). Isolé de Meta CAPI pour préserver votre budget."
+                              title="Source libre / Trafic direct sur le site (hors campagne publicitaire). Isolé de Meta CAPI pour préserver vos données et budgets."
                               className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300"
                             >
-                              🌿 Organique · Hors Campagne
+                              🌿 Source Libre · Organique
                             </span>
                           )}
-                          {isDup && (
+                          {effSource === "acces_libre_site" && (
                             <span
-                              title="Numéro doublon : isolé du tracking Meta CAPI et comptabilisé en Accès libre site. Vérifier avec le client s'il souhaite 1 ou 2 produits."
+                              title="Numéro doublon : isolé du tracking Meta CAPI et comptabilisé en Source libre. Vérifier avec le client s'il souhaite 1 ou 2 produits."
                               className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400"
                             >
-                              🔄 Doublon N° ({pStats?.total ?? 2}x) · Accès libre site
+                              🔄 Doublon N° ({pStats?.total ?? 2}x) · Source libre
                             </span>
                           )}
                         </div>
@@ -977,80 +1025,135 @@ function OrderDetail({
               )}
 
               {/* Attribution & Tracking Réel Multi-Canaux */}
-              <div className="mt-2 space-y-2 rounded-lg border border-surface-border bg-surface p-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                    Attribution & Canal Publicitaire
-                  </p>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${
-                      order.trafficSource === "meta_ads"
-                        ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
-                        : order.trafficSource === "tiktok_ads"
-                        ? "bg-rose-500/15 text-rose-300 border border-rose-500/30"
-                        : order.trafficSource === "google_ads"
-                        ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
-                        : order.trafficSource === "acces_libre_site"
-                        ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                        : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                    }`}
-                  >
-                    {order.trafficSource === "meta_ads"
-                      ? "🎯 Meta Ads"
-                      : order.trafficSource === "tiktok_ads"
-                      ? "🎵 TikTok Ads"
-                      : order.trafficSource === "google_ads"
-                      ? "🔍 Google Ads"
-                      : order.trafficSource === "acces_libre_site"
-                      ? "🔄 Accès Libre Site (Doublon)"
-                      : "🌿 Organique / Hors Campagne"}
-                  </span>
-                </div>
+              {(() => {
+                const effSource = getEffectiveTrafficSource(order);
+                return (
+                  <div className="mt-2 space-y-2 rounded-lg border border-surface-border bg-surface p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Attribution & Canal Publicitaire
+                      </p>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${
+                          effSource === "meta_ads"
+                            ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
+                            : effSource === "tiktok_ads"
+                            ? "bg-rose-500/15 text-rose-300 border border-rose-500/30"
+                            : effSource === "google_ads"
+                            ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                            : effSource === "acces_libre_site"
+                            ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                            : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                        }`}
+                      >
+                        {effSource === "meta_ads"
+                          ? "🎯 Meta Ads"
+                          : effSource === "tiktok_ads"
+                          ? "🎵 TikTok Ads"
+                          : effSource === "google_ads"
+                          ? "🔍 Google Ads"
+                          : effSource === "acces_libre_site"
+                          ? "🔄 Source Libre (Doublon)"
+                          : "🌿 Source Libre · Organique"}
+                      </span>
+                    </div>
 
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between gap-2 text-slate-400">
-                    <span>Statut Meta CAPI :</span>
-                    <span className={order.capiIsolated ? "text-amber-400 font-medium" : "text-emerald-400 font-medium"}>
-                      {order.capiIsolated ? "Isolé du Pixel (Non envoyé à Meta)" : "Éligible Meta CAPI (Purchase / Confirmé)"}
-                    </span>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between gap-2 text-slate-400">
+                        <span>Statut Meta CAPI :</span>
+                        <span className={effSource !== "meta_ads" ? "text-amber-400 font-medium" : "text-emerald-400 font-medium"}>
+                          {effSource !== "meta_ads" ? "Isolé du Pixel (Non envoyé à Meta)" : "Éligible Meta CAPI (Purchase / Confirmé)"}
+                        </span>
+                      </div>
+
+                      {order.shopifyData?.fbc && (
+                        <div className="flex justify-between gap-2 text-slate-400">
+                          <span className="font-mono text-[11px]">_fbc (Clic Meta) :</span>
+                          <span className="font-mono text-[11px] text-indigo-300 truncate max-w-[180px]">{order.shopifyData.fbc}</span>
+                        </div>
+                      )}
+
+                      {order.shopifyData?.fbp && (
+                        <div className="flex justify-between gap-2 text-slate-400">
+                          <span className="font-mono text-[11px]">_fbp (Pixel navigateur) :</span>
+                          <span className="font-mono text-[11px] text-slate-300 truncate max-w-[180px]">{order.shopifyData.fbp}</span>
+                        </div>
+                      )}
+
+                      {order.shopifyData?.ttclid && (
+                        <div className="flex justify-between gap-2 text-slate-400">
+                          <span className="font-mono text-[11px]">ttclid (TikTok Clic) :</span>
+                          <span className="font-mono text-[11px] text-rose-300 truncate max-w-[180px]">{order.shopifyData.ttclid}</span>
+                        </div>
+                      )}
+
+                      {order.shopifyData?.gclid && (
+                        <div className="flex justify-between gap-2 text-slate-400">
+                          <span className="font-mono text-[11px]">gclid (Google Clic) :</span>
+                          <span className="font-mono text-[11px] text-sky-300 truncate max-w-[180px]">{order.shopifyData.gclid}</span>
+                        </div>
+                      )}
+
+                      {order.shopifyData?.utm?.source && (
+                        <div className="flex justify-between gap-2 text-slate-400">
+                          <span>Source UTM :</span>
+                          <span className="font-medium text-slate-200">{order.shopifyData.utm.source}</span>
+                        </div>
+                      )}
+
+                      {order.shopifyData?.utm?.campaign && (
+                        <div className="flex justify-between gap-2 text-slate-400">
+                          <span>Campagne :</span>
+                          <span className="font-medium text-slate-200">{order.shopifyData.utm.campaign}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Modification manuelle en 1 clic */}
+                    <div className="pt-2 border-t border-surface-border">
+                      <p className="text-[10px] uppercase font-semibold text-slate-500 mb-1.5">Modifier le canal attribué :</p>
+                      <div className="grid grid-cols-3 gap-1">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => runSave({ trafficSource: "organique", capiIsolated: true })}
+                          className={`rounded px-1.5 py-1 text-[10px] font-semibold transition-colors text-center ${
+                            effSource === "organique"
+                              ? "bg-emerald-600 text-white shadow-sm"
+                              : "bg-surface-raised text-slate-300 hover:bg-emerald-500/20"
+                          }`}
+                        >
+                          🌿 Source Libre
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => runSave({ trafficSource: "meta_ads", capiIsolated: false })}
+                          className={`rounded px-1.5 py-1 text-[10px] font-semibold transition-colors text-center ${
+                            effSource === "meta_ads"
+                              ? "bg-indigo-600 text-white shadow-sm"
+                              : "bg-surface-raised text-slate-300 hover:bg-indigo-500/20"
+                          }`}
+                        >
+                          🎯 Meta Ads
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => runSave({ trafficSource: "acces_libre_site", capiIsolated: true })}
+                          className={`rounded px-1.5 py-1 text-[10px] font-semibold transition-colors text-center ${
+                            effSource === "acces_libre_site"
+                              ? "bg-amber-600 text-white shadow-sm"
+                              : "bg-surface-raised text-slate-300 hover:bg-amber-500/20"
+                          }`}
+                        >
+                          🔄 Doublon
+                        </button>
+                      </div>
+                    </div>
                   </div>
-
-                  {order.shopifyData?.fbc && (
-                    <div className="flex justify-between gap-2 text-slate-400">
-                      <span className="font-mono text-[11px]">_fbc (Clic Meta) :</span>
-                      <span className="font-mono text-[11px] text-indigo-300 truncate max-w-[180px]">{order.shopifyData.fbc}</span>
-                    </div>
-                  )}
-
-                  {order.shopifyData?.fbp && (
-                    <div className="flex justify-between gap-2 text-slate-400">
-                      <span className="font-mono text-[11px]">_fbp (Pixel navigateur) :</span>
-                      <span className="font-mono text-[11px] text-slate-300 truncate max-w-[180px]">{order.shopifyData.fbp}</span>
-                    </div>
-                  )}
-
-                  {order.shopifyData?.ttclid && (
-                    <div className="flex justify-between gap-2 text-slate-400">
-                      <span className="font-mono text-[11px]">ttclid (TikTok Clic) :</span>
-                      <span className="font-mono text-[11px] text-rose-300 truncate max-w-[180px]">{order.shopifyData.ttclid}</span>
-                    </div>
-                  )}
-
-                  {order.shopifyData?.utm?.source && (
-                    <div className="flex justify-between gap-2 text-slate-400">
-                      <span>Source UTM :</span>
-                      <span className="font-medium text-slate-200">{order.shopifyData.utm.source}</span>
-                    </div>
-                  )}
-
-                  {order.shopifyData?.utm?.campaign && (
-                    <div className="flex justify-between gap-2 text-slate-400">
-                      <span>Campagne :</span>
-                      <span className="font-medium text-slate-200">{order.shopifyData.utm.campaign}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                );
+              })()}
               {order.statutLivreur && <Row label="Statut livreur" value={LIVREUR_LABELS[order.statutLivreur]} />}
               <button
                 onClick={() => setEditing(true)}

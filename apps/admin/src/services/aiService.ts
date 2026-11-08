@@ -1,6 +1,7 @@
 import { COD_AFRIQUE_PLAYBOOK } from "../lib/codAfriquePlaybook";
 import { buildChartPrompt } from "../lib/aiChart";
 import { formatFirebaseError } from "../lib/firebaseErrors";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 export interface LivreurCashAiSummary {
   name: string;
@@ -346,29 +347,23 @@ ${
 
   public async sendRaw(messages: { role: string; content: string }[]): Promise<string> {
     try {
-      const res = await fetch(AI_PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "groq",
-          messages,
-          temperature: 0.5,
-          maxTokens: 1800,
-        }),
+      const functions = getFunctions();
+      const callAiChat = httpsCallable<
+        { messages: { role: string; content: string }[]; temperature?: number; maxTokens?: number },
+        { text: string }
+      >(functions, "aiChatProxy");
+
+      const res = await callAiChat({
+        messages,
+        temperature: 0.5,
+        maxTokens: 1800,
       });
 
-      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
-
-      if (!res.ok) {
-        const formatted = formatFirebaseError(new Error(data.error || `HTTP ${res.status}`));
-        throw new Error(formatted.message);
-      }
-
-      if (!data.text) {
+      if (!res.data?.text) {
         throw new Error("L'analyse n'a pas pu être générée. Veuillez relancer votre demande.");
       }
 
-      return data.text;
+      return res.data.text;
     } catch (err) {
       const formatted = formatFirebaseError(err);
       throw new Error(formatted.message);

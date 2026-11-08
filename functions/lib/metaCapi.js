@@ -33,9 +33,14 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.normalizeCurrency = normalizeCurrency;
+exports.normalizeCountryCode = normalizeCountryCode;
+exports.cleanPhoneForMeta = cleanPhoneForMeta;
+exports.formatFbc = formatFbc;
 exports.sendMetaPurchaseEvent = sendMetaPurchaseEvent;
 exports.sendMetaConfirmedEvent = sendMetaConfirmedEvent;
 const crypto = __importStar(require("crypto"));
+const libphonenumber_js_1 = require("libphonenumber-js");
 function sha256(str) {
     if (!str)
         return "";
@@ -44,10 +49,116 @@ function sha256(str) {
         .update(str.trim().toLowerCase())
         .digest("hex");
 }
-function cleanPhoneForMeta(phone) {
+/**
+ * Normalise les devises pour l'API Meta (norme ISO 4217 en majuscules).
+ * Élimine l'erreur 400 Graph API sur les variantes "FCFA" / "CFA" très courantes en Afrique.
+ */
+function normalizeCurrency(rawCurrency) {
+    if (!rawCurrency)
+        return "XOF";
+    const c = rawCurrency.trim().toUpperCase();
+    if (c === "FCFA" || c === "CFA" || c === "F CFA" || c === "F-CFA" || c === "XOF")
+        return "XOF";
+    if (c === "XAF")
+        return "XAF";
+    if (c === "GNF")
+        return "GNF";
+    if (c === "CDF")
+        return "CDF";
+    if (c === "EUR")
+        return "EUR";
+    if (c === "USD")
+        return "USD";
+    return c;
+}
+/**
+ * Normalise le code pays en ISO 3166-1 alpha-2 en minuscules (spécification Meta CAPI).
+ * Évite le rejet ou l'échec de hachage lorsque le nom du pays est saisi en français ou en majuscules.
+ */
+function normalizeCountryCode(country) {
+    if (!country)
+        return "";
+    const trimmed = country.trim().toLowerCase();
+    if (trimmed.length === 2)
+        return trimmed;
+    const map = {
+        "sénégal": "sn",
+        "senegal": "sn",
+        "côte d'ivoire": "ci",
+        "cote d'ivoire": "ci",
+        "ivory coast": "ci",
+        "togo": "tg",
+        "bénin": "bj",
+        "benin": "bj",
+        "mali": "ml",
+        "burkina faso": "bf",
+        "burkina": "bf",
+        "cameroun": "cm",
+        "cameroon": "cm",
+        "rdc": "cd",
+        "congo": "cg",
+        "guinée": "gn",
+        "guinee": "gn",
+        "guinea": "gn",
+        "niger": "ne",
+        "gabon": "ga",
+        "france": "fr",
+    };
+    return map[trimmed] || (trimmed.length === 2 ? trimmed : "");
+}
+/**
+ * Nettoyage et formatage strict du téléphone pour Meta CAPI (E.164 sans symbole '+').
+ * Meta exige l'indicatif pays + numéro sans espace ni zéro initial local.
+ * Sans indicatif pays, le hash SHA-256 ne correspondra JAMAIS aux profils Facebook.
+ */
+function cleanPhoneForMeta(phone, defaultCountry) {
     if (!phone)
         return "";
-    return phone.replace(/[^\d]/g, "");
+    const cleaned = phone.replace(/[^\d+]/g, "");
+    const normCountry = normalizeCountryCode(defaultCountry);
+    const countryCodeUpper = normCountry ? normCountry.toUpperCase() : undefined;
+    try {
+        const parsed = (0, libphonenumber_js_1.parsePhoneNumberFromString)(cleaned, countryCodeUpper);
+        if (parsed && parsed.isValid()) {
+            return parsed.format("E.164").replace("+", "");
+        }
+    }
+    catch { }
+    // Repli intelligent : suppression du '+' et des '00'
+    let digits = cleaned.replace(/^\+/, "").replace(/^00/, "");
+    // Si le numéro a été saisi sans indicatif pays avec un '0' initial
+    const countryPrefixes = {
+        sn: "221",
+        ci: "225",
+        tg: "228",
+        bj: "229",
+        ml: "223",
+        bf: "226",
+        cm: "237",
+        cd: "243",
+        gn: "224",
+        ne: "227",
+        ga: "241",
+        cg: "242",
+    };
+    const prefix = countryPrefixes[normCountry];
+    if (prefix && !digits.startsWith(prefix)) {
+        digits = prefix + digits.replace(/^0+/, "");
+    }
+    return digits;
+}
+/**
+ * Nettoie les noms/prénoms et villes selon les exigences Meta :
+ * Minuscules, sans accents ni ponctuation, uniquement lettres a-z.
+ */
+function cleanTextForMeta(text) {
+    if (!text)
+        return "";
+    return text
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z]/g, "");
 }
 function splitName(fullName) {
     const parts = (fullName || "").trim().split(/\s+/);
@@ -56,92 +167,144 @@ function splitName(fullName) {
     }
     return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
+/**
+ * Valide et structure le cookie fbc au format officiel Meta (fb.1.<timestamp>.<fbclid>).
+ */
+function formatFbc(fbc, fbclid) {
+    if (fbc && typeof fbc === "string") {
+        const trimmed = fbc.trim();
+        if (trimmed.startsWith("fb.1.") || trimmed.startsWith("fb.")) {
+            return trimmed;
+        }
+        // Si fbc est passé comme simple valeur fbclid
+        if (trimmed.length > 10) {
+            return `fb.1.${Date.now()}.${trimmed}`;
+        }
+    }
+    if (fbclid && typeof fbclid === "string" && fbclid.trim()) {
+        return `fb.1.${Date.now()}.${fbclid.trim()}`;
+    }
+    return undefined;
+}
 function buildUserData(order) {
     const { firstName, lastName } = splitName(order.clientName || "");
-    const phone = cleanPhoneForMeta(order.clientPhoneFormatted || order.clientPhoneRaw || "");
+    const fnClean = cleanTextForMeta(firstName);
+    const lnClean = cleanTextForMeta(lastName);
+    const ctClean = cleanTextForMeta(order.city || "");
+    const countryCode = normalizeCountryCode(order.country);
+    const phone = cleanPhoneForMeta(order.clientPhoneFormatted || order.clientPhoneRaw || "", order.country);
     const userData = {};
     if (phone)
         userData.ph = [sha256(phone)];
-    if (firstName)
-        userData.fn = [sha256(firstName)];
-    if (lastName)
-        userData.ln = [sha256(lastName)];
-    if (order.city)
-        userData.ct = [sha256(order.city)];
-    if (order.country)
-        userData.country = [sha256(order.country)];
-    // Identifiant externe stable
-    userData.external_id = [sha256(order.orderNumber || order.id)];
+    if (fnClean)
+        userData.fn = [sha256(fnClean)];
+    if (lnClean)
+        userData.ln = [sha256(lnClean)];
+    if (ctClean)
+        userData.ct = [sha256(ctClean)];
+    if (countryCode)
+        userData.country = [sha256(countryCode)];
+    // Identifiant externe stable et assaini (sans doubles dièses)
+    const cleanOrderRef = (order.orderNumber || order.sourceRowId || order.id).replace(/[^a-zA-Z0-9_-]/g, "");
+    userData.external_id = [sha256(cleanOrderRef)];
     // Signaux réels du navigateur (en clair selon spécification Meta CAPI)
-    if (order.fbp)
-        userData.fbp = order.fbp;
-    if (order.fbc)
-        userData.fbc = order.fbc;
-    if (order.browserIp)
-        userData.client_ip_address = order.browserIp;
-    if (order.userAgent)
-        userData.client_user_agent = order.userAgent;
+    if (order.fbp && typeof order.fbp === "string" && order.fbp.startsWith("fb.")) {
+        userData.fbp = order.fbp.trim();
+    }
+    const validFbc = formatFbc(order.fbc, order.fbclid);
+    if (validFbc) {
+        userData.fbc = validFbc;
+    }
+    if (order.browserIp && typeof order.browserIp === "string") {
+        userData.client_ip_address = order.browserIp.trim();
+    }
+    if (order.userAgent && typeof order.userAgent === "string") {
+        userData.client_user_agent = order.userAgent.trim();
+    }
     return userData;
 }
 /**
- * Envoi de l'événement "Purchase" lors de la livraison réelle encaissée par le livreur
+ * Détermine l'URL de source d'événement vérifiée pour éviter l'alerte AEM (Domain Mismatch).
+ * Ne JAMAIS renvoyer vers un domaine tiers hardcodé comme 'easysell.app'.
+ */
+function resolveEventSourceUrl(order) {
+    if (order.pageUrl && order.pageUrl.startsWith("http")) {
+        return order.pageUrl.trim();
+    }
+    if (order.shopDomain && order.shopDomain.trim()) {
+        const d = order.shopDomain.trim();
+        return d.startsWith("http") ? d : `https://${d}`;
+    }
+    return undefined;
+}
+/**
+ * Envoi de l'événement "Purchase" lors de la livraison réelle encaissée par le livreur.
+ * Déclenché UNIQUEMENT lorsque le colis est remis au client et l'argent collecté.
  */
 async function sendMetaPurchaseEvent(config, order) {
     if (!config.enabled || !config.pixelId || !config.accessToken) {
         return { success: false, error: "Meta CAPI non activé ou identifiants manquants." };
     }
-    const currency = (config.currency || "XOF").toUpperCase();
-    const eventId = `${order.orderNumber || order.sourceRowId || order.id}_purchase`;
+    const currency = normalizeCurrency(config.currency);
+    const cleanOrderRef = (order.orderNumber || order.sourceRowId || order.id).replace(/[^a-zA-Z0-9_-]/g, "");
+    const eventId = `${cleanOrderRef}_purchase`;
     const userData = buildUserData(order);
-    const actionSource = (order.fbp || order.fbc || order.browserIp) ? "website" : "physical_store";
+    const actionSource = (order.fbp || order.fbc || order.browserIp || order.pageUrl || order.userAgent) ? "website" : "other";
     const eventPayload = {
         event_name: "Purchase",
         event_time: Math.floor(Date.now() / 1000),
         event_id: eventId,
-        event_source_url: order.pageUrl || "https://easysell.app",
         action_source: actionSource,
         user_data: userData,
         custom_data: {
             currency,
             value: order.amount,
-            content_name: order.product || "Produit",
+            content_name: order.product || "Produit COD",
             lead_quality: order.temperature || "medium",
             contents: [
                 {
-                    id: order.product || "produit_cod",
+                    id: cleanTextForMeta(order.product || "produit_cod") || "produit_cod",
                     quantity: order.quantity || 1,
                     item_price: order.quantity && order.quantity > 0 ? order.amount / order.quantity : order.amount,
                 },
             ],
         },
     };
+    const eventSourceUrl = resolveEventSourceUrl(order);
+    if (eventSourceUrl) {
+        eventPayload.event_source_url = eventSourceUrl;
+    }
     return executeMetaApiCall(config, eventPayload, `Purchase (${order.id})`);
 }
 /**
- * Envoi de l'événement personnalisé "CommandeConfirmee" lors de la confirmation par la closeuse
+ * Envoi de l'événement personnalisé "CommandeConfirmee" lors de la confirmation par la closeuse.
  */
 async function sendMetaConfirmedEvent(config, order) {
     if (!config.enabled || !config.pixelId || !config.accessToken) {
         return { success: false, error: "Meta CAPI non activé ou identifiants manquants." };
     }
-    const currency = (config.currency || "XOF").toUpperCase();
-    const eventId = `${order.orderNumber || order.sourceRowId || order.id}_confirmed`;
+    const currency = normalizeCurrency(config.currency);
+    const cleanOrderRef = (order.orderNumber || order.sourceRowId || order.id).replace(/[^a-zA-Z0-9_-]/g, "");
+    const eventId = `${cleanOrderRef}_confirmed`;
     const userData = buildUserData(order);
-    const actionSource = (order.fbp || order.fbc || order.browserIp) ? "website" : "physical_store";
+    const actionSource = (order.fbp || order.fbc || order.browserIp || order.pageUrl || order.userAgent) ? "website" : "other";
     const eventPayload = {
         event_name: "CommandeConfirmee",
         event_time: Math.floor(Date.now() / 1000),
         event_id: eventId,
-        event_source_url: order.pageUrl || "https://easysell.app",
         action_source: actionSource,
         user_data: userData,
         custom_data: {
             currency,
             value: order.amount,
-            content_name: order.product || "Produit",
+            content_name: order.product || "Produit COD",
             lead_quality: order.temperature || "hot",
         },
     };
+    const eventSourceUrl = resolveEventSourceUrl(order);
+    if (eventSourceUrl) {
+        eventPayload.event_source_url = eventSourceUrl;
+    }
     return executeMetaApiCall(config, eventPayload, `CommandeConfirmee (${order.id})`);
 }
 async function executeMetaApiCall(config, eventPayload, label) {

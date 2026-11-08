@@ -38,6 +38,11 @@ service cloud.firestore {
         allow read: if isWorkspace(workspaceId);
         allow write: if isAdmin(workspaceId);
 
+        // Secrets d'équipe (Meta CAPI tokens, etc.) : réservé strictement aux admins
+        match /secrets/{secretId} {
+          allow read, write: if isAdmin(workspaceId);
+        }
+
         // Stats journalieres : lecture admin uniquement, ecriture par
         // Cloud Functions (Admin SDK) seulement.
         match /dailyStats/{dateKey} {
@@ -81,27 +86,30 @@ service cloud.firestore {
       }
 
       match /remunerations/{userId} {
-        allow read: if isAdmin(workspaceId) || (isSignedIn() && auth_().uid == userId);
+        allow read: if isAdmin(workspaceId) || (isWorkspace(workspaceId) && auth_().uid == userId);
         allow write: if false; // écrit uniquement par Cloud Function
       }
 
       match /orders/{orderId} {
+        // Admin voit tout le workspace ; Closeuse voit toutes les commandes de son équipe ;
+        // Livreur ne voit QUE les commandes qui lui sont directement assignées (protection PII).
         allow read: if isAdmin(workspaceId)
           || (isCloseuse(workspaceId) && isSameTeam(resource.data.teamId))
-          || (isLivreur(workspaceId) && isSameTeam(resource.data.teamId));
+          || (isLivreur(workspaceId) && isSameTeam(resource.data.teamId) && resource.data.livreurId == auth_().uid);
 
-        allow create: if isAdmin(workspaceId); // créées par la sync Sheet→Firestore
+        allow create: if isAdmin(workspaceId); // créées par la sync Sheet→Firestore ou Cloud Functions
 
-        // Closeuse : statutCloseuse + callInProgress (section 14, jamais
-        // statutAdminOverride) + livreurId/statutLivreur + reminderAt
-        // (pour planifier un rappel téléphonique).
+        // Closeuse : statutCloseuse + callInProgress + livreurId/statutLivreur + reminderAt + rejectionReason.
+        // SÉCURITÉ : La closeuse ne peut assigner que le statut initial 'recu' (ou null) pour statutLivreur.
+        // Elle NE PEUT PAS marquer 'livre' directement (réservé au livreur effectif ou à l'admin).
         allow update: if isCloseuse(workspaceId)
           && isSameTeam(resource.data.teamId)
           && resource.data.closeuseId == auth_().uid
           && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['statutCloseuse', 'callInProgress', 'livreurId', 'statutLivreur', 'reminderAt', 'rejectionReason']);
+             .hasOnly(['statutCloseuse', 'callInProgress', 'livreurId', 'statutLivreur', 'reminderAt', 'rejectionReason'])
+          && (!('statutLivreur' in request.resource.data) || request.resource.data.statutLivreur == null || request.resource.data.statutLivreur == 'recu');
 
-        // Livreur : uniquement statutLivreur
+        // Livreur : uniquement statutLivreur et motif de rejet sur ses propres commandes
         allow update: if isLivreur(workspaceId)
           && isSameTeam(resource.data.teamId)
           && resource.data.livreurId == auth_().uid
@@ -112,16 +120,14 @@ service cloud.firestore {
         allow update, delete: if isAdmin(workspaceId);
       }
 
-      // Connexions aux boutiques Shopify pour synchronisation des commandes
+      // Connexions aux boutiques Shopify (réservé strictement aux admins du workspace)
       match /shopifyConnections/{connectionId} {
-        allow read: if isWorkspace(workspaceId);
-        allow write: if isAdmin(workspaceId);
+        allow read, write: if isAdmin(workspaceId);
       }
 
-      // Commandes Shopify non routées (sans correspondance de produit/variante)
+      // Commandes Shopify non routées (réservé strictement aux admins du workspace)
       match /shopifyUnroutedOrders/{unroutedId} {
-        allow read: if isWorkspace(workspaceId);
-        allow write: if isAdmin(workspaceId);
+        allow read, write: if isAdmin(workspaceId);
       }
 
       // Sessions de tracking (fbp, fbc, UTM, IP, UA)

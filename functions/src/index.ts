@@ -587,6 +587,9 @@ interface IncomingSheetOrder {
   unitPrice: number;
   quantity: number;
   totalPrice: number;
+  trafficSource?: string;
+  source?: string;
+  sourceTrafic?: string;
 }
 
 export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, async (req, res) => {
@@ -701,6 +704,37 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       }
     } catch {}
 
+    const noteText = String(body.note || "").toLowerCase();
+    const explicitSource = String(body.trafficSource || body.source || body.sourceTrafic || "").toLowerCase();
+    let sheetTrafficSource: "meta_ads" | "tiktok_ads" | "google_ads" | "organique" | "acces_libre_site" = "organique";
+    let sheetCapiIsolated = true;
+
+    if (isDuplicatePhone) {
+      sheetTrafficSource = "acces_libre_site";
+      sheetCapiIsolated = true;
+    } else if (
+      explicitSource.includes("meta") ||
+      explicitSource.includes("facebook") ||
+      explicitSource.includes("fb") ||
+      explicitSource.includes("instagram") ||
+      noteText.includes("facebook") ||
+      noteText.includes("meta_ads") ||
+      noteText.includes("fb_ads")
+    ) {
+      sheetTrafficSource = "meta_ads";
+      sheetCapiIsolated = false;
+    } else if (explicitSource.includes("tiktok") || noteText.includes("tiktok")) {
+      sheetTrafficSource = "tiktok_ads";
+      sheetCapiIsolated = true;
+    } else if (explicitSource.includes("google") || noteText.includes("google")) {
+      sheetTrafficSource = "google_ads";
+      sheetCapiIsolated = true;
+    } else {
+      // Commande libre ou naturelle : isolée de Meta CAPI pour ne pas fausser le pixel
+      sheetTrafficSource = "organique";
+      sheetCapiIsolated = true;
+    }
+
     const orderRef = db.collection("workspaces").doc(workspaceId).collection("orders").doc();
     await orderRef.set({
       workspaceId,
@@ -726,8 +760,8 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       isDuplicatePhone,
       previousOrdersCount,
       previousRejectionsCount,
-      capiIsolated: isDuplicatePhone,
-      trafficSource: isDuplicatePhone ? "acces_libre_site" : "meta_ads",
+      capiIsolated: sheetCapiIsolated,
+      trafficSource: sheetTrafficSource,
       timestamps: {
         received: Date.now(),
         assignedToCloseuse: null,
@@ -962,32 +996,59 @@ export const onOrderUpdated = onDocumentUpdated(
       // Envoi de l'événement officiel Purchase à Meta Conversions API (CAPI) enrichi
       // Vérification d'attribution stricte : réservé à Meta Ads (fbc/fbclid vérifié),
       // exclu pour le trafic organique, TikTok Ads, Google Ads ou numéro doublon
+      let metaAccessToken = team?.metaCapiConfig?.accessToken;
+      if (!metaAccessToken && team?.metaCapiConfig?.enabled) {
+        try {
+          const secSnap = await db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("teams")
+            .doc(after.teamId)
+            .collection("secrets")
+            .doc("metaCapi")
+            .get();
+          if (secSnap.exists) {
+            metaAccessToken = secSnap.data()?.accessToken;
+          }
+        } catch (secErr) {
+          console.warn("Échec lecture secret Meta CAPI (Purchase):", secErr);
+        }
+      }
+
       if (
         !isPhoneAlreadyTracked &&
         !after.capiIsolated &&
-        (after.trafficSource === "meta_ads" || (!after.trafficSource && !after.isDuplicatePhone)) &&
+        !after.capiSent &&
+        after.trafficSource === "meta_ads" &&
         team?.metaCapiConfig?.enabled &&
         team.metaCapiConfig.pixelId &&
-        team.metaCapiConfig.accessToken
+        metaAccessToken
       ) {
         try {
-          const capiRes = await sendMetaPurchaseEvent(team.metaCapiConfig, {
-            id: orderId,
-            sourceRowId: after.sourceRowId,
-            orderNumber: after.orderNumber,
-            clientName: after.clientName,
-            clientPhoneFormatted: after.clientPhoneFormatted,
-            clientPhoneRaw: after.clientPhoneRaw,
-            city: after.city,
-            country: team.defaultCountry,
-            product: after.product,
-            quantity: after.quantity,
-            amount: after.amount,
-            fbp: after.shopifyData?.fbp,
-            fbc: after.shopifyData?.fbc,
-            browserIp: after.shopifyData?.browserIp,
-            temperature: after.temperature,
-          });
+          const capiRes = await sendMetaPurchaseEvent(
+            { ...team.metaCapiConfig, accessToken: metaAccessToken },
+            {
+              id: orderId,
+              sourceRowId: after.sourceRowId,
+              orderNumber: after.orderNumber,
+              clientName: after.clientName,
+              clientPhoneFormatted: after.clientPhoneFormatted,
+              clientPhoneRaw: after.clientPhoneRaw,
+              city: after.city,
+              country: team.defaultCountry,
+              product: after.product,
+              quantity: after.quantity,
+              amount: after.amount,
+              fbp: after.shopifyData?.fbp,
+              fbc: after.shopifyData?.fbc,
+              fbclid: after.shopifyData?.fbclid,
+              browserIp: after.shopifyData?.browserIp || after.browserIp,
+              userAgent: after.shopifyData?.browserUserAgent || after.shopifyData?.userAgent || after.userAgent,
+              pageUrl: after.shopifyData?.pageUrl || after.pageUrl,
+              shopDomain: after.shopifyData?.shopDomain,
+              temperature: after.temperature,
+            }
+          );
           if (capiRes.success) {
             await ref.update({ capiSent: true });
           }
@@ -1008,33 +1069,60 @@ export const onOrderUpdated = onDocumentUpdated(
       !after.capiConfirmedSent &&
       !after.capiIsolated &&
       !after.isDuplicatePhone &&
-      (after.trafficSource === "meta_ads" || (!after.trafficSource && !after.isDuplicatePhone))
+      after.trafficSource === "meta_ads"
     ) {
       const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(after.teamId).get();
       const team = teamSnap.data();
+
+      let metaAccessToken = team?.metaCapiConfig?.accessToken;
+      if (!metaAccessToken && team?.metaCapiConfig?.enabled) {
+        try {
+          const secSnap = await db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("teams")
+            .doc(after.teamId)
+            .collection("secrets")
+            .doc("metaCapi")
+            .get();
+          if (secSnap.exists) {
+            metaAccessToken = secSnap.data()?.accessToken;
+          }
+        } catch (secErr) {
+          console.warn("Échec lecture secret Meta CAPI (Confirmed):", secErr);
+        }
+      }
+
       if (
         team?.metaCapiConfig?.enabled &&
         team.metaCapiConfig.pixelId &&
-        team.metaCapiConfig.accessToken
+        metaAccessToken
       ) {
         try {
-          const confRes = await sendMetaConfirmedEvent(team.metaCapiConfig, {
-            id: orderId,
-            sourceRowId: after.sourceRowId,
-            orderNumber: after.orderNumber,
-            clientName: after.clientName,
-            clientPhoneFormatted: after.clientPhoneFormatted,
-            clientPhoneRaw: after.clientPhoneRaw,
-            city: after.city,
-            country: team.defaultCountry,
-            product: after.product,
-            quantity: after.quantity,
-            amount: after.amount,
-            fbp: after.shopifyData?.fbp,
-            fbc: after.shopifyData?.fbc,
-            browserIp: after.shopifyData?.browserIp,
-            temperature: after.temperature || "hot",
-          });
+          const confRes = await sendMetaConfirmedEvent(
+            { ...team.metaCapiConfig, accessToken: metaAccessToken },
+            {
+              id: orderId,
+              sourceRowId: after.sourceRowId,
+              orderNumber: after.orderNumber,
+              clientName: after.clientName,
+              clientPhoneFormatted: after.clientPhoneFormatted,
+              clientPhoneRaw: after.clientPhoneRaw,
+              city: after.city,
+              country: team.defaultCountry,
+              product: after.product,
+              quantity: after.quantity,
+              amount: after.amount,
+              fbp: after.shopifyData?.fbp,
+              fbc: after.shopifyData?.fbc,
+              fbclid: after.shopifyData?.fbclid,
+              browserIp: after.shopifyData?.browserIp || after.browserIp,
+              userAgent: after.shopifyData?.browserUserAgent || after.shopifyData?.userAgent || after.userAgent,
+              pageUrl: after.shopifyData?.pageUrl || after.pageUrl,
+              shopDomain: after.shopifyData?.shopDomain,
+              temperature: after.temperature || "hot",
+            }
+          );
           if (confRes.success) {
             await ref.update({ capiConfirmedSent: true });
           }
@@ -1755,19 +1843,22 @@ export const completeMetaOAuthBridgeSession = onCall(async (request) => {
 // ---------------------------------------------------------------------------
 
 export const migrateUsers = onCall(async (request) => {
-  requireAdmin(request);
+  const workspaceId = requireAdmin(request);
 
-  const workspacesSnap = await db.collection("workspaces").get();
+  // SÉCURITÉ : Ne migrer QUE le workspace de l'admin appelant (isolation multi-tenant stricte)
+  const wsDoc = await db.collection("workspaces").doc(workspaceId).get();
+  if (!wsDoc.exists) {
+    throw new HttpsError("not-found", "Workspace introuvable.");
+  }
+
   let totalUsers = 0;
   let created = 0;
   let alreadyExists = 0;
   let errors = 0;
   const details: Array<{ name: string; userId: string; status: string }> = [];
 
-  for (const wsDoc of workspacesSnap.docs) {
-    const usersSnap = await wsDoc.ref.collection("users").get();
-    if (usersSnap.empty) continue;
-
+  const usersSnap = await wsDoc.ref.collection("users").get();
+  if (!usersSnap.empty) {
     for (const userDoc of usersSnap.docs) {
       totalUsers++;
       const userData = userDoc.data();
@@ -1807,6 +1898,7 @@ export const migrateUsers = onCall(async (request) => {
 // Diagnostic & Test de connexion Google Sheets en direct
 // ---------------------------------------------------------------------------
 export const testSheetConnection = onCall(async (request) => {
+  requireAdmin(request);
   const { sheetId } = (request.data || {}) as { sheetId?: string };
   if (!sheetId) {
     throw new HttpsError("invalid-argument", "sheetId est requis.");
