@@ -7,15 +7,11 @@ import {
 } from "../data/africaGeo";
 import {
   MessageCircle,
-  ExternalLink,
-  Phone,
-  Clock,
-  CheckCircle2,
-  XCircle,
   X,
   MapPin,
   TrendingUp,
 } from "lucide-react";
+import "./AfricaInteractiveMap.css";
 
 export type OrderPointStatus = "in_progress" | "delivered" | "rejected";
 
@@ -79,7 +75,6 @@ function resolveCityCoords(
 
   const raw = (cityName || "").toLowerCase().trim();
 
-  // Pseudo hash pour décaler les points d'une même ville
   const hash = [...orderId].reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) % 1000, 0);
   const jitterX = ((hash % 100) / 50 - 1) * 0.9;
   const jitterY = (((Math.floor(hash / 100)) % 100) / 50 - 1) * 0.9;
@@ -171,11 +166,10 @@ export default function AfricaInteractiveMap({
   onSelectRegionIndex,
   orders,
   activeRegions,
-  onToggleRegion,
 }: AfricaInteractiveMapProps) {
   const [activeTooltipPoint, setActiveTooltipPoint] = useState<MappedOrderPoint | null>(null);
   const [ripples, setRipples] = useState<{ id: string; x: number; y: number }[]>([]);
-  const lastProcessedOrderTimeRef = useRef<number>(Date.now());
+  const lastProcessedOrderTimeRef = useRef<number>(0);
 
   // Pays actif ISO-3
   const activeIso3 = useMemo(() => {
@@ -186,7 +180,7 @@ export default function AfricaInteractiveMap({
   // Bounding box des pays précalculée
   const countryBounds = useMemo(() => {
     const map: Record<string, { cx: number; cy: number; k: number }> = {};
-    for (const [iso2, meta] of Object.entries(COUNTRY_META)) {
+    for (const [, meta] of Object.entries(COUNTRY_META)) {
       const path = AFRICA_GEO.w[meta.iso3];
       if (path) {
         const [minX, minY, maxX, maxY] = getSvgPathBoundingBox(path);
@@ -194,8 +188,8 @@ export default function AfricaInteractiveMap({
         const spanY = Math.max(maxY - minY, 10);
         const cx = (minX + maxX) / 2;
         const cy = (minY + maxY) / 2;
-        // Zoom optimal remplissant 80% du stage avec confort visuel
-        const k = Math.min(12, (W * 0.78) / spanX, (H * 0.8) / spanY);
+        // Zoom optimal plafonné à 10 pour éviter tout effet de pixel ou d'agrandissement démesuré
+        const k = Math.min(10, (W * 0.75) / spanX, (H * 0.78) / spanY);
         map[meta.iso3] = { cx, cy, k };
       }
     }
@@ -230,23 +224,23 @@ export default function AfricaInteractiveMap({
         continue;
       }
 
-      const cityStr = ord.customerCity || ord.villeQuartier || ord.city || "";
-      const coords = resolveCityCoords(iso3, cityStr, ord.id);
+      const cityName = ord.ville || ord.quartier || ord.shippingAddress?.city || "";
+      const coords = resolveCityCoords(iso3, cityName, ord.id);
       if (!coords) continue;
 
-      const cat = categorizeStatus(ord.status);
+      const cat = categorizeStatus(ord.statutCloseuse || ord.statutLivreur || ord.status);
       const cur = orderTeam?.currency || ord.currency || "XOF";
 
       result.push({
         id: ord.id,
-        orderNumber: ord.orderNumber ? `#${ord.orderNumber}` : `#${ord.id.slice(0, 6)}`,
-        clientName: ord.customerName || ord.nomClient || "Client",
-        phone: ord.customerPhone || ord.telephone || "",
-        city: cityStr || "Zone Urbaine",
-        address: ord.customerAddress || ord.adresseRepere || "",
-        product: ord.productName || ord.produit || "Produit",
-        quantity: ord.quantity || ord.quantite || 1,
-        amount: ord.totalAmount || ord.montant || 0,
+        orderNumber: ord.trackingNumber || ord.orderNumber || `#${ord.id.slice(-4)}`,
+        clientName: ord.nomClient || ord.clientName || ord.customerName || "Client COD",
+        phone: ord.telephone || ord.phone || "",
+        city: cityName || "Zone Centrale",
+        address: ord.adresse || ord.shippingAddress?.address1 || "",
+        product: ord.produit || ord.items?.[0]?.title || "Colis COD",
+        quantity: ord.quantite || ord.items?.[0]?.quantity || 1,
+        amount: ord.montant || ord.totalPrice || 0,
         currency: cur,
         status: cat,
         rawStatus: ord.status || "nouveau",
@@ -267,7 +261,7 @@ export default function AfricaInteractiveMap({
     if (latest && latest.timestamp > lastProcessedOrderTimeRef.current) {
       lastProcessedOrderTimeRef.current = latest.timestamp;
       const ripId = `rip-${Date.now()}`;
-      setRipples((prev) => [...prev.slice(-4), { id: ripId, x: latest.x, y: latest.y }]);
+      setRipples((prev) => [...prev.slice(-3), { id: ripId, x: latest.x, y: latest.y }]);
       setTimeout(() => {
         setRipples((prev) => prev.filter((r) => r.id !== ripId));
       }, 1800);
@@ -286,7 +280,7 @@ export default function AfricaInteractiveMap({
     return AFRICA_GEO.ct[activeIso3];
   }, [activeIso3]);
 
-  // Hub principal (première ville listée, ex: Lomé pour TGO, Cotonou pour BEN)
+  // Hub principal (première ville listée)
   const hubCity = useMemo(() => {
     return citiesList.length > 0 ? citiesList[0] : null;
   }, [citiesList]);
@@ -296,7 +290,6 @@ export default function AfricaInteractiveMap({
     if (!hubCity || !activeIso3) return [];
     const [, hx, hy, hri] = hubCity;
 
-    // Regrouper les villes par région pour créer les courbes
     const curves: { id: string; d: string }[] = [];
     const seenRegions = new Set<number>();
 
@@ -306,7 +299,6 @@ export default function AfricaInteractiveMap({
         seenRegions.add(ri);
         const dx = hx - cx;
         const dy = hy - cy;
-        // Courbe de Bézier quadratique élégante
         const qx = (cx + hx) / 2 - dy * 0.22;
         const qy = (cy + hy) / 2 + dx * 0.22;
         curves.push({
@@ -347,27 +339,39 @@ export default function AfricaInteractiveMap({
   });
 
   return (
-    <div className="stage" id="stage">
+    <div className="map-container rounded-2xl border border-surface-border bg-surface-raised dark:bg-[#0c0f1d] bg-white shadow-sm">
       {/* Canvas SVG de la carte */}
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" aria-label="Carte de l’Afrique">
-        <g id="g" style={{ transform: `translate(${V.tx}px, ${V.ty}px) scale(${V.k})` }}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" className="absolute inset-0 w-full h-full" aria-label="Carte de l’Afrique WariTrack">
+        <g className="map-g-zoom" style={{ transform: `translate(${V.tx}px, ${V.ty}px) scale(${V.k})` }}>
           {/* 1. Contours continentaux de tous les pays africains */}
-          <g id="land">
+          <g id="land-layer">
             {Object.entries(AFRICA_GEO.w).map(([iso3, d]) => {
               const isSelectedCountry = activeIso3 === iso3;
               const hasTeam = coveredIso3Set.has(iso3);
               const isDimmed = activeIso3 !== null && !isSelectedCountry;
 
-              let className = "ct";
-              if (hasTeam && !activeIso3) className += " has";
-              if (isSelectedCountry) className += " sel";
-              if (isDimmed) className += " dim";
+              let stateClass = "map-ct";
+              if (hasTeam && !activeIso3) stateClass += " has-team";
+              if (isDimmed) stateClass += " is-dimmed";
+
+              const colorClass = isSelectedCountry
+                ? "stroke-brand stroke-[1.2]"
+                : hasTeam && !activeIso3
+                ? "dark:fill-[#1b223d] fill-[#dbe2f9] stroke-surface-border dark:stroke-[#101426] stroke-white"
+                : "dark:fill-[#131627] fill-[#e8ecf7] stroke-surface-border dark:stroke-[#0c0e1a] stroke-white";
 
               return (
                 <path
                   key={iso3}
-                  className={className}
                   d={d}
+                  style={{
+                    fill: isSelectedCountry
+                      ? "var(--brand-surface, rgba(79, 70, 229, 0.12))"
+                      : hasTeam && !activeIso3
+                      ? "var(--brand-surface-subtle, rgba(99, 102, 241, 0.18))"
+                      : undefined,
+                  }}
+                  className={`${stateClass} ${colorClass}`}
                   onClick={() => {
                     if (!activeIso3 && hasTeam) {
                       const t = teams.find((x) => COUNTRY_ISO2_TO_ISO3[x.defaultCountry] === iso3);
@@ -381,21 +385,20 @@ export default function AfricaInteractiveMap({
 
           {/* 2. Subdivisions régionales du pays sélectionné */}
           {activeIso3 && (
-            <g id="reg">
+            <g id="regions-layer">
               {regionsList.map((r, i) => {
                 const isActive = activeRegions ? activeRegions.includes(i) : true;
                 const isFocused = selectedRegionIndex === i;
 
-                let cls = "rg";
-                if (isActive) cls += " on";
-                if (isFocused) cls += " z";
-
                 return (
                   <path
                     key={i}
-                    className={cls}
+                    className={`map-rg transition-all ${
+                      isFocused
+                        ? "stroke-brand stroke-[2] fill-brand/40"
+                        : "stroke-brand/40 stroke-[0.8] fill-brand/15 hover:fill-brand/30"
+                    }`}
                     d={r.d}
-                    style={isActive ? { fillOpacity: isFocused ? 0.45 : 0.22 } : undefined}
                     onClick={() => {
                       onSelectRegionIndex(selectedRegionIndex === i ? null : i);
                     }}
@@ -409,9 +412,9 @@ export default function AfricaInteractiveMap({
 
           {/* 3. Lignes de flux logistiques animées vers le hub */}
           {activeIso3 && (
-            <g id="flux">
+            <g id="flux-layer">
               {flowCurves.map((curve) => (
-                <path key={curve.id} className="fx" d={curve.d} />
+                <path key={curve.id} className="map-fx stroke-brand/70" d={curve.d} />
               ))}
             </g>
           )}
@@ -419,7 +422,7 @@ export default function AfricaInteractiveMap({
       </svg>
 
       {/* Overlay HTML pour les pins, villes, badges et points réels */}
-      <div id="ov2">
+      <div className="absolute inset-0 pointer-events-none [&>*]:pointer-events-auto">
         {/* A. Mode Vue Toute l'Afrique : Pins pays */}
         {!selectedTeam &&
           Object.entries(teamsByCountry).map(([cc, teamGroup]) => {
@@ -432,13 +435,17 @@ export default function AfricaInteractiveMap({
               <button
                 key={cc}
                 type="button"
-                className="pin"
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 rounded-full border border-surface-border bg-surface-raised dark:bg-[#14182b] bg-white px-3 py-1 shadow-md hover:scale-105 hover:border-brand transition-all text-xs font-semibold text-slate-100 dark:text-slate-100 text-slate-800"
                 style={pos(bounds.cx, bounds.cy)}
                 onClick={() => onSelectTeam(primaryTeam.id)}
               >
-                <span className="fl">{meta.flag}</span>
-                <b>{meta.name}</b>
-                {teamGroup.length > 1 && <i>{teamGroup.length}</i>}
+                <span className="text-base">{meta.flag}</span>
+                <span>{meta.name}</span>
+                {teamGroup.length > 1 && (
+                  <span className="ml-0.5 rounded-full bg-brand px-1.5 py-0.2 text-[10px] font-bold text-white">
+                    {teamGroup.length}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -450,7 +457,6 @@ export default function AfricaInteractiveMap({
             const isHub = idx === 0;
             const isFocusedRegion = selectedRegionIndex === ri;
 
-            // Nombre de commandes pour cette ville
             const cityOrdersCount = mappedPoints.filter((p) =>
               p.city.toLowerCase().includes(cityName.toLowerCase())
             ).length;
@@ -459,13 +465,31 @@ export default function AfricaInteractiveMap({
               <button
                 key={cityName}
                 type="button"
-                className={`cty ${isHub || isFocusedRegion ? "a" : ""}`}
+                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-semibold"
                 style={pos(cx, cy)}
                 onClick={() => onSelectRegionIndex(selectedRegionIndex === ri ? null : ri)}
               >
-                <s></s>
-                <span>{cityName}</span>
-                {cityOrdersCount > 0 && <i>{cityOrdersCount}</i>}
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ring-2 ${
+                    isHub
+                      ? "bg-brand ring-brand/40"
+                      : "bg-slate-400 dark:bg-slate-500 ring-slate-400/20"
+                  }`}
+                />
+                <span
+                  className={`rounded-full border px-2.5 py-0.5 shadow-sm backdrop-blur-sm transition-all ${
+                    isHub || isFocusedRegion
+                      ? "border-brand bg-brand/10 text-brand font-bold"
+                      : "border-surface-border dark:bg-[#14182b]/90 bg-white/95 text-slate-700 dark:text-slate-200"
+                  }`}
+                >
+                  {cityName}
+                </span>
+                {cityOrdersCount > 0 && (
+                  <span className="rounded-full bg-brand px-1.5 py-0.2 text-[9.5px] font-bold text-white">
+                    {cityOrdersCount}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -475,7 +499,13 @@ export default function AfricaInteractiveMap({
           <button
             key={pt.id}
             type="button"
-            className={`cod-dot ${pt.status}`}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full shadow-md cursor-pointer hover:scale-150 transition-all ${
+              pt.status === "delivered"
+                ? "bg-emerald-500 ring-2 ring-emerald-400/50"
+                : pt.status === "rejected"
+                ? "bg-rose-500 ring-2 ring-rose-400/50"
+                : "bg-amber-500 ring-2 ring-amber-400/50"
+            }`}
             style={pos(pt.x, pt.y)}
             onClick={() => setActiveTooltipPoint(pt)}
             title={`${pt.orderNumber} · ${pt.clientName} (${pt.city})`}
@@ -484,66 +514,83 @@ export default function AfricaInteractiveMap({
 
         {/* D. Radar Pulse / Ripples lors d'activités récentes */}
         {ripples.map((rip) => (
-          <span key={rip.id} className="rip" style={pos(rip.x, rip.y)} />
+          <span key={rip.id} className="map-rip" style={pos(rip.x, rip.y)} />
         ))}
       </div>
 
       {/* Chips de navigation supérieure gauche */}
-      <div className="chip">
+      <div className="absolute left-3.5 top-3.5 z-20 flex items-center gap-2">
         {selectedTeam ? (
           <>
-            <button type="button" onClick={() => onSelectTeam(null)}>
+            <button
+              type="button"
+              onClick={() => onSelectTeam(null)}
+              className="rounded-full border border-surface-border dark:bg-[#14182b] bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm hover:border-brand hover:text-brand transition"
+            >
               ← Afrique
             </button>
-            <span>
-              {COUNTRY_META[selectedTeam.defaultCountry]?.flag || "📍"}{" "}
-              {COUNTRY_META[selectedTeam.defaultCountry]?.name || selectedTeam.name}
+            <span className="rounded-full border border-surface-border dark:bg-[#14182b] bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm flex items-center gap-1.5">
+              <span>{COUNTRY_META[selectedTeam.defaultCountry]?.flag || "📍"}</span>
+              <span>{COUNTRY_META[selectedTeam.defaultCountry]?.name || selectedTeam.name}</span>
             </span>
           </>
         ) : (
-          <span>🌍 Afrique · {new Set(teams.map((t) => t.defaultCountry)).size} pays actifs</span>
+          <span className="rounded-full border border-surface-border dark:bg-[#14182b] bg-white px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-sm">
+            🌍 Afrique · {new Set(teams.map((t) => t.defaultCountry)).size} marchés actifs
+          </span>
         )}
       </div>
 
       {/* Mini-map Afrique en bas à droite pour repérage géographique et reset rapide */}
       {selectedTeam && (
         <div
-          className="mi"
-          style={{ display: "block" }}
+          className="absolute right-3.5 bottom-3.5 z-20 h-24 w-24 rounded-2xl border border-surface-border dark:bg-[#14182b]/90 bg-white/95 p-1.5 shadow-lg cursor-pointer hover:border-brand transition"
           title="Retour à la vue panafricaine"
           onClick={() => onSelectTeam(null)}
         >
-          <svg viewBox="160 0 680 700">
+          <svg viewBox="160 0 680 700" className="w-full h-full">
             {Object.entries(AFRICA_GEO.w).map(([iso3, d]) => (
-              <path key={iso3} className={`ci ${activeIso3 === iso3 ? "on" : ""}`} d={d} />
+              <path
+                key={iso3}
+                className={activeIso3 === iso3 ? "fill-brand" : "dark:fill-slate-700/60 fill-slate-300"}
+                d={d}
+              />
             ))}
           </svg>
         </div>
       )}
 
       {/* Légende opérationnelle en bas à gauche */}
-      <div className="leg">
-        <u>Zone dans le flux</u>
-        <u className="l">Acheminement hub</u>
-        <span className="hidden sm:inline-flex items-center gap-2">
-          <span>🟠 En cours</span>
-          <span>🟢 Livrée</span>
-          <span>🔴 Annulée</span>
+      <div className="absolute left-3.5 bottom-3.5 z-10 flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-400 dark:bg-[#14182b]/85 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-surface-border shadow-sm">
+        <span className="flex items-center gap-1.5 font-medium">
+          <span className="h-2 w-2 rounded-full bg-indigo-500" />
+          <span>Zone couverte</span>
+        </span>
+        <span className="flex items-center gap-1.5 font-medium">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          <span>En cours</span>
+        </span>
+        <span className="flex items-center gap-1.5 font-medium">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          <span>Livrée</span>
+        </span>
+        <span className="flex items-center gap-1.5 font-medium">
+          <span className="h-2 w-2 rounded-full bg-rose-500" />
+          <span>Annulée</span>
         </span>
       </div>
 
       {/* Popover / Tooltip détaillé d'une commande COD sélectionnée */}
       {activeTooltipPoint && (
         <div
-          className="absolute z-50 rounded-2xl border border-slate-200 dark:border-[#242849] bg-white dark:bg-[#141730] p-4 shadow-2xl backdrop-blur-md text-xs"
+          className="absolute z-50 rounded-2xl border border-surface-border dark:bg-[#14182b] bg-white p-4 shadow-2xl backdrop-blur-md text-xs text-slate-800 dark:text-slate-100"
           style={{
             ...pos(activeTooltipPoint.x, activeTooltipPoint.y),
             transform: "translate(-50%, -115%)",
             width: "270px",
-            color: "var(--ink)",
           }}
         >
-          <div className="flex items-center justify-between border-b border-surface-border/60 pb-2 mb-2">
+          <div className="flex items-center justify-between border-b border-surface-border pb-2 mb-2">
             <span className="font-bold text-sm text-brand">{activeTooltipPoint.orderNumber}</span>
             <button
               type="button"
@@ -555,7 +602,7 @@ export default function AfricaInteractiveMap({
           </div>
 
           <div className="space-y-1.5">
-            <p className="font-semibold">{activeTooltipPoint.clientName}</p>
+            <p className="font-semibold text-slate-900 dark:text-white">{activeTooltipPoint.clientName}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <MapPin className="h-3 w-3 shrink-0" />
               <span>
@@ -567,7 +614,7 @@ export default function AfricaInteractiveMap({
               {activeTooltipPoint.quantity}x {activeTooltipPoint.product}
             </p>
             <div className="flex items-center justify-between pt-1">
-              <span className="font-bold text-sm tabular-nums">
+              <span className="font-bold text-sm tabular-nums text-slate-900 dark:text-white">
                 {activeTooltipPoint.amount.toLocaleString("fr-FR")} {activeTooltipPoint.currency}
               </span>
               <span
