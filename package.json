@@ -5,9 +5,5 @@
     "packages/*",
     "functions",
     "apps/*"
-  ],
-  "dependencies": {
-    "firebase-admin": "^14.3.0",
-    "firebase-functions": "^7.3.2"
-  }
+  ]
 }
