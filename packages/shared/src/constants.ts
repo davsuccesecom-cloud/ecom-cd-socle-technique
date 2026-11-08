@@ -74,6 +74,9 @@ export interface Country {
   name: string; // Nom en français
   flag: string; // Emoji drapeau, calculé depuis le code — voir flagEmoji()
   region: CountryRegion;
+  capital: string; // Hub logistique / Capitale économique
+  currency: string; // Devise nationale / régionale (XOF, XAF, KES, NGN, GHS, etc.)
+  dialCode: string; // Indicatif téléphonique international (ex: +228, +254)
 }
 
 /**
@@ -91,72 +94,91 @@ function flagEmoji(code: string): string {
     .join("");
 }
 
+// Tuple: [code, nom, hub/capitale, devise, indicatif]
+type CountryTuple = [string, string, string, string, string];
+
 // Pays d'Afrique de l'Ouest (zone CEDEAO + Mauritanie) — priorité d'affichage
-// car c'est la zone d'opération principale (Togo, Sénégal, Côte d'Ivoire...).
-const WEST_AFRICA_CODES: Array<[string, string]> = [
-  ["BJ", "Bénin"],
-  ["BF", "Burkina Faso"],
-  ["CV", "Cap-Vert"],
-  ["CI", "Côte d'Ivoire"],
-  ["GM", "Gambie"],
-  ["GH", "Ghana"],
-  ["GN", "Guinée"],
-  ["GW", "Guinée-Bissau"],
-  ["LR", "Liberia"],
-  ["ML", "Mali"],
-  ["MR", "Mauritanie"],
-  ["NE", "Niger"],
-  ["NG", "Nigeria"],
-  ["SN", "Sénégal"],
-  ["SL", "Sierra Leone"],
-  ["TG", "Togo"],
+// car c'est la zone d'opération principale (Togo, Bénin, Côte d'Ivoire, Sénégal...).
+const WEST_AFRICA_DATA: CountryTuple[] = [
+  ["BJ", "Bénin", "Cotonou", "XOF", "+229"],
+  ["BF", "Burkina Faso", "Ouagadougou", "XOF", "+226"],
+  ["CV", "Cap-Vert", "Praia", "CVE", "+238"],
+  ["CI", "Côte d'Ivoire", "Abidjan", "XOF", "+225"],
+  ["GM", "Gambie", "Banjul", "GMD", "+220"],
+  ["GH", "Ghana", "Accra", "GHS", "+233"],
+  ["GN", "Guinée", "Conakry", "GNF", "+224"],
+  ["GW", "Guinée-Bissau", "Bissau", "XOF", "+245"],
+  ["LR", "Liberia", "Monrovia", "LRD", "+231"],
+  ["ML", "Mali", "Bamako", "XOF", "+223"],
+  ["MR", "Mauritanie", "Nouakchott", "MRU", "+222"],
+  ["NE", "Niger", "Niamey", "XOF", "+227"],
+  ["NG", "Nigeria", "Lagos / Abuja", "NGN", "+234"],
+  ["SN", "Sénégal", "Dakar", "XOF", "+221"],
+  ["SL", "Sierra Leone", "Freetown", "SLE", "+232"],
+  ["TG", "Togo", "Lomé", "XOF", "+228"],
 ];
 
-// Reste du continent africain, ordre alphabétique.
-const OTHER_AFRICA_CODES: Array<[string, string]> = [
-  ["ZA", "Afrique du Sud"],
-  ["DZ", "Algérie"],
-  ["AO", "Angola"],
-  ["BW", "Botswana"],
-  ["BI", "Burundi"],
-  ["CM", "Cameroun"],
-  ["CF", "République centrafricaine"],
-  ["KM", "Comores"],
-  ["CG", "Congo"],
-  ["CD", "Congo (RDC)"],
-  ["DJ", "Djibouti"],
-  ["EG", "Égypte"],
-  ["ER", "Érythrée"],
-  ["SZ", "Eswatini"],
-  ["ET", "Éthiopie"],
-  ["GA", "Gabon"],
-  ["GQ", "Guinée équatoriale"],
-  ["KE", "Kenya"],
-  ["LS", "Lesotho"],
-  ["LY", "Libye"],
-  ["MG", "Madagascar"],
-  ["MW", "Malawi"],
-  ["MA", "Maroc"],
-  ["MU", "Maurice"],
-  ["MZ", "Mozambique"],
-  ["NA", "Namibie"],
-  ["UG", "Ouganda"],
-  ["RW", "Rwanda"],
-  ["ST", "Sao Tomé-et-Principe"],
-  ["SC", "Seychelles"],
-  ["SO", "Somalie"],
-  ["SD", "Soudan"],
-  ["SS", "Soudan du Sud"],
-  ["TZ", "Tanzanie"],
-  ["TD", "Tchad"],
-  ["TN", "Tunisie"],
-  ["ZM", "Zambie"],
-  ["ZW", "Zimbabwe"],
+// Reste du continent africain, ordre alphabétique avec hubs, devises et indicatifs vérifiés.
+const OTHER_AFRICA_DATA: CountryTuple[] = [
+  ["ZA", "Afrique du Sud", "Johannesbourg / Pretoria", "ZAR", "+27"],
+  ["DZ", "Algérie", "Alger", "DZD", "+213"],
+  ["AO", "Angola", "Luanda", "AOA", "+244"],
+  ["BW", "Botswana", "Gaborone", "BWP", "+267"],
+  ["BI", "Burundi", "Bujumbura / Gitega", "BIF", "+257"],
+  ["CM", "Cameroun", "Douala / Yaoundé", "XAF", "+237"],
+  ["CF", "République centrafricaine", "Bangui", "XAF", "+236"],
+  ["KM", "Comores", "Moroni", "KMF", "+269"],
+  ["CG", "Congo", "Brazzaville", "XAF", "+242"],
+  ["CD", "Congo (RDC)", "Kinshasa", "CDF", "+243"],
+  ["DJ", "Djibouti", "Djibouti", "DJF", "+253"],
+  ["EG", "Égypte", "Le Caire", "EGP", "+20"],
+  ["ER", "Érythrée", "Asmara", "ERN", "+291"],
+  ["SZ", "Eswatini", "Mbabane", "SZL", "+268"],
+  ["ET", "Éthiopie", "Addis-Abeba", "ETB", "+251"],
+  ["GA", "Gabon", "Libreville", "XAF", "+241"],
+  ["GQ", "Guinée équatoriale", "Malabo", "XAF", "+240"],
+  ["KE", "Kenya", "Nairobi", "KES", "+254"],
+  ["LS", "Lesotho", "Maseru", "LSL", "+266"],
+  ["LY", "Libye", "Tripoli", "LYD", "+218"],
+  ["MG", "Madagascar", "Antananarivo", "MGA", "+261"],
+  ["MW", "Malawi", "Lilongwe", "MWK", "+265"],
+  ["MA", "Maroc", "Casablanca / Rabat", "MAD", "+212"],
+  ["MU", "Maurice", "Port-Louis", "MUR", "+230"],
+  ["MZ", "Mozambique", "Maputo", "MZN", "+258"],
+  ["NA", "Namibie", "Windhoek", "NAD", "+264"],
+  ["UG", "Ouganda", "Kampala", "UGX", "+256"],
+  ["RW", "Rwanda", "Kigali", "RWF", "+250"],
+  ["ST", "Sao Tomé-et-Principe", "São Tomé", "STN", "+239"],
+  ["SC", "Seychelles", "Victoria", "SCR", "+248"],
+  ["SO", "Somalie", "Mogadiscio", "SOS", "+252"],
+  ["SD", "Soudan", "Khartoum", "SDG", "+249"],
+  ["SS", "Soudan du Sud", "Juba", "SSP", "+211"],
+  ["TZ", "Tanzanie", "Dar es Salaam / Dodoma", "TZS", "+255"],
+  ["TD", "Tchad", "N'Djaména", "XAF", "+235"],
+  ["TN", "Tunisie", "Tunis", "TND", "+216"],
+  ["ZM", "Zambie", "Lusaka", "ZMW", "+260"],
+  ["ZW", "Zimbabwe", "Harare", "USD", "+263"],
 ];
 
 export const AFRICA_COUNTRIES: Country[] = [
-  ...WEST_AFRICA_CODES.map(([code, name]) => ({ code, name, flag: flagEmoji(code), region: "ouest" as const })),
-  ...OTHER_AFRICA_CODES.map(([code, name]) => ({ code, name, flag: flagEmoji(code), region: "autre" as const })),
+  ...WEST_AFRICA_DATA.map(([code, name, capital, currency, dialCode]) => ({
+    code,
+    name,
+    flag: flagEmoji(code),
+    region: "ouest" as const,
+    capital,
+    currency,
+    dialCode,
+  })),
+  ...OTHER_AFRICA_DATA.map(([code, name, capital, currency, dialCode]) => ({
+    code,
+    name,
+    flag: flagEmoji(code),
+    region: "autre" as const,
+    capital,
+    currency,
+    dialCode,
+  })),
 ];
 
 /**

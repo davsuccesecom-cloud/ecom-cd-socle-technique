@@ -35,18 +35,63 @@ export function buildTelLink(formattedPhone: string): string {
 }
 
 export const AFRICAN_DIAL_CODES: Record<string, string> = {
+  // Afrique de l'Ouest
   BJ: "229", // Bénin
-  TG: "228", // Togo
-  CI: "225", // Côte d'Ivoire
-  SN: "221", // Sénégal
-  CM: "237", // Cameroun
-  ML: "223", // Mali
-  GN: "224", // Guinée
   BF: "226", // Burkina Faso
+  CV: "238", // Cap-Vert
+  CI: "225", // Côte d'Ivoire
+  GM: "220", // Gambie
+  GH: "233", // Ghana
+  GN: "224", // Guinée
+  GW: "245", // Guinée-Bissau
+  LR: "231", // Liberia
+  ML: "223", // Mali
+  MR: "222", // Mauritanie
   NE: "227", // Niger
-  GA: "241", // Gabon
+  NG: "234", // Nigeria
+  SN: "221", // Sénégal
+  SL: "232", // Sierra Leone
+  TG: "228", // Togo
+
+  // Autres marchés africains
+  ZA: "27",  // Afrique du Sud
+  DZ: "213", // Algérie
+  AO: "244", // Angola
+  BW: "267", // Botswana
+  BI: "257", // Burundi
+  CM: "237", // Cameroun
+  CF: "236", // Centrafrique
+  KM: "269", // Comores
   CG: "242", // Congo
-  CD: "243", // RDC
+  CD: "243", // Congo (RDC)
+  DJ: "253", // Djibouti
+  EG: "20",  // Égypte
+  ER: "291", // Érythrée
+  SZ: "268", // Eswatini
+  ET: "251", // Éthiopie
+  GA: "241", // Gabon
+  GQ: "240", // Guinée équatoriale
+  KE: "254", // Kenya
+  LS: "266", // Lesotho
+  LY: "218", // Libye
+  MG: "261", // Madagascar
+  MW: "265", // Malawi
+  MA: "212", // Maroc
+  MU: "230", // Maurice
+  MZ: "258", // Mozambique
+  NA: "264", // Namibie
+  UG: "256", // Ouganda
+  RW: "250", // Rwanda
+  ST: "239", // Sao Tomé-et-Principe
+  SC: "248", // Seychelles
+  SO: "252", // Somalie
+  SD: "249", // Soudan
+  SS: "211", // Soudan du Sud
+  TZ: "255", // Tanzanie
+  TD: "235", // Tchad
+  TN: "216", // Tunisie
+  ZM: "260", // Zambie
+  ZW: "263", // Zimbabwe
 };
 
 const ALL_AFRICAN_PREFIXES = Array.from(new Set(Object.values(AFRICAN_DIAL_CODES))).sort(

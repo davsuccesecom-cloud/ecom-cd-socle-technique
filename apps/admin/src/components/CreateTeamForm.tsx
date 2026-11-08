@@ -17,6 +17,7 @@ const OTHER_COUNTRIES = AFRICA_COUNTRIES.filter((c) => c.region === "autre");
 export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: CreateTeamFormProps) {
   const [country, setCountry] = useState(WEST_COUNTRIES[0].code);
   const [name, setName] = useState(`Équipe ${WEST_COUNTRIES[0].name}`);
+  const [currency, setCurrency] = useState(getCountryMeta(WEST_COUNTRIES[0].code).currency);
   const [remunCloseuse, setRemunCloseuse] = useState("500");
   const [remunLivreur, setRemunLivreur] = useState("1500");
   const [submitting, setSubmitting] = useState(false);
@@ -28,6 +29,8 @@ export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: Cre
   const handleSelectCountry = (code: string) => {
     setCountry(code);
     const cObj = AFRICA_COUNTRIES.find((c) => c.code === code);
+    const countryMeta = getCountryMeta(code);
+    setCurrency(countryMeta.currency);
     if (cObj && (!name.trim() || name.startsWith("Équipe "))) {
       setName(`Équipe ${cObj.name}`);
     }
@@ -40,12 +43,13 @@ export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: Cre
     setError(null);
     try {
       const db = getDb();
+      const finalCurrency = currency.trim().toUpperCase() || meta.currency;
       const docRef = await addDoc(collection(db, "workspaces", workspaceId, "teams"), {
         workspaceId,
         name: name.trim(),
         sheetIds: [],
         defaultCountry: country,
-        currency: meta.currency,
+        currency: finalCurrency,
         remunerationCloseusePerOrder: Number(remunCloseuse) || 0,
         remunerationLivreurPerOrder: Number(remunLivreur) || 0,
         maxClosseuses: 10,
@@ -132,8 +136,16 @@ export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: Cre
               <span className="rounded-lg border border-surface-border bg-surface/80 px-2.5 py-1 font-mono">
                 Indicatif : <strong className="text-slate-200">{meta.dialCode}</strong>
               </span>
-              <span className="rounded-lg border border-brand/30 bg-brand/10 px-2.5 py-1 font-mono text-brand">
-                Devise : <strong>{meta.currency}</strong>
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 px-2.5 py-1 font-mono text-brand">
+                Devise :
+                <input
+                  type="text"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                  className="w-16 rounded border border-brand/40 bg-surface/90 px-1.5 py-0.5 text-center text-[11px] font-bold text-brand outline-none focus:ring-1 focus:ring-brand"
+                  placeholder={meta.currency}
+                  title="Devise du marché (ex: KES, XOF, XAF, NGN, USD)"
+                />
               </span>
             </div>
           </div>
@@ -152,7 +164,7 @@ export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: Cre
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-400">
-                Prime Closeuse ({meta.currency})
+                Prime Closeuse ({currency || meta.currency})
               </label>
               <input
                 type="number"
@@ -164,7 +176,7 @@ export default function CreateTeamForm({ workspaceId, onCreated, onCancel }: Cre
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-400">
-                Prime Livreur ({meta.currency})
+                Prime Livreur ({currency || meta.currency})
               </label>
               <input
                 type="number"

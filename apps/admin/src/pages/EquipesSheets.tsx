@@ -1,27 +1,25 @@
 import { useState, useEffect } from "react";
-import { doc, updateDoc, collection, onSnapshot } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, collection, onSnapshot } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDb, AFRICA_COUNTRIES, ConfirmDialog } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
 import {
   Plus,
   Store,
-  FileSpreadsheet,
   ExternalLink,
   Trash2,
-  MapPin,
   AlertTriangle,
   CheckCircle2,
-  Clock,
   Copy,
   Check,
   RefreshCw,
-  Sparkles,
   ShieldCheck,
-  Sliders,
-  ChevronRight,
   Info,
   Unlink,
+  Sparkles,
+  Edit2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import CreateTeamForm from "../components/CreateTeamForm";
 import CountryMapBackdrop, { getCountryMeta } from "../components/CountryMapBackdrop";
@@ -65,6 +63,18 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
   const [showCreate, setShowCreate] = useState(false);
   const [shopifyByTeam, setShopifyByTeam] = useState<Record<string, string>>({});
   const [shopifyDetailsByTeam, setShopifyDetailsByTeam] = useState<Record<string, TeamShopifyConnectionInfo>>({});
+  const [confirmDeleteTeam, setConfirmDeleteTeam] = useState<Team | null>(null);
+  const [deletingTeam, setDeletingTeam] = useState(false);
+  const [globalNotice, setGlobalNotice] = useState<string | null>(null);
+
+  // Synchronisation sélection d'équipe si la liste change
+  useEffect(() => {
+    if (selectedTeamId && !teams.some((t) => t.id === selectedTeamId)) {
+      setSelectedTeamId(teams[0]?.id ?? null);
+    } else if (!selectedTeamId && teams.length > 0) {
+      setSelectedTeamId(teams[0].id);
+    }
+  }, [teams, selectedTeamId]);
 
   useEffect(() => {
     const db = getDb();
@@ -73,7 +83,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
       const map: Record<string, string> = {};
       const details: Record<string, TeamShopifyConnectionInfo> = {};
       snap.forEach((d) => {
-        const c = d.data();
+        const c = d.data() as any;
         if (c.status === "active") {
           if (c.ownerTeamId) {
             map[c.ownerTeamId] = `${c.shopDomain} (Propriétaire)`;
@@ -106,6 +116,25 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
     return () => unsub();
   }, [workspaceId]);
 
+  const handleDeleteTeam = async () => {
+    if (!confirmDeleteTeam) return;
+    const target = confirmDeleteTeam;
+    setDeletingTeam(true);
+    try {
+      const db = getDb();
+      await deleteDoc(doc(db, "workspaces", workspaceId, "teams", target.id));
+      setGlobalNotice(`L'équipe "${target.name}" a été définitivement supprimée.`);
+      setConfirmDeleteTeam(null);
+      setTimeout(() => setGlobalNotice(null), 5000);
+    } catch (err: any) {
+      console.error("Erreur suppression équipe:", err);
+      const formatted = formatFirebaseError(err);
+      alert(`Erreur : ${formatted.message}`);
+    } finally {
+      setDeletingTeam(false);
+    }
+  };
+
   const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0] ?? null;
 
   return (
@@ -117,7 +146,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
             Cartographie des Marchés ({teams.length})
           </h2>
           <p className="text-xs text-slate-500">
-            Supervisez les équipes pays et synchronisez vos feuilles de commandes Google Sheets en temps réel.
+            Supervisez les équipes pays, leurs devises et synchronisez vos feuilles de commandes Google Sheets en direct.
           </p>
         </div>
         <button
@@ -129,64 +158,87 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
         </button>
       </div>
 
+      {globalNotice && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+          <span>{globalNotice}</span>
+        </div>
+      )}
+
       {/* Geographic Team Cards Grid */}
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-        {teams.map((team) => {
-          const country = countryFor(team.defaultCountry);
-          const meta = getCountryMeta(team.defaultCountry);
-          const isSelected = team.id === (selectedTeam?.id ?? null);
-          const shopifyInfo = shopifyByTeam[team.id] ?? null;
+      {teams.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-surface-border bg-surface-raised p-8 text-center">
+          <p className="text-sm font-semibold text-slate-300">Aucun marché configuré</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Créez votre première équipe opérationnelle pour activer le routage des commandes et la gestion de vos flux.
+          </p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover"
+          >
+            <Plus className="h-4 w-4" />
+            Créer un premier marché
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+          {teams.map((team) => {
+            const country = countryFor(team.defaultCountry);
+            const meta = getCountryMeta(team.defaultCountry);
+            const isSelected = team.id === (selectedTeam?.id ?? null);
+            const shopifyInfo = shopifyByTeam[team.id] ?? null;
 
-          return (
-            <button
-              key={team.id}
-              onClick={() => setSelectedTeamId(team.id)}
-              className={`relative overflow-hidden rounded-2xl border p-4 text-left transition-all ${
-                isSelected
-                  ? "border-brand bg-brand-light ring-1 ring-brand shadow-md"
-                  : "border-surface-border bg-surface-raised hover:border-slate-600"
-              }`}
-            >
-              <CountryMapBackdrop countryCode={team.defaultCountry} />
+            return (
+              <button
+                key={team.id}
+                onClick={() => setSelectedTeamId(team.id)}
+                className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all ${
+                  isSelected
+                    ? "border-brand bg-brand-light ring-1 ring-brand shadow-md"
+                    : "border-surface-border bg-surface-raised hover:border-slate-600"
+                }`}
+              >
+                <CountryMapBackdrop countryCode={team.defaultCountry} />
 
-              <div className="relative z-10 flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  {country && (
-                    <img
-                      src={flagUrl(country.code)}
-                      alt={country.name}
-                      className="h-4 w-5 rounded object-cover shadow-sm"
-                    />
-                  )}
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-100">{team.name}</h3>
-                    <p className="text-[10px] text-slate-400">
-                      Devise : <span className="font-semibold text-slate-300">{team.currency}</span>
-                    </p>
+                <div className="relative z-10 flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    {country && (
+                      <img
+                        src={flagUrl(country.code)}
+                        alt={country.name}
+                        className="h-4 w-5 rounded object-cover shadow-sm"
+                      />
+                    )}
+                    <div>
+                      <h3 className="text-xs font-bold text-slate-100">{team.name}</h3>
+                      <p className="text-[10px] text-slate-400">
+                        {meta.capital} • Devise : <span className="font-semibold text-slate-300">{team.currency}</span> ({meta.dialCode})
+                      </p>
+                    </div>
                   </div>
+                  {isSelected && (
+                    <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[9.5px] font-bold text-brand">
+                      Actif
+                    </span>
+                  )}
                 </div>
-                {isSelected && (
-                  <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[9.5px] font-bold text-brand">
-                    Actif
-                  </span>
-                )}
-              </div>
 
-              <div className="relative z-10 mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-surface-border/60 pt-2.5">
-                <div className="flex items-center gap-1.5">
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>{team.sheetIds.length} tableurs connectés</span>
+                <div className="relative z-10 mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-surface-border/60 pt-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <img src="/icons/google-sheets.png" alt="" className="h-3.5 w-3.5 object-contain" />
+                    <span>{team.sheetIds.length} tableurs connectés</span>
+                  </div>
+                  {shopifyInfo && (
+                    <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300">
+                      Shopify
+                    </span>
+                  )}
                 </div>
-                {shopifyInfo && (
-                  <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300">
-                    Shopify
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Selected Team Details & Google Sheets Manager */}
       {selectedTeam && (
@@ -196,6 +248,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
           team={selectedTeam}
           shopifyActiveInfo={shopifyByTeam[selectedTeam.id] ?? null}
           shopifyDetail={shopifyDetailsByTeam[selectedTeam.id] ?? null}
+          onDeleteTeam={() => setConfirmDeleteTeam(selectedTeam)}
         />
       )}
 
@@ -214,6 +267,18 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
           </div>
         </div>
       )}
+
+      {/* Boîte de dialogue Confirmation Suppression d'équipe */}
+      <ConfirmDialog
+        open={confirmDeleteTeam !== null}
+        title={`Supprimer définitivement l'équipe "${confirmDeleteTeam?.name || ""}" ?`}
+        message={`Voulez-vous vraiment supprimer définitivement l'équipe "${confirmDeleteTeam?.name || ""}" (${confirmDeleteTeam?.defaultCountry || ""}) ?\nTous les tableurs Google Sheets associés seront détachés. Les commandes déjà créées dans le système conserveront leur historique. Cette action est irréversible.`}
+        confirmLabel="Supprimer définitivement l'équipe"
+        danger={true}
+        loading={deletingTeam}
+        onConfirm={handleDeleteTeam}
+        onCancel={() => setConfirmDeleteTeam(null)}
+      />
     </div>
   );
 }
@@ -247,11 +312,13 @@ function TeamDetail({
   team,
   shopifyActiveInfo,
   shopifyDetail,
+  onDeleteTeam,
 }: {
   workspaceId: string;
   team: Team;
   shopifyActiveInfo: string | null;
   shopifyDetail: TeamShopifyConnectionInfo | null;
+  onDeleteTeam: () => void;
 }) {
   const [sheetInput, setSheetInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -259,8 +326,29 @@ function TeamDetail({
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [confirmRemoveSheetId, setConfirmRemoveSheetId] = useState<string | null>(null);
   const [confirmDisconnectShopify, setConfirmDisconnectShopify] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
+
+  // Édition rapide de la devise et des primes
+  const [showSettings, setShowSettings] = useState(false);
+  const [editName, setEditName] = useState(team.name);
+  const [editCurrency, setEditCurrency] = useState(team.currency);
+  const [editRemunCloseuse, setEditRemunCloseuse] = useState(String(team.remunerationCloseusePerOrder ?? 500));
+  const [editRemunLivreur, setEditRemunLivreur] = useState(String(team.remunerationLivreurPerOrder ?? 1500));
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const country = countryFor(team.defaultCountry);
+  const countryMeta = getCountryMeta(team.defaultCountry);
+
+  const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
+
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText(SERVICE_ACCOUNT_EMAIL);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2500);
+  };
 
   const handleDisconnectShopify = async () => {
     if (!shopifyDetail) return;
@@ -287,14 +375,6 @@ function TeamDetail({
     } finally {
       setBusy(false);
     }
-  };
-
-  const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
-
-  const handleCopyEmail = () => {
-    navigator.clipboard.writeText(SERVICE_ACCOUNT_EMAIL);
-    setCopiedEmail(true);
-    setTimeout(() => setCopiedEmail(false), 2500);
   };
 
   const handleTestConnection = async () => {
@@ -344,21 +424,15 @@ function TeamDetail({
       await updateDoc(teamRef(), { sheetIds: [...team.sheetIds, id] });
       setSheetInput("");
       setTestResult(null);
+      setShowAssistant(false);
+      setSuccessMsg("Tableur Google Sheets rattaché avec succès à l'équipe !");
+      setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err) {
       const formatted = formatFirebaseError(err);
       setError(`${formatted.title} : ${formatted.message}`);
     } finally {
       setBusy(false);
     }
-  };
-
-  const handleAddSheet = async () => {
-    const id = extractSheetId(sheetInput);
-    if (!id) {
-      setError("ID ou lien Google Sheets invalide. Collez l'URL complète de votre tableur.");
-      return;
-    }
-    await handleAddSheetWithId(id);
   };
 
   const handleRemoveSheet = async (id: string) => {
@@ -374,8 +448,165 @@ function TeamDetail({
     }
   };
 
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    setError(null);
+    try {
+      await updateDoc(teamRef(), {
+        name: editName.trim() || team.name,
+        currency: editCurrency.trim().toUpperCase() || team.currency,
+        remunerationCloseusePerOrder: Number(editRemunCloseuse) || 0,
+        remunerationLivreurPerOrder: Number(editRemunLivreur) || 0,
+      });
+      setShowSettings(false);
+      setSuccessMsg("Paramètres de l'équipe mis à jour avec succès !");
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err) {
+      const formatted = formatFirebaseError(err);
+      setError(`${formatted.title} : ${formatted.message}`);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
+      {/* 0. Barre d'identification du Marché & Actions Globales */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface-raised p-4">
+        <div className="flex items-center gap-3">
+          {country && (
+            <img
+              src={flagUrl(country.code)}
+              alt={country.name}
+              className="h-8 w-10 rounded-md object-cover shadow-sm"
+            />
+          )}
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-bold text-slate-100">{team.name}</h3>
+              <span className="rounded-full bg-brand/15 border border-brand/30 px-2.5 py-0.5 text-xs font-mono font-bold text-brand">
+                {team.currency}
+              </span>
+              <span className="rounded-full bg-surface border border-surface-border px-2 py-0.5 text-xs font-mono text-slate-300">
+                {countryMeta.dialCode}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Pays : <strong className="text-slate-300">{country?.name || team.defaultCountry}</strong> • Hub : <strong className="text-slate-300">{countryMeta.capital}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowSettings(!showSettings)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-surface-raised transition shadow-sm"
+          >
+            <Edit2 className="h-3.5 w-3.5 text-slate-400" />
+            <span>Modifier la devise / équipe</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onDeleteTeam}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition shadow-sm"
+            title="Supprimer cette équipe"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+            <span>Supprimer l'équipe</span>
+          </button>
+        </div>
+      </div>
+
+      {successMsg && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {/* Volet Dépliable : Modifier la Devise / Primes */}
+      {showSettings && (
+        <form onSubmit={handleSaveSettings} className="rounded-2xl border border-surface-border bg-surface p-4 sm:p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-surface-border pb-3">
+            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+              Paramètres du Marché : {team.name}
+            </h4>
+            <button
+              type="button"
+              onClick={() => setShowSettings(false)}
+              className="text-xs text-slate-400 hover:text-slate-200"
+            >
+              Fermer
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div>
+              <label className="block text-slate-400 mb-1 font-medium">Nom de l'équipe</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full rounded-xl border border-surface-border bg-surface-raised px-3 py-2 text-slate-100 outline-none focus:border-brand"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1 font-medium">Devise du marché (ex: KES, XOF, USD)</label>
+              <input
+                type="text"
+                value={editCurrency}
+                onChange={(e) => setEditCurrency(e.target.value.toUpperCase())}
+                placeholder={countryMeta.currency}
+                className="w-full rounded-xl border border-surface-border bg-surface-raised px-3 py-2 font-mono font-bold text-brand outline-none focus:border-brand"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1 font-medium">Prime Closeuse ({editCurrency || team.currency})</label>
+              <input
+                type="number"
+                min="0"
+                value={editRemunCloseuse}
+                onChange={(e) => setEditRemunCloseuse(e.target.value)}
+                className="w-full rounded-xl border border-surface-border bg-surface-raised px-3 py-2 font-mono tabular-nums text-slate-100 outline-none focus:border-brand"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1 font-medium">Prime Livreur ({editCurrency || team.currency})</label>
+              <input
+                type="number"
+                min="0"
+                value={editRemunLivreur}
+                onChange={(e) => setEditRemunLivreur(e.target.value)}
+                className="w-full rounded-xl border border-surface-border bg-surface-raised px-3 py-2 font-mono tabular-nums text-slate-100 outline-none focus:border-brand"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-border">
+            <button
+              type="button"
+              onClick={() => setShowSettings(false)}
+              className="rounded-xl border border-surface-border px-3.5 py-1.5 text-xs text-slate-300 hover:bg-surface-raised"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={savingSettings}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-1.5 text-xs font-semibold text-white shadow hover:bg-brand-hover transition disabled:opacity-50"
+            >
+              {savingSettings ? "Enregistrement…" : "Enregistrer les modifications"}
+            </button>
+          </div>
+        </form>
+      )}
+
       {/* 1. Carte Officielle du Compte de Service WariTrack */}
       <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-sky-500/10 p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -393,7 +624,7 @@ function TeamDetail({
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Zéro validation Google requise, aucune expiration de token au bout de 7 jours, synchronisation automatique continue.
+                Zéro validation Google requise, aucune expiration de token, synchronisation automatique continue.
               </p>
             </div>
           </div>
@@ -450,7 +681,7 @@ function TeamDetail({
             <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
               Étape 4
             </span>
-            <p className="text-xs text-slate-300 font-medium">Collez l'URL ci-dessous et lancez le <strong className="text-amber-300">Test</strong></p>
+            <p className="text-xs text-slate-300 font-medium">Lancez l'assistant ci-dessous et validez le test</p>
           </div>
         </div>
       </div>
@@ -486,33 +717,49 @@ function TeamDetail({
         </div>
       )}
 
-      {/* 2. Gestionnaire des Tableurs Connectés */}
+      {/* 2. Stack Officiel Google Sheets & Assistant de Liaison */}
       <div
         className={`rounded-2xl border border-surface-border bg-surface-raised p-5 transition-opacity ${
           shopifyActiveInfo ? "opacity-65" : ""
         }`}
       >
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 p-2 border border-emerald-500/25 shadow-sm">
+              <img
+                src="/icons/google-sheets.png"
+                alt="Google Sheets"
+                className="h-8 w-8 object-contain"
+              />
+            </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-100">
-                Tableurs Google Sheets — {team.name}
-              </h3>
-              <p className="text-xs text-slate-400">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-100">
+                  Tableurs Google Sheets — {team.name}
+                </h3>
+                <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                  Temps Réel
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
                 WariTrack numérise automatiquement les colonnes de votre feuille et crée la colonne statut en temps réel si elle n'existe pas.
               </p>
             </div>
           </div>
-          <span className="rounded-lg border border-surface-border bg-surface px-2.5 py-1 font-mono text-xs text-slate-400">
-            {team.sheetIds.length} / {MAX_SHEETS_PER_TEAM} tableurs
+
+          <span className="rounded-lg border border-surface-border bg-surface px-2.5 py-1 font-mono text-xs text-slate-300">
+            {team.sheetIds.length} / {MAX_SHEETS_PER_TEAM} tableurs connectés
           </span>
         </div>
 
+        {/* Liste des Tableurs Rattachés */}
         {team.sheetIds.length === 0 ? (
-          <div className="mb-4 rounded-xl border border-dashed border-surface-border bg-surface/40 p-6 text-center">
-            <p className="text-xs text-slate-400">
-              Aucun tableur Google Sheets rattaché à {team.name}. Collez l'URL d'un tableur pour démarrer.
+          <div className="mb-4 rounded-xl border border-dashed border-surface-border bg-surface/40 p-6 text-center space-y-1">
+            <p className="text-xs font-medium text-slate-300">
+              Aucun tableur Google Sheets rattaché à {team.name}.
+            </p>
+            <p className="text-xs text-slate-500">
+              Cliquez sur le bouton ci-dessous pour lancer l'assistant et synchroniser votre première feuille de commandes.
             </p>
           </div>
         ) : (
@@ -549,53 +796,121 @@ function TeamDetail({
           </ul>
         )}
 
-        {/* Formulaire de saisie & Test de synchronisation */}
+        {/* Bouton de déclenchement en bas du stack */}
         {team.sheetIds.length < MAX_SHEETS_PER_TEAM && (
-          <div className="space-y-3 pt-1">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                value={sheetInput}
-                disabled={busy || !!shopifyActiveInfo || testing}
-                onChange={(e) => setSheetInput(e.target.value)}
-                placeholder={
-                  shopifyActiveInfo
-                    ? "Désactivé tant que le flux Shopify est actif"
-                    : "Collez le lien : https://docs.google.com/spreadsheets/d/1BxiMVs.../edit"
-                }
-                className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-50"
-              />
-              
-              {/* Bouton Diagnostic / Test */}
-              <button
-                disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
-                onClick={handleTestConnection}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-xs font-bold text-indigo-300 hover:bg-indigo-500/20 transition disabled:opacity-40"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${testing ? "animate-spin" : ""}`} />
-                {testing ? "Analyse en direct…" : "Tester les Colonnes"}
-              </button>
+          <div className="pt-2 border-t border-surface-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs text-slate-400">
+              {shopifyActiveInfo
+                ? "Désactivé tant que le flux Shopify est actif pour cette équipe."
+                : "Associez vos tableurs de commandes facilement avec l'assistant de liaison."}
+            </p>
 
-              {/* Bouton Connexion directe */}
+            <button
+              type="button"
+              disabled={busy || !!shopifyActiveInfo}
+              onClick={() => {
+                setShowAssistant(!showAssistant);
+                setError(null);
+                setTestResult(null);
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow hover:bg-emerald-500 transition disabled:opacity-40 shrink-0"
+            >
+              <img src="/icons/google-sheets.png" alt="" className="h-4 w-4 object-contain brightness-110" />
+              <span>{showAssistant ? "Masquer l'assistant" : "+ Connecter un tableur (Assistant de liaison)"}</span>
+              {showAssistant ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+        )}
+
+        {/* L'Assistant de Liaison Interactif */}
+        {showAssistant && (
+          <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                    Assistant de Liaison Google Sheets
+                  </h4>
+                  <p className="text-[11px] text-slate-400">
+                    Configuration guidée pas à pas pour rattacher votre feuille à l'équipe {team.name}
+                  </p>
+                </div>
+              </div>
+
               <button
-                disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
-                onClick={handleAddSheet}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
+                type="button"
+                onClick={() => setShowAssistant(false)}
+                className="text-xs font-medium text-slate-400 hover:text-slate-200"
               >
-                <Plus className="h-3.5 w-3.5" />
-                Connecter le Sheet
+                Fermer
               </button>
             </div>
 
-            {/* Résultat du Test de Connexion & Numérisation des colonnes */}
+            {/* Étape A : Partager avec le robot WariTrack */}
+            <div className="rounded-xl border border-surface-border bg-surface/70 p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                  Étape 1 : Partage du fichier
+                </span>
+                <span className="text-[10px] text-slate-400">Rôle : Éditeur</span>
+              </div>
+              <p className="text-xs text-slate-300">
+                Dans votre Google Sheet, cliquez sur le bouton <strong className="text-sky-300">Partager</strong> (en haut à droite) et collez l'adresse robot suivante :
+              </p>
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface px-3 py-1.5 font-mono text-xs text-slate-200">
+                <span className="truncate select-all">{SERVICE_ACCOUNT_EMAIL}</span>
+                <button
+                  type="button"
+                  onClick={handleCopyEmail}
+                  className="inline-flex shrink-0 items-center gap-1 text-brand hover:underline font-semibold text-[11px]"
+                >
+                  {copiedEmail ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  {copiedEmail ? "Copié !" : "Copier"}
+                </button>
+              </div>
+            </div>
+
+            {/* Étape B : Coller l'URL du fichier & Tester */}
+            <div className="rounded-xl border border-surface-border bg-surface/70 p-3.5 space-y-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">
+                Étape 2 : Coller le lien &amp; Analyser les colonnes
+              </span>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  value={sheetInput}
+                  disabled={busy || !!shopifyActiveInfo || testing}
+                  onChange={(e) => {
+                    setSheetInput(e.target.value);
+                    if (testResult) setTestResult(null);
+                  }}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs.../edit"
+                  className="flex-1 rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
+                />
+
+                <button
+                  disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
+                  onClick={handleTestConnection}
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/15 px-4 py-2.5 text-xs font-bold text-indigo-300 hover:bg-indigo-500/25 transition disabled:opacity-40"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${testing ? "animate-spin" : ""}`} />
+                  {testing ? "Analyse en cours…" : "Tester les colonnes"}
+                </button>
+              </div>
+            </div>
+
+            {/* Étape C : Résultat du Test & Validation */}
             {testResult && (
               <div
                 className={`rounded-2xl border p-4 text-xs space-y-3 animate-in fade-in duration-200 ${
                   testResult.success
-                    ? "border-emerald-500/30 bg-emerald-500/5 text-slate-200"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-slate-200"
                     : "border-rose-500/30 bg-rose-500/10 text-rose-300"
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     {testResult.success ? (
                       <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
@@ -615,22 +930,23 @@ function TeamDetail({
                   {testResult.success && sheetInput.trim() && (
                     <button
                       type="button"
+                      disabled={busy}
                       onClick={() => {
                         const id = extractSheetId(sheetInput);
                         if (id) handleAddSheetWithId(id);
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-500 transition shrink-0"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500 transition shrink-0"
                     >
-                      <Check className="h-3.5 w-3.5" />
-                      Valider &amp; Rattacher
+                      <Check className="h-4 w-4" />
+                      Rattacher ce tableur à l'équipe
                     </button>
                   )}
                 </div>
 
                 {testResult.success && testResult.detectedColumns && (
-                  <div className="rounded-xl border border-surface-border bg-surface/70 p-3 space-y-2">
+                  <div className="rounded-xl border border-surface-border bg-surface/80 p-3 space-y-2">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                      Numérisation des colonnes détectées sur la feuille :
+                      Colonnes identifiées automatiquement :
                     </span>
                     <div className="flex flex-wrap gap-2 text-[11px]">
                       <span
@@ -660,7 +976,7 @@ function TeamDetail({
                             : "bg-slate-800 text-slate-400"
                         }`}
                       >
-                        {testResult.detectedColumns.city ? "✓ Ville / Adresse" : "— Adresse"}
+                        {testResult.detectedColumns.city ? "✓ Ville / Quartier" : "— Ville"}
                       </span>
 
                       <span
@@ -727,6 +1043,7 @@ function TeamDetail({
         </div>
       </div>
 
+      {/* Boîtes de Dialogue de Confirmation */}
       <ConfirmDialog
         open={confirmDisconnectShopify}
         title="Déconnecter le flux Shopify de ce marché ?"
