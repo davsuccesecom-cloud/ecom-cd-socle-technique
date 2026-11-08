@@ -296,17 +296,74 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       </div>
 
       <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:px-6 md:py-4 md:pb-8">
-        {/* Global Top Header Bar : 1 seule ligne compacte sur ordinateur, inchangé sur mobile */}
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3 md:flex-nowrap">
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight text-slate-100 md:text-xl">
-              {headerMeta.title}
-            </h1>
-            <p className="mt-0.5 truncate text-xs text-slate-500">{headerMeta.subtitle}</p>
-          </div>
+        {/* Global Top Header Bar : masqué ou compacté sur "teams" pour éviter tout doublon de titre avec la page Équipes & Marchés */}
+        {page !== "teams" ? (
+          <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3 md:flex-nowrap">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-lg font-semibold leading-tight tracking-tight text-slate-100 md:text-xl">
+                {headerMeta.title}
+              </h1>
+              <p className="mt-0.5 truncate text-xs text-slate-500">{headerMeta.subtitle}</p>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">
-            {/* Global Search / Command Palette Trigger */}
+            <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">
+              {/* Global Search / Command Palette Trigger */}
+              <CommandPalette
+                orders={allOrders}
+                teams={teams}
+                activeTeamId={activeTeamId}
+                onNavigate={setPage}
+                onSelectTeam={setTeamId}
+                onInspectOrder={(order) => setReceiptOrder(order)}
+              />
+
+              {teams.length > 0 && page !== "teams" && (
+                <MarketSelector
+                  teams={teams}
+                  activeTeamId={activeTeamId}
+                  onSelectTeam={setTeamId}
+                  onAddMarket={() => setShowAddMarket(true)}
+                />
+              )}
+
+              {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+
+              {/* Contrôleur de thème & Palette */}
+              <div className="hidden md:flex md:items-center">
+                <ThemeQuickPicker />
+              </div>
+
+              {/* Notification Bell anchored at top-right corner on desktop */}
+              <div className="hidden md:flex md:items-center">
+                <NotificationBell
+                  workspaceId={workspaceId}
+                  onNotificationClick={(notif) => {
+                    const t = `${notif.title} ${notif.body}`.toLowerCase();
+                    if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
+                      setPage("ai_assistant");
+                    } else if (t.includes("caisse") || t.includes("versement")) {
+                      setPage("caisse");
+                    } else if (t.includes("rémunération") || t.includes("prime") || t.includes("paie")) {
+                      setPage("remuneration");
+                    } else if (
+                      notif.orderId ||
+                      t.includes("commande") ||
+                      t.includes("colis") ||
+                      t.includes("rappel") ||
+                      t.includes("doublon") ||
+                      t.includes("closeuse")
+                    ) {
+                      setPage("orders");
+                    } else if (t.includes("connexion")) {
+                      setPage("users");
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </header>
+        ) : (
+          <div className="mb-3 flex items-center justify-end gap-2 border-b border-surface-border/40 pb-2.5">
             <CommandPalette
               orders={allOrders}
               teams={teams}
@@ -315,24 +372,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               onSelectTeam={setTeamId}
               onInspectOrder={(order) => setReceiptOrder(order)}
             />
-
-            {teams.length > 0 && page !== "teams" && (
-              <MarketSelector
-                teams={teams}
-                activeTeamId={activeTeamId}
-                onSelectTeam={setTeamId}
-                onAddMarket={() => setShowAddMarket(true)}
-              />
-            )}
-
-            {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
-
-            {/* Contrôleur de thème & Palette */}
             <div className="hidden md:flex md:items-center">
               <ThemeQuickPicker />
             </div>
-
-            {/* Notification Bell anchored at top-right corner on desktop */}
             <div className="hidden md:flex md:items-center">
               <NotificationBell
                 workspaceId={workspaceId}
@@ -360,7 +402,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               />
             </div>
           </div>
-        </header>
+        )}
 
         {/* WIZARD ONBOARDING OBLIGATOIRE TANT QU'AUCUNE ÉQUIPE N'EST CRÉÉE (PAS DE SKIP VERS UN COCKPIT VIDE) */}
         {teams.length === 0 && !teamsLoading && (
