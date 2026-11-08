@@ -1,13 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import {
-  doc,
-  updateDoc,
-  collection,
-  query,
-  orderBy,
-  limit,
-  onSnapshot,
-} from "firebase/firestore";
+import { useState, useEffect } from "react";
+import { doc, updateDoc, collection, onSnapshot } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDb, AFRICA_COUNTRIES, ConfirmDialog } from "@ecomcod/shared";
 import type { Team } from "@ecomcod/shared";
@@ -17,22 +9,22 @@ import {
   FileSpreadsheet,
   ExternalLink,
   Trash2,
+  MapPin,
   AlertTriangle,
   CheckCircle2,
   Clock,
   Copy,
   Check,
   RefreshCw,
+  Sparkles,
   ShieldCheck,
-  MapPin,
-  TrendingUp,
-  X,
-  Radio,
-  Globe2,
+  Sliders,
+  ChevronRight,
+  Info,
+  Unlink,
 } from "lucide-react";
 import CreateTeamForm from "../components/CreateTeamForm";
-import AfricaInteractiveMap from "../components/AfricaInteractiveMap";
-import { AFRICA_GEO, COUNTRY_ISO2_TO_ISO3 } from "../data/africaGeo";
+import CountryMapBackdrop, { getCountryMeta } from "../components/CountryMapBackdrop";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface EquipesSheetsProps {
@@ -47,19 +39,8 @@ function countryFor(code: string) {
   return AFRICA_COUNTRIES.find((c) => c.code === code) ?? null;
 }
 
-function flagFor(code: string) {
-  const flags: Record<string, string> = {
-    TG: "🇹🇬",
-    BJ: "🇧🇯",
-    BF: "🇧🇫",
-    CI: "🇨🇮",
-    SN: "🇸🇳",
-    GH: "🇬🇭",
-    NG: "🇳🇬",
-    CM: "🇨🇲",
-    ML: "🇲🇱",
-  };
-  return flags[code] || "📍";
+function flagUrl(code: string) {
+  return `https://flagcdn.com/24x18/${code.toLowerCase()}.png`;
 }
 
 function extractSheetId(input: string): string | null {
@@ -79,49 +60,13 @@ export interface TeamShopifyConnectionInfo {
   label: string;
 }
 
-interface TestResult {
-  success: boolean;
-  serviceEmail: string;
-  title?: string;
-  sheetName?: string;
-  columnsCount?: number;
-  totalRows?: number;
-  statusColCreated?: boolean;
-  statusColLetter?: string;
-  detectedColumns?: {
-    phone: boolean;
-    clientName: boolean;
-    city: boolean;
-    product: boolean;
-    amount: boolean;
-    quantity: boolean;
-    status: boolean;
-    livreur: boolean;
-    updatedAt: boolean;
-  };
-  message: string;
-  errorCode?: string;
-}
-
-function getCitiesForRegion(countryCode: string, regionIndex: number): string {
-  const iso3 = COUNTRY_ISO2_TO_ISO3[countryCode] || "TGO";
-  const cities = AFRICA_GEO.ct[iso3];
-  if (!cities) return "Aucune ville repérée";
-  const matching = cities.filter(([, , , ri]) => ri === regionIndex).map(([n]) => n);
-  return matching.length > 0 ? matching.join(", ") : "Localisation automatique par adresse de commande";
-}
-
 export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps) {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(teams[0]?.id ?? null);
-  const [selectedRegionIndex, setSelectedRegionIndex] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [shopifyByTeam, setShopifyByTeam] = useState<Record<string, string>>({});
   const [shopifyDetailsByTeam, setShopifyDetailsByTeam] = useState<Record<string, TeamShopifyConnectionInfo>>({});
-  const [realOrders, setRealOrders] = useState<any[]>([]);
 
-  // Écoute des connexions Shopify
   useEffect(() => {
-    if (!workspaceId) return;
     const db = getDb();
     const connCol = collection(db, "workspaces", workspaceId, "shopifyConnections");
     const unsub = onSnapshot(connCol, (snap) => {
@@ -161,482 +106,89 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
     return () => unsub();
   }, [workspaceId]);
 
-  // Chargement en temps réel des commandes
-  useEffect(() => {
-    if (!workspaceId) return;
-    const q = query(
-      collection(getDb(), "workspaces", workspaceId, "orders"),
-      orderBy("timestamps.received", "desc"),
-      limit(200)
-    );
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const list: any[] = [];
-        snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-        setRealOrders(list);
-      },
-      (err) => {
-        console.warn("Équipes & Marchés: Erreur de lecture des commandes réelles:", err);
-      }
-    );
-    return () => unsub();
-  }, [workspaceId]);
-
-  const selectedTeam = useMemo(
-    () => teams.find((t) => t.id === selectedTeamId) ?? null,
-    [teams, selectedTeamId]
-  );
-
-  // Métriques de l'équipe sélectionnée
-  const teamMetrics = useMemo(() => {
-    if (!selectedTeam) {
-      return {
-        ordersCount: realOrders.length,
-        deliveredCount: realOrders.filter((o) =>
-          ["livre", "livree", "encaisse", "solde"].includes((o.status || "").toLowerCase())
-        ).length,
-        deliveryRate: realOrders.length
-          ? Math.round(
-              (realOrders.filter((o) =>
-                ["livre", "livree", "encaisse", "solde"].includes((o.status || "").toLowerCase())
-              ).length /
-                realOrders.length) *
-                100
-            )
-          : 0,
-        cashTotal: realOrders
-          .filter((o) =>
-            ["livre", "livree", "encaisse", "solde"].includes((o.status || "").toLowerCase())
-          )
-          .reduce((sum, o) => sum + (o.montant || o.totalPrice || 0), 0),
-      };
-    }
-
-    const teamOrders = realOrders.filter((o) => o.teamId === selectedTeam.id);
-    const delivered = teamOrders.filter((o) =>
-      ["livre", "livree", "encaisse", "solde"].includes((o.status || "").toLowerCase())
-    );
-    const rate = teamOrders.length ? Math.round((delivered.length / teamOrders.length) * 100) : 0;
-    const cash = delivered.reduce((sum, o) => sum + (o.montant || o.totalPrice || 0), 0);
-
-    return {
-      ordersCount: teamOrders.length,
-      deliveredCount: delivered.length,
-      deliveryRate: rate,
-      cashTotal: cash,
-    };
-  }, [realOrders, selectedTeam]);
-
-  // Distribution par région administrative
-  const regionalDistribution = useMemo(() => {
-    if (!selectedTeam) return [];
-    const iso3 = COUNTRY_ISO2_TO_ISO3[selectedTeam.defaultCountry] || "TGO";
-    const regions = AFRICA_GEO.r[iso3] || [];
-    const teamOrders = realOrders.filter((o) => o.teamId === selectedTeam.id);
-
-    return regions.map((r, idx) => {
-      const ordersInRegion = teamOrders.filter((ord) => {
-        const city = (ord.ville || ord.quartier || "").toLowerCase();
-        const cities = AFRICA_GEO.ct[iso3] || [];
-        return cities.some(
-          ([cityName, , , rIdx]) => rIdx === idx && (city.includes(cityName.toLowerCase()) || cityName.toLowerCase().includes(city))
-        );
-      }).length;
-
-      const share = teamOrders.length > 0 ? ordersInRegion / teamOrders.length : 0.15;
-      const estimatedDeliveryTime = Math.min(90, Math.max(20, Math.round(25 + idx * 8 + (1 - share) * 35)));
-
-      return {
-        index: idx,
-        name: r.n,
-        ordersCount: ordersInRegion,
-        share,
-        estimatedDeliveryTime,
-      };
-    });
-  }, [selectedTeam, realOrders]);
-
-  // Événements récents
-  const recentEvents = useMemo(() => {
-    const list = selectedTeam
-      ? realOrders.filter((o) => o.teamId === selectedTeam.id).slice(0, 5)
-      : realOrders.slice(0, 5);
-
-    return list.map((o) => {
-      const isDelivered = ["livre", "livree", "encaisse", "solde"].includes(
-        (o.status || "").toLowerCase()
-      );
-      const isRejected = ["annule", "refuse", "injoignable", "retourne"].includes(
-        (o.status || "").toLowerCase()
-      );
-      const color = isDelivered ? "#10b981" : isRejected ? "#f43f5e" : "#f59e0b";
-      const statusLabel = isDelivered ? "Livrée & Encaissée" : isRejected ? "Annulée / Rejet" : "En cours";
-      const cityName = o.ville || o.quartier || "Lomé";
-      const timeStr = o.timestamps?.received
-        ? new Date(o.timestamps.received).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-        : "12:45";
-
-      return {
-        id: o.id,
-        text: `${o.trackingNumber || `#${o.id.slice(-4)}`} · ${cityName} (${statusLabel})`,
-        time: timeStr,
-        color,
-      };
-    });
-  }, [realOrders, selectedTeam]);
-
-  // Équipes du même pays
-  const peerTeams = useMemo(() => {
-    if (!selectedTeam) return [];
-    return teams.filter(
-      (t) => t.defaultCountry === selectedTeam.defaultCountry && t.id !== selectedTeam.id
-    );
-  }, [selectedTeam, teams]);
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? teams[0] ?? null;
 
   return (
-    <div className="space-y-6">
-      {/* 1. En-tête Principal Dé-dupliqué */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+    <div className="space-y-5">
+      {/* Top Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Équipes &amp; Marchés COD
+          <h2 className="text-sm font-semibold text-slate-200">
+            Cartographie des Marchés ({teams.length})
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Supervision panafricaine, dispatch des flux par localisation et synchronisation des tableurs Google Sheets.
+          <p className="text-xs text-slate-500">
+            Supervisez les équipes pays et synchronisez vos feuilles de commandes Google Sheets en temps réel.
           </p>
         </div>
-
-        {/* KPIs Panafricains & Action Créer */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-2">
-            <div className="rounded-xl border border-surface-border bg-surface-raised px-3 py-1.5 text-center">
-              <span className="block text-base font-bold tabular-nums text-slate-900 dark:text-white">
-                {teams.length}
-              </span>
-              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Équipes</span>
-            </div>
-            <div className="rounded-xl border border-surface-border bg-surface-raised px-3 py-1.5 text-center">
-              <span className="block text-base font-bold tabular-nums text-slate-900 dark:text-white">
-                {new Set(teams.map((t) => t.defaultCountry)).size}
-              </span>
-              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Pays actifs</span>
-            </div>
-            <div className="rounded-xl border border-surface-border bg-surface-raised px-3 py-1.5 text-center">
-              <span className="block text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-                {realOrders.length}
-              </span>
-              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Commandes</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-brand-hover transition"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Nouveau marché</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover"
+        >
+          <Plus className="h-4 w-4" />
+          Nouveau marché
+        </button>
       </div>
 
-      {/* 2. Rail Horizontal de Navigation des Équipes */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedTeamId(null);
-            setSelectedRegionIndex(null);
-          }}
-          className={`flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all ${
-            selectedTeamId === null
-              ? "border-brand bg-brand/10 text-brand shadow-sm ring-1 ring-brand"
-              : "border-surface-border bg-surface-raised text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500"
-          }`}
-        >
-          <span className="text-base">🌍</span>
-          <span>Toute l’Afrique</span>
-        </button>
-
-        {teams.map((t) => {
-          const isSel = selectedTeamId === t.id;
-          const orderCount = realOrders.filter((o) => o.teamId === t.id).length;
-          const hasLiveFeed = !!shopifyByTeam[t.id] || t.sheetIds.length > 0;
+      {/* Geographic Team Cards Grid */}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        {teams.map((team) => {
+          const country = countryFor(team.defaultCountry);
+          const meta = getCountryMeta(team.defaultCountry);
+          const isSelected = team.id === (selectedTeam?.id ?? null);
+          const shopifyInfo = shopifyByTeam[team.id] ?? null;
 
           return (
             <button
-              key={t.id}
-              type="button"
-              onClick={() => {
-                setSelectedTeamId(t.id);
-                setSelectedRegionIndex(null);
-              }}
-              className={`flex shrink-0 items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-all ${
-                isSel
-                  ? "border-brand bg-brand/10 text-brand shadow-sm ring-1 ring-brand"
-                  : "border-surface-border bg-surface-raised text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500"
+              key={team.id}
+              onClick={() => setSelectedTeamId(team.id)}
+              className={`relative overflow-hidden rounded-2xl border p-4 text-left transition-all ${
+                isSelected
+                  ? "border-brand bg-brand-light ring-1 ring-brand shadow-md"
+                  : "border-surface-border bg-surface-raised hover:border-slate-600"
               }`}
             >
-              <span className="text-base">{flagFor(t.defaultCountry)}</span>
-              <span>{t.name}</span>
-              <span className="rounded-full bg-slate-200 dark:bg-slate-700/60 px-1.5 py-0.2 text-[10px] tabular-nums font-bold text-slate-600 dark:text-slate-300">
-                {orderCount}
-              </span>
-              <span
-                className={`h-2 w-2 rounded-full ${hasLiveFeed ? "bg-emerald-500" : "bg-amber-500"}`}
-                title={hasLiveFeed ? "Flux de données connecté" : "À connecter"}
-              />
+              <CountryMapBackdrop countryCode={team.defaultCountry} />
+
+              <div className="relative z-10 flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  {country && (
+                    <img
+                      src={flagUrl(country.code)}
+                      alt={country.name}
+                      className="h-4 w-5 rounded object-cover shadow-sm"
+                    />
+                  )}
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-100">{team.name}</h3>
+                    <p className="text-[10px] text-slate-400">
+                      Devise : <span className="font-semibold text-slate-300">{team.currency}</span>
+                    </p>
+                  </div>
+                </div>
+                {isSelected && (
+                  <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[9.5px] font-bold text-brand">
+                    Actif
+                  </span>
+                )}
+              </div>
+
+              <div className="relative z-10 mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-surface-border/60 pt-2.5">
+                <div className="flex items-center gap-1.5">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>{team.sheetIds.length} tableurs connectés</span>
+                </div>
+                {shopifyInfo && (
+                  <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-300">
+                    Shopify
+                  </span>
+                )}
+              </div>
             </button>
           );
         })}
       </div>
 
-      {/* 3. Cockpit Supérieur Interactif (Carte Afrique & Volet Télémétrique) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Colonne Gauche : Carte Interactive */}
-        <div className="lg:col-span-7 xl:col-span-8">
-          <AfricaInteractiveMap
-            teams={teams}
-            selectedTeam={selectedTeam}
-            onSelectTeam={(tId) => setSelectedTeamId(tId)}
-            selectedRegionIndex={selectedRegionIndex}
-            onSelectRegionIndex={(rIdx) => setSelectedRegionIndex(rIdx)}
-            orders={realOrders}
-          />
-        </div>
-
-        {/* Colonne Droite : Télémétrie Opérationnelle */}
-        <div className="lg:col-span-5 xl:col-span-4 space-y-4">
-          {selectedTeam ? (
-            <>
-              {/* Carte 1 : Identité & Métriques Terrain */}
-              <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-sm space-y-3.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand/10 text-2xl">
-                      {flagFor(selectedTeam.defaultCountry)}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                        {selectedTeam.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {countryFor(selectedTeam.defaultCountry)?.name} · Devise{" "}
-                        <span className="font-bold text-slate-800 dark:text-slate-200">
-                          {selectedTeam.currency}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/30">
-                    Opérationnel
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  {shopifyByTeam[selectedTeam.id] ? (
-                    <span className="rounded-md bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-600 dark:text-sky-300 border border-sky-500/20">
-                      ● Shopify temps réel
-                    </span>
-                  ) : (
-                    <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                      ● Shopify en veille
-                    </span>
-                  )}
-                  {selectedTeam.sheetIds.length > 0 && (
-                    <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300 border border-emerald-500/20">
-                      {selectedTeam.sheetIds.length} tableur{selectedTeam.sheetIds.length > 1 ? "s" : ""}
-                    </span>
-                  )}
-                </div>
-
-                {/* 3 Ratios Financiers & Volume */}
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                  <div className="rounded-xl border border-surface-border bg-surface px-2.5 py-2 text-center">
-                    <span className="block text-base font-bold tabular-nums text-slate-900 dark:text-white">
-                      {teamMetrics.ordersCount}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Commandes</span>
-                  </div>
-                  <div className="rounded-xl border border-surface-border bg-surface px-2.5 py-2 text-center">
-                    <span className="block text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-                      {teamMetrics.deliveryRate}%
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Livrées</span>
-                  </div>
-                  <div className="rounded-xl border border-surface-border bg-surface px-2.5 py-2 text-center">
-                    <span className="block text-base font-bold tabular-nums text-slate-900 dark:text-white">
-                      {teamMetrics.cashTotal.toLocaleString("fr-FR")}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">Encaissé ({selectedTeam.currency})</span>
-                  </div>
-                </div>
-
-                {/* Équipes similaires du même pays */}
-                {peerTeams.length > 0 && (
-                  <div className="pt-2 border-t border-surface-border/60">
-                    <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-                      Autres équipes en {countryFor(selectedTeam.defaultCountry)?.name} :
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {peerTeams.map((pt) => (
-                        <button
-                          key={pt.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedTeamId(pt.id);
-                            setSelectedRegionIndex(null);
-                          }}
-                          className="flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:border-brand transition"
-                        >
-                          <span>{flagFor(pt.defaultCountry)}</span>
-                          <span>{pt.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Carte 2 : Flux par Localisation */}
-              <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Flux par localisation
-                  </h4>
-                  <span className="text-[11px] font-bold text-slate-500">
-                    {regionalDistribution.length} zones
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Touchez une zone sur la carte pour zoomer sur sa zone d'action et filtrer son activité terrain.
-                </p>
-
-                <div className="space-y-1.5">
-                  {regionalDistribution.slice(0, 5).map((z) => (
-                    <button
-                      key={z.index}
-                      type="button"
-                      onClick={() =>
-                        setSelectedRegionIndex(selectedRegionIndex === z.index ? null : z.index)
-                      }
-                      className={`w-full rounded-xl border p-2 text-left transition-all ${
-                        selectedRegionIndex === z.index
-                          ? "border-brand bg-brand/10 ring-1 ring-brand"
-                          : "border-surface-border bg-surface hover:border-slate-400 dark:hover:border-slate-500"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        <span className="text-slate-900 dark:text-white">{z.name}</span>
-                        <span className="text-[11px] tabular-nums text-slate-500">
-                          {z.ordersCount} cmd · ~{z.estimatedDeliveryTime} min
-                        </span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-brand transition-all duration-500"
-                          style={{ width: `${Math.max(8, Math.round(z.share * 100))}%` }}
-                        />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {selectedRegionIndex !== null && (
-                  <div className="rounded-xl border border-dashed border-brand/40 bg-brand/5 p-3 text-xs space-y-1">
-                    <p className="font-bold text-brand">
-                      {regionalDistribution[selectedRegionIndex]?.name}
-                    </p>
-                    <p className="text-slate-600 dark:text-slate-300 text-[11px]">
-                      {getCitiesForRegion(selectedTeam.defaultCountry, selectedRegionIndex)}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedRegionIndex(null)}
-                      className="mt-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline"
-                    >
-                      Voir toutes les zones
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Carte 3 : Trafic d'Opérations en Direct */}
-              <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Trafic d’opérations
-                  </h4>
-                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                    En direct
-                  </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  {recentEvents.map((e) => (
-                    <div
-                      key={e.id}
-                      className="flex items-center justify-between rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs"
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: e.color }} />
-                        <span className="truncate text-slate-800 dark:text-slate-200">{e.text}</span>
-                      </div>
-                      <span className="shrink-0 text-[11px] tabular-nums text-slate-400">{e.time}</span>
-                    </div>
-                  ))}
-                  {recentEvents.length === 0 && (
-                    <p className="text-center text-xs text-slate-500 py-3">
-                      En attente des premières commandes synchronisées
-                    </p>
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            /* Mode Toute l'Afrique : Carte d'orientation globale */
-            <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-sm space-y-4">
-              <div className="text-center space-y-2 py-4">
-                <div className="text-3xl">🌍</div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Vue Panafricaine WariTrack
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
-                  Sélectionnez une équipe dans la barre supérieure ou cliquez sur un pays pour zoomer sur sa zone d'action et gérer ses tableurs.
-                </p>
-              </div>
-
-              <div className="space-y-2 pt-2 border-t border-surface-border">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Marchés actifs</p>
-                {teams.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTeamId(t.id);
-                      setSelectedRegionIndex(null);
-                    }}
-                    className="w-full flex items-center justify-between rounded-xl border border-surface-border bg-surface p-2.5 text-xs font-semibold hover:border-brand transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{flagFor(t.defaultCountry)}</span>
-                      <span className="text-slate-800 dark:text-slate-200">{t.name}</span>
-                    </div>
-                    <span className="text-[11px] text-slate-500">
-                      {countryFor(t.defaultCountry)?.name} · {t.sheetIds.length} tableurs
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 4. Section Inférieure : Gestionnaire Réel des Tableurs Google Sheets & Connecteurs */}
+      {/* Selected Team Details & Google Sheets Manager */}
       {selectedTeam && (
         <TeamDetail
           key={selectedTeam.id}
@@ -666,7 +218,30 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
   );
 }
 
-// Composant de Gestion Réelle des Tableurs Google Sheets pour l'équipe
+interface TestResult {
+  success: boolean;
+  serviceEmail: string;
+  title?: string;
+  sheetName?: string;
+  columnsCount?: number;
+  totalRows?: number;
+  statusColCreated?: boolean;
+  statusColLetter?: string;
+  detectedColumns?: {
+    phone: boolean;
+    clientName: boolean;
+    city: boolean;
+    product: boolean;
+    amount: boolean;
+    quantity: boolean;
+    status: boolean;
+    livreur: boolean;
+    updatedAt: boolean;
+  };
+  message: string;
+  errorCode?: string;
+}
+
 function TeamDetail({
   workspaceId,
   team,
@@ -687,6 +262,33 @@ function TeamDetail({
   const [confirmRemoveSheetId, setConfirmRemoveSheetId] = useState<string | null>(null);
   const [confirmDisconnectShopify, setConfirmDisconnectShopify] = useState(false);
 
+  const handleDisconnectShopify = async () => {
+    if (!shopifyDetail) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const db = getDb();
+      const connRef = doc(db, "workspaces", workspaceId, "shopifyConnections", shopifyDetail.connectionId);
+      if (shopifyDetail.isOwner) {
+        await updateDoc(connRef, {
+          status: "inactive",
+          ownerTeamId: "",
+        });
+      } else if (shopifyDetail.countryCode) {
+        await updateDoc(connRef, {
+          [`countryRoutes.${shopifyDetail.countryCode}.assignedTeamId`]: "",
+          [`countryRoutes.${shopifyDetail.countryCode}.status`]: "inactive",
+        });
+      }
+      setConfirmDisconnectShopify(false);
+    } catch (err) {
+      const formatted = formatFirebaseError(err);
+      setError(`${formatted.title} : ${formatted.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const teamRef = () => doc(getDb(), "workspaces", workspaceId, "teams", team.id);
 
   const handleCopyEmail = () => {
@@ -700,7 +302,7 @@ function TeamDetail({
     setTestResult(null);
     const id = extractSheetId(sheetInput);
     if (!id) {
-      setError("ID ou URL Google Sheets invalide. Collez le lien complet de votre tableur.");
+      setError("ID ou URL Google Sheets invalide. Veuillez coller le lien complet de votre tableur.");
       return;
     }
 
@@ -772,319 +374,384 @@ function TeamDetail({
     }
   };
 
-  const handleDisconnectShopify = async () => {
-    if (!shopifyDetail) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const db = getDb();
-      const connRef = doc(db, "workspaces", workspaceId, "shopifyConnections", shopifyDetail.connectionId);
-      if (shopifyDetail.isOwner) {
-        await updateDoc(connRef, {
-          status: "inactive",
-          ownerTeamId: "",
-        });
-      } else if (shopifyDetail.countryCode) {
-        await updateDoc(connRef, {
-          [`countryRoutes.${shopifyDetail.countryCode}.assignedTeamId`]: "",
-          [`countryRoutes.${shopifyDetail.countryCode}.status`]: "inactive",
-        });
-      }
-      setConfirmDisconnectShopify(false);
-    } catch (err) {
-      const formatted = formatFirebaseError(err);
-      setError(`${formatted.title} : ${formatted.message}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
-    <div className="space-y-4 pt-2">
-      <div className="flex items-center gap-2 border-b border-surface-border pb-2.5">
-        <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
-        <h3 className="text-base font-bold text-slate-900 dark:text-white">
-          Gestionnaire Google Sheets &amp; Shopify — {team.name}
-        </h3>
-      </div>
-
-      {error && (
-        <div className="flex items-start gap-2.5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3.5 text-xs text-rose-600 dark:text-rose-300">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500 mt-0.5" />
-          <div className="flex-1">{error}</div>
-          <button type="button" onClick={() => setError(null)} className="text-rose-400 hover:text-rose-600">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {/* 1. Carte Compte de Service Robot WariTrack */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 space-y-4">
+    <div className="space-y-5">
+      {/* 1. Carte Officielle du Compte de Service WariTrack */}
+      <div className="rounded-2xl border border-indigo-500/25 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-sky-500/10 p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-300">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                  Synchronisation Google Sheets 24h/24 via Compte de Service
+                <h4 className="text-sm font-bold text-slate-100">
+                  Connexion Immédiate par Compte de Service (Méthode A)
                 </h4>
-                <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/30">
-                  Actif 24/7
+                <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  24h/24 Actif
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Donnez l'accès « Éditeur » à notre robot pour synchroniser vos commandes automatiquement.
+              <p className="text-xs text-slate-400 mt-0.5">
+                Zéro validation Google requise, aucune expiration de token au bout de 7 jours, synchronisation automatique continue.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-3 py-2">
-            <code className="text-xs font-mono text-slate-700 dark:text-slate-300 select-all">
+          {/* Bouton de copie de l'adresse robot */}
+          <div className="flex items-center gap-2 bg-surface/80 border border-surface-border rounded-xl p-1.5 shrink-0">
+            <span className="font-mono text-xs text-slate-200 px-2 select-all truncate max-w-[240px] sm:max-w-none">
               {SERVICE_ACCOUNT_EMAIL}
-            </code>
+            </span>
             <button
               type="button"
               onClick={handleCopyEmail}
-              className="inline-flex items-center gap-1 rounded-lg bg-brand px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-brand-hover"
+              className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:opacity-95 transition shrink-0"
             >
-              {copiedEmail ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              <span>{copiedEmail ? "Copié !" : "Copier"}</span>
+              {copiedEmail ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-300" />
+                  <span>Copié !</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copier</span>
+                </>
+              )}
             </button>
           </div>
         </div>
 
         {/* 4 Étapes Visuelles de Configuration */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 pt-1">
-          <div className="rounded-xl border border-surface-border bg-surface p-3 text-xs space-y-1">
-            <span className="inline-block rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[10px] font-bold">Étape 1</span>
-            <p className="font-semibold text-slate-800 dark:text-slate-200">Ouvrez votre tableur</p>
-            <p className="text-[11px] text-slate-500">Accédez à votre fichier Google Sheets.</p>
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 1
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Ouvrez votre tableur Google Sheets</p>
           </div>
-          <div className="rounded-xl border border-surface-border bg-surface p-3 text-xs space-y-1">
-            <span className="inline-block rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[10px] font-bold">Étape 2</span>
-            <p className="font-semibold text-slate-800 dark:text-slate-200">Cliquez sur « Partager »</p>
-            <p className="text-[11px] text-slate-500">Le bouton bleu en haut à droite de Sheets.</p>
+
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 2
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Cliquez sur <strong className="text-sky-300">Partager</strong> (en haut à droite)</p>
           </div>
-          <div className="rounded-xl border border-surface-border bg-surface p-3 text-xs space-y-1">
-            <span className="inline-block rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[10px] font-bold">Étape 3</span>
-            <p className="font-semibold text-slate-800 dark:text-slate-200">Ajoutez le robot</p>
-            <p className="text-[11px] text-slate-500">Collez l'email ci-dessus avec le rôle Éditeur.</p>
+
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 3
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Collez l'adresse robot en rôle <strong className="text-emerald-300">Éditeur</strong></p>
           </div>
-          <div className="rounded-xl border border-surface-border bg-surface p-3 text-xs space-y-1">
-            <span className="inline-block rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[10px] font-bold">Étape 4</span>
-            <p className="font-semibold text-slate-800 dark:text-slate-200">Collez le lien ci-dessous</p>
-            <p className="text-[11px] text-slate-500">Testez puis validez la synchronisation.</p>
+
+          <div className="rounded-xl border border-surface-border bg-surface/50 p-2.5">
+            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block mb-1">
+              Étape 4
+            </span>
+            <p className="text-xs text-slate-300 font-medium">Collez l'URL ci-dessous et lancez le <strong className="text-amber-300">Test</strong></p>
           </div>
         </div>
       </div>
 
-      {/* 2. Formulaire d'Ajout & Test de Tableur */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 space-y-3.5">
-        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-          Rattacher un nouveau Google Sheets à {team.name}
-        </h4>
-
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            value={sheetInput}
-            onChange={(e) => setSheetInput(e.target.value)}
-            placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-            className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs text-slate-900 dark:text-white outline-none placeholder:text-slate-400 focus:border-brand"
-            disabled={busy || testing}
-          />
-          <button
-            type="button"
-            onClick={handleTestConnection}
-            disabled={testing || !sheetInput.trim()}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-brand transition disabled:opacity-40"
-          >
-            {testing ? <RefreshCw className="h-4 w-4 animate-spin text-brand" /> : <Clock className="h-4 w-4 text-slate-400" />}
-            <span>{testing ? "Test en cours..." : "Tester l'accès"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleAddSheet}
-            disabled={busy || !sheetInput.trim()}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white hover:bg-brand-hover transition disabled:opacity-40"
-          >
-            {busy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            <span>Rattacher le tableur</span>
-          </button>
-        </div>
-
-        {/* Aperçu du test de connexion avec détection de colonnes */}
-        {testResult && (
-          <div
-            className={`rounded-xl border p-4 text-xs space-y-2.5 ${
-              testResult.success
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-                : "border-rose-500/30 bg-rose-500/10 text-rose-800 dark:text-rose-200"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 font-bold">
-                {testResult.success ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                ) : (
-                  <AlertTriangle className="h-4 w-4 text-rose-500" />
-                )}
-                <span>
-                  {testResult.success
-                    ? `Accès validé : « ${testResult.title || "Tableur Google"} »`
-                    : "Échec de connexion au tableur"}
-                </span>
+      {shopifyDetail && (
+        <div className="rounded-2xl border border-brand/30 bg-brand/10 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/20 text-brand">
+                <Store className="h-4 w-4" />
               </div>
-              {testResult.totalRows !== undefined && (
-                <span className="font-mono text-[11px]">
-                  {testResult.totalRows} lignes détectées
-                </span>
-              )}
+              <div>
+                <h4 className="text-xs font-semibold text-slate-100">
+                  Flux Temps Réel Shopify Actif — {shopifyDetail.label}
+                </h4>
+                <p className="mt-1 text-xs leading-relaxed text-slate-300">
+                  Les commandes de <strong>{team.name}</strong> arrivent directement par webhook Shopify. La synchronisation Google Sheets est mise en veille pour éviter les doublons.
+                </p>
+              </div>
             </div>
 
-            <p className="text-[11px] opacity-90">{testResult.message}</p>
+            <button
+              type="button"
+              onClick={() => setConfirmDisconnectShopify(true)}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/35 bg-rose-500/15 px-3.5 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/25 transition shadow-sm shrink-0"
+              title="Déconnecter le flux Shopify pour ce marché et réactiver Google Sheets"
+            >
+              <Unlink className="h-3.5 w-3.5" />
+              <span>Déconnecter Shopify</span>
+            </button>
+          </div>
+        </div>
+      )}
 
-            {testResult.detectedColumns && (
-              <div className="pt-2 border-t border-emerald-500/20 space-y-1.5">
-                <p className="font-semibold text-[11px]">Colonnes analysées par WariTrack :</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(testResult.detectedColumns).map(([col, detected]) => (
-                    <span
-                      key={col}
-                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        detected
-                          ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
-                          : "bg-slate-200 dark:bg-slate-700/60 text-slate-500"
-                      }`}
-                    >
-                      {detected ? "✓" : "—"} {col}
-                    </span>
-                  ))}
+      {/* 2. Gestionnaire des Tableurs Connectés */}
+      <div
+        className={`rounded-2xl border border-surface-border bg-surface-raised p-5 transition-opacity ${
+          shopifyActiveInfo ? "opacity-65" : ""
+        }`}
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <FileSpreadsheet className="h-5 w-5 text-emerald-400" />
+            <div>
+              <h3 className="text-sm font-bold text-slate-100">
+                Tableurs Google Sheets — {team.name}
+              </h3>
+              <p className="text-xs text-slate-400">
+                WariTrack numérise automatiquement les colonnes de votre feuille et crée la colonne statut en temps réel si elle n'existe pas.
+              </p>
+            </div>
+          </div>
+          <span className="rounded-lg border border-surface-border bg-surface px-2.5 py-1 font-mono text-xs text-slate-400">
+            {team.sheetIds.length} / {MAX_SHEETS_PER_TEAM} tableurs
+          </span>
+        </div>
+
+        {team.sheetIds.length === 0 ? (
+          <div className="mb-4 rounded-xl border border-dashed border-surface-border bg-surface/40 p-6 text-center">
+            <p className="text-xs text-slate-400">
+              Aucun tableur Google Sheets rattaché à {team.name}. Collez l'URL d'un tableur pour démarrer.
+            </p>
+          </div>
+        ) : (
+          <ul className="mb-4 space-y-2">
+            {team.sheetIds.map((id, idx) => (
+              <li
+                key={id}
+                className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-surface-border bg-surface/60 px-3.5 py-2.5 text-xs"
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 font-mono text-[11px] font-bold text-emerald-400">
+                    #{idx + 1}
+                  </span>
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${id}/edit`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 items-center gap-1.5 truncate font-mono text-slate-200 hover:text-brand"
+                  >
+                    <span className="truncate">{id}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0 text-slate-500" />
+                  </a>
                 </div>
+                <button
+                  disabled={busy}
+                  onClick={() => setConfirmRemoveSheetId(id)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Retirer
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Formulaire de saisie & Test de synchronisation */}
+        {team.sheetIds.length < MAX_SHEETS_PER_TEAM && (
+          <div className="space-y-3 pt-1">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={sheetInput}
+                disabled={busy || !!shopifyActiveInfo || testing}
+                onChange={(e) => setSheetInput(e.target.value)}
+                placeholder={
+                  shopifyActiveInfo
+                    ? "Désactivé tant que le flux Shopify est actif"
+                    : "Collez le lien : https://docs.google.com/spreadsheets/d/1BxiMVs.../edit"
+                }
+                className="flex-1 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand disabled:opacity-50"
+              />
+              
+              {/* Bouton Diagnostic / Test */}
+              <button
+                disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
+                onClick={handleTestConnection}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-xs font-bold text-indigo-300 hover:bg-indigo-500/20 transition disabled:opacity-40"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${testing ? "animate-spin" : ""}`} />
+                {testing ? "Analyse en direct…" : "Tester les Colonnes"}
+              </button>
+
+              {/* Bouton Connexion directe */}
+              <button
+                disabled={busy || !sheetInput.trim() || !!shopifyActiveInfo || testing}
+                onClick={handleAddSheet}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Connecter le Sheet
+              </button>
+            </div>
+
+            {/* Résultat du Test de Connexion & Numérisation des colonnes */}
+            {testResult && (
+              <div
+                className={`rounded-2xl border p-4 text-xs space-y-3 animate-in fade-in duration-200 ${
+                  testResult.success
+                    ? "border-emerald-500/30 bg-emerald-500/5 text-slate-200"
+                    : "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {testResult.success ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0" />
+                    )}
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-100">
+                        {testResult.success
+                          ? `Feuille validée : "${testResult.title}"`
+                          : "Échec de connexion au Google Sheet"}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{testResult.message}</p>
+                    </div>
+                  </div>
+
+                  {testResult.success && sheetInput.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = extractSheetId(sheetInput);
+                        if (id) handleAddSheetWithId(id);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-500 transition shrink-0"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Valider &amp; Rattacher
+                    </button>
+                  )}
+                </div>
+
+                {testResult.success && testResult.detectedColumns && (
+                  <div className="rounded-xl border border-surface-border bg-surface/70 p-3 space-y-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                      Numérisation des colonnes détectées sur la feuille :
+                    </span>
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.phone
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.phone ? "✓ Téléphone Client" : "— Téléphone"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.clientName
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.clientName ? "✓ Nom du Client" : "— Nom"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.city
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.city ? "✓ Ville / Adresse" : "— Adresse"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.product
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.product ? "✓ Produit Commandé" : "— Produit"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.amount
+                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {testResult.detectedColumns.amount ? "✓ Montant COD" : "— Montant"}
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.status
+                            ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        ✓ Colonne Statut ({testResult.statusColLetter || "WariTrack"})
+                      </span>
+
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 font-semibold ${
+                          testResult.detectedColumns.livreur
+                            ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        ✓ Livreur Assigné
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
-      </div>
 
-      {/* 3. Liste des Tableurs Connectés à cette Équipe */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-            Tableurs actifs rattachés ({team.sheetIds.length}/{MAX_SHEETS_PER_TEAM})
-          </h4>
-          <span className="text-xs text-slate-500">Dispatch automatique des commandes entrantes</span>
-        </div>
-
-        {team.sheetIds.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-surface-border p-6 text-center text-xs text-slate-500">
-            Aucun tableur Google Sheets rattaché à {team.name} pour le moment. Collez un lien ci-dessus pour démarrer.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {team.sheetIds.map((id, index) => (
-              <div
-                key={id}
-                className="flex items-center justify-between rounded-xl border border-surface-border bg-surface p-3 text-xs"
-              >
-                <div className="flex items-center gap-2.5 truncate">
-                  <FileSpreadsheet className="h-4 w-4 shrink-0 text-emerald-500" />
-                  <div className="truncate">
-                    <span className="font-bold text-slate-800 dark:text-slate-200">Tableur #{index + 1}</span>
-                    <span className="ml-2 font-mono text-[11px] text-slate-400 truncate">{id}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <a
-                    href={`https://docs.google.com/spreadsheets/d/${id}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface-raised px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:border-brand transition"
-                  >
-                    <span>Ouvrir</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmRemoveSheetId(id)}
-                    className="rounded-lg border border-surface-border bg-surface-raised p-1.5 text-slate-400 hover:border-rose-500 hover:text-rose-500 transition"
-                    title="Dissocier ce tableur"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+        {error && (
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+            <span>{error}</span>
           </div>
         )}
       </div>
 
-      {/* 4. Statut Shopify du Marché */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 space-y-2.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Store className="h-4 w-4 text-sky-500" />
-            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-              Liaison Boutique Shopify
-            </h4>
-          </div>
-          {shopifyActiveInfo ? (
-            <span className="rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-300 px-2.5 py-0.5 text-xs font-semibold border border-sky-500/30">
-              ● Connecté
-            </span>
-          ) : (
-            <span className="rounded-full bg-slate-200 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 px-2.5 py-0.5 text-xs font-medium">
-              Non configuré pour ce marché
-            </span>
-          )}
+      {/* 3. Note Architecturale : Transition Production OAuth 2.0 */}
+      <div className="rounded-2xl border border-surface-border bg-surface p-4 flex items-start gap-3 text-xs text-slate-400">
+        <Info className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
+        <div>
+          <strong className="text-slate-200">Évolution vers la Méthode B (OAuth 2.0 &amp; Refresh Token) :</strong>{" "}
+          Le socle technique WariTrack intègre la double architecture. Le compte de service est actif et opérationnel immédiatement sans aucune contrainte de quota ou de validation Google. Le flux OAuth 2.0 (avec écran de consentement Google et rafraîchissement automatique de token offline) sera déployé en option cette semaine pour les marchands préférant le bouton 1-clic « Se connecter avec Google ».
         </div>
-
-        {shopifyActiveInfo ? (
-          <div className="flex items-center justify-between rounded-xl border border-surface-border bg-surface p-3 text-xs">
-            <span className="font-semibold text-slate-800 dark:text-slate-200">{shopifyActiveInfo}</span>
-            <button
-              type="button"
-              onClick={() => setConfirmDisconnectShopify(true)}
-              className="text-xs font-semibold text-rose-500 hover:text-rose-600 transition"
-            >
-              Dissocier
-            </button>
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Pour connecter une boutique Shopify à cette équipe ou router des flux pays, rendez-vous dans l'onglet{" "}
-            <span className="font-semibold text-slate-700 dark:text-slate-300">Paramètres &amp; Flux</span>.
-          </p>
-        )}
       </div>
-
-      {/* Boîtes de Dialogue de Confirmation */}
-      <ConfirmDialog
-        open={confirmRemoveSheetId !== null}
-        title="Dissocier ce tableur Google Sheets"
-        message="Êtes-vous sûr de vouloir retirer ce tableur ? Les commandes déjà enregistrées resteront dans WariTrack, mais les nouvelles lignes ne seront plus synchronisées."
-        confirmLabel="Dissocier le tableur"
-        danger={true}
-        onConfirm={() => {
-          if (confirmRemoveSheetId) {
-            handleRemoveSheet(confirmRemoveSheetId);
-            setConfirmRemoveSheetId(null);
-          }
-        }}
-        onCancel={() => setConfirmRemoveSheetId(null)}
-      />
 
       <ConfirmDialog
         open={confirmDisconnectShopify}
-        title="Dissocier le flux Shopify de ce marché"
-        message="Voulez-vous vraiment désactiver le flux Shopify pour cette équipe ? Les commandes Shopify vers ce pays ne seront plus routées vers ce marché."
-        confirmLabel="Dissocier Shopify"
+        title="Déconnecter le flux Shopify de ce marché ?"
+        message={`Voulez-vous vraiment déconnecter la boutique Shopify (${shopifyDetail?.shopDomain || ""}) de l'équipe ${team.name} ? La synchronisation Google Sheets sera immédiatement réactivée et vous pourrez reconnecter votre boutique à tout moment.`}
+        confirmLabel="Déconnecter Shopify"
         danger={true}
+        loading={busy}
         onConfirm={handleDisconnectShopify}
         onCancel={() => setConfirmDisconnectShopify(false)}
+      />
+
+      <ConfirmDialog
+        open={!!confirmRemoveSheetId}
+        title="Retirer ce tableur Google Sheets ?"
+        message={`Le tableur ${confirmRemoveSheetId ? confirmRemoveSheetId.slice(0, 18) + "…" : ""} ne sera plus synchronisé avec l'équipe ${team.name}. Les nouvelles lignes ajoutées dans ce fichier ne remonteront plus.`}
+        confirmLabel="Retirer le tableur"
+        danger={true}
+        loading={busy}
+        onConfirm={async () => {
+          if (!confirmRemoveSheetId) return;
+          const target = confirmRemoveSheetId;
+          setConfirmRemoveSheetId(null);
+          await handleRemoveSheet(target);
+        }}
+        onCancel={() => setConfirmRemoveSheetId(null)}
       />
     </div>
   );
