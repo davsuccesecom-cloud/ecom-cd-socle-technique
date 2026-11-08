@@ -103,8 +103,12 @@ export function useRegisterPushNotifications(
           clearTimeout(retryTimeoutId);
           retryTimeoutId = null;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("useRegisterPushNotifications: erreur lors de l'enregistrement du token FCM:", err);
+        if (err?.name === "SecurityError" || String(err?.message || "").includes("redirect")) {
+          console.warn("useRegisterPushNotifications: ServiceWorker interdit via redirection de domaine. Arret des relances.");
+          return;
+        }
         scheduleRetry();
       }
     };
