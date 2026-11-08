@@ -50,18 +50,65 @@ function sha256(str) {
         .digest("hex");
 }
 const AFRICAN_DIAL_CODES = {
+    // Afrique de l'Ouest (16 pays)
     BJ: "229", // Bénin
-    TG: "228", // Togo
-    CI: "225", // Côte d'Ivoire
-    SN: "221", // Sénégal
-    CM: "237", // Cameroun
-    ML: "223", // Mali
-    GN: "224", // Guinée
     BF: "226", // Burkina Faso
+    CV: "238", // Cap-Vert
+    CI: "225", // Côte d'Ivoire
+    GM: "220", // Gambie
+    GH: "233", // Ghana
+    GN: "224", // Guinée
+    GW: "245", // Guinée-Bissau
+    LR: "231", // Liberia
+    ML: "223", // Mali
+    MR: "222", // Mauritanie
     NE: "227", // Niger
-    GA: "241", // Gabon
+    NG: "234", // Nigeria
+    SN: "221", // Sénégal
+    SL: "232", // Sierra Leone
+    TG: "228", // Togo
+    // Afrique Centrale (9 pays)
+    CM: "237", // Cameroun
+    CF: "236", // République centrafricaine
+    TD: "235", // Tchad
     CG: "242", // Congo
-    CD: "243", // RDC
+    CD: "243", // Congo (RDC)
+    GQ: "240", // Guinée équatoriale
+    GA: "241", // Gabon
+    ST: "239", // Sao Tomé-et-Principe
+    BI: "257", // Burundi
+    // Afrique du Nord (6 pays)
+    DZ: "213", // Algérie
+    EG: "20", // Égypte
+    LY: "218", // Libye
+    MA: "212", // Maroc
+    SD: "249", // Soudan
+    TN: "216", // Tunisie
+    // Afrique de l'Est (14 pays)
+    KM: "269", // Comores
+    DJ: "253", // Djibouti
+    ER: "291", // Érythrée
+    ET: "251", // Éthiopie
+    KE: "254", // Kenya
+    MG: "261", // Madagascar
+    MW: "265", // Malawi
+    MU: "230", // Maurice
+    UG: "256", // Ouganda
+    RW: "250", // Rwanda
+    SC: "248", // Seychelles
+    SO: "252", // Somalie
+    SS: "211", // Soudan du Sud
+    TZ: "255", // Tanzanie
+    // Afrique Australe (9 pays)
+    ZA: "27", // Afrique du Sud
+    AO: "244", // Angola
+    BW: "267", // Botswana
+    SZ: "268", // Eswatini
+    LS: "266", // Lesotho
+    MZ: "258", // Mozambique
+    NA: "264", // Namibie
+    ZM: "260", // Zambie
+    ZW: "263", // Zimbabwe
 };
 const ALL_AFRICAN_PREFIXES = Array.from(new Set(Object.values(AFRICAN_DIAL_CODES))).sort((a, b) => b.length - a.length);
 function cleanAfricanPhone(raw, defaultCountry = "TG") {

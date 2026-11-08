@@ -41,60 +41,181 @@ function sha256(str: string): string {
 }
 
 /**
+ * Dictionnaire complet des 54 pays africains (ISO 3166-1 alpha-2 en minuscules)
+ * Prend en charge les variantes avec/sans accents, français et anglais.
+ */
+export const ALL_54_AFRICAN_COUNTRIES_MAP: Record<string, string> = {
+  // 1. Afrique de l'Ouest (16 pays)
+  "bénin": "bj", "benin": "bj",
+  "burkina faso": "bf", "burkina": "bf",
+  "cap-vert": "cv", "cape verde": "cv", "cabo verde": "cv",
+  "côte d'ivoire": "ci", "cote d'ivoire": "ci", "ivory coast": "ci",
+  "gambie": "gm", "gambia": "gm",
+  "ghana": "gh",
+  "guinée": "gn", "guinee": "gn", "guinea": "gn",
+  "guinée-bissau": "gw", "guinee-bissau": "gw", "guinea-bissau": "gw",
+  "liberia": "lr", "libéria": "lr",
+  "mali": "ml",
+  "mauritanie": "mr", "mauritania": "mr",
+  "niger": "ne",
+  "nigeria": "ng", "nigéria": "ng",
+  "sénégal": "sn", "senegal": "sn",
+  "sierra leone": "sl",
+  "togo": "tg",
+
+  // 2. Afrique Centrale (9 pays)
+  "cameroun": "cm", "cameroon": "cm",
+  "centrafrique": "cf", "république centrafricaine": "cf", "republique centrafricaine": "cf", "central african republic": "cf",
+  "tchad": "td", "chad": "td",
+  "congo": "cg", "congo-brazzaville": "cg", "congo brazzaville": "cg",
+  "rdc": "cd", "congo rdc": "cd", "congo (rdc)": "cd", "congo-kinshasa": "cd", "democratic republic of the congo": "cd",
+  "guinée équatoriale": "gq", "guinee equatoriale": "gq", "equatorial guinea": "gq",
+  "gabon": "ga",
+  "sao tomé-et-principe": "st", "sao tome-et-principe": "st", "sao tome and principe": "st",
+  "burundi": "bi",
+
+  // 3. Afrique du Nord (6 pays)
+  "algérie": "dz", "algerie": "dz", "algeria": "dz",
+  "égypte": "eg", "egypte": "eg", "egypt": "eg",
+  "libye": "ly", "libya": "ly",
+  "maroc": "ma", "morocco": "ma",
+  "soudan": "sd", "sudan": "sd",
+  "tunisie": "tn", "tunisia": "tn",
+
+  // 4. Afrique de l'Est (14 pays)
+  "comores": "km", "comoros": "km",
+  "djibouti": "dj",
+  "érythrée": "er", "erythree": "er", "eritrea": "er",
+  "éthiopie": "et", "ethiopie": "et", "ethiopia": "et",
+  "kenya": "ke",
+  "madagascar": "mg",
+  "malawi": "mw",
+  "maurice": "mu", "mauritius": "mu",
+  "ouganda": "ug", "uganda": "ug",
+  "rwanda": "rw",
+  "seychelles": "sc",
+  "somalie": "so", "somalia": "so",
+  "soudan du sud": "ss", "south sudan": "ss",
+  "tanzanie": "tz", "tanzania": "tz",
+
+  // 5. Afrique Australe (9 pays)
+  "afrique du sud": "za", "south africa": "za",
+  "angola": "ao",
+  "botswana": "bw",
+  "eswatini": "sz", "swaziland": "sz",
+  "lesotho": "ls",
+  "mozambique": "mz",
+  "namibie": "na", "namibia": "na",
+  "zambie": "zm", "zambia": "zm",
+  "zimbabwe": "zw",
+};
+
+/**
+ * Indicatifs téléphoniques internationaux officiels des 54 pays africains (sans '+').
+ * Conforme aux exigences de hachage SHA-256 Meta CAPI (E.164 sans symbole '+').
+ */
+export const ALL_54_AFRICAN_DIAL_CODES: Record<string, string> = {
+  // Afrique de l'Ouest
+  bj: "229", bf: "226", cv: "238", ci: "225", gm: "220",
+  gh: "233", gn: "224", gw: "245", lr: "231", ml: "223",
+  mr: "222", ne: "227", ng: "234", sn: "221", sl: "232", tg: "228",
+
+  // Afrique Centrale
+  cm: "237", cf: "236", td: "235", cg: "242", cd: "243",
+  gq: "240", ga: "241", st: "239", bi: "257",
+
+  // Afrique du Nord
+  dz: "213", eg: "20", ly: "218", ma: "212", sd: "249", tn: "216",
+
+  // Afrique de l'Est
+  km: "269", dj: "253", er: "291", et: "251", ke: "254",
+  mg: "261", mw: "265", mu: "230", ug: "256", rw: "250",
+  sc: "248", so: "252", ss: "211", tz: "255",
+
+  // Afrique Australe
+  za: "27", ao: "244", bw: "267", sz: "268", ls: "266",
+  mz: "258", na: "264", zm: "260", zw: "263",
+};
+
+/**
+ * Devises officielles des 54 pays africains (norme ISO 4217 acceptée par Meta).
+ */
+export const AFRICAN_CURRENCIES: Record<string, string> = {
+  // Francs CFA
+  bj: "XOF", bf: "XOF", ci: "XOF", gw: "XOF", ml: "XOF", ne: "XOF", sn: "XOF", tg: "XOF",
+  cm: "XAF", cf: "XAF", td: "XAF", cg: "XAF", gq: "XAF", ga: "XAF",
+  // Autres devises africaines
+  ng: "NGN", // Nigeria
+  gh: "GHS", // Ghana
+  ke: "KES", // Kenya
+  cd: "CDF", // RDC
+  gn: "GNF", // Guinée
+  ma: "MAD", // Maroc
+  dz: "DZD", // Algérie
+  tn: "TND", // Tunisie
+  eg: "EGP", // Égypte
+  za: "ZAR", // Afrique du Sud
+  rw: "RWF", // Rwanda
+  ug: "UGX", // Ouganda
+  tz: "TZS", // Tanzanie
+  et: "ETB", // Éthiopie
+  mz: "MZN", // Mozambique
+  ao: "AOA", // Angola
+  mr: "MRU", // Mauritanie
+  gm: "GMD", // Gambie
+  sl: "SLE", // Sierra Leone
+  lr: "LRD", // Liberia
+  cv: "CVE", // Cap-Vert
+  bi: "BIF", // Burundi
+  mg: "MGA", // Madagascar
+  mw: "MWK", // Malawi
+  mu: "MUR", // Maurice
+  sc: "SCR", // Seychelles
+  dj: "DJF", // Djibouti
+  km: "KMF", // Comores
+  bw: "BWP", // Botswana
+  sz: "SZL", // Eswatini
+  ls: "LSL", // Lesotho
+  so: "SOS", // Somalie
+  sd: "SDG", // Soudan
+  ss: "SSP", // Soudan du Sud
+  er: "ERN", // Érythrée
+  st: "STN", // Sao Tomé
+  zm: "ZMW", // Zambie
+  zw: "USD", // Zimbabwe
+};
+
+/**
  * Normalise les devises pour l'API Meta (norme ISO 4217 en majuscules).
  * Élimine l'erreur 400 Graph API sur les variantes "FCFA" / "CFA" très courantes en Afrique.
  */
-export function normalizeCurrency(rawCurrency?: string): string {
-  if (!rawCurrency) return "XOF";
+export function normalizeCurrency(rawCurrency?: string, country?: string): string {
+  const normC = normalizeCountryCode(country);
+  if (!rawCurrency) {
+    return AFRICAN_CURRENCIES[normC] || "XOF";
+  }
   const c = rawCurrency.trim().toUpperCase();
-  if (c === "FCFA" || c === "CFA" || c === "F CFA" || c === "F-CFA" || c === "XOF") return "XOF";
-  if (c === "XAF") return "XAF";
-  if (c === "GNF") return "GNF";
-  if (c === "CDF") return "CDF";
-  if (c === "EUR") return "EUR";
-  if (c === "USD") return "USD";
+  if (c === "FCFA" || c === "CFA" || c === "F CFA" || c === "F-CFA") {
+    const cemac = ["cm", "cf", "td", "cg", "ga", "gq"];
+    return cemac.includes(normC) ? "XAF" : "XOF";
+  }
   return c;
 }
 
 /**
  * Normalise le code pays en ISO 3166-1 alpha-2 en minuscules (spécification Meta CAPI).
- * Évite le rejet ou l'échec de hachage lorsque le nom du pays est saisi en français ou en majuscules.
+ * Couvre l'intégralité des 54 pays africains.
  */
 export function normalizeCountryCode(country?: string): string {
   if (!country) return "";
   const trimmed = country.trim().toLowerCase();
   if (trimmed.length === 2) return trimmed;
-
-  const map: Record<string, string> = {
-    "sénégal": "sn",
-    "senegal": "sn",
-    "côte d'ivoire": "ci",
-    "cote d'ivoire": "ci",
-    "ivory coast": "ci",
-    "togo": "tg",
-    "bénin": "bj",
-    "benin": "bj",
-    "mali": "ml",
-    "burkina faso": "bf",
-    "burkina": "bf",
-    "cameroun": "cm",
-    "cameroon": "cm",
-    "rdc": "cd",
-    "congo": "cg",
-    "guinée": "gn",
-    "guinee": "gn",
-    "guinea": "gn",
-    "niger": "ne",
-    "gabon": "ga",
-    "france": "fr",
-  };
-  return map[trimmed] || (trimmed.length === 2 ? trimmed : "");
+  return ALL_54_AFRICAN_COUNTRIES_MAP[trimmed] || (trimmed.length === 2 ? trimmed : "");
 }
 
 /**
  * Nettoyage et formatage strict du téléphone pour Meta CAPI (E.164 sans symbole '+').
- * Meta exige l'indicatif pays + numéro sans espace ni zéro initial local.
- * Sans indicatif pays, le hash SHA-256 ne correspondra JAMAIS aux profils Facebook.
+ * Couvre l'intégralité des 54 indicatifs nationaux africains.
  */
 export function cleanPhoneForMeta(phone: string, defaultCountry?: string): string {
   if (!phone) return "";
@@ -113,23 +234,7 @@ export function cleanPhoneForMeta(phone: string, defaultCountry?: string): strin
   // Repli intelligent : suppression du '+' et des '00'
   let digits = cleaned.replace(/^\+/, "").replace(/^00/, "");
 
-  // Si le numéro a été saisi sans indicatif pays avec un '0' initial
-  const countryPrefixes: Record<string, string> = {
-    sn: "221",
-    ci: "225",
-    tg: "228",
-    bj: "229",
-    ml: "223",
-    bf: "226",
-    cm: "237",
-    cd: "243",
-    gn: "224",
-    ne: "227",
-    ga: "241",
-    cg: "242",
-  };
-
-  const prefix = countryPrefixes[normCountry];
+  const prefix = ALL_54_AFRICAN_DIAL_CODES[normCountry];
   if (prefix && !digits.startsWith(prefix)) {
     digits = prefix + digits.replace(/^0+/, "");
   }
@@ -245,7 +350,7 @@ export async function sendMetaPurchaseEvent(
     return { success: false, error: "Meta CAPI non activé ou identifiants manquants." };
   }
 
-  const currency = normalizeCurrency(config.currency);
+  const currency = normalizeCurrency(config.currency, order.country);
   const cleanOrderRef = (order.orderNumber || order.sourceRowId || order.id).replace(/[^a-zA-Z0-9_-]/g, "");
   const eventId = `${cleanOrderRef}_purchase`;
   const userData = buildUserData(order);
@@ -291,7 +396,7 @@ export async function sendMetaConfirmedEvent(
     return { success: false, error: "Meta CAPI non activé ou identifiants manquants." };
   }
 
-  const currency = normalizeCurrency(config.currency);
+  const currency = normalizeCurrency(config.currency, order.country);
   const cleanOrderRef = (order.orderNumber || order.sourceRowId || order.id).replace(/[^a-zA-Z0-9_-]/g, "");
   const eventId = `${cleanOrderRef}_confirmed`;
   const userData = buildUserData(order);
