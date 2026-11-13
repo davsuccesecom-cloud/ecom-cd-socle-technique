@@ -6,7 +6,6 @@ exports.colIndexToLetter = colIndexToLetter;
 exports.detectAndEnsureSheetColumns = detectAndEnsureSheetColumns;
 exports.writeOrderStatusToSheet = writeOrderStatusToSheet;
 exports.pullNewOrdersFromSheet = pullNewOrdersFromSheet;
-const googleapis_1 = require("googleapis");
 // ============================================================================
 // SERVICE ACCOUNT & GOOGLE SHEETS API CLIENT
 // ============================================================================
@@ -29,11 +28,14 @@ function getServiceAccountEmail() {
 }
 function getSheetsClient() {
     if (!sheetsClientPromise) {
+        // Chargement paresseux : evite d'importer googleapis (~2s) au demarrage des fonctions non-Sheets
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { google } = require("googleapis");
         const rawKey = process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY;
         if (rawKey) {
             try {
                 const credentials = JSON.parse(rawKey);
-                const auth = new googleapis_1.google.auth.JWT({
+                const auth = new google.auth.JWT({
                     email: credentials.client_email,
                     key: credentials.private_key,
                     scopes: [
@@ -41,7 +43,7 @@ function getSheetsClient() {
                         "https://www.googleapis.com/auth/drive.file",
                     ],
                 });
-                sheetsClientPromise = googleapis_1.google.sheets({ version: "v4", auth });
+                sheetsClientPromise = google.sheets({ version: "v4", auth });
                 return sheetsClientPromise;
             }
             catch (err) {
@@ -49,13 +51,13 @@ function getSheetsClient() {
             }
         }
         // Repli natif : Identifiants par défaut Cloud Functions (Application Default Credentials)
-        const auth = new googleapis_1.google.auth.GoogleAuth({
+        const auth = new google.auth.GoogleAuth({
             scopes: [
                 "https://www.googleapis.com/auth/spreadsheets",
                 "https://www.googleapis.com/auth/drive.file",
             ],
         });
-        sheetsClientPromise = googleapis_1.google.sheets({ version: "v4", auth });
+        sheetsClientPromise = google.sheets({ version: "v4", auth });
     }
     return sheetsClientPromise;
 }

@@ -1,11 +1,11 @@
-import { google } from "googleapis";
+import type { sheets_v4 } from "googleapis";
 import type { CloseuseStatus } from "@ecomcod/shared";
 
 // ============================================================================
 // SERVICE ACCOUNT & GOOGLE SHEETS API CLIENT
 // ============================================================================
 
-let sheetsClientPromise: ReturnType<typeof google.sheets> | null = null;
+let sheetsClientPromise: sheets_v4.Sheets | null = null;
 
 export function getServiceAccountEmail(): string {
   if (process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL) {
@@ -22,8 +22,11 @@ export function getServiceAccountEmail(): string {
   return "meta-capi-app@appspot.gserviceaccount.com";
 }
 
-export function getSheetsClient() {
+export function getSheetsClient(): sheets_v4.Sheets {
   if (!sheetsClientPromise) {
+    // Chargement paresseux : evite d'importer googleapis (~2s) au demarrage des fonctions non-Sheets
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { google } = require("googleapis") as typeof import("googleapis");
     const rawKey = process.env.GOOGLE_SHEETS_SERVICE_ACCOUNT_KEY;
     if (rawKey) {
       try {
@@ -106,7 +109,7 @@ function cleanHeader(h: any): string {
 const STRUCTURE_CACHE = new Map<string, { structure: DetectedSheetStructure; expiresAt: number }>();
 
 export async function detectAndEnsureSheetColumns(
-  sheets: ReturnType<typeof google.sheets>,
+  sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   forceRefresh = false
 ): Promise<DetectedSheetStructure> {
@@ -379,7 +382,7 @@ const STATUS_TO_SHEET_LABEL: Record<CloseuseStatus, string> = {
 };
 
 async function resolveRowNumberDynamic(
-  sheets: ReturnType<typeof google.sheets>,
+  sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   sourceRowId: string,
   structure: DetectedSheetStructure
@@ -516,7 +519,7 @@ export interface SheetOrderCandidate {
  * afin de rattraper en arrière-plan d'éventuels déclencheurs Apps Script manqués.
  */
 export async function pullNewOrdersFromSheet(
-  sheets: ReturnType<typeof google.sheets>,
+  sheets: sheets_v4.Sheets,
   spreadsheetId: string
 ): Promise<SheetOrderCandidate[]> {
   const structure = await detectAndEnsureSheetColumns(sheets, spreadsheetId);
