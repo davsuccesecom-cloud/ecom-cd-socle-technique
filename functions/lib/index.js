@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testSheetConnection = exports.migrateUsers = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.testSheetConnection = exports.migrateUsers = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -43,6 +43,7 @@ const params_1 = require("firebase-functions/params");
 const bcrypt = __importStar(require("bcryptjs"));
 const libphonenumber_js_1 = require("libphonenumber-js");
 const sheetsSync_1 = require("./sheetsSync");
+const codInsights_1 = require("./codInsights");
 const metaCapi_1 = require("./metaCapi");
 const metaAuth_1 = require("./metaAuth");
 var shopifyTracking_1 = require("./shopifyTracking");
@@ -186,6 +187,20 @@ exports.authenticateAdmin = (0, https_1.onCall)(async (request) => {
     const mappingSnap = await mappingRef.get();
     if (mappingSnap.exists) {
         const { workspaceId } = mappingSnap.data();
+        await db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("users")
+            .doc(uid)
+            .set({
+            workspaceId,
+            teamId: null,
+            role: "admin",
+            name: name ?? email,
+            email,
+            phone: "",
+            status: "active",
+        }, { merge: true });
         await admin.auth().setCustomUserClaims(uid, { workspaceId, role: "admin" });
         return { workspaceId, role: "admin", isNewWorkspace: false };
     }
@@ -198,6 +213,18 @@ exports.authenticateAdmin = (0, https_1.onCall)(async (request) => {
     if (!existingWsSnap.empty) {
         const existingWsDoc = existingWsSnap.docs[0];
         const wsId = existingWsDoc.id;
+        await existingWsDoc.ref
+            .collection("users")
+            .doc(uid)
+            .set({
+            workspaceId: wsId,
+            teamId: null,
+            role: "admin",
+            name: name ?? email,
+            email,
+            phone: "",
+            status: "active",
+        }, { merge: true });
         await mappingRef.set({ workspaceId: wsId, uid, createdAt: Date.now() });
         await admin.auth().setCustomUserClaims(uid, { workspaceId: wsId, role: "admin" });
         return { workspaceId: wsId, role: "admin", isNewWorkspace: false };
@@ -780,12 +807,11 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     const ref = db.collection("workspaces").doc(workspaceId).collection("orders").doc(orderId);
     const statutLivreurChanged = before.statutLivreur !== after.statutLivreur;
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
-    const livreurAssigned = !before.livreurId && !!after.livreurId;
+    const livreurAssigned = !!after.livreurId && before.livreurId !== after.livreurId;
+    const wasReassigned = !!before.livreurId && !!after.livreurId && before.livreurId !== after.livreurId;
     if (livreurAssigned) {
-        await sendPushToUser(workspaceId, after.livreurId, "Nouvelle livraison", `${after.clientName} - ${after.product}`, orderId);
-        if (!after.timestamps?.assignedToLivreur) {
-            await ref.update({ "timestamps.assignedToLivreur": Date.now() });
-        }
+        await sendPushToUser(workspaceId, after.livreurId, wasReassigned ? "Livraison réassignée" : "Nouvelle livraison", `${after.clientName} - ${after.product}`, orderId);
+        await ref.update({ "timestamps.assignedToLivreur": Date.now() });
     }
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
         await ref.update({ "timestamps.closeuseDecidedAt": Date.now() });
@@ -798,7 +824,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} - en cours de livraison`, orderId);
         }
     }
-    if (statutLivreurChanged && after.statutLivreur === "livre") {
+    if (statutLivreurChanged && after.statutLivreur === "livre" && !before.timestamps?.delivered) {
         await ref.update({
             statutCloseuse: "livre",
             "timestamps.delivered": Date.now(),
@@ -1014,6 +1040,12 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         after.sourceRowId) {
         await (0, sheetsSync_1.writeOrderStatusToSheet)(after.sheetId, after.sourceRowId, after.statutCloseuse, after.reminderAt, after.assignedLivreurName || after.livreurName || null);
     }
+    try {
+        await (0, codInsights_1.recordCodOrderOutcome)(db, { workspaceId, orderId, before, after });
+    }
+    catch (insightErr) {
+        console.error("recordCodOrderOutcome failed:", insightErr);
+    }
 });
 async function incrementRemuneration(workspaceId, userId, role, amountPerOrder, orderAmount) {
     const ref = db.collection("workspaces").doc(workspaceId).collection("remunerations").doc(userId);
@@ -1156,6 +1188,124 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
                 await notifyAdmins(wsDoc.id, "🤖 Vigie IA · Colis confirmés sans livreur", `${unassignedCount} commande(s) confirmée(s) attendent l'assignation d'un livreur depuis plus de 25 min.`);
             }
         }
+        // -----------------------------------------------------------------------
+        // Travailleur en arrière-plan : Adaptation & Protection Seuils Équipes
+        // -----------------------------------------------------------------------
+        const teamsSnap = await wsDoc.ref.collection("teams").get();
+        for (const teamDoc of teamsSnap.docs) {
+            const team = teamDoc.data();
+            const adaptation = team.thresholdAdaptation;
+            if (!adaptation)
+                continue;
+            // 1. Redistribution automatique des commandes "nouveau" dépassant le délai cible
+            if (adaptation.autoTuneClosingSpeed) {
+                const delayMin = Math.max(10, Number(adaptation.closingDelayMinutes ?? 25));
+                const teamCutoff = now - delayMin * 60 * 1000;
+                const delayedSnap = await wsDoc.ref
+                    .collection("orders")
+                    .where("teamId", "==", teamDoc.id)
+                    .where("statutCloseuse", "==", "nouveau")
+                    .where("timestamps.received", "<=", teamCutoff)
+                    .limit(5)
+                    .get();
+                if (!delayedSnap.empty) {
+                    const activeCloseusesSnap = await wsDoc.ref
+                        .collection("users")
+                        .where("teamId", "==", teamDoc.id)
+                        .where("role", "==", "closeuse")
+                        .where("status", "==", "active")
+                        .get();
+                    if (activeCloseusesSnap.size > 1) {
+                        const closeuseLoads = await Promise.all(activeCloseusesSnap.docs.map(async (uDoc) => {
+                            const cSnap = await wsDoc.ref
+                                .collection("orders")
+                                .where("closeuseId", "==", uDoc.id)
+                                .where("statutCloseuse", "in", ["nouveau", "programme", "en_cours"])
+                                .get();
+                            return { id: uDoc.id, name: String(uDoc.data().name || "Closeuse"), count: cSnap.size };
+                        }));
+                        closeuseLoads.sort((a, b) => a.count - b.count);
+                        const leastLoaded = closeuseLoads[0];
+                        let reassignedCount = 0;
+                        for (const oDoc of delayedSnap.docs) {
+                            const oData = oDoc.data();
+                            if (oData.closeuseId && oData.closeuseId !== leastLoaded.id && !oData.rebalancedAt) {
+                                await oDoc.ref.update({
+                                    closeuseId: leastLoaded.id,
+                                    rebalancedAt: now,
+                                    "timestamps.assignedToCloseuse": now,
+                                });
+                                await sendPushToUser(wsDoc.id, leastLoaded.id, "Commande réassignée (délai)", `${oData.clientName} - ${oData.product} (reprise urgente)`, oDoc.id);
+                                reassignedCount += 1;
+                            }
+                        }
+                        if (reassignedCount > 0) {
+                            await notifyAdmins(wsDoc.id, `🤖 Vigie IA · Rééquilibrage (${team.name})`, `${reassignedCount} commande(s) dépassant ${delayMin} min ont été redirigées vers ${leastLoaded.name}.`);
+                        }
+                    }
+                }
+            }
+            // 2. Veille sur le taux de livraison pays (codInsights)
+            if (adaptation.autoTuneDeliveryRate && adaptation.deliveryRateThreshold) {
+                const countryCode = String(team.defaultCountry || "TG").toUpperCase();
+                const insightSnap = await wsDoc.ref.collection("codInsights").doc(countryCode).get();
+                const insight = insightSnap.data();
+                const totalDecided = Number(insight?.totalDecided || 0);
+                const deliveredCount = Number(insight?.deliveredCount || 0);
+                if (totalDecided >= 10) {
+                    const ratePct = Math.round((deliveredCount / totalDecided) * 100);
+                    const minRate = Number(adaptation.deliveryRateThreshold);
+                    if (ratePct < minRate) {
+                        const recentRateAlert = await wsDoc.ref
+                            .collection("notifications")
+                            .where("title", "==", `🤖 Vigie IA · Chute taux livraison (${team.name})`)
+                            .where("createdAt", ">=", now - 12 * 3600 * 1000)
+                            .limit(1)
+                            .get();
+                        if (recentRateAlert.empty) {
+                            await notifyAdmins(wsDoc.id, `🤖 Vigie IA · Chute taux livraison (${team.name})`, `Taux observé (${countryCode}) : ${ratePct}% vs seuil cible ${minRate}%. Vérifiez les motifs de rejet et l'IA.`);
+                        }
+                    }
+                }
+            }
+            // 3. Protection Cash POSITIF (encaissements livreurs non versés > 24h)
+            if (adaptation.positiveCashProtection) {
+                const lastCashCheck = Number(team.lastCashProtectionAlertAt ?? 0);
+                if (now - lastCashCheck >= 12 * 3600 * 1000) {
+                    const deliveredOlderSnap = await wsDoc.ref
+                        .collection("orders")
+                        .where("teamId", "==", teamDoc.id)
+                        .where("statutLivreur", "==", "livre")
+                        .get();
+                    const expectedOldCash = deliveredOlderSnap.docs
+                        .filter((d) => {
+                        const delTs = d.data().timestamps?.delivered ?? 0;
+                        return delTs > 0 && now - delTs >= 24 * 3600 * 1000;
+                    })
+                        .reduce((sum, d) => sum + Number(d.data().amount || 0), 0);
+                    if (expectedOldCash > 0) {
+                        const settlementsSnap = await wsDoc.ref
+                            .collection("cashSettlements")
+                            .where("teamId", "==", teamDoc.id)
+                            .get();
+                        const settled = settlementsSnap.docs.reduce((sum, d) => {
+                            const s = d.data();
+                            if (s.type === "remittance" || (s.type === "deduction" && s.impact === "caisse")) {
+                                return sum + Number(s.amount || 0);
+                            }
+                            return sum;
+                        }, 0);
+                        const allDeliveredCash = deliveredOlderSnap.docs.reduce((sum, d) => sum + Number(d.data().amount || 0), 0);
+                        const totalUnsettled = Math.max(0, allDeliveredCash - settled);
+                        if (totalUnsettled > 0) {
+                            const currency = String(team.currency || "XOF");
+                            await notifyAdmins(wsDoc.id, `🤖 Vigie IA · Caisse à sécuriser (${team.name})`, `${totalUnsettled.toLocaleString("fr-FR")} ${currency} de cash livré depuis plus de 24h reste à encaisser côté livreurs.`);
+                            await teamDoc.ref.update({ lastCashProtectionAlertAt: now });
+                        }
+                    }
+                }
+            }
+        }
     }
 });
 // ---------------------------------------------------------------------------
@@ -1218,13 +1368,14 @@ exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async 
                 .reduce((acc, s) => acc + (s.amount || 0), 0);
             const unsettledCash = Math.max(0, expectedCashTotal - caisseDedTotal - remittedTotal);
             const extraAlerts = [];
+            const teamCurrency = String(team.currency || "XOF");
             if (unsettledCash > 0) {
-                extraAlerts.push(`Caisse livreur à récupérer: ${unsettledCash.toLocaleString("fr-FR")} F`);
+                extraAlerts.push(`Caisse livreur à récupérer: ${unsettledCash.toLocaleString("fr-FR")} ${teamCurrency}`);
             }
             if (stuckTransit > 0) {
                 extraAlerts.push(`${stuckTransit} colis sur le terrain > 3h`);
             }
-            await notifyAdmins(wsDoc.id, `🤖 Vigie IA — ${team.name}`, `${livrees} livrées (${ca.toLocaleString("fr-FR")} F), ${rejetees} rejetées, ${injoignables} injoignables${extraAlerts.length ? ` · ⚠️ ${extraAlerts.join(" | ")}` : ""}`);
+            await notifyAdmins(wsDoc.id, `🤖 Vigie IA — ${team.name}`, `${livrees} livrées (${ca.toLocaleString("fr-FR")} ${teamCurrency}), ${rejetees} rejetées, ${injoignables} injoignables${extraAlerts.length ? ` · ⚠️ ${extraAlerts.join(" | ")}` : ""}`);
             await teamDoc.ref.update({ lastDigestAt: now });
         }
     }
@@ -1342,18 +1493,152 @@ async function notifyAdmins(workspaceId, title, body) {
         .where("role", "==", "admin")
         .where("status", "==", "active")
         .get();
-    await Promise.all(adminsSnap.docs.map((adminDoc) => {
+    await Promise.all(adminsSnap.docs.map(async (adminDoc) => {
         const tokens = adminDoc.data().fcmTokens ?? [];
         if (tokens.length === 0)
-            return Promise.resolve();
-        return messaging.sendEachForMulticast({
+            return;
+        const response = await messaging.sendEachForMulticast({
             tokens,
             notification: { title, body },
-            data: { title, body },
+            data: { title, body, url: "/" },
             android: { priority: "high" },
+            webpush: {
+                notification: {
+                    title,
+                    body,
+                    icon: "/icons/icon-192.png",
+                    badge: "/icons/badge-96.png",
+                    data: { url: "/" },
+                },
+                fcmOptions: {
+                    link: "/",
+                },
+            },
         });
+        const invalidTokens = [];
+        response.responses.forEach((r, i) => {
+            if (!r.success) {
+                const code = r.error?.code;
+                if (code === "messaging/registration-token-not-registered" ||
+                    code === "messaging/invalid-registration-token") {
+                    invalidTokens.push(tokens[i]);
+                }
+            }
+        });
+        if (invalidTokens.length > 0) {
+            await adminDoc.ref.update({
+                fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+            });
+        }
     }));
 }
+// ---------------------------------------------------------------------------
+// Synchronisation Google Sheets en arrière-plan (filet de sécurité 10 min)
+// ---------------------------------------------------------------------------
+exports.scheduledSheetsSync = (0, scheduler_1.onSchedule)({ schedule: "every 10 minutes", secrets: [sheetsServiceAccountKey] }, async () => {
+    const sheets = (0, sheetsSync_1.getSheetsClient)();
+    const workspacesSnap = await db.collection("workspaces").get();
+    for (const wsDoc of workspacesSnap.docs) {
+        const teamsSnap = await wsDoc.ref.collection("teams").get();
+        for (const teamDoc of teamsSnap.docs) {
+            const team = teamDoc.data();
+            const sheetIds = Array.isArray(team.sheetIds) ? team.sheetIds : [];
+            if (sheetIds.length === 0)
+                continue;
+            for (const sheetId of sheetIds) {
+                if (!sheetId)
+                    continue;
+                try {
+                    const candidates = await (0, sheetsSync_1.pullNewOrdersFromSheet)(sheets, sheetId);
+                    if (candidates.length === 0)
+                        continue;
+                    for (const item of candidates) {
+                        const rowFallbackId = `row:${item.rowNumber}`;
+                        const dupCheck = await wsDoc.ref
+                            .collection("orders")
+                            .where("sheetId", "==", sheetId)
+                            .where("sourceRowId", "in", [item.sourceRowId, rowFallbackId])
+                            .limit(1)
+                            .get();
+                        if (!dupCheck.empty)
+                            continue;
+                        const phoneParsed = (0, libphonenumber_js_1.parsePhoneNumberFromString)(item.phone, team.defaultCountry);
+                        const clientPhoneFormatted = phoneParsed?.formatInternational() ?? item.phone;
+                        // Protection anti-doublon à 10 min si déjà reçu par webhook Apps Script
+                        const recentSamePhone = await wsDoc.ref
+                            .collection("orders")
+                            .where("clientPhoneFormatted", "==", clientPhoneFormatted)
+                            .where("timestamps.received", ">=", Date.now() - 10 * 60 * 1000)
+                            .limit(5)
+                            .get();
+                        const samePayload = recentSamePhone.docs.some((d) => d.data().product === item.product && d.data().amount === item.amount);
+                        if (samePayload)
+                            continue;
+                        let assignedTeamId = teamDoc.id;
+                        const detectedCountry = phoneParsed?.country;
+                        if (detectedCountry && detectedCountry !== team.defaultCountry) {
+                            const altTeam = teamsSnap.docs.find((t) => t.data().defaultCountry === detectedCountry);
+                            if (altTeam)
+                                assignedTeamId = altTeam.id;
+                        }
+                        const prevSnap = await wsDoc.ref
+                            .collection("orders")
+                            .where("clientPhoneFormatted", "==", clientPhoneFormatted)
+                            .limit(20)
+                            .get();
+                        const isDuplicatePhone = !prevSnap.empty;
+                        const previousOrdersCount = prevSnap.size;
+                        const previousRejectionsCount = prevSnap.docs.filter((d) => {
+                            const st = d.data().statutCloseuse;
+                            return st === "rejete" || st === "injoignable";
+                        }).length;
+                        await wsDoc.ref.collection("orders").doc().set({
+                            workspaceId: wsDoc.id,
+                            teamId: assignedTeamId,
+                            sheetId,
+                            sourceRowId: item.sourceRowId,
+                            clientName: item.clientName,
+                            clientPhoneRaw: item.phone,
+                            clientPhoneFormatted,
+                            city: item.city,
+                            addressNote: "",
+                            product: item.product,
+                            quantity: item.quantity,
+                            amount: item.amount,
+                            orderNumber: "",
+                            closeuseId: null,
+                            livreurId: null,
+                            statutCloseuse: "nouveau",
+                            statutLivreur: null,
+                            statutAdminOverride: null,
+                            callInProgress: null,
+                            reminderAt: null,
+                            isDuplicatePhone,
+                            previousOrdersCount,
+                            previousRejectionsCount,
+                            capiIsolated: true,
+                            trafficSource: isDuplicatePhone ? "acces_libre_site" : "organique",
+                            timestamps: {
+                                received: Date.now(),
+                                assignedToCloseuse: null,
+                                assignedToLivreur: null,
+                                closeuseDecidedAt: null,
+                                livreurRespondedAt: null,
+                                delivered: null,
+                            },
+                            capiSent: false,
+                            purgeAt: null,
+                        });
+                    }
+                }
+                catch (sheetErr) {
+                    // Feuille non partagée avec le robot ou erreur passagère : on passe sans bloquer les autres équipes
+                    console.warn(`scheduledSheetsSync skip sheet=${sheetId}:`, sheetErr?.message || sheetErr);
+                }
+            }
+        }
+    }
+});
 // ---------------------------------------------------------------------------
 // 7. Test de connexion Meta Conversions API (CAPI) pour l'Admin
 // ---------------------------------------------------------------------------

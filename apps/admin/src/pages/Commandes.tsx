@@ -29,6 +29,13 @@ import {
   CheckCheck,
   Copy,
   Check,
+  Target,
+  Music2,
+  Sprout,
+  Repeat,
+  PhoneForwarded,
+  CalendarClock,
+  PackageCheck,
 } from "lucide-react";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
 import WhatsAppIcon from "../components/WhatsAppIcon";
@@ -111,8 +118,16 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Order | null>(null);
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const currency = team?.currency || team?.metaCapiConfig?.currency || "FCFA";
+  const handleCopyCell = (key: string, text: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedId(key);
+    setTimeout(() => setCopiedId((cur) => (cur === key ? null : cur)), 1600);
+  };
+
+  const currency = team?.currency || team?.metaCapiConfig?.currency || "XOF";
 
   const statusCounts = useMemo(() => {
     const map: Record<string, number> = { tous: orders.length };
@@ -445,70 +460,94 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                           {effSource === "meta_ads" && (
                             <span
                               title={`Attribué Meta Ads · fbc: ${order.shopifyData?.fbc || "non"} · fbp: ${order.shopifyData?.fbp || "non"} (Éligible Meta CAPI)`}
-                              className="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300"
+                              className="inline-flex items-center gap-1 rounded border border-brand/30 bg-brand-light px-1.5 py-0.5 text-[10px] font-semibold text-brand"
                             >
-                              🎯 Meta Ads
+                              <Target className="h-3 w-3" />
+                              Meta Ads
                             </span>
                           )}
                           {effSource === "tiktok_ads" && (
                             <span
                               title={`Attribué TikTok Ads · ttclid: ${order.shopifyData?.ttclid || "non"} (Isolé de Meta CAPI)`}
-                              className="inline-flex items-center gap-1 rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-300"
+                              className="inline-flex items-center gap-1 rounded border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400"
                             >
-                              🎵 TikTok Ads
+                              <Music2 className="h-3 w-3" />
+                              TikTok Ads
                             </span>
                           )}
                           {effSource === "google_ads" && (
                             <span
                               title={`Attribué Google Ads · gclid: ${order.shopifyData?.gclid || "non"} (Isolé de Meta CAPI)`}
-                              className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300"
+                              className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400"
                             >
-                              🔍 Google Ads
+                              <Search className="h-3 w-3" />
+                              Google Ads
                             </span>
                           )}
                           {effSource === "organique" && !isDup && (
                             <span
-                              title="Source libre / Trafic direct sur le site (hors campagne publicitaire). Isolé de Meta CAPI pour préserver vos données et budgets."
-                              className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300"
+                              title="Source libre / Trafic direct sur le site (hors campagne publicitaire). Isolé de Meta CAPI."
+                              className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400"
                             >
-                              🌿 Source Libre · Organique
+                              <Sprout className="h-3 w-3" />
+                              Source Libre · Organique
                             </span>
                           )}
                           {effSource === "acces_libre_site" && (
                             <span
-                              title="Numéro doublon : isolé du tracking Meta CAPI et comptabilisé en Source libre. Vérifier avec le client s'il souhaite 1 ou 2 produits."
+                              title="Numéro doublon : isolé du tracking Meta CAPI et comptabilisé en Source libre."
                               className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400"
                             >
-                              🔄 Doublon N° ({pStats?.total ?? 2}x) · Source libre
+                              <Repeat className="h-3 w-3" />
+                              Doublon ({pStats?.total ?? 2}x)
                             </span>
                           )}
                         </div>
                         <p className="mt-0.5 max-w-[240px] truncate text-xs text-slate-500">
-                          {order.product || "Article standard"}
+                          {cleanProductTitle(order.product || "Article standard")}
                         </p>
                       </td>
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-300 tabular-nums">
-                            {cleanAfricanPhone(order.clientPhoneFormatted || order.clientPhoneRaw || "", team?.defaultCountry || "TG") || order.clientPhoneFormatted}
-                          </span>
-                          {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
-                            <a
-                              href={buildWhatsAppLink(
-                                cleanAfricanPhone(order.clientPhoneFormatted || order.clientPhoneRaw || "", team?.defaultCountry || "TG"),
-                                buildSavWhatsAppMessage(order, team)
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        {(() => {
+                          const phoneVal =
+                            cleanAfricanPhone(order.clientPhoneFormatted || order.clientPhoneRaw || "", team?.defaultCountry || "TG") ||
+                            order.clientPhoneFormatted;
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-300 tabular-nums">{phoneVal}</span>
+                              {phoneVal && phoneVal !== "Non renseigné" && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyCell(`phone-${order.id}`, phoneVal)}
+                                  title="Copier le numéro"
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded border border-surface-border bg-surface text-slate-400 hover:border-brand/50 hover:text-slate-100"
+                                >
+                                  {copiedId === `phone-${order.id}` ? (
+                                    <Check className="h-3 w-3 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </button>
                               )}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Écrire au client sur WhatsApp (Script Auto SAV / Suivi personnalisé)"
-                              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110"
-                            >
-                              <WhatsAppIcon size={22} />
-                            </a>
-                          )}
-                        </div>
+                              {order.clientPhoneFormatted && order.clientPhoneFormatted !== "Non renseigné" && (
+                                <a
+                                  href={buildWhatsAppLink(
+                                    cleanAfricanPhone(order.clientPhoneFormatted || order.clientPhoneRaw || "", team?.defaultCountry || "TG"),
+                                    buildSavWhatsAppMessage(order, team)
+                                  )}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Écrire au client sur WhatsApp"
+                                  className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110"
+                                >
+                                  <WhatsAppIcon size={20} />
+                                </a>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
-                      <td className="px-4 py-3 font-semibold tabular-nums text-slate-200">
+                      <td className="px-4 py-3 whitespace-nowrap font-semibold tabular-nums text-slate-200">
                         {order.amount.toLocaleString("fr-FR")}{" "}
                         <span className="text-[11px] font-normal text-slate-500">{currency}</span>
                       </td>
@@ -528,12 +567,14 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                           >
                             {CLOSEUSE_LABELS[order.statutCloseuse]}
                           </span>
-                          {order.rejectionReason && (
-                            <span className="text-[10px] text-slate-400">Motif : {order.rejectionReason}</span>
+                          {(order.rejectionReason || order.deliveryFailureReason || order.fieldNote) && (
+                            <span className="max-w-[190px] truncate text-[10px] text-slate-400">
+                              {order.rejectionReason || order.deliveryFailureReason || order.fieldNote}
+                            </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs tabular-nums text-slate-500">
+                      <td className="px-4 py-3 whitespace-nowrap text-xs tabular-nums text-slate-500">
                         {formatDate(order.timestamps.received)}
                       </td>
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -585,7 +626,7 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
 
       {/* Barre d'actions groupées flottante (Batch Operations) */}
       {selectedOrderIds.size > 0 && (
-        <div className="sticky bottom-4 z-30 mx-auto flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand/40 bg-slate-900/95 p-3.5 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-2">
+        <div className="sticky bottom-4 z-30 mx-auto flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand bg-surface-raised p-3.5 shadow-2xl">
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-xs font-bold text-white shadow-sm">
               {selectedOrderIds.size}
@@ -809,7 +850,7 @@ function OrderDetail({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4"
       onClick={onClose}
     >
       <div
@@ -819,8 +860,10 @@ function OrderDetail({
         <div className="mb-4 flex items-center justify-between gap-2">
           <div>
             <h2 className="text-base font-semibold text-slate-100">Détail de la commande</h2>
-            <p className="font-mono text-xs text-slate-500">
-              {order.shopifyData?.orderNumber ? `#${order.shopifyData.orderNumber}` : `ID: ${order.id.slice(0, 10)}`}
+            <p className="font-mono text-xs text-slate-400 tabular-nums">
+              {cleanOrderNumber(order.shopifyData?.orderNumber || order.orderNumber)
+                ? `#${cleanOrderNumber(order.shopifyData?.orderNumber || order.orderNumber)}`
+                : `ID: ${order.id.slice(0, 10)}`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -931,58 +974,63 @@ function OrderDetail({
                     <button
                       type="button"
                       onClick={() => setScriptMode("auto")}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                         scriptMode === "auto"
                           ? "bg-brand text-white"
                           : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      🎯 Auto
+                      <Target className="h-3 w-3" />
+                      Auto
                     </button>
                     <button
                       type="button"
                       onClick={() => setScriptMode("sav")}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                         scriptMode === "sav"
                           ? "bg-brand text-white"
                           : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      📦 SAV
+                      <PackageCheck className="h-3 w-3" />
+                      SAV
                     </button>
                     <button
                       type="button"
                       onClick={() => setScriptMode("relance")}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                         scriptMode === "relance"
                           ? "bg-brand text-white"
                           : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      📞 Relance
+                      <PhoneForwarded className="h-3 w-3" />
+                      Relance
                     </button>
                     <button
                       type="button"
                       onClick={() => setScriptMode("confirmation")}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                         scriptMode === "confirmation"
                           ? "bg-brand text-white"
                           : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
                       }`}
                     >
-                      🕒 Prise RDV
+                      <CalendarClock className="h-3 w-3" />
+                      Prise RDV
                     </button>
                     {order.isDuplicatePhone && (
                       <button
                         type="button"
                         onClick={() => setScriptMode("doublon")}
-                        className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-medium transition ${
                           scriptMode === "doublon"
                             ? "bg-amber-500 text-black font-semibold"
                             : "border border-amber-500/30 bg-amber-500/10 text-amber-400"
                         }`}
                       >
-                        🔄 Vérif Doublon
+                        <Repeat className="h-3 w-3" />
+                        Vérif Doublon
                       </button>
                     )}
                   </div>
@@ -1036,25 +1084,25 @@ function OrderDetail({
                       <span
                         className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${
                           effSource === "meta_ads"
-                            ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
+                            ? "bg-brand-light text-brand border border-brand/30"
                             : effSource === "tiktok_ads"
-                            ? "bg-rose-500/15 text-rose-300 border border-rose-500/30"
+                            ? "bg-rose-500/15 text-rose-400 border border-rose-500/30"
                             : effSource === "google_ads"
-                            ? "bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                            ? "bg-sky-500/15 text-sky-400 border border-sky-500/30"
                             : effSource === "acces_libre_site"
-                            ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
-                            : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                            : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
                         }`}
                       >
                         {effSource === "meta_ads"
-                          ? "🎯 Meta Ads"
+                          ? "Meta Ads"
                           : effSource === "tiktok_ads"
-                          ? "🎵 TikTok Ads"
+                          ? "TikTok Ads"
                           : effSource === "google_ads"
-                          ? "🔍 Google Ads"
+                          ? "Google Ads"
                           : effSource === "acces_libre_site"
-                          ? "🔄 Source Libre (Doublon)"
-                          : "🌿 Source Libre · Organique"}
+                          ? "Source Libre (Doublon)"
+                          : "Source Libre · Organique"}
                       </span>
                     </div>
 
@@ -1112,48 +1160,87 @@ function OrderDetail({
                     {/* Modification manuelle en 1 clic */}
                     <div className="pt-2 border-t border-surface-border">
                       <p className="text-[10px] uppercase font-semibold text-slate-500 mb-1.5">Modifier le canal attribué :</p>
-                      <div className="grid grid-cols-3 gap-1">
+                      <div className="grid grid-cols-3 gap-1.5">
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => runSave({ trafficSource: "organique", capiIsolated: true })}
-                          className={`rounded px-1.5 py-1 text-[10px] font-semibold transition-colors text-center ${
+                          className={`inline-flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-semibold transition-colors ${
                             effSource === "organique"
-                              ? "bg-emerald-600 text-white shadow-sm"
+                              ? "bg-emerald-600 text-white"
                               : "bg-surface-raised text-slate-300 hover:bg-emerald-500/20"
                           }`}
                         >
-                          🌿 Source Libre
+                          <Sprout className="h-3 w-3" />
+                          Source Libre
                         </button>
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => runSave({ trafficSource: "meta_ads", capiIsolated: false })}
-                          className={`rounded px-1.5 py-1 text-[10px] font-semibold transition-colors text-center ${
+                          className={`inline-flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-semibold transition-colors ${
                             effSource === "meta_ads"
-                              ? "bg-indigo-600 text-white shadow-sm"
-                              : "bg-surface-raised text-slate-300 hover:bg-indigo-500/20"
+                              ? "bg-brand text-white"
+                              : "bg-surface-raised text-slate-300 hover:bg-brand-light"
                           }`}
                         >
-                          🎯 Meta Ads
+                          <Target className="h-3 w-3" />
+                          Meta Ads
                         </button>
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => runSave({ trafficSource: "acces_libre_site", capiIsolated: true })}
-                          className={`rounded px-1.5 py-1 text-[10px] font-semibold transition-colors text-center ${
+                          className={`inline-flex items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-semibold transition-colors ${
                             effSource === "acces_libre_site"
-                              ? "bg-amber-600 text-white shadow-sm"
+                              ? "bg-amber-600 text-white"
                               : "bg-surface-raised text-slate-300 hover:bg-amber-500/20"
                           }`}
                         >
-                          🔄 Doublon
+                          <Repeat className="h-3 w-3" />
+                          Doublon
                         </button>
                       </div>
                     </div>
                   </div>
                 );
               })()}
+              {(order.rejectionReason ||
+                order.rescheduleReason ||
+                order.fieldNote ||
+                order.deliveryFailureReason ||
+                order.deliveryFieldNote) && (
+                <div className="mt-2 space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-400">
+                    Retours &amp; Notes Terrain
+                  </p>
+                  {order.rejectionReason && (
+                    <p className="text-slate-200">
+                      <span className="text-slate-400">Motif rejet :</span> {order.rejectionReason}
+                    </p>
+                  )}
+                  {order.rescheduleReason && (
+                    <p className="text-slate-200">
+                      <span className="text-slate-400">Raison report :</span> {order.rescheduleReason}
+                    </p>
+                  )}
+                  {order.fieldNote && (
+                    <p className="text-slate-200">
+                      <span className="text-slate-400">Note closeuse :</span> {order.fieldNote}
+                    </p>
+                  )}
+                  {order.deliveryFailureReason && (
+                    <p className="text-slate-200">
+                      <span className="text-slate-400">Motif échec livreur :</span> {order.deliveryFailureReason}
+                    </p>
+                  )}
+                  {order.deliveryFieldNote && (
+                    <p className="text-slate-200">
+                      <span className="text-slate-400">Observation livreur :</span> {order.deliveryFieldNote}
+                    </p>
+                  )}
+                </div>
+              )}
               {order.statutLivreur && <Row label="Statut livreur" value={LIVREUR_LABELS[order.statutLivreur]} />}
               <button
                 onClick={() => setEditing(true)}

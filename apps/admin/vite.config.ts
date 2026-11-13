@@ -10,8 +10,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      registerType: "prompt",
+      includeAssets: ["favicon.svg", "notification-ping.mp3"],
       manifest: {
         name: "WariTrack — Cockpit Admin",
         short_name: "WariTrack",
@@ -31,10 +31,9 @@ export default defineConfig({
       },
       workbox: {
         cacheId: "waritrack-admin-v5-live",
-        globPatterns: ["**/*.{js,css,png,svg,ico,woff2}"],
-        navigateFallback: null,
-        skipWaiting: true,
-        clientsClaim: true,
+        globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/__/, /^\/firebase-messaging-sw\.js$/, /\/api\//],
         cleanupOutdatedCaches: true,
       },
     }),

@@ -1,5 +1,7 @@
 import { useState } from "react";
+import type { Team } from "@ecomcod/shared";
 import ThemeQuickPicker from "./ThemeQuickPicker";
+import MarketSelector from "./MarketSelector";
 import WariTrackLogo from "./WariTrackLogo";
 import {
   LayoutDashboard,
@@ -10,11 +12,11 @@ import {
   Wallet,
   Landmark,
   Settings,
-  Globe,
   FileBarChart2,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Search,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -25,6 +27,11 @@ interface SidebarProps {
   onToggleCollapse?: (collapsed: boolean) => void;
   onLogout: () => void;
   onNavigate: (key: string) => void;
+  onOpenCommandPalette?: () => void;
+  teams?: Team[];
+  activeTeamId?: string | null;
+  onSelectTeam?: (teamId: string) => void;
+  onAddMarket?: () => void;
   onOpenWhatsNew?: () => void;
 }
 
@@ -77,6 +84,11 @@ export default function Sidebar({
   onToggleCollapse,
   onLogout,
   onNavigate,
+  onOpenCommandPalette,
+  teams = [],
+  activeTeamId = null,
+  onSelectTeam,
+  onAddMarket,
 }: SidebarProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = typeof controlledCollapsed === "boolean";
@@ -136,6 +148,41 @@ export default function Sidebar({
               <PanelLeftClose className="h-4 w-4" />
             </button>
           </>
+        )}
+      </div>
+
+      {/* Outils rapides Studio : Recherche ⌘K + Sélecteur de marché */}
+      <div className="mb-4 space-y-2">
+        {onOpenCommandPalette && (
+          <button
+            type="button"
+            onClick={onOpenCommandPalette}
+            title="Recherche rapide (⌘K)"
+            className={`flex w-full items-center rounded-lg border border-surface-border bg-surface text-xs text-slate-400 transition-colors hover:border-brand/50 hover:text-slate-200 ${
+              collapsed ? "justify-center p-2" : "justify-between gap-2 px-2.5 py-2"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Search className="h-3.5 w-3.5 shrink-0" />
+              {!collapsed && <span>Rechercher…</span>}
+            </span>
+            {!collapsed && (
+              <kbd className="rounded border border-surface-border bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+                ⌘K
+              </kbd>
+            )}
+          </button>
+        )}
+
+        {teams.length > 0 && onSelectTeam && onAddMarket && (
+          <MarketSelector
+            teams={teams}
+            activeTeamId={activeTeamId}
+            onSelectTeam={onSelectTeam}
+            onAddMarket={onAddMarket}
+            variant="sidebar"
+            collapsed={collapsed}
+          />
         )}
       </div>
 

@@ -848,7 +848,7 @@ export default function ShopifyFluxManager({
                         onClick={() => openVerification(conn as Conn)}
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors shadow-sm ${
                           health.needsVerification
-                            ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 animate-pulse"
+                            ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
                             : "border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20"
                         }`}
                         title="Vérifier le webhook, tester la détection ou reconfigurer"
@@ -1031,7 +1031,7 @@ export default function ShopifyFluxManager({
       {/* ASSISTANT DE CONNEXION ÉTAPE PAR ÉTAPE (WIZARD) */}
       {/* ===================================================================== */}
       {showWizard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-xl rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl space-y-6">
             {/* En-tête Wizard */}
             <div className="flex items-center justify-between border-b border-surface-border pb-4">
@@ -1204,7 +1204,7 @@ export default function ShopifyFluxManager({
                                 });
                               }
                             }}
-                            className="rounded border-slate-700 text-[#5E8E3E] focus:ring-0"
+                            className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border"
                           />
                           <CountryFlag code={countryCode} />
                           <span className="text-xs font-bold text-slate-200">{meta.name}</span>
@@ -1545,7 +1545,7 @@ export default function ShopifyFluxManager({
 
       {/* MODAL DE CONFIRMATION D'ASSIGNATION / RÉVOCATION */}
       {confirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-md rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl space-y-4">
             <h3 className="text-sm font-bold text-slate-100">
               {confirmModal.action === "revoke" ? "Révoquer l'accès au flux" : "Partager le flux de commandes"}
@@ -1593,7 +1593,7 @@ export default function ShopifyFluxManager({
 
       {/* MODAL AJOUT RAPIDE D'UN PAYS SUR UNE BOUTIQUE EXISTANTE */}
       {addCountryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl space-y-4">
             <h3 className="text-sm font-bold text-slate-100">Ajouter un pays de vente</h3>
             <div className="space-y-1">

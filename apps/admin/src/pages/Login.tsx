@@ -1,4 +1,5 @@
 import { useState } from "react";
+import WariTrackLogo from "../components/WariTrackLogo";
 
 interface LoginProps {
   sendLoginLink: (email: string) => Promise<void>;
@@ -10,10 +11,8 @@ interface LoginProps {
 }
 
 /**
- * Connexion admin = lien magique par email, pas de mot de passe ni de
- * popup Google. Système multi-entreprises : n'importe quel email peut
- * créer son propre espace ; à la première connexion, on demande le nom
- * de l'espace à créer (section auto-signup).
+ * Connexion administrateur par lien magique par e-mail (sans mot de passe).
+ * Multi-espaces : chaque nouvel utilisateur peut initialiser son propre espace COD.
  */
 export default function Login({
   sendLoginLink,
@@ -28,10 +27,9 @@ export default function Login({
 
   if (needsWorkspaceName) {
     return (
-      <Shell title="Bienvenue 👋">
-        <p className="mb-6 text-center text-sm text-slate-500">
-          Premier passage ici — donne un nom à ton espace pour démarrer ton propre système
-          COD, séparé de tout le monde.
+      <Shell title="Créer votre espace" subtitle="Première connexion à WariTrack">
+        <p className="mb-5 text-center text-sm text-slate-400">
+          Indiquez le nom de votre entreprise ou boutique pour initialiser votre cockpit COD isolé.
         </p>
         <form
           onSubmit={(e) => {
@@ -41,20 +39,22 @@ export default function Login({
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm text-slate-400">Nom de ton entreprise / espace</label>
+            <label className="mb-1.5 block text-xs font-medium text-slate-400">
+              Nom de l'entreprise / espace
+            </label>
             <input
               autoFocus
               value={workspaceName}
               onChange={(e) => setWorkspaceName(e.target.value)}
-              placeholder="Ex : TG Mobile"
-              className="w-full rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-base text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+              placeholder="Ex : WariExpress Lomé"
+              className="w-full min-h-[48px] rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-base text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
             />
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-rose-400">{error}</p>}
           <button
             type="submit"
             disabled={busy || !workspaceName.trim()}
-            className="w-full rounded-xl bg-brand py-3 text-base font-medium text-white disabled:opacity-50"
+            className="w-full min-h-[48px] rounded-xl bg-brand py-3 text-base font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-50"
           >
             {busy ? "Création..." : "Créer mon espace"}
           </button>
@@ -65,17 +65,18 @@ export default function Login({
 
   if (linkSent) {
     return (
-      <Shell title="Vérifie ta boîte mail 📩">
-        <p className="text-center text-sm text-slate-500">
-          Un lien de connexion a été envoyé à <span className="text-slate-300">{email}</span>.
-          Ouvre-le depuis ce même appareil pour te connecter — pas de mot de passe à retenir.
+      <Shell title="Vérifiez votre boîte mail" subtitle="Lien de connexion envoyé">
+        <p className="text-center text-sm text-slate-400 leading-relaxed">
+          Un lien de connexion sécurisé a été envoyé à{" "}
+          <span className="font-medium text-slate-200">{email}</span>. Ouvrez-le depuis cet
+          appareil pour accéder au cockpit.
         </p>
       </Shell>
     );
   }
 
   return (
-    <Shell title="Ecom COD" subtitle="Espace admin">
+    <Shell title="WariTrack" subtitle="Cockpit Direction — Cash & Logistique">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -84,31 +85,30 @@ export default function Login({
         className="space-y-4"
       >
         <div>
-          <label className="mb-1 block text-sm text-slate-400">Ton email</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-400">Adresse e-mail professionnelle</label>
           <input
             type="email"
             autoFocus
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="toi@exemple.com"
-            className="w-full rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-base text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
+            placeholder="direction@votre-boutique.com"
+            className="w-full min-h-[48px] rounded-xl border border-surface-border bg-surface-raised px-4 py-3 text-base text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        {error && <p className="text-sm text-rose-400">{error}</p>}
 
         <button
           type="submit"
           disabled={busy || !email.trim()}
-          className="w-full rounded-xl bg-brand py-3 text-base font-medium text-white disabled:opacity-50"
+          className="w-full min-h-[48px] rounded-xl bg-brand py-3 text-base font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-50"
         >
           {busy ? "Envoi..." : "Recevoir mon lien de connexion"}
         </button>
       </form>
 
-      <p className="mt-8 text-center text-xs text-slate-600">
-        Pas de mot de passe : tu reçois un lien par email, tu cliques, tu es connecté.
-        Première connexion : ton propre espace est créé automatiquement.
+      <p className="mt-6 text-center text-xs text-slate-500 leading-relaxed">
+        Connexion sans mot de passe par lien unique. Lors de votre première visite, votre espace est configuré automatiquement.
       </p>
     </Shell>
   );
@@ -116,14 +116,14 @@ export default function Login({
 
 function Shell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl">
-            <img src="/icons/icon-192.png" alt="Ecom COD" className="h-full w-full object-cover" />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-6 py-10">
+      <div className="w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-6">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-3">
+            <WariTrackLogo size="lg" variant="icon" subtitle="" />
           </div>
-          <h1 className="text-xl font-medium text-slate-100">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+          <h1 className="text-xl font-semibold text-slate-100">{title}</h1>
+          {subtitle && <p className="mt-1 text-xs text-slate-400">{subtitle}</p>}
         </div>
         {children}
       </div>

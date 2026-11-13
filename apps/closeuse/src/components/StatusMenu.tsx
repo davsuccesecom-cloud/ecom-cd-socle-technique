@@ -1,3 +1,4 @@
+import { X, ArrowLeft } from "lucide-react";
 import { CLOSEUSE_SECONDARY_STATUSES, CLOSEUSE_STATUS_LABELS, type CloseuseStatus, type Order } from "@ecomcod/shared";
 
 interface StatusMenuProps {
@@ -9,9 +10,8 @@ interface StatusMenuProps {
 }
 
 /**
- * Statuts secondaires planqués derrière le hamburger (architecture
- * section 6) — pas sur l'écran principal, pour ne pas polluer le flux de
- * travail quotidien de la closeuse.
+ * Statuts secondaires regroupés dans le menu latéral afin de garder
+ * les onglets principaux focalisés sur le flux quotidien de la closeuse.
  */
 export default function StatusMenu({ open, onClose, orders, activeSecondary, onSelectSecondary }: StatusMenuProps) {
   if (!open) return null;
@@ -20,29 +20,40 @@ export default function StatusMenu({ open, onClose, orders, activeSecondary, onS
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="w-72 bg-white dark:bg-slate-800 p-5 shadow-2xl border-l border-slate-100 dark:border-slate-700 text-slate-900 dark:text-slate-100 transition-colors">
-        <h2 className="mb-4 text-sm font-medium text-slate-500 dark:text-slate-400">Autres statuts</h2>
-        <div className="space-y-1">
+      <div className="flex-1 bg-slate-950/50" onClick={onClose} />
+      <aside className="w-72 border-l border-surface-border bg-surface-raised p-5 shadow-2xl text-slate-900 dark:text-slate-100">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Autres statuts</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer le menu"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-surface-border text-slate-500 hover:bg-surface-subtle"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-1.5">
           {CLOSEUSE_SECONDARY_STATUSES.map((status) => (
             <button
               key={status}
+              type="button"
               onClick={() => {
                 onSelectSecondary(activeSecondary === status ? null : status);
                 onClose();
               }}
-              className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+              className={`flex min-h-[48px] w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-sm font-medium transition-colors ${
                 activeSecondary === status
                   ? "bg-brand text-white"
-                  : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60"
+                  : "border border-transparent text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
               }`}
             >
               <span>{CLOSEUSE_STATUS_LABELS[status]}</span>
               <span
-                className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
                   activeSecondary === status
                     ? "bg-white/20 text-white"
-                    : "text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700"
+                    : "bg-surface-subtle text-slate-600 dark:text-slate-300"
                 }`}
               >
                 {countFor(status)}
@@ -51,17 +62,19 @@ export default function StatusMenu({ open, onClose, orders, activeSecondary, onS
           ))}
           {activeSecondary && (
             <button
+              type="button"
               onClick={() => {
                 onSelectSecondary(null);
                 onClose();
               }}
-              className="w-full pt-3 text-left text-sm text-brand hover:underline font-medium"
+              className="mt-2 flex min-h-[44px] w-full items-center gap-2 rounded-xl border border-surface-border px-3 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:bg-surface-subtle"
             >
-              ← Revenir aux commandes actives
+              <ArrowLeft className="h-4 w-4" />
+              <span>Revenir aux commandes actives</span>
             </button>
           )}
         </div>
-      </div>
+      </aside>
     </div>
   );
 }

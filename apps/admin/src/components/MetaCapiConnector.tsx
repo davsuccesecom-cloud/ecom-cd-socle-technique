@@ -402,7 +402,7 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
             <h4 className="text-sm font-semibold text-slate-200">Meta Conversions API (CAPI) Automatique</h4>
             {isAlreadyConfigured && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                 Actif
               </span>
             )}

@@ -1,21 +1,25 @@
+import { PhoneCall } from "lucide-react";
+
 interface CallBarProps {
   onEndCall: () => void;
 }
 
 /**
- * Barre bleue demandée explicitement (architecture section 6) : reste
- * visible sur LA commande précise pendant l'appel, même si d'autres
- * commandes arrivent entre-temps, pour éviter qu'une closeuse ouvre une
- * 2e action pendant qu'un appel est encore en cours ailleurs.
+ * Bandeau persistant affiché sur la commande en cours d'appel pour éviter
+ * qu'une autre commande soit ouverte simultanément par erreur.
  */
 export default function CallBar({ onEndCall }: CallBarProps) {
   return (
-    <div className="mb-2 flex items-center justify-between rounded-lg bg-sky-500 px-3 py-1.5 text-sm text-white">
-      <span className="flex items-center gap-1.5">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
-        Appel en cours
+    <div className="mb-3 flex min-h-[44px] items-center justify-between rounded-xl bg-sky-600 px-3.5 py-2 text-sm font-medium text-white">
+      <span className="flex items-center gap-2">
+        <PhoneCall className="h-4 w-4 shrink-0" />
+        <span>Appel en cours</span>
       </span>
-      <button onClick={onEndCall} className="underline underline-offset-2">
+      <button
+        type="button"
+        onClick={onEndCall}
+        className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-semibold hover:bg-white/25 transition-colors"
+      >
         Terminer
       </button>
     </div>

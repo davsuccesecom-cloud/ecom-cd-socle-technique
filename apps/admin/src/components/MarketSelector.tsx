@@ -7,6 +7,8 @@ interface MarketSelectorProps {
   activeTeamId: string | null;
   onSelectTeam: (teamId: string) => void;
   onAddMarket: () => void;
+  variant?: "default" | "sidebar";
+  collapsed?: boolean;
 }
 
 function countryFor(code: string | undefined) {
@@ -26,7 +28,14 @@ function flagUrl(code: string) {
  * Ce menu custom permet les deux : vrais drapeaux + item "+ Ajouter un
  * marché" cliquable en bas de liste, qui ouvre CreateTeamForm en modal.
  */
-export default function MarketSelector({ teams, activeTeamId, onSelectTeam, onAddMarket }: MarketSelectorProps) {
+export default function MarketSelector({
+  teams,
+  activeTeamId,
+  onSelectTeam,
+  onAddMarket,
+  variant = "default",
+  collapsed = false,
+}: MarketSelectorProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -40,39 +49,69 @@ export default function MarketSelector({ teams, activeTeamId, onSelectTeam, onAd
 
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
   const activeCountry = countryFor(activeTeam?.defaultCountry);
+  const isSidebar = variant === "sidebar";
 
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-4 py-2 text-sm font-semibold text-slate-100 outline-none transition-all hover:border-brand/40 shadow-xs focus:border-brand md:h-9 md:rounded-xl md:px-3 md:py-1.5 md:text-xs"
+        title={activeTeam ? `Marché actif : ${activeTeam.name}` : "Sélectionner un marché"}
+        className={
+          isSidebar
+            ? `flex w-full items-center gap-2 rounded-lg border border-surface-border bg-surface text-xs font-semibold text-slate-100 transition-colors hover:border-brand/50 ${
+                collapsed ? "justify-center p-2" : "justify-between px-2.5 py-2"
+              }`
+            : "flex min-h-[44px] md:min-h-0 md:h-9 items-center gap-2 rounded-lg border border-surface-border bg-surface-raised px-3 text-xs font-semibold text-slate-100 outline-none transition-colors hover:border-brand/50"
+        }
       >
-        {activeCountry && (
-          <img src={flagUrl(activeCountry.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover shadow-xs" />
-        )}
-        <span className="max-w-[130px] truncate">{activeTeam ? activeTeam.name : "Sélectionner un marché"}</span>
-        <ChevronIcon />
+        <div className="flex min-w-0 items-center gap-2">
+          {activeCountry ? (
+            <img src={flagUrl(activeCountry.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover" />
+          ) : null}
+          {!collapsed && (
+            <span className={isSidebar ? "truncate" : "max-w-[140px] truncate"}>
+              {activeTeam ? activeTeam.name : "Sélectionner un marché"}
+            </span>
+          )}
+        </div>
+        {!collapsed && <ChevronIcon />}
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-2 w-64 rounded-2xl border border-surface-border bg-surface-raised p-2 shadow-2xl backdrop-blur-md">
-          <div className="max-h-64 space-y-1 overflow-y-auto">
+        <div
+          className={`surface-popover z-50 rounded-xl border border-surface-border bg-surface-raised p-2 ${
+            isSidebar && collapsed
+              ? "fixed left-16 top-20 ml-2 w-60"
+              : "absolute left-0 top-full mt-1.5 w-64"
+          }`}
+        >
+          <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+            Marché actif
+          </p>
+          <div className="max-h-60 space-y-1 overflow-y-auto">
             {teams.map((t) => {
               const c = countryFor(t.defaultCountry);
               const isActive = t.id === activeTeamId;
               return (
                 <button
                   key={t.id}
+                  type="button"
                   onClick={() => {
                     onSelectTeam(t.id);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium transition-all ${
-                    isActive ? "bg-brand/15 text-brand font-semibold" : "text-slate-200 hover:bg-surface"
+                  className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${
+                    isActive ? "bg-brand-light text-brand font-semibold" : "text-slate-200 hover:bg-surface"
                   }`}
                 >
-                  {c && <img src={flagUrl(c.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover" />}
-                  <span className="truncate">{t.name}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    {c && <img src={flagUrl(c.code)} alt="" className="h-3.5 w-5 shrink-0 rounded-sm object-cover" />}
+                    <span className="truncate">{t.name}</span>
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                    {t.currency || "XOF"}
+                  </span>
                 </button>
               );
             })}
@@ -81,11 +120,12 @@ export default function MarketSelector({ teams, activeTeamId, onSelectTeam, onAd
           <div className="my-1.5 border-t border-surface-border" />
 
           <button
+            type="button"
             onClick={() => {
               setOpen(false);
               onAddMarket();
             }}
-            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-brand transition-all hover:bg-brand/10"
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-brand transition-colors hover:bg-brand-light"
           >
             <PlusIcon />
             Ajouter un marché

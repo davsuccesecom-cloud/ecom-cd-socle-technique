@@ -1,32 +1,52 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
+  CalendarClock,
+  Check,
+  Clock,
+  MapPin,
+  MessageSquareText,
+  Phone,
+  RefreshCw,
+  Truck,
+  X,
+} from "lucide-react";
+import {
+  AutoResizeTextarea,
   buildTelLink,
   buildWhatsAppLink,
+  cleanClientName,
+  cleanOrderNumber,
   CLOSEUSE_STATUS_LABELS,
   ConfirmDialog,
+  formatCurrency,
   type AppUser,
   type CloseuseStatus,
+  type CloseuseUpdateExtras,
   type Order,
+  type Team,
 } from "@ecomcod/shared";
 import CallBar from "./CallBar";
 
 interface OrderCardProps {
   order: Order;
+  team?: Team | null;
   livreurs: AppUser[];
+  activeDeliveriesByLivreur?: Record<string, number>;
   onCall: () => void;
   onEndCall: () => void;
-  onChangeStatus: (status: CloseuseStatus, reminderAt?: number | null, rejectionReason?: string | null) => void;
+  onChangeStatus: (status: CloseuseStatus, extras?: CloseuseUpdateExtras) => void;
   onAssignLivreur: (livreurId: string) => void;
 }
 
 const STATUS_BADGE_CLASS: Record<CloseuseStatus, string> = {
-  nouveau: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400",
-  programme: "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400",
-  en_cours: "bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400",
-  livre: "bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400",
-  rejete: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400",
-  injoignable: "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400",
-  indisponible: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
+  nouveau: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/50 dark:text-indigo-300",
+  programme: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/50 dark:text-amber-300",
+  en_cours: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/50 dark:text-sky-300",
+  livre: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300",
+  rejete: "border-red-200 bg-red-50 text-red-700 dark:border-red-800/60 dark:bg-red-950/50 dark:text-red-300",
+  injoignable: "border-red-200 bg-red-50 text-red-700 dark:border-red-800/60 dark:bg-red-950/50 dark:text-red-300",
+  indisponible: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
 };
 
 const ACTIONS_BY_STATUS: Partial<
@@ -40,234 +60,414 @@ const ACTIONS_BY_STATUS: Partial<
   >
 > = {
   nouveau: [
-    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white" },
-    { label: "Programmer", target: "programme", style: "bg-amber-500 text-white" },
-    { label: "Rejeter", target: "rejete", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
-    { label: "Injoignable", target: "injoignable", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
+    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
+    { label: "Programmer", target: "programme", style: "bg-amber-500 text-white hover:bg-amber-600" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60" },
+    { label: "Injoignable", target: "injoignable", style: "border border-surface-border bg-surface-subtle text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700" },
   ],
-
   programme: [
-    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white" },
-    { label: "Rejeter", target: "rejete", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
-    { label: "Injoignable", target: "injoignable", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
+    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
+    { label: "Injoignable", target: "injoignable", style: "border border-surface-border bg-surface-subtle text-slate-700 dark:text-slate-200" },
   ],
-
   en_cours: [
-    { label: "Rejeter", target: "rejete", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
-    { label: "Injoignable", target: "injoignable", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
+    { label: "Injoignable", target: "injoignable", style: "border border-surface-border bg-surface-subtle text-slate-700 dark:text-slate-200" },
   ],
-
   injoignable: [
-    { label: "Rappeler (reprogrammer)", target: "programme", style: "bg-amber-500 text-white" },
-    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white" },
-    { label: "Rejeter définitivement", target: "rejete", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
+    { label: "Rappeler (reprogrammer)", target: "programme", style: "bg-amber-500 text-white hover:bg-amber-600" },
+    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
   ],
-
   indisponible: [
-    { label: "Rappeler (reprogrammer)", target: "programme", style: "bg-amber-500 text-white" },
-    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white" },
-    { label: "Rejeter définitivement", target: "rejete", style: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400" },
+    { label: "Rappeler (reprogrammer)", target: "programme", style: "bg-amber-500 text-white hover:bg-amber-600" },
+    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
   ],
 };
 
+const REJECTION_REASONS = [
+  "Client a annulé / changé d'avis",
+  "Prix ou frais jugés trop élevés",
+  "Numéro erroné / Faux client",
+  "Doublon de commande",
+  "Hors zone de livraison",
+  "Autre motif (préciser)",
+];
+
+const RESCHEDULE_REASONS = [
+  "Client en déplacement",
+  "Attente de paie / budget",
+  "Demande rappel en fin de journée",
+  "Doit confirmer avec un proche",
+];
+
+function useNativeDialog(open: boolean, onClose: () => void) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const pressedOutsideRef = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (open) {
+      if (!el.open) {
+        try {
+          el.showModal();
+        } catch {
+          // Ignore si non supporté
+        }
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [open]);
+
+  const isOutside = (e: React.PointerEvent<HTMLDialogElement>, el: HTMLDialogElement) => {
+    const r = el.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+
+  return {
+    ref,
+    dialogProps: {
+      ...({ closedby: "any" } as Record<string, unknown>),
+      onCancel: (e: React.SyntheticEvent<HTMLDialogElement>) => {
+        e.preventDefault();
+        onClose();
+      },
+      onPointerDown: (e: React.PointerEvent<HTMLDialogElement>) => {
+        const el = ref.current;
+        if (!el) return;
+        if (!("closedBy" in HTMLDialogElement.prototype)) {
+          pressedOutsideRef.current = isOutside(e, el);
+        }
+      },
+      onPointerUp: (e: React.PointerEvent<HTMLDialogElement>) => {
+        const el = ref.current;
+        if (!el) return;
+        if (!("closedBy" in HTMLDialogElement.prototype) && pressedOutsideRef.current && isOutside(e, el)) {
+          pressedOutsideRef.current = false;
+          onClose();
+        } else {
+          pressedOutsideRef.current = false;
+        }
+      },
+    },
+  };
+}
+
 export default function OrderCard({
   order,
+  team,
   livreurs,
+  activeDeliveriesByLivreur = {},
   onCall,
   onEndCall,
   onChangeStatus,
   onAssignLivreur,
 }: OrderCardProps) {
+  const currency = team?.currency || "XOF";
+  const displayName = cleanClientName(order.clientName);
+  const cleanNum = cleanOrderNumber(order.orderNumber);
+  const orderCode = cleanNum ? `#${cleanNum}` : `#${order.id.slice(-6).toUpperCase()}`;
+  const formattedAmount = formatCurrency(order.amount, currency);
+
+  const cityClean = (order.city || "").trim();
+  const noteClean = (order.addressNote || "").trim();
+  const distinctAddressNote =
+    noteClean && noteClean.toLowerCase() !== cityClean.toLowerCase() ? noteClean : "";
+
   const actions = ACTIONS_BY_STATUS[order.statutCloseuse] ?? [];
   const isCallActive = order.callInProgress?.active;
-  const needsLivreur = order.statutCloseuse === "en_cours" && !order.livreurId;
-  const [selectedLivreur, setSelectedLivreur] = useState("");
+
+  const activeLivreurs = useMemo(
+    () => livreurs.filter((l) => l.status === "active"),
+    [livreurs]
+  );
+  const assignedLivreur = useMemo(
+    () => (order.livreurId ? livreurs.find((l) => l.id === order.livreurId) : undefined),
+    [livreurs, order.livreurId]
+  );
+
+  // Dialog states
+  const [livreurDialogMode, setLivreurDialogMode] = useState<"confirm" | "reassign" | null>(null);
+  const [modalLivreurId, setModalLivreurId] = useState("");
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [customDateTime, setCustomDateTime] = useState("");
-  const [pendingFinalStatus, setPendingFinalStatus] = useState<CloseuseStatus | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<string>("");
+  const [rescheduleReason, setRescheduleReason] = useState("");
+  const [scheduleNote, setScheduleNote] = useState("");
 
-  const REJECTION_REASONS = [
-    "Doublon / Déjà commandé",
-    "Client a annulé",
-    "Numéro erroné / Faux numéro",
-    "Hors zone de livraison",
-    "Prix / Frais refusés",
-  ];
+  const [pendingFinalStatus, setPendingFinalStatus] = useState<"rejete" | "injoignable" | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionNote, setRejectionNote] = useState("");
+  const [rejectionError, setRejectionError] = useState("");
+  const [injoignableNote, setInjoignableNote] = useState("");
 
-  const handleQuickSchedule = (minutesFromNow: number) => {
-    const reminderTime = Date.now() + minutesFromNow * 60 * 1000;
-    onChangeStatus("programme", reminderTime);
+  const livreurDialog = useNativeDialog(livreurDialogMode !== null, () => {
+    setLivreurDialogMode(null);
+    setModalLivreurId("");
+  });
+
+  const scheduleDialog = useNativeDialog(showScheduleModal, () => {
     setShowScheduleModal(false);
+  });
+
+  const rejectDialog = useNativeDialog(pendingFinalStatus === "rejete", () => {
+    setPendingFinalStatus(null);
+    setRejectionReason("");
+    setRejectionNote("");
+    setRejectionError("");
+  });
+
+  const openLivreurPicker = (mode: "confirm" | "reassign") => {
+    const initial =
+      mode === "reassign" && order.livreurId && activeLivreurs.some((l) => l.id === order.livreurId)
+        ? order.livreurId
+        : activeLivreurs.length === 1
+        ? activeLivreurs[0].id
+        : "";
+    setModalLivreurId(initial);
+    setLivreurDialogMode(mode);
+  };
+
+  const commitLivreurPicker = () => {
+    if (!modalLivreurId) return;
+    if (livreurDialogMode === "confirm") {
+      onChangeStatus("en_cours", { livreurId: modalLivreurId });
+    } else if (livreurDialogMode === "reassign") {
+      onAssignLivreur(modalLivreurId);
+    }
+    setLivreurDialogMode(null);
+    setModalLivreurId("");
+  };
+
+  const commitSchedule = (reminderAt: number) => {
+    onChangeStatus("programme", {
+      reminderAt,
+      rescheduleReason: rescheduleReason || null,
+      fieldNote: scheduleNote.trim() || null,
+    });
+    setShowScheduleModal(false);
+    setRescheduleReason("");
+    setScheduleNote("");
+    setCustomDateTime("");
   };
 
   const handleCustomSchedule = () => {
     if (!customDateTime) return;
     const timestamp = new Date(customDateTime).getTime();
-    if (!isNaN(timestamp)) {
-      onChangeStatus("programme", timestamp);
-      setShowScheduleModal(false);
+    if (!Number.isNaN(timestamp)) {
+      commitSchedule(timestamp);
     }
   };
 
   const whatsAppMessage =
     order.statutCloseuse === "injoignable"
-      ? `Bonjour ${order.clientName}, nous avons essayé de vous joindre par téléphone concernant votre commande de ${order.product} (${order.amount.toLocaleString("fr-FR")} F). À quelle heure pouvons-nous vous livrer aujourd'hui ?`
+      ? `Bonjour ${displayName}, nous avons essayé de vous joindre par téléphone concernant votre commande ${orderCode} (${order.product} — ${formattedAmount}). À quelle heure pouvons-nous vous livrer ?`
       : order.statutCloseuse === "programme"
-      ? `Bonjour ${order.clientName}, comme convenu nous revenons vers vous pour votre livraison de ${order.product} (${order.amount.toLocaleString("fr-FR")} F). Êtes-vous disponible pour recevoir le livreur ?`
+      ? `Bonjour ${displayName}, comme convenu nous revenons vers vous pour votre livraison ${orderCode} (${order.product} — ${formattedAmount}). Êtes-vous disponible pour recevoir le livreur ?`
       : order.isDuplicatePhone
-      ? `Bonjour ${order.clientName}, nous avons reçu votre commande de ${order.product} (${order.amount.toLocaleString("fr-FR")} F). Comme votre numéro figure deux fois, souhaitiez-vous 1 seul produit ou 2 produits pour la livraison ?`
-      : `Bonjour ${order.clientName}, je suis de la boutique suite à votre commande ${
-          order.orderNumber ? `(#${order.orderNumber}) ` : ""
-        }de ${order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}${order.product} d'un montant de ${order.amount.toLocaleString(
-          "fr-FR"
-        )} F. Êtes-vous disponible pour confirmer la livraison ?`;
+      ? `Bonjour ${displayName}, nous avons bien reçu votre commande (${order.product} — ${formattedAmount}). Votre numéro apparaissant deux fois, souhaitez-vous recevoir 1 seul ou 2 articles ?`
+      : `Bonjour ${displayName}, je vous contacte pour confirmer votre commande ${orderCode} (${order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}${order.product}) d'un montant de ${formattedAmount} payable en espèces à la livraison.`;
 
   return (
-    <div id={`order-${order.id}`} className="rounded-2xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-slate-100 dark:border-slate-700 transition-all">
+    <article
+      id={`order-${order.id}`}
+      className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-sm transition-shadow"
+    >
       {isCallActive && <CallBar onEndCall={onEndCall} />}
 
-      <div className="mb-3 flex items-start justify-between">
-        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[order.statutCloseuse]}`}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <span className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE_CLASS[order.statutCloseuse]}`}>
           {CLOSEUSE_STATUS_LABELS[order.statutCloseuse]}
         </span>
 
         {order.statutLivreur === "en_route" && (
-          <span className="rounded-full bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400">
-            En livraison
+          <span className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/50 dark:text-sky-300">
+            <Truck className="h-3.5 w-3.5" />
+            En tournée
           </span>
         )}
         {order.statutLivreur === "livre" && (
-          <span className="rounded-full bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400">
+          <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300">
+            <Check className="h-3.5 w-3.5" />
             Livrée
           </span>
         )}
         {order.statutLivreur === "injoignable" && (
-          <span className="rounded-full bg-red-50 dark:bg-red-950/40 px-2.5 py-1 text-xs font-medium text-red-600 dark:text-red-400">
-            Client injoignable (livreur)
+          <span className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 dark:border-red-800/60 dark:bg-red-950/50 dark:text-red-300">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Échec terrain livreur
           </span>
         )}
         {order.statutLivreur === "recu" && (
-          <span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300">
-            En attente du livreur
+          <span className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface-subtle px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+            Assignée au livreur
           </span>
         )}
       </div>
 
       {order.isDuplicatePhone && (
-        <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-          <strong>⚠️ Numéro doublon ({(order.previousOrdersCount ?? 1) + 1}x) :</strong> Vérifier à l'appel si le client souhaite <strong>1 seul produit</strong> (commande en double) ou <strong>2 produits</strong>.
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p>
+            <strong>Doublon détecté ({(order.previousOrdersCount ?? 1) + 1}x) :</strong> vérifiez avec le client s'il souhaite 1 ou 2 colis.
+          </p>
         </div>
       )}
 
+      {/* Client + Tactile WhatsApp & Appel (>= 48px) */}
       <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-light text-sm font-medium text-brand">
-          {order.clientName.slice(0, 2).toUpperCase()}
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-surface-border bg-brand-light text-sm font-bold text-indigo-700 dark:text-indigo-300">
+          {displayName.slice(0, 2).toUpperCase()}
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-slate-900 dark:text-slate-100">{order.clientName}</p>
-          <p className="truncate text-sm text-slate-500 dark:text-slate-400">{order.product}</p>
+          <p className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
+          <p className="truncate text-sm text-slate-600 dark:text-slate-300">
+            {order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}
+            {order.product}
+          </p>
         </div>
 
-        {/* Bouton WhatsApp */}
         <a
           href={buildWhatsAppLink(order.clientPhoneFormatted, whatsAppMessage)}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"
-          aria-label="WhatsApp"
+          className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#25D366] shadow-sm transition-opacity hover:opacity-90"
+          aria-label={`Contacter ${displayName} sur WhatsApp`}
         >
           <img
             src="/icons/whatsapp.png"
             alt="WhatsApp"
-            className="h-full w-full scale-[1.18] rounded-full object-cover"
+            className="h-full w-full scale-[1.15] object-cover"
             draggable={false}
           />
         </a>
 
-        {/* Bouton Appel téléphonique */}
         <a
           href={buildTelLink(order.clientPhoneFormatted)}
           onClick={onCall}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-light text-brand"
-          aria-label="Appeler"
+          className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-xl border border-indigo-200 bg-brand-light text-indigo-700 dark:border-indigo-800/60 dark:text-indigo-300 hover:opacity-90 transition-opacity"
+          aria-label={`Appeler ${displayName}`}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-          </svg>
+          <Phone className="h-5 w-5" />
         </a>
       </div>
 
-      {/* Détails EasySell (Ville, Note, Quantité, Commande) */}
-      {(order.city || order.addressNote || (order.quantity && order.quantity > 1) || order.orderNumber || order.reminderAt) && (
-        <div className="mb-3 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-2.5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
-          {order.orderNumber && (
-            <p className="font-semibold text-slate-700 dark:text-slate-200">
-              Commande : <span className="font-mono text-brand">#{order.orderNumber}</span>
-            </p>
+      {/* Métadonnées propres sans emojis */}
+      <div className="mb-3 space-y-1.5 rounded-xl border border-surface-border bg-surface-subtle p-3 text-xs text-slate-600 dark:text-slate-300">
+        <div className="flex items-center justify-between gap-2">
+          <span>
+            Commande <strong className="font-mono font-semibold text-indigo-700 dark:text-indigo-300">{orderCode}</strong>
+          </span>
+          {order.clientPhoneFormatted && (
+            <span className="font-mono text-slate-500 dark:text-slate-400 tabular-nums">
+              {order.clientPhoneFormatted}
+            </span>
           )}
-          {order.city && (
-            <p className="flex items-center gap-1.5">
-              <span>📍</span>
-              <span className="font-medium text-slate-800 dark:text-slate-100">{order.city}</span>
-              {order.addressNote && <span className="text-slate-500 dark:text-slate-400">— {order.addressNote}</span>}
-            </p>
-          )}
-          {order.quantity && order.quantity > 1 && (
-            <p>
-              Quantité : <span className="font-semibold text-brand">{order.quantity}</span>
-            </p>
-          )}
-          {order.reminderAt && (
-            <p className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-              <span>⏰</span> Rappel prévu :{" "}
+        </div>
+
+        {(cityClean || distinctAddressNote) && (
+          <p className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <span className="font-medium">{cityClean || distinctAddressNote}</span>
+            {cityClean && distinctAddressNote && (
+              <span className="text-slate-500 dark:text-slate-400">— {distinctAddressNote}</span>
+            )}
+          </p>
+        )}
+
+        {order.reminderAt && (
+          <p className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-300">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              Rappel prévu :{" "}
               {new Date(order.reminderAt).toLocaleString("fr-FR", {
                 day: "2-digit",
                 month: "2-digit",
                 hour: "2-digit",
                 minute: "2-digit",
               })}
+            </span>
+          </p>
+        )}
+      </div>
+
+      {/* Notes / motifs terrain enregistrés */}
+      {(order.rejectionReason || order.fieldNote || order.rescheduleReason || order.deliveryFailureReason || order.deliveryFieldNote) && (
+        <div className="mb-3 rounded-xl border border-surface-border bg-surface p-2.5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+          {(order.rejectionReason || order.rescheduleReason || order.deliveryFailureReason) && (
+            <p className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+              <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <span>{order.deliveryFailureReason || order.rejectionReason || order.rescheduleReason}</span>
+            </p>
+          )}
+          {(order.fieldNote || order.deliveryFieldNote) && (
+            <p className="pl-5 text-slate-500 dark:text-slate-400 italic">
+              « {order.deliveryFieldNote || order.fieldNote} »
             </p>
           )}
         </div>
       )}
 
-      <p className="mb-3 text-lg font-medium text-slate-900 dark:text-slate-100">{order.amount.toLocaleString("fr-FR")} F</p>
+      {/* Prix net en tabular-nums */}
+      <div className="mb-3 flex items-baseline justify-between">
+        <p className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
+          {formattedAmount}
+        </p>
+        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          Cash à la livraison
+        </span>
+      </div>
 
-      {/* Assignation du livreur */}
-      {needsLivreur && (
-        <div className="mb-3 flex gap-2 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-2.5">
-          <select
-            value={selectedLivreur}
-            onChange={(e) => setSelectedLivreur(e.target.value)}
-            className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none"
-          >
-            <option value="">Choisir un livreur…</option>
-            {livreurs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-          <button
-            disabled={!selectedLivreur}
-            onClick={() => onAssignLivreur(selectedLivreur)}
-            className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            Assigner
-          </button>
+      {/* Bloc livreur assigné / réassignation (toujours actif tant que non livrée) */}
+      {order.statutCloseuse === "en_cours" && (
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-surface-border bg-surface-subtle px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2 text-xs">
+            <Truck className={`h-4 w-4 shrink-0 ${order.livreurId ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"}`} />
+            <div className="min-w-0">
+              {order.livreurId ? (
+                <p className="truncate font-semibold text-slate-800 dark:text-slate-100">
+                  {assignedLivreur ? assignedLivreur.name : "Livreur archivé"}
+                  {assignedLivreur && assignedLivreur.status !== "active" && (
+                    <span className="ml-1.5 text-[11px] font-normal text-amber-600 dark:text-amber-400">
+                      (désactivé)
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="font-semibold text-amber-700 dark:text-amber-300">
+                  Aucun livreur assigné
+                </p>
+              )}
+            </div>
+          </div>
+
+          {order.statutLivreur !== "livre" && (
+            <button
+              type="button"
+              onClick={() => openLivreurPicker("reassign")}
+              className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-surface transition-colors"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>{order.livreurId ? "Réassigner" : "Assigner"}</span>
+            </button>
+          )}
         </div>
       )}
 
-      {/* Boutons d'actions */}
+      {/* Boutons d'action principaux (>= 48px tactile) */}
       {actions.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           {actions.map((action) => (
             <button
               key={action.target}
+              type="button"
               onClick={() => {
-                if (action.target === "programme") {
+                if (action.target === "en_cours") {
+                  openLivreurPicker("confirm");
+                } else if (action.target === "programme") {
                   setShowScheduleModal(true);
                 } else if (action.target === "rejete" || action.target === "injoignable") {
                   setPendingFinalStatus(action.target);
@@ -275,7 +475,7 @@ export default function OrderCard({
                   onChangeStatus(action.target);
                 }
               }}
-              className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${action.style}`}
+              className={`min-h-[48px] flex-1 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${action.style}`}
             >
               {action.label}
             </button>
@@ -283,147 +483,310 @@ export default function OrderCard({
         </div>
       )}
 
-      {/* Boîte de dialogue de programmation de rappel */}
-      {showScheduleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-xl border border-slate-100 dark:border-slate-700 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Programmer un rappel ⏰</h3>
-              <button
-                onClick={() => setShowScheduleModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg p-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Choisissez quand rappeler <strong>{order.clientName}</strong>. Vous recevrez une notification sonore au moment venu.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 text-xs font-medium">
-              <button
-                onClick={() => handleQuickSchedule(60)}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-              >
-                Dans 1 heure
-              </button>
-              <button
-                onClick={() => handleQuickSchedule(120)}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-              >
-                Dans 2 heures
-              </button>
-              <button
-                onClick={() => {
-                  const d = new Date();
-                  d.setHours(15, 0, 0, 0);
-                  if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
-                  onChangeStatus("programme", d.getTime());
-                  setShowScheduleModal(false);
-                }}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-              >
-                Cet après-midi (15h)
-              </button>
-              <button
-                onClick={() => {
-                  const d = new Date();
-                  d.setDate(d.getDate() + 1);
-                  d.setHours(10, 0, 0, 0);
-                  onChangeStatus("programme", d.getTime());
-                  setShowScheduleModal(false);
-                }}
-                className="rounded-xl border border-slate-200 dark:border-slate-700 p-2.5 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-              >
-                Demain matin (10h)
-              </button>
-            </div>
-
-            <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
-              <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Date et heure précise</label>
-              <input
-                type="datetime-local"
-                value={customDateTime}
-                onChange={(e) => setCustomDateTime(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-brand"
-              />
-              <button
-                disabled={!customDateTime}
-                onClick={handleCustomSchedule}
-                className="mt-2 w-full rounded-xl bg-brand py-2 text-xs font-medium text-white disabled:opacity-50"
-              >
-                Confirmer l'heure personnalisée
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pendingFinalStatus === "rejete" ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-xl border border-slate-100 dark:border-slate-700 space-y-3.5">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Rejeter la commande de {order.clientName} ?
+      {/* Dialog natif 1 : Choix obligatoire / Réassignation du livreur */}
+      <dialog
+        ref={livreurDialog.ref}
+        {...livreurDialog.dialogProps}
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-base font-semibold">
+              {livreurDialogMode === "confirm" ? "Confirmer & assigner un livreur" : "Réassigner la livraison"}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Sélectionnez le motif du rejet en 1 clic pour l'historique Admin :
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {displayName} · {cityClean || "Adresse client"}
             </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLivreurDialogMode(null)}
+            aria-label="Fermer"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-border text-slate-500 hover:bg-surface-subtle"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-2 max-h-64 overflow-y-auto pr-0.5">
+          {activeLivreurs.length === 0 ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+              Aucun livreur actif dans cette équipe. Demandez à votre responsable d'activer un livreur avant de confirmer.
+            </div>
+          ) : (
+            activeLivreurs.map((livreur) => {
+              const selected = modalLivreurId === livreur.id;
+              const load = activeDeliveriesByLivreur[livreur.id] || 0;
+              return (
+                <button
+                  key={livreur.id}
+                  type="button"
+                  onClick={() => setModalLivreurId(livreur.id)}
+                  className={`flex min-h-[48px] w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
+                    selected
+                      ? "border-brand bg-brand-light text-slate-900 dark:text-slate-100"
+                      : "border-surface-border bg-surface text-slate-800 dark:text-slate-200 hover:bg-surface-subtle"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{livreur.name}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+                      {load} colis en cours{livreur.phone ? ` · ${livreur.phone}` : ""}
+                    </p>
+                  </div>
+                  <div
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                      selected ? "border-brand bg-brand text-white" : "border-slate-300 dark:border-slate-600"
+                    }`}
+                  >
+                    {selected && <Check className="h-3 w-3" />}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <div className="mt-5 flex gap-2.5">
+          <button
+            type="button"
+            onClick={() => setLivreurDialogMode(null)}
+            className="min-h-[48px] flex-1 rounded-xl border border-surface-border bg-surface text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            disabled={!modalLivreurId || activeLivreurs.length === 0}
+            onClick={commitLivreurPicker}
+            className="min-h-[48px] flex-1 rounded-xl bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {livreurDialogMode === "confirm" ? "Confirmer & envoyer" : "Valider le livreur"}
+          </button>
+        </div>
+      </dialog>
+
+      {/* Dialog natif 2 : Programmer un rappel */}
+      <dialog
+        ref={scheduleDialog.ref}
+        {...scheduleDialog.dialogProps}
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-5 w-5 text-amber-500" />
+            <h3 className="text-base font-semibold">Programmer un rappel</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowScheduleModal(false)}
+            aria-label="Fermer"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-border text-slate-500 hover:bg-surface-subtle"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-3 space-y-3.5">
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">Raison du report (optionnel)</p>
             <div className="flex flex-wrap gap-1.5">
-              {REJECTION_REASONS.map((r) => (
+              {RESCHEDULE_REASONS.map((r) => (
                 <button
                   key={r}
                   type="button"
-                  onClick={() => setRejectionReason(r)}
+                  onClick={() => setRescheduleReason(rescheduleReason === r ? "" : r)}
                   className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    rejectionReason === r
-                      ? "border-red-500 bg-red-500/15 text-red-600 dark:text-red-400"
-                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                    rescheduleReason === r
+                      ? "border-amber-500 bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                      : "border-surface-border bg-surface text-slate-600 dark:text-slate-300"
                   }`}
                 >
                   {r}
                 </button>
               ))}
             </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setPendingFinalStatus(null);
-                  setRejectionReason("");
-                }}
-                className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onChangeStatus("rejete", undefined, rejectionReason || "Rejeté à l'appel");
-                  setPendingFinalStatus(null);
-                  setRejectionReason("");
-                }}
-                className="flex-1 rounded-xl bg-red-600 py-2.5 text-xs font-semibold text-white"
-              >
-                Confirmer le rejet
-              </button>
-            </div>
+          </div>
+
+          <AutoResizeTextarea
+            label="Note terrain (optionnel)"
+            value={scheduleNote}
+            onChange={setScheduleNote}
+            placeholder="Ex : Rappeler après 17h30 sur son second numéro..."
+            maxLength={400}
+          />
+
+          <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => commitSchedule(Date.now() + 60 * 60 * 1000)}
+              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+            >
+              Dans 1 heure
+            </button>
+            <button
+              type="button"
+              onClick={() => commitSchedule(Date.now() + 120 * 60 * 1000)}
+              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+            >
+              Dans 2 heures
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date();
+                d.setHours(15, 0, 0, 0);
+                if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+                commitSchedule(d.getTime());
+              }}
+              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+            >
+              Cet après-midi (15h)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const d = new Date();
+                d.setDate(d.getDate() + 1);
+                d.setHours(10, 0, 0, 0);
+                commitSchedule(d.getTime());
+              }}
+              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+            >
+              Demain matin (10h)
+            </button>
+          </div>
+
+          <div className="border-t border-surface-border pt-3">
+            <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">
+              Date et heure précise
+            </label>
+            <input
+              type="datetime-local"
+              value={customDateTime}
+              onChange={(e) => setCustomDateTime(e.target.value)}
+              className="min-h-[48px] w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-brand"
+            />
+            <button
+              type="button"
+              disabled={!customDateTime}
+              onClick={handleCustomSchedule}
+              className="mt-2.5 min-h-[48px] w-full rounded-xl bg-brand px-4 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              Confirmer l'heure personnalisée
+            </button>
           </div>
         </div>
-      ) : (
-        <ConfirmDialog
-          open={pendingFinalStatus === "injoignable"}
-          title={`Marquer ${order.clientName} comme injoignable ?`}
-          message="La commande sera classée dans les clients injoignables à relancer."
-          confirmLabel="Marquer injoignable"
-          danger={false}
-          onConfirm={() => {
-            onChangeStatus("injoignable");
-            setPendingFinalStatus(null);
-          }}
-          onCancel={() => setPendingFinalStatus(null)}
+      </dialog>
+
+      {/* Dialog natif 3 : Rejet avec raison + note extensible IA */}
+      <dialog
+        ref={rejectDialog.ref}
+        {...rejectDialog.dialogProps}
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
+      >
+        <h3 className="text-base font-semibold">Rejeter la commande de {displayName} ?</h3>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Choisissez le motif exact pour améliorer vos analyses COD :
+        </p>
+
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {REJECTION_REASONS.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => {
+                setRejectionReason(r);
+                setRejectionError("");
+              }}
+              className={`min-h-[38px] rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                rejectionReason === r
+                  ? "border-red-500 bg-red-500/15 text-red-700 dark:text-red-300"
+                  : "border-surface-border bg-surface text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3.5">
+          <AutoResizeTextarea
+            label="Précision terrain (alimente l'IA logistique)"
+            value={rejectionNote}
+            onChange={(val) => {
+              setRejectionNote(val);
+              if (val.trim()) setRejectionError("");
+            }}
+            placeholder="Ex : Client trouve les frais de livraison trop chers, ou préfère commander le mois prochain..."
+            maxLength={500}
+            error={rejectionError}
+          />
+        </div>
+
+        <div className="mt-5 flex gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              setPendingFinalStatus(null);
+              setRejectionReason("");
+              setRejectionNote("");
+              setRejectionError("");
+            }}
+            className="min-h-[48px] flex-1 rounded-xl border border-surface-border bg-surface text-xs font-semibold text-slate-700 dark:text-slate-200"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (rejectionReason === "Autre motif (préciser)" && !rejectionNote.trim()) {
+                setRejectionError("Merci de préciser le motif dans le champ ci-dessus.");
+                return;
+              }
+              onChangeStatus("rejete", {
+                rejectionReason: rejectionReason || "Rejeté à l'appel",
+                fieldNote: rejectionNote.trim() || null,
+              });
+              setPendingFinalStatus(null);
+              setRejectionReason("");
+              setRejectionNote("");
+              setRejectionError("");
+            }}
+            className="min-h-[48px] flex-1 rounded-xl bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700"
+          >
+            Confirmer le rejet
+          </button>
+        </div>
+      </dialog>
+
+      {/* Dialog natif 4 : Injoignable avec note d'appel extensible */}
+      <ConfirmDialog
+        open={pendingFinalStatus === "injoignable"}
+        title={`Marquer ${displayName} injoignable ?`}
+        message="La commande sera classée en injoignable tout en restant relançable."
+        confirmLabel="Confirmer injoignable"
+        danger={false}
+        onConfirm={() => {
+          onChangeStatus("injoignable", {
+            fieldNote: injoignableNote.trim() || null,
+          });
+          setPendingFinalStatus(null);
+          setInjoignableNote("");
+        }}
+        onCancel={() => {
+          setPendingFinalStatus(null);
+          setInjoignableNote("");
+        }}
+      >
+        <AutoResizeTextarea
+          label="Observation d'appel (optionnel)"
+          value={injoignableNote}
+          onChange={setInjoignableNote}
+          placeholder="Ex : Ne décroche pas après 3 appels, numéro éteint sur Moov/Yas..."
+          maxLength={400}
         />
-      )}
-    </div>
+      </ConfirmDialog>
+    </article>
   );
 }

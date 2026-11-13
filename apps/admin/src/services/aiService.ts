@@ -1,3 +1,4 @@
+import type { CodCountryInsight } from "@ecomcod/shared";
 import { COD_AFRIQUE_PLAYBOOK } from "../lib/codAfriquePlaybook";
 import { buildChartPrompt } from "../lib/aiChart";
 import { formatFirebaseError } from "../lib/firebaseErrors";
@@ -108,6 +109,8 @@ export interface BusinessMetricsContext {
   logisticsAlerts?: LogisticsAlertsContext;
   totalUnsettledCash?: number;
   totalRemunResteAPayer?: number;
+  codInsights?: CodCountryInsight[];
+  excludedTestOrdersCount?: number;
 }
 
 export interface AiChatMessage {
@@ -130,6 +133,70 @@ export interface AiConfig {
 }
 
 const AI_PROXY_URL = "https://us-central1-meta-capi-app.cloudfunctions.net/aiChatProxy";
+
+function pctOf(part: number, total: number): string {
+  if (!total || total <= 0) return "0%";
+  return `${Math.round((part / total) * 100)}%`;
+}
+
+function topEntries(record: Record<string, number> | undefined, max = 6): string {
+  const entries = Object.entries(record || {}).sort((a, b) => b[1] - a[1]).slice(0, max);
+  return entries.length ? entries.map(([k, v]) => `${k} (${v})`).join(", ") : "Aucun";
+}
+
+function formatCodInsightsSection(insights?: CodCountryInsight[], activeCountry?: string): string {
+  if (!insights || insights.length === 0) {
+    return "Aucune donnée agrégée codInsights collectée pour le moment (elle s'enrichit automatiquement à chaque rejet, injoignable ou livraison).";
+  }
+
+  const target = (activeCountry || "").toUpperCase();
+  const sorted = [...insights].sort((a, b) => {
+    const ac = a.countryCode.toUpperCase() === target ? -1 : 0;
+    const bc = b.countryCode.toUpperCase() === target ? -1 : 0;
+    if (ac !== bc) return ac - bc;
+    return (b.totalProcessed || 0) - (a.totalProcessed || 0);
+  });
+
+  return sorted
+    .slice(0, 5)
+    .map((ci) => {
+      const cb = ci.coolingBuckets || {
+        under6h: { delivered: 0, total: 0 },
+        h6to24: { delivered: 0, total: 0 },
+        h24to48: { delivered: 0, total: 0 },
+        over48h: { delivered: 0, total: 0 },
+      };
+
+      const topHours = Object.entries(ci.hourlyDeliverySuccess || {})
+        .filter(([, h]) => h.delivered + h.failed > 0)
+        .sort((a, b) => b[1].delivered + b[1].failed - (a[1].delivered + a[1].failed))
+        .slice(0, 6)
+        .map(([hour, h]) => {
+          const tot = h.delivered + h.failed;
+          return `${hour}h: ${h.delivered}/${tot} (${pctOf(h.delivered, tot)})`;
+        })
+        .join(" | ");
+
+      const notesText = (ci.recentFieldNotes || [])
+        .slice(-10)
+        .reverse()
+        .map(
+          (n) =>
+            `    • [${n.role.toUpperCase()}] ${n.city || "Ville?"} · ${n.product || "Produit?"}${n.trafficSource ? ` [${n.trafficSource}]` : ""} · Motif: ${n.reason} — « ${n.note} »`
+        )
+        .join("\n");
+
+      return [
+        `- PAYS ${ci.countryCode}${ci.countryCode.toUpperCase() === target ? " (MARCHÉ ACTIF)" : ""} : ${ci.totalProcessed} traitées | ${ci.deliveredCount} livrées (${pctOf(ci.deliveredCount, ci.totalProcessed)}) | ${ci.rejectedCount} rejets | ${ci.unreachableCount} injoignables`,
+        `  • Courbe de refroidissement COD (<6h -> >48h) : <6h=${cb.under6h.delivered}/${cb.under6h.total} (${pctOf(cb.under6h.delivered, cb.under6h.total)}) | 6-24h=${cb.h6to24.delivered}/${cb.h6to24.total} (${pctOf(cb.h6to24.delivered, cb.h6to24.total)}) | 24-48h=${cb.h24to48.delivered}/${cb.h24to48.total} (${pctOf(cb.h24to48.delivered, cb.h24to48.total)}) | >48h=${cb.over48h.delivered}/${cb.over48h.total} (${pctOf(cb.over48h.delivered, cb.over48h.total)})`,
+        `  • Créneaux horaires clés : ${topHours || "En cours de collecte"}`,
+        `  • Top motifs rejet closeuse : ${topEntries(ci.rejectionReasons)}`,
+        `  • Top échecs livraison terrain : ${topEntries(ci.deliveryFailureReasons)}`,
+        notesText ? `  • Retours terrain récents (notes libres) :\n${notesText}` : "  • Retours terrain récents : aucune note libre pour l'instant.",
+      ].join("\n");
+    })
+    .join("\n\n");
+}
 
 class AiServiceAdapter {
   private config: AiConfig;
@@ -158,27 +225,34 @@ class AiServiceAdapter {
     const alerts = context.logisticsAlerts;
     const cashList = context.livreurCashSummaries || [];
 
-    return `Tu es l'Analyste Opérationnelle, Vigie Logistique & Secrétaire de Direction d'Ecom COD (Date : ${today}, Heure : ${nowTime}).
+    return `Tu es l'Analyste Opérationnelle, Stratège COD Afrique, Vigie Logistique & Directrice de Formation de WariTrack (Date : ${today}, Heure : ${nowTime}).
 Tu as accès en temps réel à 100% des pages et données de l'application :
-- Poste de Pilotage & Vue d'ensemble
-- Registre des Commandes (statuts closeuse, statuts livreur, villes, téléphones, bons 3D)
+- Poste de Pilotage & Vue d'ensemble (${context.excludedTestOrdersCount ? `${context.excludedTestOrdersCount} commande(s) test isolée(s)` : "données de production"})
+- Registre des Commandes (statuts closeuse, statuts livreur, villes, téléphones, motifs de rejet et notes terrain libres, bons 3D)
+- Intelligence Data COD Multi-Pays (workspaces/{ws}/codInsights : courbes de refroidissement <6h à >48h, taux horaires de remise, échecs par ville, notes terrain closeuses/livreurs)
 - Caisse & Versements Livreurs (cash encaissé sur le terrain, versements validés, montants retranchés avec notes justificatives d'imprévus/allers-retours, reste à verser par livreur)
 - Rémunération & Paie (commissions closeuses et livreurs, retenues sur prime, reste net à payer)
 - Paramètres, Export Numéros & SAV WhatsApp, et Isolation Meta CAPI des numéros doublons ("Accès libre site")
 
-Ton rôle est double :
+Ton rôle est triple :
 1. Répondre avec une précision chirurgicale à N'IMPORTE QUELLE question sur la logistique, les colis sur le terrain, la caisse des livreurs, les retards d'appels ou de livraisons, les numéros doublons, les villes, les produits ou les employés.
 2. Agir comme la Vigie Logistique qui rappelle à l'administrateur tout ce qui a été oublié, non effectué, ou qui dépasse les délais d'opération (SLA).
-Ne mentionne jamais le nom technique de ton modèle ou de ton fournisseur : tu travailles exclusivement au nom de la plateforme Ecom COD.
+3. Exploiter la base Intelligence Data COD Afrique (motifs de rejet, notes terrain réelles, refroidissement horaire) pour produire des bilans stratégiques par pays, des prévisions/hacks COD actionnables et des modules complets de formation adaptés aux closeuses et aux livreurs du pays ciblé.
+Ne mentionne jamais le nom technique de ton modèle ou de ton fournisseur : tu travailles exclusivement au nom de WariTrack.
 
 ${COD_AFRIQUE_PLAYBOOK}
 
 ${buildChartPrompt(today)}
 
-RÈGLES D'ANALYSE :
+RÈGLES D'ANALYSE & FORMATION :
 1. Tu connais chaque commande, chaque livreur, chaque closeuse, chaque ville et chaque franc en caisse en temps réel. Cite toujours les noms exacts, les numéros de commande (#...), les montants et les notes justificatives.
 2. Sois directe, structurée et chiffrée (tableaux synthétiques, alertes urgentes, actions prioritaires).
 3. Dès qu'une analyse porte sur une évolution temporelle ou une comparaison de volumes, insère un bloc graphique interactif (\`\`\`chart ... \`\`\`).
+4. Pour toute demande de FORMATION (closeuses ou livreurs) : structure un programme concret en 4 volets basé sur les vraies objections et notes terrain du pays (${context.country}) : (a) Diagnostic des pertes actuelles chiffrées, (b) Scripts vocaux & WhatsApp mot-à-mot adaptés au marché local, (c) Procédure terrain / SLA horaire optimal selon les courbes de refroidissement, (d) Jeux de rôle et grille d'évaluation hebdomadaire.
+5. Pour toute demande de BILAN STRATÉGIQUE PAYS ou HACKS COD : quantifie l'écart de réussite entre livraisons <6h vs >24h, identifie les créneaux gagnants et les quartiers à risque, et propose un plan d'exécution immédiat à fort ROI.
+
+INTELLIGENCE COD AFRIQUE MULTI-PAYS (BASE COLLECTÉE EN CONTINU) :
+${formatCodInsightsSection(context.codInsights, context.country)}
 
 DONNÉES OPÉRATIONNELLES DE L'ÉQUIPE :
 - Équipe : ${context.teamName} (Pays : ${context.country})

@@ -25,21 +25,26 @@ window.addEventListener("vite:preloadError", (event) => {
   }
 });
 
-// Enregistrement PWA avec auto-mise à jour immédiate
+// Enregistrement PWA avec notification non-intrusive (évite de couper une action Admin)
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    console.log("[PWA] Nouvelle version prête — actualisation immédiate.");
-    updateSW(true);
-    setTimeout(() => {
-      window.location.reload();
-    }, 600);
+    window.dispatchEvent(
+      new CustomEvent("waritrack-sw-update", {
+        detail: { applyUpdate: () => updateSW(true) },
+      })
+    );
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
     setInterval(() => {
       registration.update().catch(() => {});
-    }, 15 * 1000);
+    }, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        registration.update().catch(() => {});
+      }
+    });
   },
 });
 

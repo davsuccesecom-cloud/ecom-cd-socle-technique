@@ -128,6 +128,11 @@ export interface Order {
   previousOrdersCount?: number;
   previousRejectionsCount?: number;
   rejectionReason?: string | null; // motif rapide choisi lors d'un rejet / injoignable
+  fieldNote?: string | null; // note terrain libre (closeuse : rejet, injoignable, rappel)
+  rescheduleReason?: string | null; // raison de programmation/relance (closeuse)
+  deliveryFailureReason?: string | null; // motif structuré échec terrain (livreur)
+  deliveryFieldNote?: string | null; // note terrain libre (livreur : pas de porte, refus, cash manquant...)
+  isTest?: boolean; // commande de test isolée des bilans & IA
   purgeAt: number | null; // calculé = statut final + 3 jours
 
   // Intégration Shopify & Tracking Réel
@@ -310,4 +315,35 @@ export interface CashSettlementEntry {
   note: string;
   dateKey: string; // YYYY-MM-DD
   createdAt: number;
+}
+
+export interface CodCountryInsightNote {
+  orderId: string;
+  role: "closeuse" | "livreur";
+  status: string;
+  reason: string;
+  note: string;
+  city?: string;
+  trafficSource?: string;
+  product?: string;
+  createdAt: number;
+}
+
+export interface CodCountryInsight {
+  countryCode: string; // Code ISO ex: "TG", "CI", "SN"
+  updatedAt: number;
+  totalProcessed: number;
+  deliveredCount: number;
+  rejectedCount: number;
+  unreachableCount: number;
+  rejectionReasons: Record<string, number>;
+  deliveryFailureReasons: Record<string, number>;
+  recentFieldNotes: CodCountryInsightNote[];
+  hourlyDeliverySuccess: Record<string, { delivered: number; failed: number }>;
+  coolingBuckets: {
+    under6h: { delivered: number; total: number };
+    h6to24: { delivered: number; total: number };
+    h24to48: { delivered: number; total: number };
+    over48h: { delivered: number; total: number };
+  };
 }

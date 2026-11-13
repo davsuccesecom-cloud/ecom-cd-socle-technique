@@ -499,3 +499,98 @@ export async function writeOrderStatusToSheet(
     console.error(`writeOrderStatusToSheet échec pour ${sheetId} :`, err?.message || err);
   }
 }
+
+export interface SheetOrderCandidate {
+  rowNumber: number;
+  sourceRowId: string;
+  clientName: string;
+  phone: string;
+  city: string;
+  product: string;
+  quantity: number;
+  amount: number;
+}
+
+/**
+ * Lit les 50 dernières lignes non encore traitées d'un Google Sheet connecté
+ * afin de rattraper en arrière-plan d'éventuels déclencheurs Apps Script manqués.
+ */
+export async function pullNewOrdersFromSheet(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string
+): Promise<SheetOrderCandidate[]> {
+  const structure = await detectAndEnsureSheetColumns(sheets, spreadsheetId);
+  if (
+    structure.totalRows <= 1 ||
+    structure.phoneColIndex === null ||
+    structure.clientColIndex === null
+  ) {
+    return [];
+  }
+
+  const startRow = Math.max(2, structure.totalRows - 49);
+  const endCol = colIndexToLetter(Math.max(15, structure.totalColumns - 1));
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${structure.sheetName}'!A${startRow}:${endCol}${structure.totalRows}`,
+  });
+
+  const rows = res.data.values ?? [];
+  const candidates: SheetOrderCandidate[] = [];
+
+  rows.forEach((row, i) => {
+    const rowNumber = startRow + i;
+    const clientName = String(row[structure.clientColIndex!] ?? "").trim();
+    const phone = String(row[structure.phoneColIndex!] ?? "").trim();
+    if (!clientName || !phone) return;
+
+    const rawStatus =
+      structure.statusColIndex !== null
+        ? String(row[structure.statusColIndex] ?? "").trim().toLowerCase()
+        : "";
+
+    // Ignore toute ligne déjà qualifiée dans le tableur
+    if (
+      rawStatus &&
+      rawStatus !== "a appeler" &&
+      rawStatus !== "à appeler" &&
+      rawStatus !== "nouveau" &&
+      rawStatus !== "new"
+    ) {
+      return;
+    }
+
+    const uid =
+      structure.uidColIndex !== null ? String(row[structure.uidColIndex] ?? "").trim() : "";
+    const sourceRowId = uid ? `uid:${uid}` : `row:${rowNumber}`;
+    const city =
+      structure.cityColIndex !== null ? String(row[structure.cityColIndex] ?? "").trim() : "";
+    const product =
+      structure.productColIndex !== null
+        ? String(row[structure.productColIndex] ?? "").trim() || "Produit"
+        : "Produit";
+    const qtyRaw =
+      structure.quantityColIndex !== null ? Number(row[structure.quantityColIndex]) : 1;
+    const quantity = Number.isFinite(qtyRaw) && qtyRaw > 0 ? Math.round(qtyRaw) : 1;
+
+    const amountStr =
+      structure.amountColIndex !== null
+        ? String(row[structure.amountColIndex] ?? "0").replace(/[^\d.,]/g, "").replace(",", ".")
+        : "0";
+    const amountNum = Number(amountStr);
+    const amount = Number.isFinite(amountNum) && amountNum >= 0 ? Math.round(amountNum) : 0;
+
+    candidates.push({
+      rowNumber,
+      sourceRowId,
+      clientName,
+      phone,
+      city,
+      product,
+      quantity,
+      amount,
+    });
+  });
+
+  return candidates;
+}

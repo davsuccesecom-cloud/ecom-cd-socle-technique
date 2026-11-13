@@ -8,7 +8,12 @@ import type { AppUser, UserRole } from "../types";
  * Utilisé par l'app Admin pour : afficher les noms dans "Livraisons par
  * livreur", et plus tard le module "Utilisateurs & Accès" (section 5).
  */
-export function useTeamUsers(workspaceId: string | null, teamId: string | null, role?: UserRole) {
+export function useTeamUsers(
+  workspaceId: string | null,
+  teamId: string | null,
+  role?: UserRole,
+  onlyActive = false
+) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,7 +32,8 @@ export function useTeamUsers(workspaceId: string | null, teamId: string | null, 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        setUsers(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as AppUser));
+        const mapped = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as AppUser);
+        setUsers(onlyActive ? mapped.filter((u) => u.status === "active") : mapped);
         setLoading(false);
       },
       () => setLoading(false)

@@ -1,14 +1,9 @@
 // Ce fichier doit rester à la racine de public/ (portée requise par FCM).
-// Il tourne séparément du service worker PWA généré par vite-plugin-pwa,
-// et gère spécifiquement la réception des notifications en arrière-plan
-// (architecture section 3.2).
+// Gère la réception des notifications en arrière-plan pour l'app Closeuse.
 
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
 
-// Ces valeurs sont publiques par nature (config Web app Firebase), donc
-// pas besoin de variable d'environnement ici — remplace-les avec les
-// mêmes valeurs que ton .env.local une fois le projet Firebase connecté.
 firebase.initializeApp({
   apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
   authDomain: "meta-capi-app.firebaseapp.com",
@@ -21,7 +16,7 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || payload.data?.title || "Ecom COD — Nouvelle commande";
+  const title = payload.notification?.title || payload.data?.title || "WariTrack — Nouvelle commande";
   const body = payload.notification?.body || payload.data?.body || "";
   const orderId = payload.data?.orderId || "";
   self.registration.showNotification(title, {
@@ -29,6 +24,8 @@ messaging.onBackgroundMessage((payload) => {
     icon: "/icons/icon-192.png",
     badge: "/icons/badge-96.png",
     image: "/icons/icon-512.png",
+    tag: orderId ? `waritrack-order-${orderId}` : "waritrack-closeuse",
+    renotify: true,
     data: { orderId, url: orderId ? `/?orderId=${orderId}` : "/" },
   });
 });
@@ -54,4 +51,3 @@ self.addEventListener("notificationclick", (event) => {
     })
   );
 });
-

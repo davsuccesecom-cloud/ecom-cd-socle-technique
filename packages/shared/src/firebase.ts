@@ -1,5 +1,11 @@
 import { initializeApp, type FirebaseApp, getApps } from "firebase/app";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  type Firestore,
+} from "firebase/firestore";
 import { getAuth, type Auth } from "firebase/auth";
 import { getMessaging, type Messaging, isSupported } from "firebase/messaging";
 
@@ -23,7 +29,17 @@ export function initFirebase(config: FirebaseEnvConfig) {
   } else {
     app = getApps()[0];
   }
-  db = getFirestore(app!);
+  if (!db) {
+    try {
+      db = initializeFirestore(app!, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      });
+    } catch {
+      db = getFirestore(app!);
+    }
+  }
   auth = getAuth(app!);
   return { app, db, auth };
 }

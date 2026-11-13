@@ -1,10 +1,9 @@
-// Ce fichier doit rester a la racine de public/ (portee requise par FCM).
-// Recoit les notifications push en arriere-plan pour l'app Livreur.
+// Ce fichier doit rester à la racine de public/ (portée requise par FCM).
+// Reçoit les notifications push en arrière-plan pour l'app Livreur.
 
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
 
-// Valeurs publiques par nature (config Web app Firebase).
 firebase.initializeApp({
   apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
   authDomain: "meta-capi-app.firebaseapp.com",
@@ -17,7 +16,7 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || payload.data?.title || "Ecom COD — Livreur";
+  const title = payload.notification?.title || payload.data?.title || "WariTrack — Livreur";
   const body = payload.notification?.body || payload.data?.body || "";
   const orderId = payload.data?.orderId || "";
   self.registration.showNotification(title, {
@@ -25,6 +24,8 @@ messaging.onBackgroundMessage((payload) => {
     icon: "/icons/icon-192.png",
     badge: "/icons/badge-96.png",
     image: "/icons/icon-512.png",
+    tag: orderId ? `waritrack-order-${orderId}` : "waritrack-livreur",
+    renotify: true,
     data: { orderId, url: orderId ? `/?orderId=${orderId}` : "/" },
   });
 });
@@ -50,4 +51,3 @@ self.addEventListener("notificationclick", (event) => {
     })
   );
 });
-

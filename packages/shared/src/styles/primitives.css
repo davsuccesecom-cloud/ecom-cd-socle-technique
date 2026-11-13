@@ -1,0 +1,81 @@
+/* Primitives CSS partagées WariTrack (Admin, Closeuse, Livreur) */
+
+/* 1. Isolation du scroll sous les dialogues modaux natifs (<dialog>) */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background-color: rgba(2, 6, 23, 0.7);
+}
+
+/* 2. Zone de texte auto-extensible (field-sizing: content + repli Grid universel) */
+.wt-grow-wrap {
+  display: block;
+  width: 100%;
+}
+
+.wt-grow-wrap > textarea.wt-auto-grow {
+  width: 100%;
+  height: auto;
+  min-block-size: 3lh;
+  max-block-size: 10lh;
+  field-sizing: content;
+  resize: none;
+}
+
+@supports not (field-sizing: content) {
+  .wt-grow-wrap {
+    display: grid;
+  }
+
+  .wt-grow-wrap::after,
+  .wt-grow-wrap > textarea.wt-auto-grow {
+    grid-area: 1 / 1 / 2 / 2;
+    width: 100%;
+    font: inherit;
+    line-height: inherit;
+    padding: 0.625rem 0.75rem;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 0.75rem;
+    box-sizing: border-box;
+    min-height: 4.75rem;
+    max-height: 14rem;
+  }
+
+  .wt-grow-wrap::after {
+    content: attr(data-replicated-value) " ";
+    white-space: pre-wrap;
+    word-break: break-word;
+    visibility: hidden;
+    pointer-events: none;
+    border-color: transparent;
+  }
+
+  .wt-grow-wrap > textarea.wt-auto-grow {
+    overflow-y: auto;
+  }
+}
+
+/* 3. Cibles tactiles adaptatives pour les terminaux mobiles terrain */
+@media (pointer: coarse) {
+  .wt-touch-target {
+    min-block-size: 48px;
+    min-inline-size: 48px;
+  }
+}
+
+/* 4. Cases à cocher et radios cohérentes avec la palette active */
+:root {
+  accent-color: var(--brand, #4f46e5);
+}
+
+@supports not (accent-color: #4f46e5) {
+  input[type="checkbox"].wt-brand-check {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+}

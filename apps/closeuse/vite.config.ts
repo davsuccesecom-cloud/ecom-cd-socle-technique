@@ -2,15 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Voir architecture section 3.1 — manifest + service worker générés
-// automatiquement, condition pour que Chrome propose une VRAIE installation
-// (pas juste un raccourci avec badge Chrome visible).
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      registerType: "prompt",
+      includeAssets: ["favicon.svg", "notification-ping.mp3"],
       manifest: {
         name: "WariTrack — Closeuse",
         short_name: "Closeuse",
@@ -27,9 +24,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,png,svg}"],
-        skipWaiting: true,
-        clientsClaim: true,
+        globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/__/, /^\/firebase-messaging-sw\.js$/, /\/api\//],
         cleanupOutdatedCaches: true,
       },
     }),
@@ -52,4 +49,3 @@ export default defineConfig({
     },
   },
 });
-

@@ -1,201 +1,55 @@
-import { useEffect, useState, useCallback, type ReactNode } from "react";
-import { ShieldCheck, Lock } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ShieldAlert } from "lucide-react";
 
 interface SecurityShieldProps {
-  children?: ReactNode;
+  children: ReactNode;
 }
 
+/**
+ * Protection anti-clickjacking légère : empêche l'intégration de l'Admin
+ * dans une iframe tierce tout en laissant les opérateurs copier-coller
+ * librement les numéros clients, références et rapports IA.
+ */
 export default function SecurityShield({ children }: SecurityShieldProps) {
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showSecurityToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-  }, []);
+  const [isFramed, setIsFramed] = useState(false);
 
   useEffect(() => {
-    if (!toastMessage) return;
-    const timer = setTimeout(() => {
-      setToastMessage(null);
-    }, 2800);
-    return () => clearTimeout(timer);
-  }, [toastMessage]);
-
-  useEffect(() => {
-    // 0. Anti-Save As & Anti-Cloning Shield
-    const proto = window.location.protocol;
-    const host = (window.location.hostname || "").toLowerCase();
-    const isLocal = host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
-    const isAuthorized = isLocal || host.endsWith(".vercel.app") || host.endsWith("waritrack.com") || host.endsWith("waritrack.net");
-    if (proto === "file:" || proto === "about:" || !isAuthorized) {
-      document.body.innerHTML = "";
-      window.location.href = "https://ecom-cd-socle-technique-admin.vercel.app";
-      return;
-    }
-
-    // 1. Anti-Clickjacking (Frame Buster)
     try {
-      if (window.top && window.top !== window.self) {
-        window.top.location.href = window.self.location.href;
+      if (window.self !== window.top && window.top) {
+        try {
+          window.top.location.href = window.self.location.href;
+        } catch {
+          setIsFramed(true);
+        }
       }
     } catch {
-      document.body.style.display = "none";
+      setIsFramed(true);
     }
+  }, []);
 
-    // 2. Avertissement dissuasif dans la console du navigateur
-    console.log(
-      "%c⚠️ ZONE SÉCURISÉE WARITRACK ⚠️\n" +
-        "%cCette application est protégée par un protocole de sécurité strict.\n" +
-        "Toute tentative d'usurpation de session, d'injection de script ou de vol de données est formellement interdite.",
-      "color: #EF4444; font-size: 18px; font-weight: 800; background: #0F172A; padding: 6px 12px; border-radius: 6px;",
-      "color: #94A3B8; font-size: 12px; padding: 4px;"
-    );
-
-    const isInput = (el: HTMLElement | null | undefined): boolean => {
-      if (!el) return false;
-      const tag = el.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable) return true;
-      return Boolean(el.closest?.("input, textarea, [contenteditable='true']"));
-    };
-
-    // 3. Blocage total de la sélection au curseur
-    const handleSelectStart = (e: Event) => {
-      if (!isInput(e.target as HTMLElement)) {
-        e.preventDefault();
-        try {
-          window.getSelection()?.removeAllRanges();
-        } catch {}
-        return false;
-      }
-    };
-
-    // 4. Blocage du clic droit hors champs de saisie
-    const handleContextMenu = (e: MouseEvent) => {
-      if (!isInput(e.target as HTMLElement)) {
-        e.preventDefault();
-        showSecurityToast("🔒 Clic droit désactivé — Interface & données protégées.");
-        return false;
-      }
-    };
-
-    // 5. Blocage des raccourcis de copie, sélection globale, et vol de source
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const key = (e.key || "").toLowerCase();
-      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
-      const target = e.target as HTMLElement | null;
-      const inp = isInput(target);
-
-      // Ctrl+A / Cmd+A : Tout sélectionner
-      if (isCtrlOrMeta && key === "a" && !inp) {
-        e.preventDefault();
-        try {
-          window.getSelection()?.removeAllRanges();
-        } catch {}
-        showSecurityToast("🔒 Sélection globale désactivée.");
-        return false;
-      }
-
-      // Ctrl+C / Cmd+C : Copier
-      if (isCtrlOrMeta && key === "c" && !inp) {
-        e.preventDefault();
-        try {
-          window.getSelection()?.removeAllRanges();
-        } catch {}
-        showSecurityToast("🔒 Copie désactivée — Interface protégée.");
-        return false;
-      }
-
-      // Ctrl+X / Cmd+X : Couper
-      if (isCtrlOrMeta && key === "x" && !inp) {
-        e.preventDefault();
-        return false;
-      }
-
-      // Ctrl+S / Cmd+S : Bloquer uniquement "Enregistrer la page sous..."
-      if (isCtrlOrMeta && key === "s") {
-        e.preventDefault();
-        showSecurityToast("🔒 Enregistrement brut de la page désactivé pour la sécurité de vos données.");
-        return false;
-      }
-
-      // Ctrl+U / Cmd+U : Bloquer l'affichage direct du code source HTML
-      if (isCtrlOrMeta && key === "u") {
-        e.preventDefault();
-        showSecurityToast("🔒 Affichage direct du code source désactivé.");
-        return false;
-      }
-
-      // F12 / Outils inspecteur
-      if (e.key === "F12" || (isCtrlOrMeta && e.shiftKey && (key === "i" || key === "j" || key === "c"))) {
-        e.preventDefault();
-        showSecurityToast("🔒 Outils d'inspection restreints sur cette plateforme.");
-        return false;
-      }
-    };
-
-    // 6. Blocage de l'événement copy
-    const handleCopy = (e: ClipboardEvent) => {
-      const activeEl = document.activeElement as HTMLElement | null;
-      const targetEl = e.target as HTMLElement | null;
-      if (!isInput(activeEl) && !isInput(targetEl)) {
-        e.preventDefault();
-        if (e.clipboardData) {
-          e.clipboardData.setData("text/plain", "🔒 Contenu protégé — WariTrack Security Shield (Copie interdite).");
-        }
-        try {
-          window.getSelection()?.removeAllRanges();
-        } catch {}
-        showSecurityToast("🔒 Copie désactivée — Contenu protégé.");
-        return false;
-      }
-    };
-
-    // 7. Blocage du glisser-déposer sauvage des images et logos
-    const handleDragStart = (e: DragEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target?.tagName === "IMG" || target?.tagName === "SVG" || target?.closest?.("svg, a, img")) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    document.addEventListener("selectstart", handleSelectStart, { capture: true });
-    window.addEventListener("contextmenu", handleContextMenu, { capture: true });
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
-    window.addEventListener("dragstart", handleDragStart, { capture: true });
-    document.addEventListener("copy", handleCopy, { capture: true });
-
-    return () => {
-      document.removeEventListener("selectstart", handleSelectStart, { capture: true });
-      window.removeEventListener("contextmenu", handleContextMenu, { capture: true });
-      window.removeEventListener("keydown", handleKeyDown, { capture: true });
-      window.removeEventListener("dragstart", handleDragStart, { capture: true });
-      document.removeEventListener("copy", handleCopy, { capture: true });
-    };
-  }, [showSecurityToast]);
-
-  return (
-    <>
-      {children}
-
-      {/* Toast d'avertissement de sécurité discret et élégant */}
-      {toastMessage && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-5 right-5 z-[9999] flex max-w-sm items-center gap-3 rounded-2xl border border-rose-500/30 bg-slate-950/95 px-4 py-3 text-xs font-semibold text-rose-200 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-200"
-        >
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-400">
-            <Lock className="h-4 w-4" />
+  if (isFramed) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+        <div className="max-w-md rounded-2xl border border-rose-500/30 bg-slate-900 p-6 text-center space-y-3">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/15 text-rose-400">
+            <ShieldAlert className="h-6 w-6" />
           </div>
-          <div className="flex-1">
-            <p className="font-bold text-rose-100 flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-              WariTrack Security Shield
-            </p>
-            <p className="mt-0.5 text-[11px] font-normal text-slate-300 leading-snug">{toastMessage}</p>
-          </div>
+          <h1 className="text-lg font-bold">Affichage sécurisé requis</h1>
+          <p className="text-sm text-slate-400">
+            Pour votre sécurité, le cockpit WariTrack Admin doit être ouvert dans sa propre fenêtre.
+          </p>
+          <a
+            href={typeof window !== "undefined" ? window.location.href : "/"}
+            target="_top"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
+          >
+            Ouvrir dans une fenêtre dédiée
+          </a>
         </div>
-      )}
-    </>
-  );
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 }

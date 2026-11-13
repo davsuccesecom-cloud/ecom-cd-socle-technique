@@ -3,23 +3,158 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ===============================================================
+    // Assumed Data Model (Multi-tenant SaaS COD E-commerce — WariTrack)
+    // ===============================================================
+    //
+    // Auth & Custom Claims:
+    //   - claims.workspaceId: string (required for all tenant access)
+    //   - claims.role: 'admin' | 'closeuse' | 'livreur'
+    //   - claims.teamId: string (required for closeuse & livreur)
+    //
+    // Collection: /adminsByEmail/{email}
+    //   - Server-only Google email -> { workspaceId, uid, createdAt }
+    //
+    // Collection: /workspaces/{workspaceId}
+    //   - Workspace config (id, name, ownerEmail, createdAt, branding)
+    //   - Subcollections:
+    //     - /teams/{teamId} (team config, /secrets/{secretId}, /dailyStats/{dateKey})
+    //     - /users/{userId} (role, teamId, status, fcmTokens <= 20, fcmUpdatedAt int, reminderWindowStart/End)
+    //     - /accessLinks/{linkId}, /accessLinkSecrets/{linkId}, /trackingSessions/{sessionId} (server-only)
+    //     - /notifications/{notifId} (admin or recipient userId; client update 'read' only)
+    //     - /remunerations/{userId} (read admin or owner; server-written)
+    //     - /codInsights/{countryCode} (read admin only; server-written via Admin SDK)
+    //     - /orders/{orderId} (team-scoped orders; role-separated status & note updates)
+    //     - /shopifyConnections/{id}, /shopifyUnroutedOrders/{id}, /aiAssistantChats/{id},
+    //       /cashSettlements/{id}, /metaOAuthSessions/{id} (admin-only)
+    //
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
     function auth_() { return request.auth; }
     function claims() { return auth_().token; }
     function isSignedIn() { return auth_() != null; }
+    function isOwner(userId) { return isSignedIn() && auth_().uid == userId; }
     function isWorkspace(workspaceId) {
-      return isSignedIn() && claims().workspaceId == workspaceId;
+      return isSignedIn()
+        && 'workspaceId' in claims()
+        && claims().workspaceId == workspaceId;
     }
     function isAdmin(workspaceId) {
-      return isWorkspace(workspaceId) && claims().role == 'admin';
+      return isWorkspace(workspaceId)
+        && 'role' in claims()
+        && claims().role == 'admin';
     }
     function isCloseuse(workspaceId) {
-      return isWorkspace(workspaceId) && claims().role == 'closeuse';
+      return isWorkspace(workspaceId)
+        && 'role' in claims()
+        && claims().role == 'closeuse';
     }
     function isLivreur(workspaceId) {
-      return isWorkspace(workspaceId) && claims().role == 'livreur';
+      return isWorkspace(workspaceId)
+        && 'role' in claims()
+        && claims().role == 'livreur';
     }
     function isSameTeam(teamId) {
-      return claims().teamId == teamId;
+      return 'teamId' in claims() && claims().teamId == teamId;
+    }
+
+    function isValidOptionalNullableString(dataMap, field, maxLen) {
+      return !(field in dataMap)
+        || dataMap[field] == null
+        || (dataMap[field] is string && dataMap[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // Validation de mise à jour par un employé de ses tokens FCM et préférences de rappel
+    function isValidUserSelfUpdate() {
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
+      let nextData = request.resource.data;
+      return affected.hasOnly(['fcmTokens', 'fcmUpdatedAt', 'reminderWindowStart', 'reminderWindowEnd'])
+        && (!affected.hasAny(['fcmTokens'])
+            || ('fcmTokens' in nextData
+                && nextData.fcmTokens is list
+                && nextData.fcmTokens.size() <= 20
+                && nextData.fcmTokens.join(',').size() <= 16384))
+        && (!('fcmUpdatedAt' in nextData)
+            || (nextData.fcmUpdatedAt is int && nextData.fcmUpdatedAt >= 0))
+        && (!affected.hasAny(['reminderWindowStart'])
+            || isValidOptionalNullableString(nextData, 'reminderWindowStart', 10))
+        && (!affected.hasAny(['reminderWindowEnd'])
+            || isValidOptionalNullableString(nextData, 'reminderWindowEnd', 10));
+    }
+
+    // Validation de mise à jour d'une commande par la closeuse assignée
+    function isValidCloseuseOrderUpdate() {
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
+      let nextData = request.resource.data;
+      return affected.hasOnly([
+          'statutCloseuse',
+          'callInProgress',
+          'livreurId',
+          'statutLivreur',
+          'reminderAt',
+          'rejectionReason',
+          'fieldNote',
+          'rescheduleReason'
+        ])
+        && (!affected.hasAny(['statutCloseuse'])
+            || ('statutCloseuse' in nextData
+                && nextData.statutCloseuse in [
+                  'nouveau',
+                  'programme',
+                  'en_cours',
+                  'rejete',
+                  'injoignable',
+                  'indisponible'
+                ]))
+        // La closeuse peut laisser statutLivreur inchangé (ex. 'injoignable' posé par le livreur)
+        // ou le réinitialiser à null / 'recu', et NE PEUT JAMAIS le changer en 'livre' ou 'en_route'.
+        && (!affected.hasAny(['statutLivreur'])
+            || ('statutLivreur' in nextData
+                && (nextData.statutLivreur == null || nextData.statutLivreur == 'recu')))
+        && isValidOptionalNullableString(nextData, 'rejectionReason', 1000)
+        && isValidOptionalNullableString(nextData, 'fieldNote', 1000)
+        && isValidOptionalNullableString(nextData, 'rescheduleReason', 1000)
+        && (!('livreurId' in nextData)
+            || nextData.livreurId == null
+            || (nextData.livreurId is string && nextData.livreurId.size() <= 128))
+        && (!affected.hasAny(['reminderAt'])
+            || !('reminderAt' in nextData)
+            || nextData.reminderAt == null
+            || (nextData.reminderAt is number && nextData.reminderAt >= 0))
+        && (!affected.hasAny(['callInProgress'])
+            || !('callInProgress' in nextData)
+            || nextData.callInProgress == null
+            || (nextData.callInProgress is map
+                && nextData.callInProgress.keys().hasAll(['active', 'by', 'startedAt'])
+                && nextData.callInProgress.keys().hasOnly(['active', 'by', 'startedAt'])
+                && nextData.callInProgress.active is bool
+                && nextData.callInProgress.by is string
+                && nextData.callInProgress.by == auth_().uid
+                && nextData.callInProgress.startedAt is number
+                && nextData.callInProgress.startedAt >= 0));
+    }
+
+    // Validation de mise à jour d'une commande par le livreur assigné
+    function isValidLivreurOrderUpdate() {
+      let affected = request.resource.data.diff(resource.data).affectedKeys();
+      let nextData = request.resource.data;
+      return affected.hasOnly([
+          'statutLivreur',
+          'rejectionReason',
+          'deliveryFailureReason',
+          'deliveryFieldNote'
+        ])
+        && 'statutLivreur' in nextData
+        && nextData.statutLivreur in ['recu', 'en_route', 'livre', 'injoignable']
+        && isValidOptionalNullableString(nextData, 'rejectionReason', 1000)
+        && isValidOptionalNullableString(nextData, 'deliveryFailureReason', 1000)
+        && isValidOptionalNullableString(nextData, 'deliveryFieldNote', 1000);
     }
 
     // Table de correspondance email Google → workspace possédé — jamais
@@ -54,12 +189,11 @@ service cloud.firestore {
       match /users/{userId} {
         allow read: if isWorkspace(workspaceId);
         allow write: if isAdmin(workspaceId);
-        // un employé peut mettre à jour SON propre token FCM et SES
-        // préférences de rappel, rien d'autre
+        // un employé peut mettre à jour SON propre token FCM (+ horodatage fcmUpdatedAt)
+        // et SES préférences de rappel, rien d'autre
         allow update: if isWorkspace(workspaceId)
-          && auth_().uid == userId
-          && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['fcmTokens', 'reminderWindowStart', 'reminderWindowEnd']);
+          && isOwner(userId)
+          && isValidUserSelfUpdate();
       }
 
       match /accessLinks/{linkId} {
@@ -90,6 +224,13 @@ service cloud.firestore {
         allow write: if false; // écrit uniquement par Cloud Function
       }
 
+      // Insights COD par pays : lecture admin uniquement, écriture exclusive
+      // par Cloud Functions (Admin SDK).
+      match /codInsights/{countryCode} {
+        allow read: if isAdmin(workspaceId);
+        allow write: if false;
+      }
+
       match /orders/{orderId} {
         // Admin voit tout le workspace ; Closeuse voit toutes les commandes de son équipe ;
         // Livreur ne voit QUE les commandes qui lui sont directement assignées (protection PII).
@@ -99,22 +240,19 @@ service cloud.firestore {
 
         allow create: if isAdmin(workspaceId); // créées par la sync Sheet→Firestore ou Cloud Functions
 
-        // Closeuse : statutCloseuse + callInProgress + livreurId/statutLivreur + reminderAt + rejectionReason.
-        // SÉCURITÉ : La closeuse ne peut assigner que le statut initial 'recu' (ou null) pour statutLivreur.
-        // Elle NE PEUT PAS marquer 'livre' directement (réservé au livreur effectif ou à l'admin).
+        // Closeuse : statutCloseuse + callInProgress + livreurId/statutLivreur + reminderAt + motifs/notes.
+        // SÉCURITÉ : La closeuse ne peut assigner que le statut initial 'recu' (ou null) pour statutLivreur,
+        // ou le laisser inchangé (ex. 'injoignable'). Elle NE PEUT PAS marquer 'livre' ni 'en_route'.
         allow update: if isCloseuse(workspaceId)
           && isSameTeam(resource.data.teamId)
           && resource.data.closeuseId == auth_().uid
-          && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['statutCloseuse', 'callInProgress', 'livreurId', 'statutLivreur', 'reminderAt', 'rejectionReason'])
-          && (!('statutLivreur' in request.resource.data) || request.resource.data.statutLivreur == null || request.resource.data.statutLivreur == 'recu');
+          && isValidCloseuseOrderUpdate();
 
-        // Livreur : uniquement statutLivreur et motif de rejet sur ses propres commandes
+        // Livreur : uniquement statutLivreur, motifs et note terrain sur ses propres commandes
         allow update: if isLivreur(workspaceId)
           && isSameTeam(resource.data.teamId)
           && resource.data.livreurId == auth_().uid
-          && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['statutLivreur', 'rejectionReason']);
+          && isValidLivreurOrderUpdate();
 
         // Admin : accès complet, y compris statutAdminOverride
         allow update, delete: if isAdmin(workspaceId);

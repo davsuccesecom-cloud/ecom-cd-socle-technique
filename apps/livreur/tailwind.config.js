@@ -6,16 +6,17 @@ export default {
     extend: {
       colors: {
         surface: {
-          DEFAULT: "#FFFFFF",
-          raised: "#FFFFFF",
-          border: "#E5E7EB",
+          DEFAULT: "var(--surface)",
+          raised: "var(--surface-raised)",
+          subtle: "var(--surface-subtle)",
+          border: "var(--surface-border)",
         },
         accent: {
           red: "#EF4444",
         },
         brand: {
-          DEFAULT: "#0EA5E9",
-          light: "#E0F2FE",
+          DEFAULT: "var(--brand)",
+          light: "var(--brand-light)",
         },
         status: {
           recu: "#4F46E5",

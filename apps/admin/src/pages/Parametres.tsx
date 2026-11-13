@@ -104,9 +104,46 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
         </div>
       </div>
 
-      {/* Barre d'onglets horizontale moderne (Navigation 100% pleine largeur) */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-1.5 shadow-xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      {/* Layout Paramètres : Nav verticale 220px sur desktop + Onglets horizontaux compacts sur mobile */}
+      <div className="lg:grid lg:grid-cols-[220px_1fr] lg:items-start lg:gap-6">
+        {/* Barre d'onglets horizontale mobile */}
+        <div className="mb-4 rounded-xl border border-surface-border bg-surface-raised p-1.5 lg:hidden">
+          <div
+            role="tablist"
+            aria-label="Catégories de paramètres"
+            className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                    active
+                      ? "border-brand bg-brand text-white"
+                      : "border-transparent text-slate-400 hover:bg-surface hover:text-slate-200"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="whitespace-nowrap">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Navigation verticale 220px desktop */}
+        <nav
+          role="tablist"
+          aria-orientation="vertical"
+          aria-label="Catégories de paramètres"
+          className="hidden lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-1 rounded-2xl border border-surface-border bg-surface-raised p-2"
+        >
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
@@ -114,64 +151,63 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
               <button
                 key={item.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => setActiveTab(item.id)}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
+                className={`flex min-h-[48px] w-full items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-colors ${
                   active
-                    ? "bg-brand text-white shadow-sm ring-1 ring-brand/30"
-                    : "text-slate-400 hover:bg-surface hover:text-slate-200"
+                    ? "border-brand bg-brand-light text-slate-100"
+                    : "border-transparent text-slate-300 hover:border-surface-border hover:bg-surface"
                 }`}
               >
-                <div
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
-                    active ? "bg-white/20 text-white" : "text-slate-400"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
+                <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${active ? "text-brand" : "text-slate-400"}`} />
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold leading-snug">{item.label}</span>
+                  <span className="mt-0.5 block text-[11px] leading-snug text-slate-400">{item.desc}</span>
                 </div>
-                <span className="whitespace-nowrap">{item.label}</span>
               </button>
             );
           })}
+        </nav>
+
+        {/* Zone de contenu principale */}
+        <div role="tabpanel" className="min-w-0 w-full">
+          {activeTab === "rules" && (
+            team ? (
+              <TeamSettingsForm key={team.id} workspaceId={workspaceId} team={team} />
+            ) : (
+              <EmptyTeamNotice />
+            )
+          )}
+
+          {activeTab === "shopify" && (
+            team ? (
+              <ShopifyFluxManager workspaceId={workspaceId} team={team} allTeams={teams} />
+            ) : (
+              <EmptyTeamNotice />
+            )
+          )}
+
+          {activeTab === "print" && (
+            team ? (
+              <PrintReceiptConfig workspaceId={workspaceId} team={team} />
+            ) : (
+              <EmptyTeamNotice />
+            )
+          )}
+
+          {activeTab === "metacapi" && (
+            team ? (
+              <MetaCapiConnector workspaceId={workspaceId} team={team} allTeams={teams} />
+            ) : (
+              <EmptyTeamNotice />
+            )
+          )}
+
+          {activeTab === "phone_export" && <PhoneExportManager team={team} orders={orders} />}
+
+          {activeTab === "white_label" && <WhiteLabelSettings workspaceId={workspaceId} />}
         </div>
-      </div>
-
-      {/* Zone de contenu principale (100% pleine largeur) */}
-      <div className="min-w-0 w-full">
-        {activeTab === "rules" && (
-          team ? (
-            <TeamSettingsForm key={team.id} workspaceId={workspaceId} team={team} />
-          ) : (
-            <EmptyTeamNotice />
-          )
-        )}
-
-        {activeTab === "shopify" && (
-          team ? (
-            <ShopifyFluxManager workspaceId={workspaceId} team={team} allTeams={teams} />
-          ) : (
-            <EmptyTeamNotice />
-          )
-        )}
-
-        {activeTab === "print" && (
-          team ? (
-            <PrintReceiptConfig workspaceId={workspaceId} team={team} />
-          ) : (
-            <EmptyTeamNotice />
-          )
-        )}
-
-        {activeTab === "metacapi" && (
-          team ? (
-            <MetaCapiConnector workspaceId={workspaceId} team={team} allTeams={teams} />
-          ) : (
-            <EmptyTeamNotice />
-          )
-        )}
-
-        {activeTab === "phone_export" && <PhoneExportManager team={team} orders={orders} />}
-
-        {activeTab === "white_label" && <WhiteLabelSettings workspaceId={workspaceId} />}
       </div>
     </div>
   );
@@ -296,7 +332,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
           <select
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
-            className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-xs font-medium text-slate-100 outline-none focus:border-brand"
+            className="min-h-[44px] w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm font-medium text-slate-100 outline-none focus:border-brand"
           >
             <option value="XOF">XOF — Franc CFA (UEMOA : TG, BJ, CI, SN, BF, ML, NE)</option>
             <option value="XAF">XAF — Franc CFA (CEMAC : CM, GA, CG, TD)</option>
@@ -321,7 +357,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
                 placeholder="ex: 500"
                 value={remunCloseuse}
                 onChange={(e) => setRemunCloseuse(e.target.value)}
-                className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 pr-14 text-sm font-semibold tabular-nums text-slate-100 outline-none focus:border-brand"
+                className="min-h-[44px] w-full rounded-lg border border-surface-border bg-surface px-3 py-2 pr-14 text-sm font-semibold tabular-nums text-slate-100 outline-none focus:border-brand"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-slate-500">
                 {currency}
@@ -340,7 +376,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
                 placeholder="ex: 1500"
                 value={remunLivreur}
                 onChange={(e) => setRemunLivreur(e.target.value)}
-                className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 pr-14 text-sm font-semibold tabular-nums text-slate-100 outline-none focus:border-brand"
+                className="min-h-[44px] w-full rounded-lg border border-surface-border bg-surface px-3 py-2 pr-14 text-sm font-semibold tabular-nums text-slate-100 outline-none focus:border-brand"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-slate-500">
                 {currency}
@@ -359,14 +395,14 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
                 type="time"
                 value={reminderStart}
                 onChange={(e) => setReminderStart(e.target.value)}
-                className="flex-1 rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+                className="min-h-[44px] flex-1 rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm font-medium tabular-nums text-slate-100 outline-none focus:border-brand"
               />
               <span className="text-xs text-slate-500">à</span>
               <input
                 type="time"
                 value={reminderEnd}
                 onChange={(e) => setReminderEnd(e.target.value)}
-                className="flex-1 rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+                className="min-h-[44px] flex-1 rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm font-medium tabular-nums text-slate-100 outline-none focus:border-brand"
               />
             </div>
           </div>
@@ -380,7 +416,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
               min="1"
               value={overloadThreshold}
               onChange={(e) => setOverloadThreshold(e.target.value)}
-              className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+              className="min-h-[44px] w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm font-medium tabular-nums text-slate-100 outline-none focus:border-brand"
             />
           </div>
         </div>
@@ -390,7 +426,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
           <select
             value={digestInterval}
             onChange={(e) => setDigestInterval(e.target.value)}
-            className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-xs text-slate-100 outline-none focus:border-brand"
+            className="min-h-[44px] w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm text-slate-100 outline-none focus:border-brand"
           >
             <option value="30">Toutes les 30 minutes</option>
             <option value="60">Toutes les heures</option>
@@ -419,7 +455,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
               <button
                 type="button"
                 onClick={handleReset}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:text-slate-100"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:text-slate-100"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Annuler
@@ -429,7 +465,7 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
               type="button"
               disabled={saving || !isDirty}
               onClick={handleSave}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-40"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-hover disabled:opacity-40"
             >
               <Save className="h-3.5 w-3.5" />
               {saving ? "Enregistrement…" : "Enregistrer"}
@@ -710,7 +746,7 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
           <select
             value={segment}
             onChange={(e) => setSegment(e.target.value as ExportSegment)}
-            className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+            className="min-h-[44px] w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
           >
             <option value="all">Tous les numéros reçus sur la période</option>
             <option value="livre">Clients Livrés uniquement (Fidélisation & SAV)</option>
@@ -718,12 +754,12 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
             <option value="duplicates">Numéros Doublons uniquement (Accès libre site / Hors Meta)</option>
           </select>
 
-          <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+          <label className="mt-3 flex min-h-[40px] cursor-pointer items-center gap-2.5 text-xs text-slate-300">
             <input
               type="checkbox"
               checked={deduplicate}
               onChange={(e) => setDeduplicate(e.target.checked)}
-              className="rounded border-surface-border text-brand focus:ring-brand"
+              className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border"
             />
             <span>Dédupliquer automatiquement (garder 1 seule ligne par numéro unique)</span>
           </label>

@@ -38,17 +38,6 @@ function rangeStartMs(range: Range): number {
   return Date.now() - 30 * 24 * 60 * 60 * 1000;
 }
 
-function isToday(ts: number) {
-  if (!ts) return false;
-  const d = new Date(ts);
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
-}
-
 interface EmployeeStats {
   user: AppUser;
   ordersInRange: Order[];
@@ -85,7 +74,10 @@ function computeCloseuseStats(user: AppUser, orders: Order[], rangeStart: number
   const tauxClosing = totalTraite > 0 ? Math.round((confirmees / totalTraite) * 100) : null;
 
   const livreesAujourdhui = mine.filter(
-    (o) => o.statutCloseuse === "livre" && o.timestamps?.delivered && isToday(safeTs(o.timestamps.delivered))
+    (o) =>
+      o.statutCloseuse === "livre" &&
+      o.timestamps?.delivered &&
+      safeTs(o.timestamps.delivered) >= rangeStart
   );
 
   return {
@@ -119,7 +111,10 @@ function computeLivreurStats(user: AppUser, orders: Order[], rangeStart: number,
   const denom = livrees + echouees;
 
   const livreesAujourdhui = mine.filter(
-    (o) => o.statutLivreur === "livre" && o.timestamps?.delivered && isToday(safeTs(o.timestamps.delivered))
+    (o) =>
+      o.statutLivreur === "livre" &&
+      o.timestamps?.delivered &&
+      safeTs(o.timestamps.delivered) >= rangeStart
   );
 
   return {
@@ -223,11 +218,11 @@ export default function PerformanceEmployes({ team, closeuses, livreurs, orders 
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-            Rémunération du jour — {role === "closeuse" ? "Closeuses" : "Livreurs"}
+            Rémunération ({RANGE_LABELS[range]}) — {role === "closeuse" ? "Closeuses" : "Livreurs"}
           </h3>
           <span className="text-xs text-slate-600 dark:text-slate-400">
             Total généré :{" "}
-            <span className="font-bold text-slate-900 dark:text-slate-100">
+            <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
               {remunerationDuJourTotal.toLocaleString("fr-FR")} {currency}
             </span>
           </span>

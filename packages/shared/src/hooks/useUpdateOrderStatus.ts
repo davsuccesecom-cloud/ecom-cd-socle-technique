@@ -16,20 +16,58 @@ import type { CloseuseStatus, LivreurStatus } from "../types";
  *   la commande confirmée (flux validé : closeuse traite puis assigne,
  *   l'admin ne gère plus l'assignation en usage normal).
  */
+export interface CloseuseUpdateExtras {
+  reminderAt?: number | null;
+  rejectionReason?: string | null;
+  fieldNote?: string | null;
+  rescheduleReason?: string | null;
+  livreurId?: string | null;
+}
+
+export interface LivreurUpdateExtras {
+  rejectionReason?: string | null;
+  deliveryFailureReason?: string | null;
+  deliveryFieldNote?: string | null;
+}
+
 export function useUpdateOrderStatus(workspaceId: string) {
   const updateCloseuseStatus = useCallback(
-    async (orderId: string, status: CloseuseStatus, reminderAt?: number | null, rejectionReason?: string | null) => {
+    async (
+      orderId: string,
+      status: CloseuseStatus,
+      reminderAtOrExtras?: number | null | CloseuseUpdateExtras,
+      rejectionReason?: string | null,
+      extrasArg?: CloseuseUpdateExtras
+    ) => {
       const db = getDb();
       const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
+      const extras: CloseuseUpdateExtras =
+        reminderAtOrExtras !== null && typeof reminderAtOrExtras === "object"
+          ? reminderAtOrExtras
+          : {
+              reminderAt: reminderAtOrExtras,
+              rejectionReason,
+              ...extrasArg,
+            };
       const payload: Record<string, unknown> = {
         statutCloseuse: status,
         callInProgress: null, // toute action ferme l'appel en cours (section 6)
       };
-      if (reminderAt !== undefined) {
-        payload.reminderAt = reminderAt;
+      if (extras.reminderAt !== undefined) {
+        payload.reminderAt = extras.reminderAt;
       }
-      if (rejectionReason !== undefined) {
-        payload.rejectionReason = rejectionReason;
+      if (extras.rejectionReason !== undefined) {
+        payload.rejectionReason = extras.rejectionReason;
+      }
+      if (extras.fieldNote !== undefined) {
+        payload.fieldNote = extras.fieldNote;
+      }
+      if (extras.rescheduleReason !== undefined) {
+        payload.rescheduleReason = extras.rescheduleReason;
+      }
+      if (status === "en_cours" && extras.livreurId) {
+        payload.livreurId = extras.livreurId;
+        payload.statutLivreur = "recu";
       }
       await updateDoc(ref, payload);
     },
@@ -37,12 +75,26 @@ export function useUpdateOrderStatus(workspaceId: string) {
   );
 
   const updateLivreurStatus = useCallback(
-    async (orderId: string, status: LivreurStatus, rejectionReason?: string | null) => {
+    async (
+      orderId: string,
+      status: LivreurStatus,
+      rejectionReasonOrExtras?: string | null | LivreurUpdateExtras
+    ) => {
       const db = getDb();
       const ref = doc(db, "workspaces", workspaceId, "orders", orderId);
+      const extras: LivreurUpdateExtras =
+        rejectionReasonOrExtras !== null && typeof rejectionReasonOrExtras === "object"
+          ? rejectionReasonOrExtras
+          : { rejectionReason: rejectionReasonOrExtras };
       const payload: Record<string, unknown> = { statutLivreur: status };
-      if (rejectionReason !== undefined) {
-        payload.rejectionReason = rejectionReason;
+      if (extras.rejectionReason !== undefined) {
+        payload.rejectionReason = extras.rejectionReason;
+      }
+      if (extras.deliveryFailureReason !== undefined) {
+        payload.deliveryFailureReason = extras.deliveryFailureReason;
+      }
+      if (extras.deliveryFieldNote !== undefined) {
+        payload.deliveryFieldNote = extras.deliveryFieldNote;
       }
       await updateDoc(ref, payload);
       // Le passage à "livre"/"injoignable" déclenche la suite (notifs,

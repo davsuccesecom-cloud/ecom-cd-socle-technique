@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
 import { getDb } from "../firebase";
 
@@ -19,6 +19,8 @@ export interface AppNotification {
 export function useNotifications(workspaceId: string | null, userId: string | null = null, max = 30) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const initializedRef = useRef(false);
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!workspaceId) {
@@ -26,6 +28,8 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
       setLoading(false);
       return;
     }
+    initializedRef.current = false;
+    seenIdsRef.current.clear();
     const db = getDb();
     const ref = collection(db, "workspaces", workspaceId, "notifications");
     const q = userId
@@ -35,7 +39,22 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        setNotifications(snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as AppNotification));
+        const mapped = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as AppNotification);
+        if (initializedRef.current) {
+          const hasFreshUnread = mapped.some((n) => !n.read && !seenIdsRef.current.has(n.id));
+          if (hasFreshUnread && typeof Audio !== "undefined") {
+            try {
+              const audio = new Audio("/notification-ping.mp3");
+              audio.volume = 0.65;
+              void audio.play().catch(() => {});
+            } catch {
+              // Lecture audio ignoree avant interaction utilisateur
+            }
+          }
+        }
+        mapped.forEach((n) => seenIdsRef.current.add(n.id));
+        initializedRef.current = true;
+        setNotifications(mapped);
         setLoading(false);
       },
       () => setLoading(false)
@@ -45,6 +64,23 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
   }, [workspaceId, userId, max]);
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+
+  // Synchroniser le badge PWA sur l'icone d'application (arriere-plan / bureau)
+  useEffect(() => {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (count?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    try {
+      if (unreadCount > 0 && typeof nav.setAppBadge === "function") {
+        void nav.setAppBadge(unreadCount).catch(() => {});
+      } else if (unreadCount === 0 && typeof nav.clearAppBadge === "function") {
+        void nav.clearAppBadge().catch(() => {});
+      }
+    } catch {
+      // Non supporte sur certains navigateurs
+    }
+  }, [unreadCount]);
 
   const markAsRead = async (notifId: string) => {
     if (!workspaceId) return;

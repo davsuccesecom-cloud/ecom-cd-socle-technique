@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { arrayRemove, arrayUnion, doc, updateDoc } from "firebase/firestore";
+import { arrayRemove, arrayUnion, doc, setDoc, updateDoc } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
 import { getDb, getFirebaseMessaging } from "../firebase";
 
@@ -50,25 +50,26 @@ async function registerToken(
   localStorage.setItem(storageKey, token);
 
   if (token === previousToken) {
-    // Meme token qu'avant, deja enregistre normalement. On s'assure quand
-    // meme qu'il est bien present (idempotent, ne cree pas de doublon).
-    await updateDoc(userRef, { fcmTokens: arrayUnion(token) });
+    // Meme token qu'avant : idempotent via setDoc merge + rafraichit fcmUpdatedAt
+    await setDoc(
+      userRef,
+      { fcmTokens: arrayUnion(token), fcmUpdatedAt: Date.now() },
+      { merge: true }
+    );
   } else {
-    // Nouveau token : retrait de l'ancien + ajout du nouveau en UNE SEULE
-    // ecriture atomique. Deux updateDoc separes laissaient une fenetre ou
-    // un reload du service worker (mise a jour PWA) pouvait interrompre
-    // la sequence entre les deux, causant une accumulation de vieux
-    // tokens jamais nettoyes.
-    const update: Record<string, unknown> = { fcmTokens: arrayUnion(token) };
+    // Nouveau token : retrait de l'ancien (best-effort) puis ajout atomique.
     if (previousToken) {
-      // Firestore n'autorise pas arrayRemove + arrayUnion sur le meme
-      // champ dans un seul updateDoc classique -- on fait donc le retrait
-      // d'abord (rapide), puis l'ajout, mais en ecrivant IMMEDIATEMENT
-      // localStorage avant (voir ci-dessus) pour eviter la double-perte
-      // d'etat en cas d'interruption.
-      await updateDoc(userRef, { fcmTokens: arrayRemove(previousToken) });
+      try {
+        await updateDoc(userRef, { fcmTokens: arrayRemove(previousToken) });
+      } catch {
+        // Ancien token ou document absent : on poursuit l'enregistrement
+      }
     }
-    await updateDoc(userRef, update);
+    await setDoc(
+      userRef,
+      { fcmTokens: arrayUnion(token), fcmUpdatedAt: Date.now() },
+      { merge: true }
+    );
   }
 
   console.log("useRegisterPushNotifications: token FCM enregistre avec succes.");

@@ -67,7 +67,7 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+        className="relative flex h-10 w-10 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-surface-border bg-surface-raised text-slate-700 dark:text-slate-200 hover:bg-surface-subtle transition-colors"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -83,10 +83,10 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-11 z-20 max-h-[460px] w-84 sm:w-96 overflow-y-auto rounded-2xl border border-slate-700 bg-slate-800 shadow-2xl">
+          <div className="absolute right-0 top-12 z-40 max-h-[460px] w-84 sm:w-96 overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised shadow-2xl">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-slate-700 bg-slate-900 px-4 py-3 rounded-t-2xl">
-              <span className="text-sm font-semibold text-slate-100 flex items-center gap-2">
+            <div className="flex items-center justify-between border-b border-surface-border bg-surface-subtle px-4 py-3 rounded-t-2xl">
+              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <span>Notifications</span>
                 {unreadCount > 0 && (
                   <span className="rounded-full bg-red-500/20 px-2 py-0.2 text-[10px] font-bold text-red-400">
@@ -98,7 +98,7 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="text-xs text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                    className="text-xs font-medium text-brand hover:underline transition-colors"
                   >
                     Tout marquer lu
                   </button>
@@ -106,7 +106,7 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                 {notifications.length > 0 && (
                   <button
                     onClick={clearAllNotifications}
-                    className="text-xs text-red-400 hover:text-red-300 hover:underline transition-colors"
+                    className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline transition-colors"
                   >
                     Tout effacer
                   </button>
@@ -115,9 +115,9 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
             </div>
 
             {notifications.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-400">Rien pour l'instant.</p>
+              <p className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">Rien pour l'instant.</p>
             ) : (
-              <ul className="divide-y divide-slate-700">
+              <ul className="divide-y divide-surface-border">
                 {notifications.map((n) => {
                   const visual = getNotificationVisual(n.title, n.body);
                   return (
@@ -130,8 +130,8 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                             setOpen(false);
                           }
                         }}
-                        className={`flex w-full items-start gap-3.5 px-4 py-3 text-left hover:bg-slate-700/60 active:bg-slate-700 transition-colors ${
-                          !n.read ? "bg-blue-900/10" : ""
+                        className={`flex w-full items-start gap-3.5 px-4 py-3 text-left hover:bg-surface-subtle transition-colors ${
+                          !n.read ? "bg-brand/5 dark:bg-brand/10" : ""
                         }`}
                       >
                         {/* Emblème visuel agrandi : Livreur en moto ou Sac avec appel */}
@@ -140,7 +140,7 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                             <img
                               src={visual.src}
                               alt={visual.label}
-                              className="h-10 w-10 rounded-xl object-cover border border-slate-700 bg-slate-900 shadow-md"
+                              className="h-10 w-10 rounded-xl object-cover border border-surface-border bg-surface-subtle shadow-sm"
                             />
                           ) : (
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/15 text-amber-400 shadow-md">
@@ -152,18 +152,18 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                             </div>
                           )}
                           {!n.read && (
-                            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-blue-500 ring-2 ring-slate-800 animate-pulse" />
+                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface-raised" />
                           )}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-slate-100 flex items-center justify-between gap-1">
+                          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center justify-between gap-1">
                             <span className="truncate">{n.title}</span>
-                            <span className="text-[10px] text-slate-400 shrink-0 font-normal">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 shrink-0 font-normal tabular-nums">
                               {timeAgo(n.createdAt)}
                             </span>
                           </p>
-                          <p className="truncate text-xs text-slate-300 mt-0.5 leading-relaxed">
+                          <p className="truncate text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
                             {n.body}
                           </p>
                         </div>

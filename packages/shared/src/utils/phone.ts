@@ -149,6 +149,36 @@ export function cleanOrderNumber(orderNumber?: string | null): string {
 }
 
 /**
+ * Nettoie les noms clients importés avec un tiret orphelin final
+ * ex: "AMENUVEVE -" -> "AMENUVEVE", "meravilne -" -> "meravilne"
+ */
+export function cleanClientName(raw?: string | null): string {
+  const cleaned = String(raw || "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*[-–—]+\s*$/g, "")
+    .trim();
+  return cleaned || "Client";
+}
+
+/**
+ * Formate un montant dans la devise de l'équipe avec espaces français.
+ */
+export function formatCurrency(amount?: number | null, currency?: string | null): string {
+  return `${Math.round(amount ?? 0).toLocaleString("fr-FR")} ${currency || "XOF"}`;
+}
+
+/**
+ * Détecte les commandes de test à isoler des statistiques et bilans IA.
+ */
+export function isTestOrder(order?: { isTest?: boolean; clientName?: string | null; product?: string | null } | null): boolean {
+  if (!order) return false;
+  if (order.isTest) return true;
+  const name = String(order.clientName || "").trim();
+  const prod = String(order.product || "").trim();
+  return /^test(\b|$)/i.test(name) || /^test(\b|$)/i.test(prod) || /\btest\s+client\b/i.test(name);
+}
+
+/**
  * Nettoie le titre du produit pour enlever les préfixes de quantité redondants
  * ex: "1x Exemple de produit" -> "Exemple de produit"
  */

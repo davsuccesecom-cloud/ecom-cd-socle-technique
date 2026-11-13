@@ -5,17 +5,14 @@ interface StatusDonutProps {
   counts: Record<CloseuseStatus, number>;
 }
 
-// Mêmes couleurs que le reste du système (tailwind.config.js `status.*`),
-// dupliquées ici en valeurs hex car un <svg> ne peut pas lire les classes
-// Tailwind directement.
 const STATUS_COLORS: Record<CloseuseStatus, string> = {
-  nouveau: "#4F46E5",
+  nouveau: "var(--brand, #3B82F6)",
   programme: "#F59E0B",
   en_cours: "#0EA5E9",
-  livre: "#16A34A",
-  rejete: "#EF4444",
-  injoignable: "#DC2626",
-  indisponible: "#6B7280",
+  livre: "#10B981",
+  rejete: "#F97316",
+  injoignable: "#EF4444",
+  indisponible: "#64748B",
 };
 
 export default function StatusDonut({ counts }: StatusDonutProps) {
@@ -32,14 +29,14 @@ export default function StatusDonut({ counts }: StatusDonutProps) {
   return (
     <div className="flex flex-col items-center">
       <div className="relative">
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label="Répartition des statuts de commandes">
           {total === 0 ? (
             <circle
               cx={size / 2}
               cy={size / 2}
               r={radius}
               fill="none"
-              stroke="#22262D"
+              stroke="var(--surface-border)"
               strokeWidth={strokeWidth}
             />
           ) : (
@@ -76,15 +73,24 @@ export default function StatusDonut({ counts }: StatusDonutProps) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1.5 self-start">
-        {entries.map((key) => (
-          <div key={key} className="flex items-center gap-1.5 text-xs text-slate-300">
-            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: STATUS_COLORS[key] }} />
-            <span className="truncate">{CLOSEUSE_STATUS_LABELS[key]}</span>
-            <span className="tabular-nums font-medium text-slate-400">({counts[key]})</span>
-          </div>
-        ))}
-      </div>
+      {entries.length === 0 ? (
+        <p className="mt-4 text-center text-xs text-slate-500">
+          Aucune commande enregistrée sur cette période.
+        </p>
+      ) : (
+        <div className="mt-4 grid w-full grid-cols-2 gap-x-4 gap-y-1.5">
+          {entries.map((key) => (
+            <div key={key} className="flex items-center gap-1.5 text-xs text-slate-300">
+              <span
+                className="h-2 w-2 rounded-full shrink-0"
+                style={{ backgroundColor: STATUS_COLORS[key] }}
+              />
+              <span className="truncate">{CLOSEUSE_STATUS_LABELS[key]}</span>
+              <span className="tabular-nums font-medium text-slate-400">({counts[key]})</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

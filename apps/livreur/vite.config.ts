@@ -6,8 +6,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.svg"],
+      registerType: "prompt",
+      includeAssets: ["favicon.svg", "notification-ping.mp3"],
       manifest: {
         name: "WariTrack — Livreur",
         short_name: "Livreur",
@@ -24,9 +24,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,png,svg}"],
-        skipWaiting: true,
-        clientsClaim: true,
+        globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/__/, /^\/firebase-messaging-sw\.js$/, /\/api\//],
         cleanupOutdatedCaches: true,
       },
     }),
@@ -49,4 +49,3 @@ export default defineConfig({
     },
   },
 });
-

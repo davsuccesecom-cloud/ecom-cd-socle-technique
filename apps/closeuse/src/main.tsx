@@ -5,25 +5,27 @@ import "./styles/index.css";
 import App from "./App";
 import { registerSW } from "virtual:pwa-register";
 
-// Avec skipWaiting/clientsClaim actives cote Workbox, le nouveau service
-// worker prend le controle des qu'il est pret. On recharge alors la page
-// pour que le JS en memoire (React, etc.) corresponde a la nouvelle
-// version -- evite d'avoir a vider le cache manuellement a chaque mise
-// a jour.
-registerSW({
+// Demande proprement un rafraîchissement via un bandeau non-intrusif
+// plutôt que de recharger la page au milieu d'un appel client.
+const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    window.location.reload();
+    window.dispatchEvent(
+      new CustomEvent("waritrack-sw-update", {
+        detail: { applyUpdate: () => updateSW(true) },
+      })
+    );
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
-    // SPA : naviguer entre les pages ne declenche jamais de vrai
-    // rechargement, donc le navigateur ne revérifie jamais tout seul
-    // si une nouvelle version du service worker existe. On force ce
-    // check nous-memes, a intervalle regulier.
     setInterval(() => {
-      registration.update();
+      registration.update().catch(() => {});
     }, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        registration.update().catch(() => {});
+      }
+    });
   },
 });
 
