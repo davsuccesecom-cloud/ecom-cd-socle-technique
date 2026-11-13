@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import type { AppUser, CashSettlementEntry, Order, Team, UserRole } from "@ecomcod/shared";
-import { useRemunerationTotals, useCashSettlements, formatCurrency, ConfirmDialog } from "@ecomcod/shared";
+import { getDb, useRemunerationTotals, ConfirmDialog } from "@ecomcod/shared";
 import { Landmark, AlertTriangle, CheckCircle2 } from "lucide-react";
 import StatCard from "../components/StatCard";
 import { formatFirebaseError } from "../lib/firebaseErrors";
@@ -11,7 +12,6 @@ interface RemunerationProps {
   closeuses: AppUser[];
   livreurs: AppUser[];
   orders: Order[];
-  settlements?: CashSettlementEntry[];
   onOpenCaisse?: () => void;
 }
 
@@ -27,14 +27,7 @@ interface EmployeeRow {
 const callMarkPaid = httpsCallable(getFunctions(), "markRemunerationPaid");
 const callCancelPaid = httpsCallable(getFunctions(), "cancelRemunerationPayment");
 
-export default function Remuneration({
-  team,
-  closeuses,
-  livreurs,
-  orders,
-  settlements: propSettlements,
-  onOpenCaisse,
-}: RemunerationProps) {
+export default function Remuneration({ team, closeuses, livreurs, orders, onOpenCaisse }: RemunerationProps) {
   const [role, setRole] = useState<UserRole>("closeuse");
   const [confirmTarget, setConfirmTarget] = useState<{
     userId: string;
@@ -45,13 +38,28 @@ export default function Remuneration({
   const [cancelTarget, setCancelTarget] = useState<{ userId: string; name: string } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [settlementEntries, setSettlementEntries] = useState<CashSettlementEntry[]>([]);
 
-  const shouldListen = propSettlements === undefined;
-  const { entries: hookedSettlements } = useCashSettlements(
-    shouldListen ? team?.workspaceId ?? null : null,
-    shouldListen ? team?.id ?? null : null
-  );
-  const settlementEntries = propSettlements ?? hookedSettlements;
+  useEffect(() => {
+    const wsId = team?.workspaceId;
+    const tId = team?.id;
+    if (!wsId || !tId) {
+      setSettlementEntries([]);
+      return;
+    }
+    const q = query(
+      collection(getDb(), `workspaces/${wsId}/cashSettlements`),
+      where("teamId", "==", tId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list: CashSettlementEntry[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<CashSettlementEntry, "id">),
+      }));
+      setSettlementEntries(list);
+    });
+    return () => unsub();
+  }, [team?.workspaceId, team?.id]);
 
   const currency = team?.currency || "XOF";
   const remunCloseuse = team?.remunerationCloseusePerOrder ?? 0;
@@ -81,7 +89,7 @@ export default function Remuneration({
       );
       const remunDeductions = remunDeductionEntries.reduce((s, e) => s + (e.amount || 0), 0);
       const remunDeductionNotes = remunDeductionEntries.map(
-        (e) => `−${formatCurrency(e.amount, currency)} (${e.note})`
+        (e) => `-${e.amount.toLocaleString("fr-FR")} F (${e.note})`
       );
 
       const expectedCash =
@@ -109,7 +117,7 @@ export default function Remuneration({
         unsettledCash,
       };
     });
-  }, [role, closeuses, livreurs, delivered, remunCloseuse, remunLivreur, settlementEntries, currency]);
+  }, [role, closeuses, livreurs, delivered, remunCloseuse, remunLivreur, settlementEntries]);
 
   const remunerationTotale = useMemo(() => {
     const closeuseTotal = closeuses.reduce((sum, u) => {
@@ -262,10 +270,10 @@ export default function Remuneration({
                     const isPaid = baseReste <= 0 && (total?.totalAmount ?? 0) > 0;
                     return (
                       <tr key={r.user.id} className="transition-colors hover:bg-surface/30">
-                        <td className="px-4 py-3 whitespace-nowrap font-medium text-slate-200">{r.user.name}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-slate-300 tabular-nums">{r.livraisons} colis</td>
+                        <td className="px-4 py-3 font-medium text-slate-200">{r.user.name}</td>
+                        <td className="px-4 py-3 text-slate-300 tabular-nums">{r.livraisons} colis</td>
                         {role === "livreur" && (
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-4 py-3">
                             {r.livraisons === 0 ? (
                               <span className="text-xs text-slate-500">—</span>
                             ) : r.unsettledCash <= 0 ? (
@@ -281,20 +289,20 @@ export default function Remuneration({
                                 className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium tabular-nums text-amber-400 transition hover:bg-amber-500/20"
                               >
                                 <AlertTriangle className="h-3 w-3" />
-                                {formatCurrency(r.unsettledCash, currency)} à verser
+                                {r.unsettledCash.toLocaleString("fr-FR")} {currency} à verser
                               </button>
                             )}
                           </td>
                         )}
-                        <td className="px-4 py-3 whitespace-nowrap font-medium tabular-nums text-slate-200">
-                          {formatCurrency(r.remuneration, currency)}
+                        <td className="px-4 py-3 font-medium tabular-nums text-slate-200">
+                          {r.remuneration.toLocaleString("fr-FR")} {currency}
                         </td>
                         {role === "livreur" && (
-                          <td className="px-4 py-3 whitespace-nowrap">
+                          <td className="px-4 py-3">
                             {r.remunDeductions > 0 ? (
                               <div className="space-y-0.5">
                                 <span className="text-xs font-medium tabular-nums text-rose-400">
-                                  −{formatCurrency(r.remunDeductions, currency)}
+                                  −{r.remunDeductions.toLocaleString("fr-FR")} {currency}
                                 </span>
                                 <p
                                   className="max-w-[220px] truncate text-[11px] text-slate-500"
@@ -308,17 +316,17 @@ export default function Remuneration({
                             )}
                           </td>
                         )}
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-4 py-3">
                           {isPaid ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
                               <CheckIcon /> Réglé
                             </span>
                           ) : netAPayer > 0 ? (
                             <span className="text-sm font-semibold tabular-nums text-slate-100">
-                              {formatCurrency(netAPayer, currency)}
+                              {netAPayer.toLocaleString("fr-FR")} {currency}
                             </span>
                           ) : (
-                            <span className="text-xs text-slate-500">{formatCurrency(0, currency)}</span>
+                            <span className="text-xs text-slate-500">0 {currency}</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">

@@ -166,7 +166,7 @@ export default function PrintReceiptConfig({ workspaceId, team }: PrintReceiptCo
         <div className="flex items-center gap-2">
           {enabled ? (
             <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/30">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               Module Actif sur le Terrain
             </span>
           ) : (
@@ -296,7 +296,7 @@ export default function PrintReceiptConfig({ workspaceId, team }: PrintReceiptCo
                   type="checkbox"
                   checked={showLivreurInfo}
                   onChange={(e) => setShowLivreurInfo(e.target.checked)}
-                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border text-brand focus:ring-brand"
+                  className="rounded border-surface-border text-brand focus:ring-brand h-4 w-4"
                 />
               </label>
 
@@ -311,7 +311,7 @@ export default function PrintReceiptConfig({ workspaceId, team }: PrintReceiptCo
                   type="checkbox"
                   checked={autoPrint}
                   onChange={(e) => setAutoPrint(e.target.checked)}
-                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border text-brand focus:ring-brand"
+                  className="rounded border-surface-border text-brand focus:ring-brand h-4 w-4"
                 />
               </label>
 
@@ -326,7 +326,7 @@ export default function PrintReceiptConfig({ workspaceId, team }: PrintReceiptCo
                   type="checkbox"
                   checked={enableWhatsAppShare}
                   onChange={(e) => setEnableWhatsAppShare(e.target.checked)}
-                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border text-brand focus:ring-brand"
+                  className="rounded border-surface-border text-brand focus:ring-brand h-4 w-4"
                 />
               </label>
             </div>

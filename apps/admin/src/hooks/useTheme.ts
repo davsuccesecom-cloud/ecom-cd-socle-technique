@@ -108,7 +108,6 @@ function applyDomTheme(theme: Theme, accent: AccentColor) {
   root.classList.toggle("light", theme === "light");
   root.classList.toggle("dark", theme === "dark");
   root.setAttribute("data-accent", accent);
-  root.style.colorScheme = theme === "light" ? "light" : "dark";
 }
 
 export function useTheme() {

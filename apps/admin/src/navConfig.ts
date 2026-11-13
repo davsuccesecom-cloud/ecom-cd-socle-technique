@@ -16,12 +16,13 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "orders", label: "Commandes" },
   { key: "ai_assistant", label: "Analyste IA & Bilans", shortLabel: "IA Business" },
   { key: "performance", label: "Performance" },
-  { key: "teams", label: "Équipes & Marchés", shortLabel: "Équipes" },
+  { key: "teams", label: "Équipes & Sheets", shortLabel: "Équipes" },
   { key: "users", label: "Utilisateurs & Accès", shortLabel: "Accès" },
   { key: "caisse", label: "Caisse & Versements", shortLabel: "Caisse" },
   { key: "remuneration", label: "Rémunération" },
   { key: "settings", label: "Paramètres" },
+  { key: "landing", label: "Vitrine & Landing 3D", shortLabel: "Landing" },
 ];
 
 // Pages réellement construites
-export const ENABLED_KEYS = ["overview", "orders", "ai_assistant", "performance", "teams", "users", "caisse", "remuneration", "settings"];
+export const ENABLED_KEYS = ["overview", "orders", "ai_assistant", "performance", "teams", "users", "caisse", "remuneration", "settings", "landing"];

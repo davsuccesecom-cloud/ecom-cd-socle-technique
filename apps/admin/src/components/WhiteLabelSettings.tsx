@@ -400,8 +400,8 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
               </div>
 
               {/* Instructions techniques précises */}
-              <div className="rounded-xl border border-brand/30 bg-brand-light p-3 text-[11px] text-slate-300 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-brand">
+              <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-3 text-[11px] text-slate-300 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-300">
                   <Info className="h-3.5 w-3.5 shrink-0" />
                   <span>Recommandations Graphiques pour Smartphones</span>
                 </div>
@@ -495,7 +495,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                     type="checkbox"
                     checked={autoTuneDeliveryRate}
                     onChange={(e) => setAutoTuneDeliveryRate(e.target.checked)}
-                    className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border"
+                    className="h-4 w-4 rounded accent-indigo-500 cursor-pointer"
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -519,7 +519,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
               <div className="rounded-xl border border-surface-border bg-surface p-3.5 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <PhoneCall className="h-4 w-4 text-brand" />
+                    <PhoneCall className="h-4 w-4 text-purple-400" />
                     <span className="text-xs font-bold text-slate-100">
                       Redistribution des Appels si Attente &gt; {closingDelayMinutes} min
                     </span>
@@ -528,7 +528,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                     type="checkbox"
                     checked={autoTuneClosingSpeed}
                     onChange={(e) => setAutoTuneClosingSpeed(e.target.checked)}
-                    className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border"
+                    className="h-4 w-4 rounded accent-indigo-500 cursor-pointer"
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -549,7 +549,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                     type="checkbox"
                     checked={positiveCashProtection}
                     onChange={(e) => setPositiveCashProtection(e.target.checked)}
-                    className="h-4 w-4 shrink-0 cursor-pointer rounded border-surface-border"
+                    className="h-4 w-4 rounded accent-indigo-500 cursor-pointer"
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 leading-relaxed">

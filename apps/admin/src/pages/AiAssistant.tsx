@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy, where, addDoc, getDocs, limit } from "firebase/firestore";
-import { getDb, ConfirmDialog, AutoResizeTextarea, useRemunerationTotals } from "@ecomcod/shared";
+import { getDb, ConfirmDialog, useRemunerationTotals } from "@ecomcod/shared";
 import type { Team, Order, CashSettlementEntry, CodCountryInsight } from "@ecomcod/shared";
 import {
   BarChart3,
   Award,
+  ShieldAlert,
+  TrendingUp,
   Send,
   Copy,
   Check,
@@ -17,7 +19,10 @@ import {
   Sparkles,
   Layers,
   Landmark,
+  Truck,
+  BellRing,
   Clock,
+  ArrowUpRight,
   Globe2,
   GraduationCap,
   BookOpenCheck,
@@ -41,30 +46,30 @@ const SUGGESTIONS = [
   {
     icon: Globe2,
     title: "Bilan Logistique Stratégique Pays",
-    desc: "Courbe de refroidissement, villes rentables et plan d'action COD du pays.",
+    desc: "Courbe de refroidissement COD, créneaux d'appel et zones critiques.",
     prompt:
-      "Produis le Bilan Logistique Stratégique Pays complet pour le marché actif : analyse les courbes de refroidissement (<6h vs >24h), les créneaux horaires gagnants, la rentabilité par ville, les principaux motifs de rejet/échec terrain et un plan d'exécution prioritaire pour augmenter le taux de livraison.",
+      "Réalise un bilan logistique stratégique par pays en croisant notre base codInsights (courbe de refroidissement <6h à >48h, taux horaires de remise, villes performantes vs zones d'échec, motifs de rejet et notes terrain libres). Donne-moi des actions concrètes et chiffrées.",
   },
   {
     icon: GraduationCap,
     title: "Générer Formation Closeuses",
-    desc: "Module complet basé sur les vrais motifs de rejet et notes terrain du pays.",
+    desc: "Module ciblé sur nos vrais motifs de rejet et notes terrain.",
     prompt:
-      "Génère un module complet de formation pour mes closeuses basé sur les vrais motifs de rejet, les taux horaires et les notes terrain libres collectées sur ce pays : 1) diagnostic des pertes actuelles, 2) scripts vocaux et WhatsApp adaptés aux objections locales, 3) routine SLA < 15 min, 4) exercices de jeu de rôle et grille d'évaluation.",
+      "À partir de nos vrais motifs de rejet, d'injoignabilité et des notes libres closeuses dans codInsights, conçois une formation pratique : scripts d'objection mot-à-mot, relances ciblées et checklist anti-faux-numéros.",
   },
   {
     icon: BookOpenCheck,
     title: "Générer Formation Livreurs",
-    desc: "Coaching terrain, gestion cash-on-delivery et réduction des injoignables.",
+    desc: "Coaching terrain sur les échecs de remise et gestion du cash.",
     prompt:
-      "Génère un module complet de formation pour mes livreurs terrain basé sur les échecs de livraison et notes terrain de ce marché : 1) gestion des clients injoignables ou absents sur place, 2) respect strict des créneaux confirmés et rapidité <6h, 3) protocole d'encaissement et zéro litige de caisse, 4) barème de suivi.",
+      "À partir des vrais échecs de livraison terrain, des créneaux horaires clés et des notes libres des livreurs dans codInsights, crée un plan de coaching opérationnel court pour nos livreurs (pré-appel client, gestion du cash, réduction des retours).",
   },
   {
     icon: Compass,
     title: "Hacks & Prévisions COD Afrique",
-    desc: "Prévisions ROI, créneaux d'or et leviers COD à fort impact par marché.",
+    desc: "Prédictions par marché, créneaux rentables et leviers COD.",
     prompt:
-      "En t'appuyant sur les données codInsights et l'historique réel de l'équipe, donne-moi les meilleurs hacks & prévisions COD Afrique applicables immédiatement : gain estimé en passant les livraisons sous 6h, créneaux horaires à privilégier, villes ou sources à isoler et prévisions d'encaissement à 14 jours.",
+      "Agis comme notre stratège COD Afrique : analyse nos données multi-pays (codInsights) pour extraire les hacks terrain, prévoir notre taux de livraison par créneau, repérer les sources de trafic et bâtir un playbook réplicable.",
   },
   {
     icon: Landmark,
@@ -281,7 +286,6 @@ interface AiAssistantProps {
   closeuses: { id: string; name: string }[];
   livreurs: { id: string; name: string }[];
   codInsights?: CodCountryInsight[];
-  excludedTestOrdersCount?: number;
   onNavigate?: (page: string) => void;
 }
 
@@ -292,7 +296,7 @@ export default function AiAssistant({
   closeuses,
   livreurs,
   codInsights = [],
-  excludedTestOrdersCount = 0,
+  onNavigate,
 }: AiAssistantProps) {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [inputPrompt, setInputPrompt] = useState("");
@@ -328,17 +332,8 @@ export default function AiAssistant({
   }, [workspaceId, team?.id]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const stickRef = useRef(true);
-
-  const activeCountryInsight = useMemo(() => {
-    if (!codInsights.length) return null;
-    const target = (team?.defaultCountry || "").toUpperCase();
-    return (
-      codInsights.find((c) => c.countryCode.toUpperCase() === target) ||
-      [...codInsights].sort((a, b) => (b.totalProcessed || 0) - (a.totalProcessed || 0))[0] ||
-      null
-    );
-  }, [codInsights, team?.defaultCountry]);
 
   const context: BusinessMetricsContext = useMemo(() => {
     const now = Date.now();
@@ -362,9 +357,8 @@ export default function AiAssistant({
       .filter(isDeliveredOrder)
       .reduce((acc, o) => acc + (o.amount || 0), 0);
 
-    const confirmationRate = totalOrders > 0 ? Math.round((confirmedOrders / totalOrders) * 100) : 0;
-    const deliveryRate =
-      confirmedOrders > 0 ? Math.min(100, Math.round((deliveredOrders / confirmedOrders) * 100)) : 0;
+    const confirmationRate = totalOrders > 0 ? Math.min(100, Math.round((confirmedOrders / totalOrders) * 100)) : 0;
+    const deliveryRate = confirmedOrders > 0 ? Math.min(100, Math.round((deliveredOrders / confirmedOrders) * 100)) : 0;
 
     const topCloseuses = closeuses
       .map((c) => {
@@ -665,9 +659,8 @@ export default function AiAssistant({
       totalUnsettledCash,
       totalRemunResteAPayer,
       codInsights,
-      excludedTestOrdersCount,
     };
-  }, [orders, closeuses, livreurs, team, cashEntries, closeuseRemunTotals, livreurRemunTotals, codInsights, excludedTestOrdersCount]);
+  }, [orders, closeuses, livreurs, team, cashEntries, closeuseRemunTotals, livreurRemunTotals, codInsights]);
 
   // Extract all chart artifacts generated across the conversation
   const chartArtifacts = useMemo(() => {
@@ -731,6 +724,13 @@ export default function AiAssistant({
   useEffect(() => {
     if (stickRef.current) scrollToBottom();
   }, [messages, loading]);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 150)}px`;
+  }, [inputPrompt]);
 
   const handleSendMessage = async (textToSend?: string, skipSavingUserMsg = false) => {
     const prompt = (textToSend ?? inputPrompt).trim();
@@ -847,7 +847,7 @@ export default function AiAssistant({
       // 1. Caisse livreurs non versée
       const unsettledLivreurs = (context.livreurCashSummaries || []).filter((l) => l.unsettledCash > 0);
       if (unsettledLivreurs.length > 0) {
-        const title = `Rappel IA · Caisse Livreur à récupérer`;
+        const title = `🤖 Rappel IA · Caisse Livreur à récupérer`;
         const names = unsettledLivreurs
           .map((l) => `**${l.name}** (${l.unsettledCash.toLocaleString("fr-FR")} ${context.currency})`)
           .join(", ");
@@ -862,7 +862,7 @@ export default function AiAssistant({
 
       // 2. Commandes Nouveau dépassant le délai (> 15 min)
       if (alerts && alerts.staleNewOrders.length > 0) {
-        const title = `Rappel IA · ${alerts.staleNewOrders.length} commande(s) hors délai d'appel`;
+        const title = `🤖 Rappel IA · ${alerts.staleNewOrders.length} commande(s) hors délai d'appel`;
         const sample = alerts.staleNewOrders
           .slice(0, 4)
           .map((o) => `${o.orderNumber} (${o.clientName}, ${o.minutesWaiting} min — ${o.closeuseName})`)
@@ -878,7 +878,7 @@ export default function AiAssistant({
 
       // 3. Rappels programmés oubliés
       if (alerts && alerts.overdueReminders.length > 0) {
-        const title = `Rappel IA · ${alerts.overdueReminders.length} rappel(s) programmé(s) en retard`;
+        const title = `🤖 Rappel IA · ${alerts.overdueReminders.length} rappel(s) programmé(s) en retard`;
         const sample = alerts.overdueReminders
           .slice(0, 4)
           .map((o) => `${o.orderNumber} ${o.clientName} (${o.closeuseName}, +${o.minutesOverdue} min)`)
@@ -894,7 +894,7 @@ export default function AiAssistant({
 
       // 4. Commandes confirmées sans livreur assigné
       if (alerts && alerts.unassignedConfirmed.length > 0) {
-        const title = `Rappel IA · ${alerts.unassignedConfirmed.length} colis confirmé(s) sans livreur`;
+        const title = `🤖 Rappel IA · ${alerts.unassignedConfirmed.length} colis confirmé(s) sans livreur`;
         const sample = alerts.unassignedConfirmed
           .slice(0, 4)
           .map((o) => `${o.orderNumber} (${o.clientName} — ${o.city})`)
@@ -911,7 +911,7 @@ export default function AiAssistant({
       // 5. Colis sur le terrain depuis > 3h
       const longStuck = (alerts?.stuckInDelivery || []).filter((o) => o.hoursInTransit >= 3);
       if (longStuck.length > 0) {
-        const title = `Rappel IA · ${longStuck.length} colis sur le terrain > 3h`;
+        const title = `🤖 Rappel IA · ${longStuck.length} colis sur le terrain > 3h`;
         const sample = longStuck
           .slice(0, 4)
           .map((o) => `${o.orderNumber} (${o.livreurName}, ${o.hoursInTransit}h)`)
@@ -930,7 +930,7 @@ export default function AiAssistant({
         o.status.startsWith("nouveau")
       );
       if (pendingDuplicates.length > 0) {
-        const title = `Rappel IA · ${pendingDuplicates.length} numéro(s) doublon(s) à vérifier`;
+        const title = `🤖 Rappel IA · ${pendingDuplicates.length} numéro(s) doublon(s) à vérifier`;
         const sample = pendingDuplicates
           .slice(0, 3)
           .map((o) => `${o.orderNumber} (${o.clientName} · ${o.phone})`)
@@ -957,7 +957,7 @@ export default function AiAssistant({
         // L'IA écrit toute seule directement dans son éditeur de conversation
         const autoMsgId = `bot_auto_${Date.now()}`;
         const autoContent = [
-          `### Rappel Automatique — Vigie Logistique (${context.teamName})`,
+          `### 🔔 Rappel Automatique — Vigie Logistique (${context.teamName})`,
           `Voici les opérations en attente ou qui dépassent actuellement leurs délais :`,
           ...aiEditorLines,
           `Vous pouvez me poser n'importe quelle question sur ces commandes, la caisse des livreurs ou la logistique terrain.`,
@@ -1052,8 +1052,8 @@ export default function AiAssistant({
   const canSend = inputPrompt.trim().length > 0 && !loading;
 
   return (
-    <div className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-1 flex-col">
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-surface-border bg-surface-raised">
+    <div className="mx-auto w-full max-w-7xl">
+      <div className="flex h-[calc(100dvh-9.5rem)] min-h-[520px] overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-sm">
         {/* Left / Main Chat Column */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Top Workspace Toolbar */}
@@ -1212,8 +1212,8 @@ export default function AiAssistant({
 
                     {loading && (
                       <div className="flex items-center gap-3">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand-light text-brand">
-                          <Sparkles className="h-3.5 w-3.5" />
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-brand/30 bg-brand/15 text-brand">
+                          <Sparkles className="h-3.5 w-3.5 animate-pulse" />
                         </div>
                         <span className="text-xs text-slate-400">Calcul et consolidation du bilan en cours…</span>
                       </div>
@@ -1238,11 +1238,11 @@ export default function AiAssistant({
             )}
           </div>
 
-          {/* Bottom Composer fixe avec AutoResizeTextarea */}
-          <div className="shrink-0 border-t border-surface-border bg-surface px-4 py-3">
+          {/* Bottom Composer */}
+          <div className="border-t border-surface-border bg-surface/40 px-4 py-3">
             <div className="mx-auto w-full max-w-3xl">
               {!isEmpty && (
-                <div className="mb-2 flex flex-wrap gap-1.5">
+                <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
                   {SUGGESTIONS.map((s) => {
                     const Icon = s.icon;
                     return (
@@ -1251,7 +1251,7 @@ export default function AiAssistant({
                         type="button"
                         onClick={() => handleSendMessage(s.prompt)}
                         disabled={loading}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-brand/40 hover:text-slate-100 disabled:opacity-40"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 py-1 text-xs font-medium text-slate-300 transition hover:border-brand/40 hover:text-slate-100 disabled:opacity-40"
                       >
                         <Icon className="h-3 w-3 text-brand" />
                         <span>{s.title}</span>
@@ -1297,52 +1297,51 @@ export default function AiAssistant({
                   e.preventDefault();
                   handleSendMessage();
                 }}
-                className="flex items-end gap-2 rounded-xl border border-surface-border bg-surface-raised px-3 py-1.5 focus-within:border-brand"
+                className="flex items-end gap-2 rounded-xl border border-surface-border bg-surface px-3 py-2 focus-within:border-brand"
               >
-                <div className="min-w-0 flex-1">
-                  <AutoResizeTextarea
-                    rows={1}
-                    value={inputPrompt}
-                    onChange={setInputPrompt}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    placeholder="Demandez un bilan pays, une formation équipe ou des prévisions COD…"
-                    className="!max-h-36 !min-h-[38px] !border-0 !bg-transparent !px-1 !py-1.5 !text-xs sm:!text-sm"
-                  />
-                </div>
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={inputPrompt}
+                  onChange={(e) => setInputPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Demandez un bilan, une analyse par closeuse ou une courbe de CA…"
+                  className="max-h-36 min-h-[32px] flex-1 resize-none bg-transparent py-1 text-xs leading-5 text-slate-100 outline-none placeholder:text-slate-500 sm:text-sm"
+                />
                 <button
                   type="submit"
                   disabled={!canSend}
                   aria-label="Envoyer"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand text-white transition hover:bg-brand-hover disabled:opacity-40"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand text-white transition hover:bg-brand-hover disabled:opacity-40"
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-3.5 w-3.5" />
                 </button>
               </form>
             </div>
           </div>
         </div>
 
-        {/* Right Side Panel: Live Metrics & COD Country Insights */}
+        {/* Right Side Panel: Live Metrics & Chart Artifacts */}
         {showArtifactsPanel && (
-          <aside className="hidden w-80 shrink-0 flex-col border-l border-surface-border bg-surface/40 lg:flex xl:w-96">
-            <div className="flex shrink-0 items-center justify-between border-b border-surface-border px-4 py-3">
+          <aside className="hidden w-80 shrink-0 flex-col border-l border-surface-border bg-surface/30 lg:flex xl:w-96">
+            <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
                 <Layers className="h-3.5 w-3.5 text-brand" />
-                <span>Indicateurs &amp; Data COD</span>
+                <span>Artefacts & Indicateurs</span>
               </div>
               <span className="rounded bg-surface px-2 py-0.5 font-mono text-[10px] text-slate-400">
                 {context.currency}
               </span>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3.5">
+            <div className="flex-1 space-y-4 overflow-y-auto p-4">
               {/* Live Executive Summary Card */}
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3 space-y-2.5">
+              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     Synthèse en direct
@@ -1351,68 +1350,32 @@ export default function AiAssistant({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2">
-                    <p className="text-[10px] text-slate-400">CA Encaissé</p>
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">CA Encaissé</p>
                     <p className="mt-0.5 text-xs font-bold tabular-nums text-slate-100">
                       {context.revenue.toLocaleString("fr-FR")} {context.currency}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2">
-                    <p className="text-[10px] text-slate-400">Livraisons</p>
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">Livraisons</p>
                     <p className="mt-0.5 text-xs font-bold tabular-nums text-emerald-400">
                       {context.deliveredOrders} ({context.deliveryRate}%)
                     </p>
                   </div>
-                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2">
-                    <p className="text-[10px] text-slate-400">Closing</p>
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">Closing</p>
                     <p className="mt-0.5 text-xs font-bold tabular-nums text-sky-400">
                       {context.confirmedOrders}/{context.totalOrders} ({context.confirmationRate}%)
                     </p>
                   </div>
-                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2">
-                    <p className="text-[10px] text-slate-400">Échecs / Rejets</p>
+                  <div className="rounded-lg border border-surface-border bg-surface/60 p-2.5">
+                    <p className="text-[10px] text-slate-500">Échecs / Rejets</p>
                     <p className="mt-0.5 text-xs font-bold tabular-nums text-rose-400">
                       {context.rejectedOrders + context.injoignableOrders}
                     </p>
                   </div>
                 </div>
               </div>
-
-              {activeCountryInsight && activeCountryInsight.totalProcessed > 0 && (
-                <div className="rounded-xl border border-surface-border bg-surface-raised p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      Base COD — {activeCountryInsight.countryCode}
-                    </span>
-                    <span className="font-mono text-[10px] tabular-nums text-emerald-400">
-                      {Math.round(
-                        (activeCountryInsight.deliveredCount / Math.max(1, activeCountryInsight.totalProcessed)) * 100
-                      )}
-                      % succès
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px] tabular-nums">
-                    <div className="rounded-lg border border-surface-border bg-surface/50 px-2.5 py-1.5">
-                      <span className="block text-[10px] text-slate-400">Refroidissement &lt;6h</span>
-                      <span className="font-semibold text-slate-100">
-                        {activeCountryInsight.coolingBuckets?.under6h?.total
-                          ? `${Math.round(
-                              (activeCountryInsight.coolingBuckets.under6h.delivered /
-                                activeCountryInsight.coolingBuckets.under6h.total) *
-                                100
-                            )}%`
-                          : "—"}
-                      </span>
-                    </div>
-                    <div className="rounded-lg border border-surface-border bg-surface/50 px-2.5 py-1.5">
-                      <span className="block text-[10px] text-slate-400">Retours terrain</span>
-                      <span className="font-semibold text-slate-100">
-                        {activeCountryInsight.recentFieldNotes?.length ?? 0} notes
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Generated Charts Deck */}
               <div className="space-y-2.5">

@@ -339,16 +339,19 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
 
   return (
     <div className="mx-auto max-w-[940px] px-2 py-4 sm:px-4 sm:py-6">
-      {/* 1. Barre contextuelle compacte */}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-border bg-surface-raised px-4 py-3">
-        <p className="text-sm text-slate-300">
-          <span className="sr-only">Équipes &amp; marchés — </span>
-          Sélectionnez une équipe pour gérer son marché, son Google Sheet et son routage.
-        </p>
+      {/* 1. Bar supérieure : Titre et bouton d'ajout */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-100">
+            Équipes &amp; marchés
+          </h1>
+          <p className="text-sm text-slate-400">
+            Choisissez une équipe, puis connectez ses commandes.
+          </p>
+        </div>
         <button
-          type="button"
           onClick={() => setShowCreateTeam(true)}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
         >
           + Nouvelle équipe
         </button>

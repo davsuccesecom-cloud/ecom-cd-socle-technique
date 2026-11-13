@@ -56,7 +56,7 @@ export default function MobileNav({
   return (
     <>
       {/* Barre de navigation mobile inférieure fixe (ergonomie au pouce, min 48px) */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-surface-border bg-surface-raised px-1 pb-[max(env(safe-area-inset-bottom),8px)] md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-surface-border bg-surface-raised/95 px-1 pb-[max(env(safe-area-inset-bottom),8px)] backdrop-blur-md md:hidden">
         {primaryItems.map((item) => {
           const Icon = ICONS[item.key] ?? LayoutDashboard;
           const isActive = item.key === active;
@@ -96,7 +96,7 @@ export default function MobileNav({
       {/* Tiroir "Plus" pour les sections secondaires et actions rapides */}
       {moreOpen && (
         <div className="fixed inset-0 z-50 flex items-end md:hidden" onClick={() => setMoreOpen(false)}>
-          <div className="absolute inset-0 bg-black/70" />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-xs" />
           <div
             onClick={(e) => e.stopPropagation()}
             className="relative w-full rounded-t-3xl border-t border-surface-border bg-surface-raised p-4 pb-[max(env(safe-area-inset-bottom),20px)] shadow-2xl animate-in slide-in-from-bottom-6 duration-200"

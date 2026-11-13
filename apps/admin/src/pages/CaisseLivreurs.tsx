@@ -1,14 +1,15 @@
-import { useMemo, useState } from "react";
-import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
+import { useEffect, useMemo, useState } from "react";
 import {
-  getDb,
-  ConfirmDialog,
-  AutoResizeTextarea,
-  useCashSettlements,
-  buildWhatsAppLink,
-  buildCashSettlementWhatsAppMessage,
-  formatCurrency,
-} from "@ecomcod/shared";
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
+import { getDb, ConfirmDialog, buildWhatsAppLink, buildCashSettlementWhatsAppMessage } from "@ecomcod/shared";
 import type { AppUser, CashSettlementEntry, Order, Team } from "@ecomcod/shared";
 import {
   Landmark,
@@ -21,7 +22,6 @@ import {
   ArrowRight,
   Truck,
   Wallet,
-  MoreHorizontal,
 } from "lucide-react";
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import { formatFirebaseError } from "../lib/firebaseErrors";
@@ -31,8 +31,6 @@ interface CaisseLivreursProps {
   team: Team | null;
   livreurs: AppUser[];
   orders: Order[];
-  settlements?: CashSettlementEntry[];
-  settlementsLoading?: boolean;
   onNavigateToRemuneration?: () => void;
 }
 
@@ -41,18 +39,10 @@ export default function CaisseLivreurs({
   team,
   livreurs,
   orders,
-  settlements: propEntries,
-  settlementsLoading: propLoading,
   onNavigateToRemuneration,
 }: CaisseLivreursProps) {
-  const shouldListen = propEntries === undefined;
-  const { entries: hookedEntries, loading: hookedLoading } = useCashSettlements(
-    shouldListen ? workspaceId : null,
-    shouldListen ? team?.id ?? null : null
-  );
-  const entries = propEntries ?? hookedEntries;
-  const loading = propEntries !== undefined ? Boolean(propLoading) : hookedLoading;
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [entries, setEntries] = useState<CashSettlementEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -69,6 +59,41 @@ export default function CaisseLivreurs({
   const [confirmDeleteEntry, setConfirmDeleteEntry] = useState<CashSettlementEntry | null>(null);
 
   const currency = team?.currency || "XOF";
+
+  useEffect(() => {
+    if (!workspaceId || !team) {
+      setEntries([]);
+      setLoading(false);
+      return;
+    }
+    const db = getDb();
+    const q = query(
+      collection(db, "workspaces", workspaceId, "cashSettlements"),
+      where("teamId", "==", team.id),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setEntries(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as CashSettlementEntry));
+        setLoading(false);
+      },
+      () => {
+        // Fallback sans orderBy si index non encore créé
+        const fallbackQ = query(
+          collection(db, "workspaces", workspaceId, "cashSettlements"),
+          where("teamId", "==", team.id)
+        );
+        onSnapshot(fallbackQ, (snap2) => {
+          const list = snap2.docs.map((d) => ({ id: d.id, ...d.data() }) as CashSettlementEntry);
+          list.sort((a, b) => b.createdAt - a.createdAt);
+          setEntries(list);
+          setLoading(false);
+        });
+      }
+    );
+    return () => unsub();
+  }, [workspaceId, team]);
 
   const deliveredOrders = useMemo(
     () => orders.filter((o) => o.statutCloseuse === "livre" || o.statutLivreur === "livre"),
@@ -351,23 +376,23 @@ export default function CaisseLivreurs({
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-300 tabular-nums">
+                      <td className="px-4 py-3 text-slate-300 tabular-nums">
                         {s.deliveredCount} colis
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-medium tabular-nums text-slate-200">
-                        {formatCurrency(s.encaisseTerrain, currency)}
+                      <td className="px-4 py-3 font-medium tabular-nums text-slate-200">
+                        {s.encaisseTerrain.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap tabular-nums">
+                      <td className="px-4 py-3 tabular-nums">
                         {s.deductionsCaisse > 0 || s.deductionsRemun > 0 ? (
                           <div className="space-y-0.5">
                             {s.deductionsCaisse > 0 && (
                               <span className="block text-xs font-medium text-amber-400">
-                                −{formatCurrency(s.deductionsCaisse, currency)} (Caisse)
+                                −{s.deductionsCaisse.toLocaleString("fr-FR")} {currency} (Caisse)
                               </span>
                             )}
                             {s.deductionsRemun > 0 && (
                               <span className="block text-xs font-medium text-rose-400">
-                                −{formatCurrency(s.deductionsRemun, currency)} (Prime)
+                                −{s.deductionsRemun.toLocaleString("fr-FR")} {currency} (Prime)
                               </span>
                             )}
                           </div>
@@ -375,10 +400,10 @@ export default function CaisseLivreurs({
                           <span className="text-xs text-slate-500">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap font-medium tabular-nums text-emerald-400">
-                        {formatCurrency(s.totalRemitted, currency)}
+                      <td className="px-4 py-3 font-medium tabular-nums text-emerald-400">
+                        {s.totalRemitted.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-3">
                         {s.isSettled ? (
                           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
                             <CheckCircle2 className="h-3 w-3" />
@@ -386,58 +411,36 @@ export default function CaisseLivreurs({
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium tabular-nums text-amber-400">
-                            {formatCurrency(s.resteAVerser, currency)} à verser
+                            {s.resteAVerser.toLocaleString("fr-FR")} {currency} à verser
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        <div className="relative inline-flex items-center justify-end gap-2">
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleShareWhatsAppReceipt(s)}
+                            title="Partager le récapitulatif de caisse et la décharge sur WhatsApp"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition active:scale-[0.98]"
+                          >
+                            <WhatsAppIcon size={14} />
+                            <span>Décharge</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openModal(s.livreur, "deduction", 0)}
+                            className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 transition-all hover:bg-surface hover:text-white"
+                          >
+                            Noter un imprévu
+                          </button>
                           <button
                             type="button"
                             onClick={() => openModal(s.livreur, "remittance", s.resteAVerser)}
-                            className="inline-flex min-h-[38px] items-center gap-1 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-brand-hover"
+                            className="inline-flex items-center gap-1 rounded-lg bg-brand px-3 py-1 text-xs font-medium text-white shadow-xs transition-all hover:bg-brand-hover active:scale-[0.98]"
                           >
                             <Plus className="h-3.5 w-3.5" />
-                            Encaisser
+                            Encaisser versement
                           </button>
-
-                          <button
-                            type="button"
-                            aria-label="Plus d'actions"
-                            onClick={() =>
-                              setOpenMenuId((cur) => (cur === s.livreur.id ? null : s.livreur.id))
-                            }
-                            className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-surface-border bg-surface text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-
-                          {openMenuId === s.livreur.id && (
-                            <div className="surface-popover absolute right-0 top-full z-30 mt-1 w-52 rounded-xl border border-surface-border bg-surface-raised p-1.5 text-left">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  openModal(s.livreur, "deduction", 0);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-200 hover:bg-surface"
-                              >
-                                <MinusCircle className="h-3.5 w-3.5 text-amber-400" />
-                                Noter un imprévu
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  handleShareWhatsAppReceipt(s);
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-emerald-400 hover:bg-surface"
-                              >
-                                <WhatsAppIcon size={14} />
-                                Décharge WhatsApp
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -584,7 +587,7 @@ export default function CaisseLivreurs({
       {/* Modal de saisie Versement ou Retenue avec note justificative */}
       {modalState && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
           onClick={() => !busy && setModalState(null)}
         >
           <div
@@ -657,15 +660,19 @@ export default function CaisseLivreurs({
             </div>
 
             <div>
-              <AutoResizeTextarea
-                label="Note justificative obligatoire"
+              <label className="mb-1 block text-xs font-semibold text-slate-300">
+                Note justificative obligatoire
+              </label>
+              <textarea
+                rows={3}
                 value={noteInput}
-                onChange={setNoteInput}
+                onChange={(e) => setNoteInput(e.target.value)}
                 placeholder={
                   modalState.mode === "remittance"
                     ? "ex: Versement espèces fin de journée vérifié / Virement Mobile Money reçu"
-                    : "ex: Aller-retour client absent ou carburant justifié"
+                    : "ex: Aller-retour pour client injoignable ayant reporté, 1 500 FCFA de carburant justifiés"
                 }
+                className="w-full rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs text-slate-100 outline-none focus:border-brand"
               />
             </div>
 

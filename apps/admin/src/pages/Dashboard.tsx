@@ -1,7 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import {
-  getDb,
   useOrders,
   useTeams,
   useTeamUsers,
@@ -9,19 +8,17 @@ import {
   useDailyStats,
   sumDailyStats,
   dailyStatDateToMs,
-  useCashSettlements,
-  isTestOrder,
-  formatCurrency,
+  getDb,
 } from "@ecomcod/shared";
-import type { CloseuseStatus, Order, CodCountryInsight } from "@ecomcod/shared";
+import type { CloseuseStatus, CodCountryInsight, Order } from "@ecomcod/shared";
 import {
   Truck,
   Ban,
   Sparkles,
   CalendarClock,
   Receipt,
+  Globe,
   Keyboard,
-  FlaskConical,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import MobileNav from "../components/MobileNav";
@@ -52,6 +49,7 @@ import Parametres from "./Parametres";
 import Remuneration from "./Remuneration";
 import CaisseLivreurs from "./CaisseLivreurs";
 import AiAssistant from "./AiAssistant";
+import LandingPage from "./LandingPage";
 import PeriodSelector, { type Period, periodRangeMs, periodLabel } from "../components/PeriodSelector";
 
 interface DashboardProps {
@@ -93,7 +91,7 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Dispatch des colis, impression des bons et traçabilité en temps réel",
   },
   teams: {
-    title: "Équipes & Marchés",
+    title: "Marchés & Google Sheets",
     subtitle: "Configuration des équipes par pays et synchronisation des flux tableurs",
   },
   caisse: {
@@ -121,30 +119,27 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [showTestOrders, setShowTestOrders] = useState(false);
-  const [codInsights, setCodInsights] = useState<CodCountryInsight[]>([]);
   const { toggleTheme } = useTheme();
+  const [codInsights, setCodInsights] = useState<CodCountryInsight[]>([]);
 
   useEffect(() => {
-    if (!workspaceId) {
-      setCodInsights([]);
-      return;
-    }
-    const db = getDb();
+    if (!workspaceId) return;
+    const ref = collection(getDb(), "workspaces", workspaceId, "codInsights");
     const unsub = onSnapshot(
-      collection(db, "workspaces", workspaceId, "codInsights"),
+      ref,
       (snap) => {
-        const list: CodCountryInsight[] = snap.docs.map((d) => {
-          const data = d.data() as CodCountryInsight;
-          return {
-            ...data,
-            countryCode: data.countryCode || d.id,
-          };
-        });
-        setCodInsights(list);
+        setCodInsights(
+          snap.docs.map((d) => {
+            const raw = d.data() as Partial<CodCountryInsight>;
+            return {
+              ...(raw as CodCountryInsight),
+              countryCode: raw.countryCode || d.id,
+            };
+          })
+        );
       },
-      (err) => {
-        console.warn("[codInsights] listener:", err);
+      () => {
+        setCodInsights([]);
       }
     );
     return () => unsub();
@@ -192,10 +187,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   });
   const { users: closeuses } = useTeamUsers(workspaceId, activeTeamId, "closeuse");
   const { users: livreurs } = useTeamUsers(workspaceId, activeTeamId, "livreur");
-  const { entries: cashSettlements, loading: cashSettlementsLoading } = useCashSettlements(
-    workspaceId,
-    activeTeamId
-  );
 
   const getReceivedTs = (o: any): number => {
     if (!o) return 0;
@@ -210,28 +201,13 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     return 0;
   };
 
-  const ordersInPeriod = useMemo(() => {
+  const orders = useMemo(() => {
     const { start, end } = periodRangeMs(period);
     return allOrders.filter((o) => {
       const ts = getReceivedTs(o);
       return ts >= start && ts <= end;
     });
   }, [allOrders, period]);
-
-  const testOrdersInPeriodCount = useMemo(
-    () => ordersInPeriod.filter((o) => isTestOrder(o)).length,
-    [ordersInPeriod]
-  );
-
-  const orders = useMemo(
-    () => (showTestOrders ? ordersInPeriod : ordersInPeriod.filter((o) => !isTestOrder(o))),
-    [ordersInPeriod, showTestOrders]
-  );
-
-  const nonTestAllOrders = useMemo(
-    () => (showTestOrders ? allOrders : allOrders.filter((o) => !isTestOrder(o))),
-    [allOrders, showTestOrders]
-  );
 
   const daysBack = useMemo(() => {
     const { start } = periodRangeMs(period);
@@ -296,9 +272,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       }
     }
 
-    const tauxConfirmation = closeuseFinal > 0 ? Math.round((closeuseConfirmees / closeuseFinal) * 100) : 0;
+    const tauxConfirmation = closeuseFinal > 0 ? Math.min(100, Math.round((closeuseConfirmees / closeuseFinal) * 100)) : 0;
     const tauxLivraisonReelle =
-      closeuseConfirmees > 0 ? Math.round((livraisonsReussies / closeuseConfirmees) * 100) : 0;
+      closeuseConfirmees > 0 ? Math.min(100, Math.round((livraisonsReussies / closeuseConfirmees) * 100)) : 0;
 
     return {
       statusCounts,
@@ -312,43 +288,27 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   }, [orders]);
 
   const displayTotals = useMemo(() => {
-    // Source unique alignée sur les commandes visibles (évite l'écart KPI vs Donut)
-    // tout en conservant le repli dailyStats uniquement si aucune commande brute n'est chargée.
-    const useLiveOrders = orders.length > 0 || testOrdersInPeriodCount > 0;
     return {
-      ca: useLiveOrders ? stats.caOrders : periodTotals.ca || 0,
-      livraisons: useLiveOrders ? stats.livraisonsReussies : periodTotals.livraisons || 0,
-      injoignables: useLiveOrders ? stats.injoignablesOrders : periodTotals.injoignables || 0,
-      rejetees: useLiveOrders ? stats.rejeteesOrders : periodTotals.rejetees || 0,
-      commandes: useLiveOrders ? orders.length : periodTotals.commandes || 0,
+      ca: Math.max(periodTotals.ca || 0, stats.caOrders || 0),
+      livraisons: Math.max(periodTotals.livraisons || 0, stats.livraisonsReussies || 0),
+      injoignables: Math.max(periodTotals.injoignables || 0, stats.injoignablesOrders || 0),
+      rejetees: Math.max(periodTotals.rejetees || 0, stats.rejeteesOrders || 0),
+      commandes: Math.max(periodTotals.commandes || 0, orders.length),
     };
-  }, [periodTotals, stats, orders.length, testOrdersInPeriodCount]);
+  }, [periodTotals, stats, orders.length]);
 
   const totalPendingOrders = useMemo(
-    () => nonTestAllOrders.filter((o) => o.statutCloseuse === "nouveau").length,
-    [nonTestAllOrders]
+    () => allOrders.filter((o) => o.statutCloseuse === "nouveau").length,
+    [allOrders]
   );
 
   const loading = teamsLoading || ordersLoading;
   const showPeriodFilter = page === "overview" || page === "remuneration" || page === "caisse";
-  const showSubBar =
-    teams.length > 0 &&
-    (page === "overview" ||
-      page === "orders" ||
-      page === "performance" ||
-      page === "caisse" ||
-      page === "remuneration");
   const currency = activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF";
   const headerMeta = PAGE_TITLES[page] ?? PAGE_TITLES.overview;
 
   return (
-    <div
-      className={
-        page === "ai_assistant"
-          ? "flex h-dvh flex-col overflow-hidden bg-surface md:flex-row"
-          : "min-h-screen bg-surface md:flex"
-      }
-    >
+    <div className="min-h-screen bg-surface md:flex">
       <Sidebar
         active={page}
         userEmail={userEmail}
@@ -357,16 +317,11 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         onLogout={onLogout}
         onNavigate={setPage}
         pendingOrdersCount={totalPendingOrders}
-        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-        teams={teams}
-        activeTeamId={activeTeamId}
-        onSelectTeam={setTeamId}
-        onAddMarket={() => setShowAddMarket(true)}
       />
 
-      {/* Mobile Top Bar opaque et nette */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-surface-border bg-surface-raised px-4 py-2.5 md:hidden">
-        <div className="flex items-center gap-2 min-w-0">
+      {/* Mobile Top Bar */}
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-surface-border bg-surface/95 px-4 py-2.5 backdrop-blur-md md:hidden">
+        <div className="flex items-center gap-2">
           <WariTrackLogo size="sm" variant="full" subtitle={activeTeam ? activeTeam.name : "Cockpit"} />
         </div>
         <div className="flex items-center gap-1.5">
@@ -391,43 +346,61 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         </div>
       </div>
 
-      <main
-        className={
-          page === "ai_assistant"
-            ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 pt-3 pb-20 md:px-6 md:py-4"
-            : "min-w-0 flex-1 px-4 py-5 pb-24 md:px-6 md:py-5 md:pb-8"
-        }
-      >
-        {/* Global Top Header Bar allégé : H1 lisible sans troncature */}
-        <header className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-surface-border pb-3.5 md:items-center">
+      <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:px-6 md:py-4 md:pb-8">
+        {/* Global Top Header Bar : 1 seule ligne compacte sur ordinateur, inchangé sur mobile */}
+        <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3 md:flex-nowrap">
           <div className="min-w-0 flex-1">
-            <h1 className="text-lg font-semibold leading-snug tracking-tight text-slate-100 md:text-xl">
+            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight text-slate-100 md:text-xl">
               {headerMeta.title}
             </h1>
-            <p className="mt-0.5 text-xs text-slate-400">{headerMeta.subtitle}</p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">{headerMeta.subtitle}</p>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            {activeTeam && (
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-slate-300">
-                <span className="font-semibold text-slate-100">{activeTeam.name}</span>
-                <span className="text-slate-500">·</span>
-                <span className="font-mono text-[11px] text-brand">{currency}</span>
-              </span>
-            )}
+          <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">
+            {/* Global Search / Command Palette Trigger */}
+            <CommandPalette
+              orders={allOrders}
+              teams={teams}
+              activeTeamId={activeTeamId}
+              onNavigate={setPage}
+              onSelectTeam={setTeamId}
+              onInspectOrder={(order) => setReceiptOrder(order)}
+              isOpenExternal={commandPaletteOpen}
+              onCloseExternal={() => setCommandPaletteOpen(false)}
+              onOpenShortcuts={() => setShowShortcutsModal(true)}
+            />
 
+            {/* Bouton d'aide Raccourcis Clavier (?) style grand SaaS */}
             <button
               type="button"
               onClick={() => setShowShortcutsModal(true)}
               title="Raccourcis clavier (? ou ⌘/)"
-              className="inline-flex min-h-[44px] md:min-h-0 md:h-9 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
+              className="inline-flex min-h-[44px] md:h-9 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
             >
               <Keyboard className="h-3.5 w-3.5 text-slate-400" />
+              <span className="hidden xl:inline">Raccourcis</span>
               <kbd className="rounded border border-surface-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
                 ?
               </kbd>
             </button>
 
+            {teams.length > 0 && page !== "teams" && (
+              <MarketSelector
+                teams={teams}
+                activeTeamId={activeTeamId}
+                onSelectTeam={setTeamId}
+                onAddMarket={() => setShowAddMarket(true)}
+              />
+            )}
+
+            {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+
+            {/* Contrôleur de thème & Palette */}
+            <div className="hidden md:flex md:items-center">
+              <ThemeQuickPicker />
+            </div>
+
+            {/* Notification Bell anchored at top-right corner on desktop */}
             <div className="hidden md:flex md:items-center">
               <NotificationBell
                 workspaceId={workspaceId}
@@ -457,57 +430,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           </div>
         </header>
 
-        <CommandPalette
-          hideTrigger
-          orders={allOrders}
-          teams={teams}
-          activeTeamId={activeTeamId}
-          onNavigate={setPage}
-          onSelectTeam={setTeamId}
-          onInspectOrder={(order) => setReceiptOrder(order)}
-          isOpenExternal={commandPaletteOpen}
-          onCloseExternal={() => setCommandPaletteOpen(false)}
-          onOpenShortcuts={() => setShowShortcutsModal(true)}
-        />
-
-        {/* Sous-barre contextuelle (Marché mobile, filtre commandes test, Période) */}
-        {showSubBar && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-surface-border bg-surface-raised px-3.5 py-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="md:hidden">
-                <MarketSelector
-                  teams={teams}
-                  activeTeamId={activeTeamId}
-                  onSelectTeam={setTeamId}
-                  onAddMarket={() => setShowAddMarket(true)}
-                />
-              </div>
-
-              {(page === "overview" || page === "orders") && (
-                <button
-                  type="button"
-                  onClick={() => setShowTestOrders((v) => !v)}
-                  className={`inline-flex min-h-[40px] md:min-h-0 md:h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors ${
-                    showTestOrders
-                      ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
-                      : "border-surface-border bg-surface text-slate-300 hover:border-slate-500"
-                  }`}
-                >
-                  <FlaskConical className="h-3.5 w-3.5 shrink-0" />
-                  <span>{showTestOrders ? "Tests inclus" : "Tests isolés"}</span>
-                  {testOrdersInPeriodCount > 0 && (
-                    <span className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-slate-300">
-                      {testOrdersInPeriodCount}
-                    </span>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
-          </div>
-        )}
-
         {/* WIZARD ONBOARDING OBLIGATOIRE TANT QU'AUCUNE ÉQUIPE N'EST CRÉÉE (PAS DE SKIP VERS UN COCKPIT VIDE) */}
         {teams.length === 0 && !teamsLoading && (
           <WariTrackOnboardingWizard
@@ -526,22 +448,21 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               workspaceId={workspaceId}
               team={activeTeam}
               allTeams={teams}
-              orders={nonTestAllOrders}
+              orders={allOrders}
               closeuses={closeuses}
               livreurs={livreurs}
               codInsights={codInsights}
-              excludedTestOrdersCount={allOrders.length - nonTestAllOrders.length}
               onNavigate={setPage}
             />
           ) : page === "performance" ? (
-            <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={nonTestAllOrders} />
+            <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
           ) : page === "users" ? (
             <Utilisateurs workspaceId={workspaceId} team={activeTeam} closeuses={closeuses} livreurs={livreurs} />
           ) : page === "orders" ? (
             <Commandes
               workspaceId={workspaceId}
               team={activeTeam}
-              orders={nonTestAllOrders}
+              orders={allOrders}
               closeuses={closeuses}
               livreurs={livreurs}
             />
@@ -553,8 +474,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               team={activeTeam}
               livreurs={livreurs}
               orders={orders}
-              settlements={cashSettlements}
-              settlementsLoading={cashSettlementsLoading}
               onNavigateToRemuneration={() => setPage("remuneration")}
             />
           ) : page === "remuneration" ? (
@@ -563,11 +482,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               closeuses={closeuses}
               livreurs={livreurs}
               orders={orders}
-              settlements={cashSettlements}
               onOpenCaisse={() => setPage("caisse")}
             />
           ) : page === "settings" ? (
-            <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} orders={nonTestAllOrders} />
+            <Parametres workspaceId={workspaceId} team={activeTeam} teams={teams} orders={allOrders} />
           ) : (
             <div className="space-y-4">
               {/* 1. Primary Live Shopify-Style Analytics Deck */}
@@ -606,7 +524,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 </div>
 
                 <div className="lg:col-span-1">
-                  <FluxTempsReel orders={orders} currency={currency} />
+                  <FluxTempsReel orders={orders} />
                 </div>
               </div>
 
@@ -640,8 +558,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                   label="Panier Moyen Encaissé"
                   value={
                     displayTotals.livraisons > 0
-                      ? formatCurrency(Math.round(displayTotals.ca / displayTotals.livraisons), currency)
-                      : formatCurrency(0, currency)
+                      ? `${Math.round(displayTotals.ca / displayTotals.livraisons).toLocaleString("fr-FR")} ${currency}`
+                      : `0 ${currency}`
                   }
                   subtitle="Moyenne nette par colis livré"
                   icon={<Receipt className="h-4 w-4" />}
@@ -691,7 +609,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
 
       {showAddMarket && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
           onClick={() => setShowAddMarket(false)}
         >
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">

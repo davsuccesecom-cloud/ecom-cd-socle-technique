@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { Search, Copy, Check, MoreHorizontal } from "lucide-react";
 import { ConfirmDialog, type Team, type AppUser } from "@ecomcod/shared";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
@@ -33,7 +32,6 @@ const LIVREUR_URL = import.meta.env.VITE_LIVREUR_URL as string | undefined;
 
 export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }: UtilisateursProps) {
   const [tab, setTab] = useState<Role>("closeuse");
-  const [search, setSearch] = useState("");
   const [links, setLinks] = useState<AccessLink[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -44,15 +42,7 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
   const [confirmToggle, setConfirmToggle] = useState<AppUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const allRoleUsers = tab === "closeuse" ? closeuses : livreurs;
-  const term = search.trim().toLowerCase();
-  const users = term
-    ? allRoleUsers.filter(
-        (u) =>
-          (u.name || "").toLowerCase().includes(term) ||
-          (u.phone || "").toLowerCase().includes(term)
-      )
-    : allRoleUsers;
+  const users = tab === "closeuse" ? closeuses : livreurs;
 
   useEffect(() => {
     if (!team) {
@@ -126,41 +116,29 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
   };
 
   if (!team) {
-    return <p className="text-sm text-slate-500">Sélectionnez d'abord un marché dans la barre latérale.</p>;
+    return <p className="text-sm text-slate-500">Sélectionne d'abord un marché en haut de page.</p>;
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-xl border border-surface-border bg-surface-raised p-1">
-            {(["closeuse", "livreur"] as Role[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setTab(r)}
-                className={`min-h-[38px] rounded-lg px-4 py-1.5 text-sm capitalize transition-colors ${
-                  tab === r ? "bg-brand text-white font-medium" : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                {r === "closeuse" ? `Closeuses (${closeuses.length})` : `Livreurs (${livreurs.length})`}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative min-w-[220px]">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Filtrer par nom ou numéro…"
-              className="w-full min-h-[42px] rounded-xl border border-surface-border bg-surface-raised py-2 pl-8 pr-3 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
-            />
-          </div>
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex rounded-xl border border-surface-border bg-surface-raised p-1">
+          {(["closeuse", "livreur"] as Role[]).map((r) => (
+            <button
+              key={r}
+              onClick={() => setTab(r)}
+              className={`rounded-lg px-4 py-1.5 text-sm capitalize transition-colors ${
+                tab === r ? "bg-brand text-white" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {r === "closeuse" ? "Closeuses" : "Livreurs"}
+            </button>
+          ))}
         </div>
 
         <button
           onClick={() => setShowCreate(true)}
-          className="min-h-[44px] rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-hover"
+          className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-white"
         >
           + Nouvel utilisateur
         </button>
@@ -332,79 +310,42 @@ function UserActions({
   onToggle: () => void;
   onDelete: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const handleCopy = () => {
-    if (!url) return;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
-
   return (
-    <div className="relative inline-flex items-center gap-2">
+    <div className="flex flex-wrap gap-2">
       {url && (
         <button
-          type="button"
-          onClick={handleCopy}
-          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-brand/50 hover:text-white"
+          onClick={() => navigator.clipboard.writeText(url)}
+          className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 hover:bg-surface"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-slate-400" />}
-          <span>{copied ? "Lien copié" : "Copier le lien"}</span>
+          Copier le lien
         </button>
       )}
-
       <button
-        type="button"
         disabled={busy}
-        aria-label="Actions compte"
-        onClick={() => setMenuOpen((o) => !o)}
-        className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-surface-border bg-surface text-slate-300 transition-colors hover:border-slate-500 hover:text-white disabled:opacity-50"
+        onClick={onRegenerate}
+        className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 hover:bg-surface disabled:opacity-50"
       >
-        <MoreHorizontal className="h-4 w-4" />
+        Régénérer
       </button>
-
-      {menuOpen && (
-        <div className="surface-popover absolute right-0 top-full z-30 mt-1 w-48 rounded-xl border border-surface-border bg-surface-raised p-1.5 text-left">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setMenuOpen(false);
-              onRegenerate();
-            }}
-            className="flex w-full items-center rounded-lg px-2.5 py-2 text-xs font-medium text-slate-200 hover:bg-surface disabled:opacity-50"
-          >
-            Régénérer mot de passe
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setMenuOpen(false);
-              onToggle();
-            }}
-            className={`flex w-full items-center rounded-lg px-2.5 py-2 text-xs font-medium hover:bg-surface disabled:opacity-50 ${
-              disabled ? "text-emerald-400" : "text-amber-400"
-            }`}
-          >
-            {disabled ? "Réactiver l'accès" : "Désactiver l'accès"}
-          </button>
-          {disabled && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                setMenuOpen(false);
-                onDelete();
-              }}
-              className="flex w-full items-center rounded-lg px-2.5 py-2 text-xs font-medium text-rose-400 hover:bg-rose-500/10 disabled:opacity-50"
-            >
-              Supprimer définitivement
-            </button>
-          )}
-        </div>
+      <button
+        disabled={busy}
+        onClick={onToggle}
+        className={`rounded-lg px-2.5 py-1 text-xs disabled:opacity-50 ${
+          disabled
+            ? "border border-green-500/30 text-green-400 hover:bg-green-500/10"
+            : "border border-red-500/30 text-red-400 hover:bg-red-500/10"
+        }`}
+      >
+        {disabled ? "Activer" : "Désactiver"}
+      </button>
+      {disabled && (
+        <button
+          disabled={busy}
+          onClick={onDelete}
+          className="rounded-lg border border-red-500/30 bg-red-500/5 px-2.5 py-1 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+        >
+          Supprimer
+        </button>
       )}
     </div>
   );
@@ -427,7 +368,7 @@ function ConfirmDeleteModal({
         <h2 className="mb-2 text-lg font-medium text-slate-100">Supprimer {name} ?</h2>
         <p className="mb-6 text-sm text-slate-500">
           Action définitive et irréversible. Le compte, son lien d'accès et son historique de connexion seront
-          supprimés. Confirmez-vous ?
+          supprimés. Es-tu sûr ?
         </p>
         <div className="flex gap-3">
           <button
@@ -569,7 +510,7 @@ function PasswordRevealModal({
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-6 text-center">
         <h2 className="mb-1 text-lg font-medium text-slate-100">Mot de passe pour {label}</h2>
         <p className="mb-4 text-xs text-slate-500">
-          Notez-le maintenant — il ne sera plus jamais affiché après fermeture de cette fenêtre.
+          Note-le maintenant — il ne sera plus jamais affiché après fermeture de cette fenêtre.
         </p>
         <div className="mb-4 rounded-xl border border-surface-border bg-surface py-4 text-2xl font-mono tracking-widest text-brand">
           {password}

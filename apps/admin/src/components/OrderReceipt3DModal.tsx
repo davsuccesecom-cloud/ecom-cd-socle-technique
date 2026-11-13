@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
 import { Printer, Share2, X, MapPin, Phone, Package, ShieldCheck, RotateCcw } from "lucide-react";
-import { cleanOrderNumber, formatCurrency } from "@ecomcod/shared";
 import type { AppUser, Order, Team } from "@ecomcod/shared";
 
 interface OrderReceipt3DModalProps {
@@ -34,9 +33,8 @@ export default function OrderReceipt3DModal({
   const [tilt, setTilt] = useState({ rx: 4, ry: -6, gx: 50, gy: 30 });
   const [interactive3D, setInteractive3D] = useState(true);
 
-  const currency = team?.currency || team?.metaCapiConfig?.currency || "XOF";
-  const cleanedNum = cleanOrderNumber(order.orderNumber);
-  const orderCode = cleanedNum ? `#${cleanedNum}` : `#${order.id.slice(-6).toUpperCase()}`;
+  const currency = team?.currency || team?.metaCapiConfig?.currency || "FCFA";
+  const orderCode = order.orderNumber || `#${order.id.slice(-6).toUpperCase()}`;
   const dateStr = new Date(order.timestamps?.received || Date.now()).toLocaleString("fr-FR", {
     day: "2-digit",
     month: "short",
@@ -61,13 +59,13 @@ export default function OrderReceipt3DModal({
 
   const handleShareWhatsApp = () => {
     const lines = [
-      `*BON DE LIVRAISON COD — ${team?.name || "WariTrack"}*`,
+      `*BON DE LIVRAISON COD — ${team?.name || "Ecom COD"}*`,
       `Réf : ${orderCode}`,
       `Client : ${order.clientName}`,
       `Tél : ${order.clientPhoneFormatted}`,
       `Ville / Adresse : ${[order.city, order.addressNote].filter(Boolean).join(" — ") || "À préciser"}`,
       `Article : ${order.product} (Qté : ${order.quantity || 1})`,
-      `*MONTANT À ENCAISSER : ${formatCurrency(order.amount || 0, currency)}*`,
+      `*MONTANT À ENCAISSER : ${(order.amount || 0).toLocaleString("fr-FR")} ${currency}*`,
     ];
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank", "noopener,noreferrer");
   };
@@ -80,7 +78,7 @@ export default function OrderReceipt3DModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
@@ -168,7 +166,7 @@ export default function OrderReceipt3DModal({
                     BORDEREAU D'EXPÉDITION COD
                   </p>
                   <h3 className="mt-0.5 text-lg font-bold tracking-tight text-white">
-                    {team?.name || "WariTrack Logistics"}
+                    {team?.name || "Ecom COD Logistics"}
                   </h3>
                 </div>
                 <div className="rounded-lg border border-white/15 bg-white/10 px-2.5 py-1 text-right">
