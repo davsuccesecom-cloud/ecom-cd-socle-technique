@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { Sun, Moon, Truck } from "lucide-react";
 import {
   useOrders,
   useRegisterPushNotifications,
@@ -114,8 +113,8 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
   }, [orders]);
 
   return (
-    <div className="min-h-screen bg-surface pb-10 text-slate-900 dark:text-slate-100">
-      <header className="sticky top-0 z-20 flex min-h-[60px] items-center justify-between gap-2 border-b border-surface-border bg-surface-raised px-4 py-2.5">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-10 text-slate-900 dark:text-slate-100 transition-colors">
+      <header className="sticky top-0 z-20 flex min-h-[60px] items-center justify-between border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-1.5">
         <div className="min-w-0">
           <h1 className="text-base font-semibold tracking-tight">Mes livraisons</h1>
           {livreurName && (
@@ -123,14 +122,14 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center">
           <button
             type="button"
             onClick={toggleTheme}
             aria-label={theme === "dark" ? "Activer le thème clair" : "Activer le thème sombre"}
-            className="flex h-11 w-11 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-surface-border bg-surface text-slate-700 dark:text-slate-200 hover:bg-surface-subtle transition-colors"
+            className="flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-full text-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
           >
-            {theme === "dark" ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5" />}
+            {theme === "dark" ? "☀️" : "🌙"}
           </button>
           <NotificationBell
             workspaceId={workspaceId}
@@ -150,21 +149,19 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
               type="button"
               aria-pressed={active}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+              className={`relative flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 active
-                  ? "border-brand bg-brand text-white"
-                  : "border-surface-border bg-surface-raised text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+                  ? "bg-brand text-white shadow-sm"
+                  : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
               }`}
             >
               <span>{tab.label}</span>
               {count > 0 && (
                 <span
-                  className={`inline-flex min-w-[22px] items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold tabular-nums ${
+                  className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[11px] font-bold tracking-tight tabular-nums ${
                     active
-                      ? "bg-white/20 text-white"
-                      : tab.key === "a_livrer"
-                      ? "bg-red-600 text-white"
-                      : "bg-surface-subtle text-slate-700 dark:text-slate-200"
+                      ? "bg-white text-brand"
+                      : "bg-red-500 text-white shadow-sm animate-pulse"
                   }`}
                 >
                   {count > 99 ? "99+" : count}
@@ -176,17 +173,20 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
       </nav>
 
       <main className="mx-auto max-w-2xl space-y-3 px-4">
+        {/* Bannière illustrée d'incitation à démarrer la tournée */}
         {countFor("a_livrer") > 0 && activeTab === "a_livrer" && (
-          <div className="flex items-center gap-3 rounded-2xl border border-brand/25 bg-surface-raised p-3.5 shadow-sm">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-light text-brand dark:text-sky-300">
-              <Truck className="h-5 w-5" />
-            </div>
+          <div className="flex items-center gap-3.5 rounded-2xl border border-sky-200 dark:border-sky-800/60 bg-sky-50 dark:bg-slate-800 p-3.5 shadow-sm">
+            <img
+              src="/icons/app-livreur-native.png"
+              alt="Livreur en moto"
+              className="h-11 w-11 rounded-2xl object-cover border border-sky-200 dark:border-sky-700/60 bg-slate-900 shadow-sm shrink-0"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
-                {countFor("a_livrer")} colis prêt{countFor("a_livrer") > 1 ? "s" : ""} pour votre tournée
+                {countFor("a_livrer")} colis en attente de livraison !
               </p>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Démarrez la livraison avant de prendre la route pour informer la closeuse et le client.
+              <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+                Démarrez votre tournée avant de prendre la route et encaissez le cash à la remise.
               </p>
             </div>
           </div>
@@ -199,7 +199,7 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
         )}
 
         {!loading && visibleOrders.length === 0 && (
-          <div className="rounded-2xl border border-surface-border bg-surface-raised px-5 py-10 text-center">
+          <div className="rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 py-10 text-center shadow-sm">
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
               Aucune livraison dans cet onglet pour l'instant.
             </p>

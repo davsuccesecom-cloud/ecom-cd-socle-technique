@@ -16,12 +16,12 @@
 
 .dark {
   color-scheme: dark;
-  --surface: #0B1120;
-  --surface-raised: #111827;
-  --surface-subtle: #1E293B;
-  --surface-border: #1F2937;
+  --surface: #0F172A;
+  --surface-raised: #1E293B;
+  --surface-subtle: #334155;
+  --surface-border: #334155;
   --brand: #0EA5E9;
-  --brand-light: rgba(14, 165, 233, 0.16);
+  --brand-light: #E0F2FE;
 }
 
 body {

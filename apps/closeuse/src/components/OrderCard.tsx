@@ -40,13 +40,13 @@ interface OrderCardProps {
 }
 
 const STATUS_BADGE_CLASS: Record<CloseuseStatus, string> = {
-  nouveau: "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800/60 dark:bg-indigo-950/50 dark:text-indigo-300",
-  programme: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/50 dark:text-amber-300",
-  en_cours: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/50 dark:text-sky-300",
-  livre: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300",
-  rejete: "border-red-200 bg-red-50 text-red-700 dark:border-red-800/60 dark:bg-red-950/50 dark:text-red-300",
-  injoignable: "border-red-200 bg-red-50 text-red-700 dark:border-red-800/60 dark:bg-red-950/50 dark:text-red-300",
-  indisponible: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  nouveau: "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400",
+  programme: "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400",
+  en_cours: "bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400",
+  livre: "bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400",
+  rejete: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400",
+  injoignable: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400",
+  indisponible: "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300",
 };
 
 const ACTIONS_BY_STATUS: Partial<
@@ -60,29 +60,29 @@ const ACTIONS_BY_STATUS: Partial<
   >
 > = {
   nouveau: [
-    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
+    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white hover:bg-green-700" },
     { label: "Programmer", target: "programme", style: "bg-amber-500 text-white hover:bg-amber-600" },
-    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60" },
-    { label: "Injoignable", target: "injoignable", style: "border border-surface-border bg-surface-subtle text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
+    { label: "Injoignable", target: "injoignable", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
   ],
   programme: [
-    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
-    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
-    { label: "Injoignable", target: "injoignable", style: "border border-surface-border bg-surface-subtle text-slate-700 dark:text-slate-200" },
+    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white hover:bg-green-700" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
+    { label: "Injoignable", target: "injoignable", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
   ],
   en_cours: [
-    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
-    { label: "Injoignable", target: "injoignable", style: "border border-surface-border bg-surface-subtle text-slate-700 dark:text-slate-200" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
+    { label: "Injoignable", target: "injoignable", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
   ],
   injoignable: [
     { label: "Rappeler (reprogrammer)", target: "programme", style: "bg-amber-500 text-white hover:bg-amber-600" },
-    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
-    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
+    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white hover:bg-green-700" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
   ],
   indisponible: [
     { label: "Rappeler (reprogrammer)", target: "programme", style: "bg-amber-500 text-white hover:bg-amber-600" },
-    { label: "Confirmer", target: "en_cours", style: "bg-emerald-600 text-white hover:bg-emerald-700" },
-    { label: "Rejeter", target: "rejete", style: "border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300" },
+    { label: "Confirmer", target: "en_cours", style: "bg-green-600 text-white hover:bg-green-700" },
+    { label: "Rejeter", target: "rejete", style: "border border-red-100 bg-red-50 text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60" },
   ],
 };
 
@@ -273,42 +273,42 @@ export default function OrderCard({
   return (
     <article
       id={`order-${order.id}`}
-      className="rounded-2xl border border-surface-border bg-surface-raised p-4 shadow-sm transition-shadow"
+      className="rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm transition-shadow"
     >
       {isCallActive && <CallBar onEndCall={onEndCall} />}
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold ${STATUS_BADGE_CLASS[order.statutCloseuse]}`}>
+        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[order.statutCloseuse]}`}>
           {CLOSEUSE_STATUS_LABELS[order.statutCloseuse]}
         </span>
 
         {order.statutLivreur === "en_route" && (
-          <span className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 dark:border-sky-800/60 dark:bg-sky-950/50 dark:text-sky-300">
+          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 text-xs font-medium text-sky-600 dark:text-sky-400">
             <Truck className="h-3.5 w-3.5" />
             En tournée
           </span>
         )}
         {order.statutLivreur === "livre" && (
-          <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-300">
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-600 dark:text-green-400">
             <Check className="h-3.5 w-3.5" />
             Livrée
           </span>
         )}
         {order.statutLivreur === "injoignable" && (
-          <span className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 dark:border-red-800/60 dark:bg-red-950/50 dark:text-red-300">
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-950/40 px-2.5 py-1 text-xs font-medium text-red-600 dark:text-red-400">
             <AlertTriangle className="h-3.5 w-3.5" />
             Échec terrain livreur
           </span>
         )}
         {order.statutLivreur === "recu" && (
-          <span className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface-subtle px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-300">
             Assignée au livreur
           </span>
         )}
       </div>
 
       {order.isDuplicatePhone && (
-        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
           <p>
             <strong>Doublon détecté ({(order.previousOrdersCount ?? 1) + 1}x) :</strong> vérifiez avec le client s'il souhaite 1 ou 2 colis.
@@ -316,15 +316,15 @@ export default function OrderCard({
         </div>
       )}
 
-      {/* Client + Tactile WhatsApp & Appel (>= 48px) */}
+      {/* Client + Actions circulaires WhatsApp & Téléphone (48px tactile) */}
       <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-surface-border bg-brand-light text-sm font-bold text-indigo-700 dark:text-indigo-300">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-light text-sm font-semibold text-brand">
           {displayName.slice(0, 2).toUpperCase()}
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
-          <p className="truncate text-sm text-slate-600 dark:text-slate-300">
+          <p className="truncate text-base font-medium text-slate-900 dark:text-slate-100">{displayName}</p>
+          <p className="truncate text-sm text-slate-500 dark:text-slate-400">
             {order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}
             {order.product}
           </p>
@@ -334,13 +334,13 @@ export default function OrderCard({
           href={buildWhatsAppLink(order.clientPhoneFormatted, whatsAppMessage)}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#25D366] shadow-sm transition-opacity hover:opacity-90"
+          className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"
           aria-label={`Contacter ${displayName} sur WhatsApp`}
         >
           <img
             src="/icons/whatsapp.png"
             alt="WhatsApp"
-            className="h-full w-full scale-[1.15] object-cover"
+            className="h-full w-full scale-[1.18] rounded-full object-cover"
             draggable={false}
           />
         </a>
@@ -348,18 +348,18 @@ export default function OrderCard({
         <a
           href={buildTelLink(order.clientPhoneFormatted)}
           onClick={onCall}
-          className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-xl border border-indigo-200 bg-brand-light text-indigo-700 dark:border-indigo-800/60 dark:text-indigo-300 hover:opacity-90 transition-opacity"
+          className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full bg-brand-light text-brand hover:opacity-90 transition-opacity"
           aria-label={`Appeler ${displayName}`}
         >
           <Phone className="h-5 w-5" />
         </a>
       </div>
 
-      {/* Métadonnées propres sans emojis */}
-      <div className="mb-3 space-y-1.5 rounded-xl border border-surface-border bg-surface-subtle p-3 text-xs text-slate-600 dark:text-slate-300">
+      {/* Bloc métadonnées haute lisibilité */}
+      <div className="mb-3 space-y-1.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-3 text-xs text-slate-600 dark:text-slate-300">
         <div className="flex items-center justify-between gap-2">
           <span>
-            Commande <strong className="font-mono font-semibold text-indigo-700 dark:text-indigo-300">{orderCode}</strong>
+            Commande <strong className="font-mono font-semibold text-indigo-600 dark:text-indigo-400">{orderCode}</strong>
           </span>
           {order.clientPhoneFormatted && (
             <span className="font-mono text-slate-500 dark:text-slate-400 tabular-nums">
@@ -369,9 +369,9 @@ export default function OrderCard({
         </div>
 
         {(cityClean || distinctAddressNote) && (
-          <p className="flex items-center gap-1.5 text-slate-700 dark:text-slate-200">
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="font-medium">{cityClean || distinctAddressNote}</span>
+          <p className="flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-rose-500 dark:text-rose-400" />
+            <span className="font-semibold text-slate-800 dark:text-slate-100">{cityClean || distinctAddressNote}</span>
             {cityClean && distinctAddressNote && (
               <span className="text-slate-500 dark:text-slate-400">— {distinctAddressNote}</span>
             )}
@@ -379,7 +379,7 @@ export default function OrderCard({
         )}
 
         {order.reminderAt && (
-          <p className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-300">
+          <p className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
             <Clock className="h-3.5 w-3.5 shrink-0" />
             <span>
               Rappel prévu :{" "}
@@ -396,7 +396,7 @@ export default function OrderCard({
 
       {/* Notes / motifs terrain enregistrés */}
       {(order.rejectionReason || order.fieldNote || order.rescheduleReason || order.deliveryFailureReason || order.deliveryFieldNote) && (
-        <div className="mb-3 rounded-xl border border-surface-border bg-surface p-2.5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+        <div className="mb-3 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-2.5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
           {(order.rejectionReason || order.rescheduleReason || order.deliveryFailureReason) && (
             <p className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
               <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -413,7 +413,7 @@ export default function OrderCard({
 
       {/* Prix net en tabular-nums */}
       <div className="mb-3 flex items-baseline justify-between">
-        <p className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
+        <p className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
           {formattedAmount}
         </p>
         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
@@ -423,7 +423,7 @@ export default function OrderCard({
 
       {/* Bloc livreur assigné / réassignation (toujours actif tant que non livrée) */}
       {order.statutCloseuse === "en_cours" && (
-        <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-surface-border bg-surface-subtle px-3 py-2.5">
+        <div className="mb-3 flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-700/50 px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-2 text-xs">
             <Truck className={`h-4 w-4 shrink-0 ${order.livreurId ? "text-sky-600 dark:text-sky-400" : "text-amber-600 dark:text-amber-400"}`} />
             <div className="min-w-0">
@@ -448,7 +448,7 @@ export default function OrderCard({
             <button
               type="button"
               onClick={() => openLivreurPicker("reassign")}
-              className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-surface transition-colors"
+              className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               <span>{order.livreurId ? "Réassigner" : "Assigner"}</span>
@@ -475,7 +475,7 @@ export default function OrderCard({
                   onChangeStatus(action.target);
                 }
               }}
-              className={`min-h-[48px] flex-1 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${action.style}`}
+              className={`min-h-[48px] flex-1 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors ${action.style}`}
             >
               {action.label}
             </button>
@@ -487,7 +487,7 @@ export default function OrderCard({
       <dialog
         ref={livreurDialog.ref}
         {...livreurDialog.dialogProps}
-        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
       >
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -502,7 +502,7 @@ export default function OrderCard({
             type="button"
             onClick={() => setLivreurDialogMode(null)}
             aria-label="Fermer"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-border text-slate-500 hover:bg-surface-subtle"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             <X className="h-4 w-4" />
           </button>
@@ -524,8 +524,8 @@ export default function OrderCard({
                   onClick={() => setModalLivreurId(livreur.id)}
                   className={`flex min-h-[48px] w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-left transition-colors ${
                     selected
-                      ? "border-brand bg-brand-light text-slate-900 dark:text-slate-100"
-                      : "border-surface-border bg-surface text-slate-800 dark:text-slate-200 hover:bg-surface-subtle"
+                      ? "border-brand bg-indigo-50 text-indigo-950 dark:bg-indigo-950/60 dark:text-slate-100"
+                      : "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                   }`}
                 >
                   <div className="min-w-0">
@@ -536,7 +536,7 @@ export default function OrderCard({
                   </div>
                   <div
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                      selected ? "border-brand bg-brand text-white" : "border-slate-300 dark:border-slate-600"
+                      selected ? "border-brand bg-brand text-white" : "border-slate-300 dark:border-slate-500"
                     }`}
                   >
                     {selected && <Check className="h-3 w-3" />}
@@ -551,7 +551,7 @@ export default function OrderCard({
           <button
             type="button"
             onClick={() => setLivreurDialogMode(null)}
-            className="min-h-[48px] flex-1 rounded-xl border border-surface-border bg-surface text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+            className="min-h-[48px] flex-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
           >
             Annuler
           </button>
@@ -559,7 +559,7 @@ export default function OrderCard({
             type="button"
             disabled={!modalLivreurId || activeLivreurs.length === 0}
             onClick={commitLivreurPicker}
-            className="min-h-[48px] flex-1 rounded-xl bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="min-h-[48px] flex-1 rounded-xl bg-green-600 px-3 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
           >
             {livreurDialogMode === "confirm" ? "Confirmer & envoyer" : "Valider le livreur"}
           </button>
@@ -570,7 +570,7 @@ export default function OrderCard({
       <dialog
         ref={scheduleDialog.ref}
         {...scheduleDialog.dialogProps}
-        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -581,7 +581,7 @@ export default function OrderCard({
             type="button"
             onClick={() => setShowScheduleModal(false)}
             aria-label="Fermer"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-border text-slate-500 hover:bg-surface-subtle"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
           >
             <X className="h-4 w-4" />
           </button>
@@ -599,7 +599,7 @@ export default function OrderCard({
                   className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                     rescheduleReason === r
                       ? "border-amber-500 bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                      : "border-surface-border bg-surface text-slate-600 dark:text-slate-300"
+                      : "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300"
                   }`}
                 >
                   {r}
@@ -620,14 +620,14 @@ export default function OrderCard({
             <button
               type="button"
               onClick={() => commitSchedule(Date.now() + 60 * 60 * 1000)}
-              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+              className="min-h-[48px] rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-3 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Dans 1 heure
             </button>
             <button
               type="button"
               onClick={() => commitSchedule(Date.now() + 120 * 60 * 1000)}
-              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+              className="min-h-[48px] rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-3 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Dans 2 heures
             </button>
@@ -639,7 +639,7 @@ export default function OrderCard({
                 if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
                 commitSchedule(d.getTime());
               }}
-              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+              className="min-h-[48px] rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-3 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Cet après-midi (15h)
             </button>
@@ -651,13 +651,13 @@ export default function OrderCard({
                 d.setHours(10, 0, 0, 0);
                 commitSchedule(d.getTime());
               }}
-              className="min-h-[48px] rounded-xl border border-surface-border bg-surface px-3 text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+              className="min-h-[48px] rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-3 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               Demain matin (10h)
             </button>
           </div>
 
-          <div className="border-t border-surface-border pt-3">
+          <div className="border-t border-slate-100 dark:border-slate-700 pt-3">
             <label className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-300">
               Date et heure précise
             </label>
@@ -665,7 +665,7 @@ export default function OrderCard({
               type="datetime-local"
               value={customDateTime}
               onChange={(e) => setCustomDateTime(e.target.value)}
-              className="min-h-[48px] w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-brand"
+              className="min-h-[48px] w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-brand"
             />
             <button
               type="button"
@@ -683,7 +683,7 @@ export default function OrderCard({
       <dialog
         ref={rejectDialog.ref}
         {...rejectDialog.dialogProps}
-        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
+        className="m-auto w-[calc(100%-2rem)] max-w-sm rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 text-slate-900 dark:text-slate-100 shadow-2xl open:block"
       >
         <h3 className="text-base font-semibold">Rejeter la commande de {displayName} ?</h3>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -702,7 +702,7 @@ export default function OrderCard({
               className={`min-h-[38px] rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 rejectionReason === r
                   ? "border-red-500 bg-red-500/15 text-red-700 dark:text-red-300"
-                  : "border-surface-border bg-surface text-slate-700 dark:text-slate-200 hover:bg-surface-subtle"
+                  : "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
               }`}
             >
               {r}
@@ -733,7 +733,7 @@ export default function OrderCard({
               setRejectionNote("");
               setRejectionError("");
             }}
-            className="min-h-[48px] flex-1 rounded-xl border border-surface-border bg-surface text-xs font-semibold text-slate-700 dark:text-slate-200"
+            className="min-h-[48px] flex-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200"
           >
             Annuler
           </button>

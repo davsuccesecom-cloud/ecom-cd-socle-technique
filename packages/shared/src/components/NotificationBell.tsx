@@ -66,30 +66,34 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative flex h-10 w-10 min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-surface-border bg-surface-raised text-slate-700 dark:text-slate-200 hover:bg-surface-subtle transition-colors"
+        aria-label="Notifications"
+        className="flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-full text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-colors"
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-        {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
+        <span className="relative inline-flex">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          {unreadCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white tabular-nums">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </span>
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-12 z-40 max-h-[460px] w-84 sm:w-96 overflow-y-auto rounded-2xl border border-surface-border bg-surface-raised shadow-2xl">
+          <div className="absolute right-0 top-12 z-40 max-h-[460px] w-84 sm:w-96 overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-surface-border bg-surface-subtle px-4 py-3 rounded-t-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3 rounded-t-2xl">
               <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <span>Notifications</span>
                 {unreadCount > 0 && (
-                  <span className="rounded-full bg-red-500/20 px-2 py-0.2 text-[10px] font-bold text-red-400">
+                  <span className="rounded-full bg-red-500/20 px-2 py-0.2 text-[10px] font-bold text-red-500 dark:text-red-400 tabular-nums">
                     {unreadCount}
                   </span>
                 )}
@@ -97,6 +101,7 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
               <div className="flex items-center gap-3">
                 {unreadCount > 0 && (
                   <button
+                    type="button"
                     onClick={markAllAsRead}
                     className="text-xs font-medium text-brand hover:underline transition-colors"
                   >
@@ -105,6 +110,7 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                 )}
                 {notifications.length > 0 && (
                   <button
+                    type="button"
                     onClick={clearAllNotifications}
                     className="text-xs font-medium text-red-600 dark:text-red-400 hover:underline transition-colors"
                   >
@@ -117,12 +123,13 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
             {notifications.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">Rien pour l'instant.</p>
             ) : (
-              <ul className="divide-y divide-surface-border">
+              <ul className="divide-y divide-slate-100 dark:divide-slate-700">
                 {notifications.map((n) => {
                   const visual = getNotificationVisual(n.title, n.body);
                   return (
                     <li key={n.id}>
                       <button
+                        type="button"
                         onClick={() => {
                           dismissNotification(n.id);
                           if (n.orderId && onNotificationClick) {
@@ -130,20 +137,19 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                             setOpen(false);
                           }
                         }}
-                        className={`flex w-full items-start gap-3.5 px-4 py-3 text-left hover:bg-surface-subtle transition-colors ${
-                          !n.read ? "bg-brand/5 dark:bg-brand/10" : ""
+                        className={`flex w-full items-start gap-3.5 px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors ${
+                          !n.read ? "bg-indigo-50/70 dark:bg-slate-700/40" : ""
                         }`}
                       >
-                        {/* Emblème visuel agrandi : Livreur en moto ou Sac avec appel */}
                         <div className="relative shrink-0 mt-0.5">
                           {visual.src ? (
                             <img
                               src={visual.src}
                               alt={visual.label}
-                              className="h-10 w-10 rounded-xl object-cover border border-surface-border bg-surface-subtle shadow-sm"
+                              className="h-10 w-10 rounded-xl object-cover border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 shadow-sm"
                             />
                           ) : (
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/15 text-amber-400 shadow-md">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/15 text-amber-500 dark:text-amber-400 shadow-sm">
                               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
                                 <path d="M3 6h18" />
@@ -152,7 +158,7 @@ export default function NotificationBell({ workspaceId, userId, onNotificationCl
                             </div>
                           )}
                           {!n.read && (
-                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface-raised" />
+                            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-white dark:ring-slate-800" />
                           )}
                         </div>
 
