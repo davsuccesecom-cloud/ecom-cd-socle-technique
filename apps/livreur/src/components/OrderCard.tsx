@@ -78,10 +78,10 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
   return (
     <article
       id={`order-${order.id}`}
-      className="rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm transition-shadow"
+      className="rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-sm transition-shadow"
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${STATUS_BADGE_CLASS[status]}`}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE_CLASS[status]}`}>
           {LIVREUR_STATUS_LABELS[status]}
         </span>
         <span className="font-mono text-xs font-semibold text-sky-600 dark:text-sky-400">
@@ -89,14 +89,14 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         </span>
       </div>
 
-      {/* Client + Actions circulaires WhatsApp & Téléphone (48px tactile) */}
-      <div className="mb-3 flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-light text-sm font-semibold text-brand">
+      {/* Client + Actions circulaires compactes WhatsApp & Téléphone */}
+      <div className="mb-2 flex items-center gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-light text-xs font-semibold text-brand">
           {displayName.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-medium text-slate-900 dark:text-slate-100">{displayName}</p>
-          <p className="truncate text-sm text-slate-500 dark:text-slate-400">
+          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
             {order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}
             {order.product}
           </p>
@@ -108,7 +108,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
               href={buildWhatsAppLink(order.clientPhoneFormatted, whatsAppMessage)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"
+              className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"
               aria-label={`Contacter ${displayName} sur WhatsApp`}
             >
               <img
@@ -121,10 +121,10 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
 
             <a
               href={buildTelLink(order.clientPhoneFormatted)}
-              className="flex h-12 w-12 min-h-[48px] min-w-[48px] shrink-0 items-center justify-center rounded-full bg-brand-light text-brand hover:opacity-90 transition-opacity"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-light text-brand hover:opacity-90 transition-opacity"
               aria-label={`Appeler ${displayName}`}
             >
-              <Phone className="h-5 w-5" />
+              <Phone className="h-4 w-4" />
             </a>
           </div>
         )}
@@ -136,7 +136,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         order.clientPhoneFormatted ||
         (order.quantity && order.quantity > 1) ||
         (order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0)) && (
-        <div className="mb-3 space-y-2 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-3 text-xs text-slate-600 dark:text-slate-300">
+        <div className="mb-2 space-y-1.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-2.5 text-[11px] text-slate-600 dark:text-slate-300">
           {order.clientPhoneFormatted && (
             <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
               <span>Téléphone client</span>
@@ -149,7 +149,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
           {displayLocation && (
             <div className="flex items-center justify-between gap-2">
               <p className="flex min-w-0 items-center gap-1.5">
-                <MapPin className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
                 <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{displayLocation}</span>
                 {order.sourceType === "shopify" && (
                   <span className="shrink-0 rounded bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-300">
@@ -162,7 +162,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
                   href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[36px] shrink-0 items-center gap-1 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  className="inline-flex min-h-[30px] shrink-0 items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 >
                   <span>Maps</span>
                   <ExternalLink className="h-3 w-3" />
@@ -185,7 +185,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
           )}
 
           {order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0 && (
-            <div className="space-y-1 border-t border-slate-200 dark:border-slate-600 pt-2">
+            <div className="space-y-1 border-t border-slate-200 dark:border-slate-600 pt-1.5">
               {order.shopifyData.noteAttributes.map((attr, idx) => (
                 <div key={idx} className="flex justify-between gap-2 text-[11px]">
                   <span className="text-slate-500 dark:text-slate-400">{attr.name} :</span>
@@ -199,10 +199,10 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
 
       {/* Note closeuse / échec terrain */}
       {(order.fieldNote || order.deliveryFailureReason || order.deliveryFieldNote) && (
-        <div className="mb-3 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-2.5 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+        <div className="mb-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-2 text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
           {order.deliveryFailureReason && (
             <p className="flex items-center gap-1.5 font-semibold text-red-600 dark:text-red-400">
-              <MessageSquareText className="h-3.5 w-3.5 shrink-0" />
+              <MessageSquareText className="h-3 w-3 shrink-0" />
               <span>{order.deliveryFailureReason}</span>
             </p>
           )}
@@ -214,8 +214,8 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         </div>
       )}
 
-      <div className="mb-3 flex items-baseline justify-between">
-        <p className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
+      <div className="mb-2 flex items-baseline justify-between">
+        <p className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
           {formattedAmount}
         </p>
         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
@@ -227,7 +227,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         <button
           type="button"
           onClick={() => onChangeStatus("en_route")}
-          className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white hover:opacity-95 transition-opacity"
+          className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 text-xs sm:text-sm font-semibold text-white hover:opacity-95 transition-opacity"
         >
           <Navigation className="h-4 w-4" />
           <span>Démarrer la livraison</span>
@@ -235,11 +235,11 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
       )}
 
       {status === "en_route" && (
-        <div className="flex gap-2.5">
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setPendingFinalStatus("livre")}
-            className="flex min-h-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-green-600 px-3 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+            className="flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl bg-green-600 px-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-green-700 transition-colors"
           >
             <CheckCircle2 className="h-4 w-4" />
             <span>Livré & encaissé</span>
@@ -247,7 +247,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
           <button
             type="button"
             onClick={() => setPendingFinalStatus("injoignable")}
-            className="min-h-[48px] flex-1 rounded-xl border border-red-100 bg-red-50 px-3 text-sm font-medium text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors"
+            className="min-h-[42px] rounded-xl border border-red-100 bg-red-50 px-2.5 text-xs sm:text-sm font-semibold text-red-600 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/60 transition-colors"
           >
             Échec / Injoignable
           </button>
@@ -320,10 +320,10 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
       </ConfirmDialog>
 
       {status === "livre" && team?.printReceiptConfig?.enabled && (
-        <div className="mt-3 space-y-2.5 border-t border-slate-100 dark:border-slate-700 pt-3">
+        <div className="mt-2.5 space-y-2 border-t border-slate-100 dark:border-slate-700 pt-2.5">
           <div className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-              <FileText className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+              <FileText className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />
               <span>
                 Bon :{" "}
                 <strong className="font-mono text-sky-600 dark:text-sky-400">
@@ -341,9 +341,9 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
             <button
               type="button"
               onClick={() => openPrintDialog(order, team, { livreurName })}
-              className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-3 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+              className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 px-3 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
-              <Printer className="h-4 w-4" />
+              <Printer className="h-3.5 w-3.5" />
               <span>Imprimer Bon</span>
             </button>
 
@@ -351,9 +351,9 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
               <button
                 type="button"
                 onClick={() => openWhatsAppReceipt(order, team, { livreurName })}
-                className="flex min-h-[48px] items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300 hover:opacity-90"
+                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 dark:border-emerald-800/50 dark:bg-emerald-950/40 dark:text-emerald-300 hover:opacity-90"
               >
-                <Share2 className="h-4 w-4" />
+                <Share2 className="h-3.5 w-3.5" />
                 <span>Reçu WhatsApp</span>
               </button>
             )}

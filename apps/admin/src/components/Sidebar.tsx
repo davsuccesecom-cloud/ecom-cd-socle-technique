@@ -26,6 +26,8 @@ interface SidebarProps {
   onLogout: () => void;
   onNavigate: (key: string) => void;
   onOpenWhatsNew?: () => void;
+  customLogoUrl?: string | null;
+  customBrandName?: string;
 }
 
 interface NavGroup {
@@ -77,6 +79,8 @@ export default function Sidebar({
   onToggleCollapse,
   onLogout,
   onNavigate,
+  customLogoUrl,
+  customBrandName,
 }: SidebarProps) {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = typeof controlledCollapsed === "boolean";
@@ -114,7 +118,7 @@ export default function Sidebar({
       <div className={`mb-5 flex items-center ${collapsed ? "flex-col gap-2.5 justify-center" : "justify-between px-1.5"}`}>
         {collapsed ? (
           <>
-            <WariTrackLogo size="sm" variant="icon" subtitle="" />
+            <WariTrackLogo size="sm" variant="icon" subtitle="" customLogoUrl={customLogoUrl} customBrandName={customBrandName} />
             <button
               type="button"
               onClick={toggleCollapsed}
@@ -126,7 +130,7 @@ export default function Sidebar({
           </>
         ) : (
           <>
-            <WariTrackLogo variant="full" subtitle="LOGISTICS OS" />
+            <WariTrackLogo variant="full" subtitle="LOGISTICS OS" customLogoUrl={customLogoUrl} customBrandName={customBrandName} />
             <button
               type="button"
               onClick={toggleCollapsed}

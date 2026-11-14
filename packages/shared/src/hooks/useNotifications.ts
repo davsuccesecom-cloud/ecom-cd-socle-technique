@@ -11,10 +11,18 @@ export interface AppNotification {
   orderId?: string;
 }
 
+export interface IncomingPushDetail {
+  id?: string;
+  title: string;
+  body: string;
+  orderId?: string;
+  source?: "fcm" | "firestore";
+}
+
 /**
  * Écoute temps réel des notifications persistées côté serveur.
- * Permet la suppression instantanée au clic pour faire disparaître
- * immédiatement la notification de la liste.
+ * Déclenche une notification visuelle in-app propre (sans sonnerie imposée)
+ * et permet la suppression instantanée au clic.
  */
 export function useNotifications(workspaceId: string | null, userId: string | null = null, max = 30) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -41,15 +49,20 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
       (snapshot) => {
         const mapped = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as AppNotification);
         if (initializedRef.current) {
-          const hasFreshUnread = mapped.some((n) => !n.read && !seenIdsRef.current.has(n.id));
-          if (hasFreshUnread && typeof Audio !== "undefined") {
-            try {
-              const audio = new Audio("/notification-ping.mp3");
-              audio.volume = 0.65;
-              void audio.play().catch(() => {});
-            } catch {
-              // Lecture audio ignoree avant interaction utilisateur
-            }
+          const freshUnread = mapped.filter((n) => !n.read && !seenIdsRef.current.has(n.id));
+          if (freshUnread.length > 0 && typeof window !== "undefined") {
+            const latest = freshUnread[0];
+            window.dispatchEvent(
+              new CustomEvent<IncomingPushDetail>("waritrack-push-message", {
+                detail: {
+                  id: latest.id,
+                  title: latest.title,
+                  body: latest.body,
+                  orderId: latest.orderId,
+                  source: "firestore",
+                },
+              })
+            );
           }
         }
         mapped.forEach((n) => seenIdsRef.current.add(n.id));
@@ -92,7 +105,6 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
     await Promise.all(notifications.filter((n) => !n.read).map((n) => markAsRead(n.id)));
   };
 
-  // Fait disparaître la notification instantanément (optimiste) et la supprime en base
   const dismissNotification = async (notifId: string) => {
     if (!workspaceId) return;
     setNotifications((prev) => prev.filter((n) => n.id !== notifId));
@@ -104,7 +116,6 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
     }
   };
 
-  // Supprime toutes les notifications d'un coup
   const clearAllNotifications = async () => {
     if (!workspaceId) return;
     const toDelete = [...notifications];

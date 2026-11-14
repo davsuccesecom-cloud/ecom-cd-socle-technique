@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { getDb } from "@ecomcod/shared";
+import { getDb, optimizeBrandLogoFile } from "@ecomcod/shared";
 import {
   Smartphone,
   Sparkles,
@@ -92,34 +92,26 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
       ? `${displayBrand} • Tournées`
       : `${displayBrand} • Livreur`;
 
-  // Gestion positive de l'upload d'image avec vérification stricte
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Gestion positive de l'upload d'image avec redimensionnement et compression automatiques
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     setUploadNotice(null);
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 1. Validation positive du format
-    if (!file.type.startsWith("image/")) {
-      setError("Format non pris en charge. Veuillez sélectionner une image au format PNG, JPG ou WebP.");
-      return;
+    try {
+      const optimizedDataUrl = await optimizeBrandLogoFile(file);
+      setCustomLogoUrl(optimizedDataUrl);
+      setUploadNotice("Logo personnalisé optimisé ! Cliquez sur « Enregistrer » pour l'appliquer sur toutes vos applications.");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la lecture du fichier. Vos icônes par défaut restent actives sans interruption."
+      );
+    } finally {
+      e.target.value = "";
     }
-
-    // 2. Validation positive de la taille (max 2 Mo)
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Image trop volumineuse (taille max : 2 Mo). Privilégiez un logo carré 512×512 px optimisé pour une installation rapide sur les smartphones de vos équipes.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCustomLogoUrl(reader.result as string);
-      setUploadNotice("Logo personnalisé chargé avec succès ! Vous pouvez observer le rendu direct sur les deux smartphones à droite.");
-    };
-    reader.onerror = () => {
-      setError("Erreur lors de la lecture du fichier. Vos icônes par défaut restent actives sans interruption.");
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleResetToNative = () => {
@@ -408,7 +400,7 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
                 <ul className="list-disc list-inside text-slate-400 space-y-0.5 pt-1">
                   <li><strong>Format idéal</strong> : Carré <code>512 × 512 px</code> (ratio 1:1)</li>
                   <li><strong>Type de fichier</strong> : PNG avec fond transparent ou JPG / WebP haute résolution</li>
-                  <li><strong>Taille maximale</strong> : Moins de 2 Mo pour un chargement instantané sans consommer la data mobile des livreurs</li>
+                  <li><strong>Taille maximale</strong> : Jusqu'à 5 Mo (compression automatique haute netteté pour mobiles et PWA)</li>
                 </ul>
               </div>
 

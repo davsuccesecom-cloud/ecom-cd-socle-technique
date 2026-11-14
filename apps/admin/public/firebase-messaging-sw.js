@@ -1,11 +1,9 @@
 // Ce fichier doit rester à la racine de public/ (portée requise par FCM).
-// Reçoit le résumé périodique admin en arrière-plan (architecture section 5.1 / 3.2).
+// Reçoit le résumé périodique admin et les alertes en arrière-plan.
 
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
 
-// Valeurs publiques par nature (config Web app Firebase) — remplace avec
-// les mêmes valeurs que ton .env.local une fois le projet Firebase connecté.
 firebase.initializeApp({
   apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
   authDomain: "meta-capi-app.firebaseapp.com",
@@ -17,19 +15,45 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || payload.data?.title || "WariTrack — Admin";
-  const body = payload.notification?.body || payload.data?.body || "";
+async function getWhiteLabelBranding() {
+  try {
+    const cache = await caches.open("waritrack-whitelabel");
+    const res = await cache.match("/whitelabel.json");
+    if (!res) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+messaging.onBackgroundMessage(async (payload) => {
+  const wl = await getWhiteLabelBranding();
+  const title = payload.data?.title || payload.notification?.title || (wl?.brandName ? `${wl.brandName} — Admin` : "WariTrack — Admin");
+  const body = payload.data?.body || payload.notification?.body || "";
   const orderId = payload.data?.orderId || "";
-  self.registration.showNotification(title, {
-    body,
-    icon: "/icons/icon-192.png",
-    badge: "/icons/badge-96.png",
-    image: "/icons/icon-512.png",
-    tag: orderId ? `waritrack-admin-order-${orderId}` : "waritrack-admin",
-    renotify: true,
-    data: { orderId, url: orderId ? `/?orderId=${orderId}` : "/" },
-  });
+  const targetUrl = payload.data?.url || (orderId ? `/?orderId=${orderId}` : "/");
+  const icon = wl?.logoUrl || "/icons/icon-192.png";
+  const tag = orderId ? `waritrack-admin-order-${orderId}` : `waritrack-admin-${Date.now()}`;
+
+  try {
+    await self.registration.showNotification(title, {
+      body,
+      icon,
+      badge: "/icons/badge-96.png",
+      tag,
+      renotify: true,
+      data: { orderId, url: targetUrl },
+    });
+  } catch {
+    await self.registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/badge-96.png",
+      tag,
+      renotify: true,
+      data: { orderId, url: targetUrl },
+    });
+  }
 });
 
 self.addEventListener("notificationclick", (event) => {

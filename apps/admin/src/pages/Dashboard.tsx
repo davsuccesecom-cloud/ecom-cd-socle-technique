@@ -9,6 +9,9 @@ import {
   sumDailyStats,
   dailyStatDateToMs,
   getDb,
+  useWhiteLabel,
+  PushToast,
+  PushPermissionPrompt,
 } from "@ecomcod/shared";
 import type { CloseuseStatus, CodCountryInsight, Order } from "@ecomcod/shared";
 import {
@@ -109,7 +112,17 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
 };
 
 export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }: DashboardProps) {
-  useRegisterPushNotifications(workspaceId, adminId, import.meta.env.VITE_FIREBASE_VAPID_KEY);
+  const { permission: pushPermission, requestPushPermission } = useRegisterPushNotifications(
+    workspaceId,
+    adminId,
+    import.meta.env.VITE_FIREBASE_VAPID_KEY
+  );
+  const whiteLabel = useWhiteLabel(workspaceId, "admin");
+  const brandLogoUrl =
+    whiteLabel?.customLogoUrl && whiteLabel?.useNativeIcons !== true
+      ? whiteLabel.customLogoUrl
+      : null;
+  const brandTitle = whiteLabel?.brandName;
   const [page, setPage] = useState<string>("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { teams, loading: teamsLoading } = useTeams(workspaceId);
@@ -317,12 +330,20 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         onLogout={onLogout}
         onNavigate={setPage}
         pendingOrdersCount={totalPendingOrders}
+        customLogoUrl={brandLogoUrl}
+        customBrandName={brandTitle}
       />
 
       {/* Mobile Top Bar */}
       <div className="sticky top-0 z-30 flex items-center justify-between border-b border-surface-border bg-surface/95 px-4 py-2.5 backdrop-blur-md md:hidden">
         <div className="flex items-center gap-2">
-          <WariTrackLogo size="sm" variant="full" subtitle={activeTeam ? activeTeam.name : "Cockpit"} />
+          <WariTrackLogo
+            size="sm"
+            variant="full"
+            subtitle={activeTeam ? activeTeam.name : "Cockpit"}
+            customLogoUrl={brandLogoUrl}
+            customBrandName={brandTitle}
+          />
         </div>
         <div className="flex items-center gap-1.5">
           <ThemeQuickPicker />
@@ -347,6 +368,11 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       </div>
 
       <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:px-6 md:py-4 md:pb-8">
+        {pushPermission === "default" && (
+          <div className="mb-3">
+            <PushPermissionPrompt permission={pushPermission} onRequest={requestPushPermission} />
+          </div>
+        )}
         {/* Global Top Header Bar : 1 seule ligne compacte sur ordinateur, inchangé sur mobile */}
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3 md:flex-nowrap">
           <div className="min-w-0 flex-1">
@@ -624,6 +650,12 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           </div>
         </div>
       )}
+
+      <PushToast
+        customLogoUrl={brandLogoUrl}
+        fallbackIcon="/icons/waritrack-3d-192.png"
+        onOpenOrder={() => setPage("orders")}
+      />
     </div>
   );
 }

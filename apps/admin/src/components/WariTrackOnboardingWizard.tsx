@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { addDoc, collection, doc, updateDoc } from "firebase/firestore";
-import { getDb, AFRICA_COUNTRIES } from "@ecomcod/shared";
+import { getDb, AFRICA_COUNTRIES, optimizeBrandLogoFile } from "@ecomcod/shared";
 import {
   Store,
   Palette,
@@ -96,28 +96,25 @@ export default function WariTrackOnboardingWizard({
     setAccent(newAccent);
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     setLogoNotice(null);
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setError("Format d'image non reconnu (sélectionnez PNG, JPG ou WebP).");
-      return;
+    try {
+      const optimizedDataUrl = await optimizeBrandLogoFile(file);
+      setCustomLogoUrl(optimizedDataUrl);
+      setLogoNotice("Logo importé et optimisé avec succès pour vos applications livreur et closeuse !");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erreur lors du traitement du logo (PNG, JPG, WebP ou SVG, max 5 Mo)."
+      );
+    } finally {
+      e.target.value = "";
     }
-
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Taille d'image supérieure à 2 Mo. Recommandé : logo carré 512×512 px.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setCustomLogoUrl(reader.result as string);
-      setLogoNotice("Logo importé avec succès pour vos applications livreur et closeuse !");
-    };
-    reader.readAsDataURL(file);
   };
 
   // Validation finale & enregistrement dans Firestore à l'étape 4

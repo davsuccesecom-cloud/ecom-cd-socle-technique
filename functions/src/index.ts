@@ -1697,10 +1697,6 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
   const clickUrl = orderId ? `/?orderId=${orderId}` : "/";
   const response = await messaging.sendEachForMulticast({
     tokens,
-    notification: {
-      title,
-      body,
-    },
     data: {
       title,
       body,
@@ -1711,6 +1707,8 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
       priority: "high",
       ttl: 24 * 60 * 60 * 1000,
       notification: {
+        title,
+        body,
         clickAction: clickUrl,
         defaultSound: true,
       },
@@ -1721,20 +1719,15 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
       },
       payload: {
         aps: {
+          alert: { title, body },
           sound: "default",
         },
       },
     },
     webpush: {
-      notification: {
-        title,
-        body,
-        icon: "/icons/icon-192.png",
-        badge: "/icons/badge-96.png",
-        data: {
-          orderId: orderId ?? "",
-          url: clickUrl,
-        },
+      headers: {
+        Urgency: "high",
+        TTL: "86400",
       },
       fcmOptions: {
         link: clickUrl,
@@ -1801,20 +1794,19 @@ async function notifyAdmins(workspaceId: string, title: string, body: string) {
       if (tokens.length === 0) return;
       const response = await messaging.sendEachForMulticast({
         tokens,
-        notification: { title, body },
         data: { title, body, url: "/" },
-        android: { priority: "high" },
+        android: {
+          priority: "high",
+          ttl: 24 * 60 * 60 * 1000,
+          notification: { title, body, clickAction: "/", defaultSound: true },
+        },
+        apns: {
+          headers: { "apns-priority": "10" },
+          payload: { aps: { alert: { title, body }, sound: "default" } },
+        },
         webpush: {
-          notification: {
-            title,
-            body,
-            icon: "/icons/icon-192.png",
-            badge: "/icons/badge-96.png",
-            data: { url: "/" },
-          },
-          fcmOptions: {
-            link: "/",
-          },
+          headers: { Urgency: "high", TTL: "86400" },
+          fcmOptions: { link: "/" },
         },
       });
       const invalidTokens: string[] = [];
