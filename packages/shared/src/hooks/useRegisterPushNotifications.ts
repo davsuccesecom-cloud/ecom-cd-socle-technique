@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { arrayRemove, arrayUnion, doc, setDoc, updateDoc } from "firebase/firestore";
 import { getToken, onMessage } from "firebase/messaging";
 import { getDb, getFirebaseMessaging } from "../firebase";
@@ -6,6 +6,23 @@ import type { IncomingPushDetail } from "./useNotifications";
 
 const LAST_TOKEN_KEY_PREFIX = "ecomcod_last_fcm_token_";
 const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+const PUSH_SW_PATH = "/firebase-messaging-sw.js";
+const PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
+
+function isAppleWebKitBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) || /^((?!chrome|android).)*safari/i.test(ua);
+}
+
+function resolveSafeNotificationIcon(logoUrl?: string | null): string {
+  // Android NotificationManager, iOS WebKit et Windows Action Center rejettent ou
+  // abandonnent silencieusement les data: URI volumineuses (ex. data:image/webp).
+  if (typeof logoUrl === "string" && logoUrl.startsWith("https://")) {
+    return logoUrl;
+  }
+  return "/icons/icon-192.png";
+}
 
 async function readCachedWhiteLabelForSw(): Promise<{ logoUrl?: string | null; appTitle?: string } | null> {
   try {
@@ -44,10 +61,11 @@ async function registerToken(
     return { ok: false, permission };
   }
 
-  const swRegistration = await navigator.serviceWorker.register(
-    "/firebase-messaging-sw.js",
-    { scope: "/firebase-cloud-messaging-push-scope" }
-  );
+  const swRegistration = await navigator.serviceWorker.register(PUSH_SW_PATH, {
+    scope: PUSH_SW_SCOPE,
+    updateViaCache: "none",
+  });
+  void swRegistration.update().catch(() => {});
   if (cancelledRef.current) return { ok: false, permission };
 
   const token = await getToken(messaging, {
@@ -95,14 +113,19 @@ export function useRegisterPushNotifications(
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() =>
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported"
   );
+  const swRegRef = useRef<ServiceWorkerRegistration | undefined>(undefined);
+  const succeededRef = useRef(false);
 
   const requestPushPermission = useCallback(async () => {
     if (!("Notification" in window) || !("serviceWorker" in navigator)) return "unsupported" as const;
+    if (!workspaceId || !userId || !vapidKey) return Notification.permission;
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
       if (result === "granted") {
-        await registerToken(workspaceId, userId, vapidKey, { current: false }, false);
+        const res = await registerToken(workspaceId, userId, vapidKey, { current: false }, false);
+        if (res.swRegistration) swRegRef.current = res.swRegistration;
+        if (res.ok) succeededRef.current = true;
       }
       return result;
     } catch {
@@ -111,6 +134,7 @@ export function useRegisterPushNotifications(
   }, [workspaceId, userId, vapidKey]);
 
   useEffect(() => {
+    if (!workspaceId || !userId || !vapidKey) return;
     if (!("Notification" in window)) {
       setPermission("unsupported");
       return;
@@ -120,10 +144,9 @@ export function useRegisterPushNotifications(
     }
 
     const cancelledRef = { current: false };
-    let succeeded = false;
+    succeededRef.current = false;
     let retryIndex = 0;
     let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    let swRegRef: ServiceWorkerRegistration | undefined;
     let unsubscribeOnMessage: (() => void) | undefined;
 
     const attachForegroundListener = async () => {
@@ -133,6 +156,10 @@ export function useRegisterPushNotifications(
         const title = payload.notification?.title || payload.data?.title || "WariTrack";
         const body = payload.notification?.body || payload.data?.body || "";
         const orderId = payload.data?.orderId || "";
+        const targetUrl = payload.data?.url || (orderId ? `/?orderId=${orderId}` : "/");
+        const tag =
+          payload.data?.tag ||
+          (orderId ? `waritrack-order-${orderId}` : `waritrack-fg-${Math.floor(Date.now() / 1000)}`);
 
         // 1. Notifie l'interface ouverte via PushToast
         window.dispatchEvent(
@@ -141,49 +168,81 @@ export function useRegisterPushNotifications(
           })
         );
 
-        // 2. Si la fenêtre n'a pas le focus ou est minimisée, affiche une vraie notification OS
+        // 2. Si l'onglet/PWA est derrière une autre fenêtre ou masqué, affiche la notification OS native
         if (
           Notification.permission === "granted" &&
-          swRegRef &&
           (document.visibilityState !== "visible" || !document.hasFocus())
         ) {
           const wl = await readCachedWhiteLabelForSw();
-          const icon = wl?.logoUrl || "/icons/icon-192.png";
-          const extraOpts = { renotify: true } as unknown as NotificationOptions;
+          const icon = resolveSafeNotificationIcon(wl?.logoUrl);
+          const reg =
+            swRegRef.current ||
+            (await navigator.serviceWorker.getRegistration(PUSH_SW_SCOPE).catch(() => undefined)) ||
+            (await navigator.serviceWorker.ready.catch(() => undefined));
+
+          const notifOptions: NotificationOptions & { renotify?: boolean } = {
+            body,
+            icon,
+            badge: "/icons/badge-96.png",
+            tag,
+            renotify: true,
+            data: { orderId, url: targetUrl },
+          };
+
           try {
-            await swRegRef.showNotification(title, {
-              body,
-              icon,
-              badge: "/icons/badge-96.png",
-              tag: orderId ? `waritrack-order-${orderId}` : `waritrack-fg-${Date.now()}`,
-              data: { orderId, url: orderId ? `/?orderId=${orderId}` : "/" },
-              ...extraOpts,
-            });
+            if (reg && "showNotification" in reg) {
+              await reg.showNotification(title, notifOptions);
+            } else {
+              new Notification(title, { body, icon, tag });
+            }
           } catch {
-            await swRegRef.showNotification(title, {
-              body,
-              icon: "/icons/icon-192.png",
-              badge: "/icons/badge-96.png",
-              data: { orderId, url: orderId ? `/?orderId=${orderId}` : "/" },
-            });
+            try {
+              if (reg && "showNotification" in reg) {
+                await reg.showNotification(title, {
+                  body,
+                  icon: "/icons/icon-192.png",
+                  badge: "/icons/badge-96.png",
+                  tag,
+                  data: { orderId, url: targetUrl },
+                });
+              } else {
+                new Notification(title, { body, icon: "/icons/icon-192.png", tag });
+              }
+            } catch {
+              // Navigateur interdit notification système à cet instant
+            }
           }
         }
       });
     };
 
+    const scheduleRetry = () => {
+      if (cancelledRef.current || succeededRef.current) return;
+      const delay = RETRY_DELAYS_MS[Math.min(retryIndex, RETRY_DELAYS_MS.length - 1)];
+      retryIndex += 1;
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
+      retryTimeoutId = setTimeout(attempt, delay);
+    };
+
     const attempt = async (): Promise<void> => {
-      if (cancelledRef.current || succeeded) return;
+      if (cancelledRef.current || succeededRef.current) return;
       try {
-        const res = await registerToken(workspaceId, userId, vapidKey, cancelledRef, true);
+        const res = await registerToken(
+          workspaceId,
+          userId,
+          vapidKey,
+          cancelledRef,
+          !isAppleWebKitBrowser()
+        );
+        if (cancelledRef.current) return;
         setPermission(res.permission);
-        if (res.swRegistration) swRegRef = res.swRegistration;
+        if (res.swRegistration) swRegRef.current = res.swRegistration;
         if (res.ok) {
-          succeeded = true;
+          succeededRef.current = true;
           if (retryTimeoutId) {
             clearTimeout(retryTimeoutId);
             retryTimeoutId = null;
           }
-          await attachForegroundListener();
         }
       } catch (err: any) {
         console.error("useRegisterPushNotifications: erreur lors de l'enregistrement du token FCM:", err);
@@ -194,40 +253,48 @@ export function useRegisterPushNotifications(
       }
     };
 
-    const scheduleRetry = () => {
-      if (cancelledRef.current || succeeded) return;
-      const delay = RETRY_DELAYS_MS[Math.min(retryIndex, RETRY_DELAYS_MS.length - 1)];
-      retryIndex += 1;
-      retryTimeoutId = setTimeout(attempt, delay);
-    };
-
-    attempt();
+    void attachForegroundListener();
+    void attempt();
 
     const handleOnline = () => {
-      if (!succeeded) {
+      if (!succeededRef.current) {
         if (retryTimeoutId) {
           clearTimeout(retryTimeoutId);
           retryTimeoutId = null;
         }
-        attempt();
+        void attempt();
       }
     };
     window.addEventListener("online", handleOnline);
 
+    const handleResumeCheck = () => {
+      if ("Notification" in window) {
+        const currentPerm = Notification.permission;
+        setPermission(currentPerm);
+        if (currentPerm === "granted" && !succeededRef.current && document.visibilityState === "visible") {
+          void attempt();
+        }
+      }
+    };
+    window.addEventListener("focus", handleResumeCheck);
+    document.addEventListener("visibilitychange", handleResumeCheck);
+
     const handleControllerChange = () => {
-      succeeded = false;
+      succeededRef.current = false;
       if (retryTimeoutId) {
         clearTimeout(retryTimeoutId);
         retryTimeoutId = null;
       }
       retryIndex = 0;
-      attempt();
+      void attempt();
     };
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
     return () => {
       cancelledRef.current = true;
       window.removeEventListener("online", handleOnline);
+      window.removeEventListener("focus", handleResumeCheck);
+      document.removeEventListener("visibilitychange", handleResumeCheck);
       navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
       if (retryTimeoutId) clearTimeout(retryTimeoutId);
       if (unsubscribeOnMessage) unsubscribeOnMessage();

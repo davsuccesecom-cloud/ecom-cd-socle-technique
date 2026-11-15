@@ -13,7 +13,45 @@ firebase.initializeApp({
   appId: "1:972779076968:web:0b3273a01644985aa82add",
 });
 
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.stopImmediatePropagation();
+  event.notification.close();
+  const rawData = event.notification.data || {};
+  const fcmMsg = rawData.FCM_MSG || {};
+  const fcmData = fcmMsg.data || {};
+  const orderId = rawData.orderId || fcmData.orderId || "";
+  const targetUrl =
+    rawData.url ||
+    fcmMsg.fcmOptions?.link ||
+    fcmData.url ||
+    (orderId ? `/?orderId=${orderId}` : "/");
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ("focus" in client) {
+          if (orderId) {
+            client.postMessage({ type: "NAVIGATE_ORDER", orderId });
+          }
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
 const messaging = firebase.messaging();
+
+function resolveSafeIcon(url) {
+  return typeof url === "string" && url.startsWith("https://") ? url : "/icons/icon-192.png";
+}
 
 async function getWhiteLabelBranding() {
   try {
@@ -27,13 +65,15 @@ async function getWhiteLabelBranding() {
 }
 
 messaging.onBackgroundMessage(async (payload) => {
+  if (payload && payload.notification) return;
+
   const wl = await getWhiteLabelBranding();
-  const title = payload.data?.title || payload.notification?.title || (wl?.brandName ? `${wl.brandName} — Admin` : "WariTrack — Admin");
-  const body = payload.data?.body || payload.notification?.body || "";
-  const orderId = payload.data?.orderId || "";
-  const targetUrl = payload.data?.url || (orderId ? `/?orderId=${orderId}` : "/");
-  const icon = wl?.logoUrl || "/icons/icon-192.png";
-  const tag = orderId ? `waritrack-admin-order-${orderId}` : `waritrack-admin-${Date.now()}`;
+  const title = payload?.data?.title || (wl?.brandName ? `${wl.brandName} — Admin` : "WariTrack — Admin");
+  const body = payload?.data?.body || "";
+  const orderId = payload?.data?.orderId || "";
+  const targetUrl = payload?.data?.url || (orderId ? `/?orderId=${orderId}` : "/");
+  const icon = resolveSafeIcon(wl?.logoUrl);
+  const tag = payload?.data?.tag || (orderId ? `waritrack-admin-order-${orderId}` : `waritrack-admin-${Date.now()}`);
 
   try {
     await self.registration.showNotification(title, {
@@ -54,26 +94,4 @@ messaging.onBackgroundMessage(async (payload) => {
       data: { orderId, url: targetUrl },
     });
   }
-});
-
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const orderId = event.notification.data?.orderId;
-  const targetUrl = event.notification.data?.url || (orderId ? `/?orderId=${orderId}` : "/");
-
-  event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-      for (const client of windowClients) {
-        if ("focus" in client) {
-          if (orderId) {
-            client.postMessage({ type: "NAVIGATE_ORDER", orderId });
-          }
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
-    })
-  );
 });

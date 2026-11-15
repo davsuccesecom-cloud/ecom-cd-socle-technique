@@ -32,6 +32,7 @@ export default defineConfig({
       workbox: {
         cacheId: "waritrack-admin-v5-live",
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
+        globIgnores: ["**/firebase-messaging-sw.js"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/__/, /^\/firebase-messaging-sw\.js$/, /\/api\//],
         cleanupOutdatedCaches: true,

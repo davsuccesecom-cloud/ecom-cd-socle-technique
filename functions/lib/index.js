@@ -1129,6 +1129,7 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
                 .collection("notifications")
                 .where("title", "==", "🤖 Vigie IA · Commandes hors délai d'appel")
                 .where("createdAt", ">=", now - 30 * 60 * 1000)
+                .orderBy("createdAt", "desc")
                 .limit(1)
                 .get();
             if (recentAlert.empty) {
@@ -1158,6 +1159,7 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
                 .collection("notifications")
                 .where("title", "==", "🤖 Vigie IA · Rappels programmés oubliés")
                 .where("createdAt", ">=", now - 45 * 60 * 1000)
+                .orderBy("createdAt", "desc")
                 .limit(1)
                 .get();
             if (recentOverdueAlert.empty) {
@@ -1182,6 +1184,7 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
                 .collection("notifications")
                 .where("title", "==", "🤖 Vigie IA · Colis confirmés sans livreur")
                 .where("createdAt", ">=", now - 45 * 60 * 1000)
+                .orderBy("createdAt", "desc")
                 .limit(1)
                 .get();
             if (recentUnassigned.empty) {
@@ -1260,6 +1263,7 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
                             .collection("notifications")
                             .where("title", "==", `🤖 Vigie IA · Chute taux livraison (${team.name})`)
                             .where("createdAt", ">=", now - 12 * 3600 * 1000)
+                            .orderBy("createdAt", "desc")
                             .limit(1)
                             .get();
                         if (recentRateAlert.empty) {
@@ -1383,31 +1387,66 @@ exports.scheduledDigest = (0, scheduler_1.onSchedule)("every 30 minutes", async 
 // ---------------------------------------------------------------------------
 // Utilitaires de notification (section 3.2)
 // ---------------------------------------------------------------------------
-async function sendPushToUser(workspaceId, userId, title, body, orderId) {
-    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
-    const userSnap = await userRef.get();
-    const tokens = userSnap.data()?.fcmTokens ?? [];
-    if (tokens.length === 0) {
-        console.log(`sendPushToUser: aucun token pour user ${userId}`);
-        return;
+const WORKSPACE_BRAND_CACHE_TTL_MS = 60 * 1000;
+const workspaceBrandCache = new Map();
+/**
+ * Resolve the workspace white-label brand name with a 60s in-memory cache.
+ */
+async function getWorkspaceBrandName(workspaceId) {
+    const cached = workspaceBrandCache.get(workspaceId);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.brandName;
     }
-    await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
-        userId,
+    let brandName = "WariTrack";
+    try {
+        const wsSnap = await db.collection("workspaces").doc(workspaceId).get();
+        const wsData = wsSnap.data();
+        const rawBrand = wsData?.whiteLabel?.brandName?.trim() || wsData?.name?.trim();
+        if (rawBrand) {
+            brandName = rawBrand;
+        }
+    }
+    catch (err) {
+        console.warn(`getWorkspaceBrandName: fallback WariTrack pour workspace ${workspaceId}`, err);
+    }
+    workspaceBrandCache.set(workspaceId, {
+        brandName,
+        expiresAt: Date.now() + WORKSPACE_BRAND_CACHE_TTL_MS,
+    });
+    return brandName;
+}
+/**
+ * Prefix a notification title with the workspace brand when not already present.
+ */
+function formatPushTitle(brandName, title) {
+    const trimmedTitle = title.trim();
+    const trimmedBrand = brandName.trim();
+    if (!trimmedBrand || trimmedBrand.toLowerCase() === "waritrack") {
+        return trimmedTitle;
+    }
+    if (trimmedTitle.toLowerCase().includes(trimmedBrand.toLowerCase())) {
+        return trimmedTitle;
+    }
+    return `${trimmedBrand} — ${trimmedTitle}`;
+}
+/**
+ * Build a complete cross-platform FCM multicast payload (WebPush, Android, APNs).
+ */
+function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId) {
+    const dataPayload = {
         title,
         body,
-        read: false,
-        createdAt: Date.now(),
+        url: clickUrl,
+        tag,
         ...(orderId ? { orderId } : {}),
-    });
-    const clickUrl = orderId ? `/?orderId=${orderId}` : "/";
-    const response = await messaging.sendEachForMulticast({
+    };
+    return {
         tokens,
-        data: {
+        notification: {
             title,
             body,
-            ...(orderId ? { orderId } : {}),
-            url: clickUrl,
         },
+        data: dataPayload,
         android: {
             priority: "high",
             ttl: 24 * 60 * 60 * 1000,
@@ -1416,11 +1455,13 @@ async function sendPushToUser(workspaceId, userId, title, body, orderId) {
                 body,
                 clickAction: clickUrl,
                 defaultSound: true,
+                tag,
             },
         },
         apns: {
             headers: {
                 "apns-priority": "10",
+                "apns-push-type": "alert",
             },
             payload: {
                 aps: {
@@ -1434,32 +1475,92 @@ async function sendPushToUser(workspaceId, userId, title, body, orderId) {
                 Urgency: "high",
                 TTL: "86400",
             },
+            notification: {
+                title,
+                body,
+                icon: "/icons/icon-192.png",
+                badge: "/icons/badge-96.png",
+                tag,
+                renotify: true,
+                data: dataPayload,
+            },
             fcmOptions: {
                 link: clickUrl,
             },
         },
-    });
-    console.log(`sendPushToUser: ${response.successCount} succes, ${response.failureCount} echecs pour user ${userId}`);
+    };
+}
+/**
+ * Send a multicast push notification to deduplicated user tokens and prune invalid ones.
+ */
+async function sendMulticastAndPruneTokens(opts) {
+    const { userRef, userId, rawTokens, title, body, clickUrl, tag, orderId } = opts;
+    const tokens = Array.from(new Set(rawTokens.filter((t) => typeof t === "string" && t.length > 0)));
+    if (tokens.length === 0) {
+        console.log(`sendPush: aucun token pour user ${userId}`);
+        return;
+    }
     const invalidTokens = [];
-    response.responses.forEach((r, i) => {
-        if (!r.success) {
-            const code = r.error?.code;
-            console.error(`Token invalide/echec [${i}] pour user ${userId}:`, r.error?.message);
-            if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
-                invalidTokens.push(tokens[i]);
+    let totalSuccess = 0;
+    let totalFailure = 0;
+    // FCM sendEachForMulticast accepts at most 500 tokens per call
+    for (let offset = 0; offset < tokens.length; offset += 500) {
+        const chunk = tokens.slice(offset, offset + 500);
+        const response = await messaging.sendEachForMulticast(buildPushMulticastMessage(chunk, title, body, clickUrl, tag, orderId));
+        totalSuccess += response.successCount;
+        totalFailure += response.failureCount;
+        response.responses.forEach((r, i) => {
+            if (!r.success) {
+                const code = r.error?.code;
+                console.error(`Token invalide/echec [${offset + i}] pour user ${userId} (${code ?? "unknown"}):`, r.error?.message);
+                if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
+                    invalidTokens.push(chunk[i]);
+                }
             }
-        }
-    });
+        });
+    }
+    console.log(`sendPush: ${totalSuccess} succes, ${totalFailure} echecs pour user ${userId}`);
     if (invalidTokens.length > 0) {
         await userRef.update({
             fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
         });
-        console.log(`sendPushToUser: ${invalidTokens.length} token(s) invalide(s) supprime(s) pour user ${userId}`);
+        console.log(`sendPush: ${invalidTokens.length} token(s) invalide(s) supprime(s) pour user ${userId}`);
     }
+}
+async function sendPushToUser(workspaceId, userId, title, body, orderId) {
+    const notifRef = await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
+        userId,
+        title,
+        body,
+        read: false,
+        createdAt: Date.now(),
+        ...(orderId ? { orderId } : {}),
+    });
+    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+    const userSnap = await userRef.get();
+    const tokens = userSnap.data()?.fcmTokens ?? [];
+    if (tokens.length === 0) {
+        console.log(`sendPushToUser: aucun token pour user ${userId}`);
+        return;
+    }
+    const brandName = await getWorkspaceBrandName(workspaceId);
+    const displayTitle = formatPushTitle(brandName, title);
+    const clickUrl = orderId ? `/?orderId=${orderId}` : "/";
+    const tag = orderId ? `waritrack-order-${orderId}` : `waritrack-notif-${notifRef.id}`;
+    await sendMulticastAndPruneTokens({
+        userRef,
+        userId,
+        rawTokens: tokens,
+        title: displayTitle,
+        body,
+        clickUrl,
+        tag,
+        orderId,
+    });
 }
 async function notifyAdmins(workspaceId, title, body) {
     const now = Date.now();
-    await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
+    const notifRef = await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
         title,
         body,
         read: false,
@@ -1486,42 +1587,24 @@ async function notifyAdmins(workspaceId, title, body) {
         .where("role", "==", "admin")
         .where("status", "==", "active")
         .get();
-    await Promise.all(adminsSnap.docs.map(async (adminDoc) => {
+    if (adminsSnap.empty) {
+        console.log(`notifyAdmins: aucun admin actif pour workspace ${workspaceId}`);
+        return;
+    }
+    const brandName = await getWorkspaceBrandName(workspaceId);
+    const displayTitle = formatPushTitle(brandName, title);
+    const tag = `waritrack-admin-${notifRef.id}`;
+    await Promise.all(adminsSnap.docs.map((adminDoc) => {
         const tokens = adminDoc.data().fcmTokens ?? [];
-        if (tokens.length === 0)
-            return;
-        const response = await messaging.sendEachForMulticast({
-            tokens,
-            data: { title, body, url: "/" },
-            android: {
-                priority: "high",
-                ttl: 24 * 60 * 60 * 1000,
-                notification: { title, body, clickAction: "/", defaultSound: true },
-            },
-            apns: {
-                headers: { "apns-priority": "10" },
-                payload: { aps: { alert: { title, body }, sound: "default" } },
-            },
-            webpush: {
-                headers: { Urgency: "high", TTL: "86400" },
-                fcmOptions: { link: "/" },
-            },
+        return sendMulticastAndPruneTokens({
+            userRef: adminDoc.ref,
+            userId: adminDoc.id,
+            rawTokens: tokens,
+            title: displayTitle,
+            body,
+            clickUrl: "/",
+            tag,
         });
-        const invalidTokens = [];
-        response.responses.forEach((r, i) => {
-            if (!r.success) {
-                const code = r.error?.code;
-                if (code === "messaging/registration-token-not-registered" ||
-                    code === "messaging/invalid-registration-token") {
-                    invalidTokens.push(tokens[i]);
-                }
-            }
-        });
-        if (invalidTokens.length > 0) {
-            await adminDoc.ref.update({
-                fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
-            });
-        }
     }));
 }
 // ---------------------------------------------------------------------------
