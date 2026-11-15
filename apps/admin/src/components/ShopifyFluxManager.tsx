@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   collection,
   doc,
@@ -48,6 +48,47 @@ type ConnExtra = {
 type Conn = ShopifyConnection & ConnExtra;
 
 const isPending = (c: ShopifyConnection) => (c.status as string) === "pending";
+
+const AZIFY_CONNECT_ORIGIN = "https://azishop-pwa-studio.vercel.app";
+
+interface AzifyConnectPayload {
+  storeId?: string;
+  storeName: string;
+  slug: string;
+  shopDomain: string;
+  myshopifyDomain?: string;
+  customDomain?: string;
+  domains?: string[];
+  allowedCountries?: string[];
+  defaultCountry?: string;
+  defaultCurrency?: string;
+  verifyToken: string;
+  functionsBaseUrl?: string;
+  accountEmail?: string;
+  accountName?: string;
+}
+
+function decodeAzifyPairingCode(raw: string): AzifyConnectPayload | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("AZIFY1:")) return null;
+  try {
+    const b64url = trimmed.slice("AZIFY1:".length);
+    const pad = b64url.length % 4 === 0 ? "" : "=".repeat(4 - (b64url.length % 4));
+    const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/") + pad;
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) {
+      bytes[i] = bin.charCodeAt(i);
+    }
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as AzifyConnectPayload;
+    if (!parsed || typeof parsed.shopDomain !== "string" || !parsed.verifyToken) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 const generateToken = (): string => {
   try {
@@ -209,8 +250,207 @@ export default function ShopifyFluxManager({
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [azifyBusy, setAzifyBusy] = useState(false);
+  const [azifyNotice, setAzifyNotice] = useState<string | null>(null);
+  const [showAzifyCodeBox, setShowAzifyCodeBox] = useState(false);
+  const [azifyCodeInput, setAzifyCodeInput] = useState("");
+  const azifyOAuthStateRef = useRef<string>("");
+  const connectionsRef = useRef<ShopifyConnection[]>([]);
+  connectionsRef.current = connections;
 
   const webhookUrl = "https://us-central1-meta-capi-app.cloudfunctions.net/shopifyWebhook";
+
+  const applyAzifyPayload = useCallback(
+    async (payload: AzifyConnectPayload) => {
+      const cleanDomain = (payload.shopDomain || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^https?:\/\//, "")
+        .replace(/\/.*$/, "");
+      if (!cleanDomain) {
+        setActionError("Domaine Azify manquant dans la réponse de connexion.");
+        return;
+      }
+
+      const connId = cleanDomain.replace(/[^a-z0-9]/gi, "_");
+      const existing = connectionsRef.current.find((c) => c.id === connId);
+      if (existing && existing.ownerTeamId !== team.id) {
+        setActionError("Cette boutique Azify est déjà connectée par une autre équipe.");
+        return;
+      }
+
+      setAzifyBusy(true);
+      setActionError(null);
+      setAzifyNotice(null);
+
+      try {
+        const db = getDb();
+        const ref = doc(db, "workspaces", workspaceId, "shopifyConnections", connId);
+        const now = Date.now();
+
+        const routes: Record<string, ShopifyCountryRoute> = {};
+        const targetCountries = Array.from(
+          new Set(
+            (payload.allowedCountries && payload.allowedCountries.length > 0
+              ? payload.allowedCountries
+              : [payload.defaultCountry || team.defaultCountry || "BJ"]
+            ).map((c) => c.toUpperCase())
+          )
+        );
+        targetCountries.forEach((cc) => {
+          const matchingTeam =
+            allTeams.find((t) => (t.defaultCountry || "BJ").toUpperCase() === cc) || team;
+          routes[cc] = {
+            countryCode: cc,
+            assignedTeamId: matchingTeam.id,
+            assignedTeamName: matchingTeam.name,
+            assignedAt: now,
+            status: "active",
+          };
+        });
+
+        const aliasDomains = Array.from(
+          new Set(
+            [
+              ...(payload.domains || []),
+              cleanDomain,
+              payload.myshopifyDomain || "",
+              payload.customDomain || "",
+              cleanDomain.replace(/^www\./, ""),
+            ]
+              .map((d) =>
+                d.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "")
+              )
+              .filter(Boolean)
+          )
+        );
+
+        const baseConn = {
+          id: connId,
+          workspaceId,
+          ownerTeamId: team.id,
+          ownerTeamName: team.name,
+          shopDomain: cleanDomain,
+          myshopifyDomain: payload.myshopifyDomain || "",
+          customDomain: payload.customDomain || "",
+          domains: aliasDomains,
+          shopName: payload.storeName || cleanDomain,
+          status: "active",
+          connectedAt: existing?.connectedAt || now,
+          activatedAt: now,
+          countryRoutes: routes,
+          verifyToken: payload.verifyToken,
+        };
+
+        await setDoc(ref, baseConn as unknown as ShopifyConnection, { merge: true });
+
+        const fnBase = (
+          payload.functionsBaseUrl ||
+          "https://us-central1-meta-capi-app.cloudfunctions.net"
+        ).replace(/\/$/, "");
+
+        await Promise.allSettled([
+          fetch(`${fnBase}/trackSession`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              shopDomain: cleanDomain,
+              customDomain: payload.customDomain || cleanDomain,
+              myshopifyDomain: payload.myshopifyDomain || cleanDomain,
+              verifyToken: payload.verifyToken,
+            }),
+          }),
+          fetch(`${fnBase}/shopifyWebhook`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-shopify-shop-domain": cleanDomain,
+              "x-shopify-test": "true",
+            },
+            body: JSON.stringify({
+              id: 999999999,
+              order_number: 9999,
+              name: "#TEST_VERIF",
+              total_price: "0",
+            }),
+          }),
+        ]);
+
+        setShowWizard(false);
+        setShowAzifyCodeBox(false);
+        setAzifyCodeInput("");
+        setAzifyNotice(
+          `Boutique Azify « ${payload.storeName} » (${cleanDomain}) connectée en 1 clic${
+            payload.accountEmail ? ` · Compte ${payload.accountEmail}` : ""
+          } !`
+        );
+      } catch (err) {
+        const f = formatFirebaseError(err);
+        setActionError(`${f.title} : ${f.message}`);
+      } finally {
+        setAzifyBusy(false);
+      }
+    },
+    [workspaceId, team, allTeams]
+  );
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const isLocal =
+        typeof window !== "undefined" &&
+        (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+      const allowedOrigin =
+        event.origin === AZIFY_CONNECT_ORIGIN ||
+        (isLocal && event.origin === "http://localhost:3000");
+      if (!allowedOrigin) return;
+
+      const data = event.data as {
+        type?: string;
+        state?: string;
+        payload?: AzifyConnectPayload;
+      } | null;
+      if (!data || data.type !== "AZIFY_WARITRACK_CONNECT") return;
+      if (!azifyOAuthStateRef.current || data.state !== azifyOAuthStateRef.current) return;
+      if (!data.payload || !data.payload.shopDomain) return;
+
+      azifyOAuthStateRef.current = "";
+      void applyAzifyPayload(data.payload);
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [applyAzifyPayload]);
+
+  const openAzifyOneClick = () => {
+    setActionError(null);
+    setAzifyNotice(null);
+    const state = generateToken() + generateToken();
+    azifyOAuthStateRef.current = state;
+    const popupUrl = `${AZIFY_CONNECT_ORIGIN}/connect/waritrack?origin=${encodeURIComponent(
+      window.location.origin
+    )}&state=${encodeURIComponent(state)}`;
+    const popup = window.open(
+      popupUrl,
+      "azify_oauth_connect",
+      "width=560,height=760,scrollbars=yes,resizable=yes"
+    );
+    if (!popup) {
+      setShowAzifyCodeBox(true);
+      setActionError(
+        "Pop-up bloqué par votre navigateur. Autorisez les pop-ups ou collez le code d'appairage Azify ci-dessous."
+      );
+    }
+  };
+
+  const handleAzifyCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const decoded = decodeAzifyPairingCode(azifyCodeInput);
+    if (!decoded) {
+      setActionError("Code Azify invalide. Il doit commencer par AZIFY1:...");
+      return;
+    }
+    await applyAzifyPayload(decoded);
+  };
   const trackerScriptSnippet = `<script src="https://us-central1-meta-capi-app.cloudfunctions.net/getStorefrontTrackerScript" async></script>`;
 
   useEffect(() => {
@@ -711,6 +951,18 @@ export default function ShopifyFluxManager({
         </div>
       )}
 
+      {azifyNotice && (
+        <div className="flex items-start justify-between gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+            <span>{azifyNotice}</span>
+          </div>
+          <button type="button" onClick={() => setAzifyNotice(null)} className="text-emerald-400 hover:text-emerald-200">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Carte Principale de Gestion Shopify */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-sm space-y-5">
         {/* En-tête responsive sans débordement */}
@@ -752,6 +1004,65 @@ export default function ShopifyFluxManager({
             <Plus className="h-3.5 w-3.5" />
             <span>Connecter une boutique</span>
           </button>
+        </div>
+
+        {/* Passerelle rapide Azify PWA Studio (OAuth 1 clic) */}
+        <div className="rounded-xl border border-brand/30 bg-brand/5 p-3.5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-100">
+                  Azify PWA Studio — Connexion en 1 clic
+                </span>
+                <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[10px] font-semibold text-brand">
+                  OAuth Pop-up
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-slate-400">
+                Choisissez votre compte Azify et votre boutique dans le pop-up pour synchroniser pays, webhooks et session tracker automatiquement.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAzifyCodeBox((v) => !v)}
+                className="rounded-lg border border-surface-border bg-surface px-2.5 py-2 text-[11px] font-medium text-slate-300 hover:text-slate-100"
+              >
+                {showAzifyCodeBox ? "Masquer code" : "Code AZIFY1"}
+              </button>
+              <button
+                type="button"
+                disabled={azifyBusy}
+                onClick={openAzifyOneClick}
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-xs font-semibold text-slate-950 shadow-sm transition hover:brightness-110 disabled:opacity-60"
+              >
+                <Zap className={`h-3.5 w-3.5 ${azifyBusy ? "animate-pulse" : ""}`} />
+                <span>{azifyBusy ? "Connexion Azify…" : "Connecter Azify (1 clic)"}</span>
+              </button>
+            </div>
+          </div>
+
+          {showAzifyCodeBox && (
+            <form
+              onSubmit={handleAzifyCodeSubmit}
+              className="flex flex-wrap items-center gap-2 border-t border-brand/20 pt-3"
+            >
+              <input
+                type="text"
+                value={azifyCodeInput}
+                onChange={(e) => setAzifyCodeInput(e.target.value)}
+                placeholder="Coller le code d'appairage Azify (AZIFY1:...)"
+                className="min-w-[220px] flex-1 rounded-lg border border-surface-border bg-surface px-3 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-brand"
+              />
+              <button
+                type="submit"
+                disabled={azifyBusy || !azifyCodeInput.trim()}
+                className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:opacity-50"
+              >
+                Valider code
+              </button>
+            </form>
+          )}
         </div>
 
         {/* Liste des boutiques administrées */}
@@ -1083,7 +1394,17 @@ export default function ShopifyFluxManager({
                     Adresse de votre boutique Shopify
                   </label>
                   <p className="text-xs text-slate-400">
-                    Saisissez votre URL complète ou votre sous-domaine (ex : ma-boutique.myshopify.com ou maboutique.com).
+                    Saisissez votre URL complète ou votre sous-domaine (ex : ma-boutique.myshopify.com ou maboutique.com).{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowWizard(false);
+                        openAzifyOneClick();
+                      }}
+                      className="font-semibold text-brand underline hover:brightness-110"
+                    >
+                      Ou connecter une boutique Azify en 1 clic →
+                    </button>
                   </p>
                 </div>
 
