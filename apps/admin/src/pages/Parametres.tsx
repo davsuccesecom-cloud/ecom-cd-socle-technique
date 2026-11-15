@@ -23,8 +23,10 @@ import {
   Copy,
   PhoneCall,
   Smartphone,
+  Zap,
 } from "lucide-react";
 import MetaCapiConnector from "../components/MetaCapiConnector";
+import AzifyFluxManager from "../components/AzifyFluxManager";
 import ShopifyFluxManager from "../components/ShopifyFluxManager";
 import PrintReceiptConfig from "../components/PrintReceiptConfig";
 import WhiteLabelSettings from "../components/WhiteLabelSettings";
@@ -38,7 +40,7 @@ interface ParametresProps {
   orders?: Order[];
 }
 
-type SettingsTab = "rules" | "shopify" | "print" | "metacapi" | "phone_export" | "white_label";
+type SettingsTab = "rules" | "shopify" | "azify" | "print" | "metacapi" | "phone_export" | "white_label";
 
 export default function Parametres({ workspaceId, team, teams = [], orders = [] }: ParametresProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
@@ -49,6 +51,12 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
       label: "Boutiques Shopify",
       desc: "Webhooks, routage multi-pays & suivi",
       icon: Store,
+    },
+    {
+      id: "azify",
+      label: "Boutiques Azify",
+      desc: "Connexion 1-clic Azify PWA Studio & routage pays",
+      icon: Zap,
     },
     {
       id: "rules",
@@ -148,6 +156,14 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
         {activeTab === "shopify" && (
           team ? (
             <ShopifyFluxManager workspaceId={workspaceId} team={team} allTeams={teams} />
+          ) : (
+            <EmptyTeamNotice />
+          )
+        )}
+
+        {activeTab === "azify" && (
+          team ? (
+            <AzifyFluxManager workspaceId={workspaceId} team={team} allTeams={teams} />
           ) : (
             <EmptyTeamNotice />
           )
