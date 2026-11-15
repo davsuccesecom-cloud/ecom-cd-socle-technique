@@ -15,11 +15,25 @@ import type {
   Team,
 } from "@ecomcod/shared";
 import {
+  Activity,
+  AlertCircle,
   AlertTriangle,
+  ArrowRight,
+  Check,
   CheckCircle2,
+  ChevronRight,
+  Clipboard,
+  ExternalLink,
+  Globe2,
+  Layers,
+  MapPin,
   Plus,
   RefreshCw,
+  Share2,
+  ShieldCheck,
   ShoppingBag,
+  Sparkles,
+  Store,
   Trash2,
   Unlink,
   X,
@@ -123,35 +137,39 @@ function getAzifyHealth(conn: AzifyConn) {
   const DAY = 24 * 60 * 60 * 1000;
   if (conn.status === "disconnected" || (conn.status as string) === "inactive") {
     return {
-      label: "Déconnectée (En pause)",
-      detail: "Flux Azify mis en pause. Cliquez sur Reconnecter pour réactiver la réception.",
-      badgeClass: "bg-rose-500/15 text-rose-300 border border-rose-500/30",
-      dotClass: "bg-rose-400",
+      label: "En pause",
+      statusKey: "paused",
+      detail: "Flux suspendu. Cliquez sur Reconnecter pour réactiver la synchronisation.",
+      badgeClass: "bg-rose-500/10 text-rose-400 border border-rose-500/30",
+      dotClass: "bg-rose-500",
       isDisconnected: true,
     };
   }
   if (conn.lastOrderAt && Date.now() - conn.lastOrderAt < 2 * DAY) {
     return {
       label: "En direct",
-      detail: `Dernière commande Azify reçue ${timeAgo(conn.lastOrderAt)}.`,
-      badgeClass: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30",
-      dotClass: "bg-emerald-400",
+      statusKey: "live",
+      detail: `Dernière commande reçue ${timeAgo(conn.lastOrderAt)}.`,
+      badgeClass: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
+      dotClass: "bg-emerald-400 animate-pulse",
       isDisconnected: false,
     };
   }
   if (conn.webhookVerifiedAt || conn.trackerVerifiedAt) {
     return {
       label: "Connectée",
-      detail: "Passerelle Azify vérifiée — prête à recevoir vos commandes COD & signaux CAPI.",
-      badgeClass: "bg-sky-500/15 text-sky-400 border border-sky-500/30",
+      statusKey: "connected",
+      detail: "Passerelle active — prête à recevoir vos commandes COD & signaux CAPI.",
+      badgeClass: "bg-sky-500/10 text-sky-400 border border-sky-500/30",
       dotClass: "bg-sky-400",
       isDisconnected: false,
     };
   }
   return {
     label: "À vérifier",
-    detail: "Cliquez sur « Tester le flux » pour valider les signaux Azify → WariTrack.",
-    badgeClass: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
+    statusKey: "verify",
+    detail: "Cliquez sur « Tester le flux » pour valider la réception vers WariTrack.",
+    badgeClass: "bg-amber-500/10 text-amber-400 border border-amber-500/30",
     dotClass: "bg-amber-400",
     isDisconnected: false,
   };
@@ -168,7 +186,10 @@ function CountryFlag({ code }: { code: string }) {
     <img
       src={`https://flagcdn.com/24x18/${code.toLowerCase()}.png`}
       alt={code}
-      className="h-4 w-5 shrink-0 rounded-[2px] object-cover shadow-sm"
+      className="h-3.5 w-5 shrink-0 rounded-[2px] object-cover shadow-xs border border-white/10"
+      onError={(e) => {
+        (e.target as HTMLElement).style.display = "none";
+      }}
     />
   );
 }
@@ -190,6 +211,7 @@ export default function AzifyFluxManager({
 
   const [showCodeBox, setShowCodeBox] = useState(false);
   const [codeInput, setCodeInput] = useState("");
+  const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
 
   const [disconnectTarget, setDisconnectTarget] = useState<{
     connectionId: string;
@@ -396,9 +418,7 @@ export default function AzifyFluxManager({
         setShowCodeBox(false);
         setCodeInput("");
         setNotice(
-          `Boutique Azify « ${payload.storeName} » (${cleanDomain}) connectée${
-            payload.accountEmail ? ` via le compte ${payload.accountEmail}` : ""
-          } !`
+          `Boutique Azify « ${payload.storeName} » (${cleanDomain}) connectée avec succès !`
         );
       } catch (err) {
         const f = formatFirebaseError(err);
@@ -462,10 +482,27 @@ export default function AzifyFluxManager({
     e.preventDefault();
     const decoded = decodeAzifyPairingCode(codeInput);
     if (!decoded) {
-      setActionError("Code Azify invalide. Il doit commencer par AZIFY1:...");
+      setActionError("Code Azify invalide. Le code doit débuter par AZIFY1:...");
       return;
     }
     await applyAzifyPayload(decoded);
+  };
+
+  const handlePasteCode = async () => {
+    try {
+      if (navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          setCodeInput(text.trim());
+          const decoded = decodeAzifyPairingCode(text.trim());
+          if (decoded) {
+            await applyAzifyPayload(decoded);
+          }
+        }
+      }
+    } catch {
+      // Ignorer si permission presse-papier refusée
+    }
   };
 
   const handleTestFlux = async (conn: AzifyConn) => {
@@ -479,7 +516,7 @@ export default function AzifyFluxManager({
         myshopifyDomain: conn.myshopifyDomain,
         verifyToken: conn.verifyToken,
       });
-      setNotice(`Signaux Azify envoyés pour « ${conn.shopName || conn.shopDomain} ».`);
+      setNotice(`Signal de test validé pour « ${conn.shopName || conn.shopDomain} ».`);
     } catch {
       setActionError("Échec lors de l'envoi du signal de test Azify.");
     } finally {
@@ -495,6 +532,7 @@ export default function AzifyFluxManager({
         status: "active",
         activatedAt: Date.now(),
       });
+      setNotice("Boutique réactivée avec succès.");
     } catch (err) {
       const f = formatFirebaseError(err);
       setActionError(`${f.title} : ${f.message}`);
@@ -513,6 +551,7 @@ export default function AzifyFluxManager({
         { status: "disconnected" }
       );
       setDisconnectTarget(null);
+      setNotice(`Boutique « ${disconnectTarget.shopName} » mise en pause.`);
     } catch (err) {
       const f = formatFirebaseError(err);
       setActionError(`${f.title} : ${f.message}`);
@@ -530,6 +569,7 @@ export default function AzifyFluxManager({
         doc(getDb(), "workspaces", workspaceId, "shopifyConnections", deleteTarget.connectionId)
       );
       setDeleteTarget(null);
+      setNotice(`Boutique « ${deleteTarget.shopName} » supprimée.`);
     } catch (err) {
       const f = formatFirebaseError(err);
       setActionError(`${f.title} : ${f.message}`);
@@ -561,6 +601,7 @@ export default function AzifyFluxManager({
           [`countryRoutes.${confirmModal.countryCode}.assignedAt`]: Date.now(),
           [`countryRoutes.${confirmModal.countryCode}.status`]: "active",
         });
+        setNotice(`Commandes ${getCountryMeta(confirmModal.countryCode).name} reprises dans votre équipe.`);
       } else {
         await updateDoc(connRef, {
           [`countryRoutes.${confirmModal.countryCode}.assignedTeamId`]: confirmModal.targetTeamId,
@@ -583,6 +624,7 @@ export default function AzifyFluxManager({
             doc(db, "workspaces", workspaceId, "shopifyUnroutedOrders", unrouted.id)
           );
         }
+        setNotice(`Routage ${getCountryMeta(confirmModal.countryCode).name} transféré vers « ${confirmModal.targetTeamName} ».`);
       }
       setConfirmModal(null);
     } catch (err) {
@@ -614,6 +656,7 @@ export default function AzifyFluxManager({
       );
       setAddCountryModal(null);
       setSelectedCountryToAdd("");
+      setNotice(`Pays ${getCountryMeta(code).name} (${code}) ajouté au routage.`);
     } catch (err) {
       const f = formatFirebaseError(err);
       setActionError(`${f.title} : ${f.message}`);
@@ -630,6 +673,11 @@ export default function AzifyFluxManager({
     (c) =>
       c.status !== "disconnected" &&
       (Boolean(c.webhookVerifiedAt) || Boolean(c.trackerVerifiedAt) || Boolean(c.lastOrderAt))
+  );
+
+  const totalAssignedCountries = myConnections.reduce(
+    (acc, c) => acc + Object.keys(c.countryRoutes || {}).length,
+    0
   );
 
   const borrowedFlux: {
@@ -649,33 +697,40 @@ export default function AzifyFluxManager({
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* 1. Alerte commandes en attente de routage pays */}
       {azifyUnrouted.length > 0 && (
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-            <div className="space-y-1">
-              <h4 className="text-xs font-bold text-amber-300">
-                Commandes Azify en attente de routage pays ({azifyUnrouted.length})
-              </h4>
-              <p className="text-xs text-slate-300">
-                Assignez ces pays à vos équipes locales pour distribuer automatiquement les commandes.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-amber-200">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-300">
+                {azifyUnrouted.length} commande(s) Azify en attente d&apos;attribution pays
+              </p>
+              <p className="text-[11px] text-amber-200/80">
+                Ajoutez les pays correspondants ci-dessous pour que WariTrack les affecte immédiatement à vos closeuses et livreurs.
               </p>
             </div>
           </div>
+          <span className="rounded-md bg-amber-500/20 px-2.5 py-1 text-xs font-bold tabular-nums text-amber-300">
+            {azifyUnrouted.length} en attente
+          </span>
         </div>
       )}
 
+      {/* 2. Messages de notification / erreurs */}
       {actionError && (
-        <div className="flex items-start justify-between gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400" />
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-300">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
             <span>{actionError}</span>
           </div>
           <button
             type="button"
             onClick={() => setActionError(null)}
-            className="text-rose-400 hover:text-rose-200"
+            className="rounded p-1 text-rose-400 transition hover:bg-rose-500/20 hover:text-rose-200"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -683,411 +738,577 @@ export default function AzifyFluxManager({
       )}
 
       {notice && (
-        <div className="flex items-start justify-between gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-300">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-300">
+          <div className="flex items-center gap-2.5">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
             <span>{notice}</span>
           </div>
           <button
             type="button"
             onClick={() => setNotice(null)}
-            className="text-emerald-400 hover:text-emerald-200"
+            className="rounded p-1 text-emerald-400 transition hover:bg-emerald-500/20 hover:text-emerald-200"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* Carte Principale Connecteur Azify Studio (indépendant de Shopify) */}
-      <div className="space-y-5 rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-surface-border pb-4">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand/30 bg-brand/15 text-brand">
-              <ShoppingBag className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-bold text-slate-100">
-                  Boutiques &amp; Connecteur Azify PWA Studio
-                </h2>
-                {myConnections.length > 0 &&
-                  (gatewayOk ? (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      Connecteur Azify actif
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                      Synchronisation à vérifier
-                    </span>
-                  ))}
+      {/* 3. Hero Card : Azify PWA Studio Connecteur */}
+      <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-xs">
+        {/* Header supérieur du connecteur */}
+        <div className="border-b border-surface-border p-5 md:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              {/* Badge Azify Studio Icon */}
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-inner">
+                <Zap className="h-6 w-6 fill-amber-400/20 stroke-amber-400" />
               </div>
-              <p className="mt-0.5 text-xs text-slate-400">
-                Connectez vos boutiques Azify en 1 clic par OAuth, sélectionnez votre compte puis la boutique, et routez automatiquement les pays vers vos équipes.
-              </p>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="text-base font-bold text-slate-100">
+                    Connecteur Azify PWA Studio
+                  </h2>
+                  <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-amber-400 uppercase">
+                    PWA COD Afrique
+                  </span>
+                  {myConnections.length > 0 && (
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                        gatewayOk
+                          ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                          : "border border-amber-500/30 bg-amber-500/10 text-amber-400"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          gatewayOk ? "bg-emerald-400" : "bg-amber-400"
+                        }`}
+                      />
+                      {gatewayOk ? "Passerelle active" : "Vérification requise"}
+                    </span>
+                  )}
+                </div>
+                <p className="max-w-2xl text-xs leading-relaxed text-slate-400">
+                  Liez vos boutiques Azify en 1 clic pour injecter automatiquement vos commandes COD dans WariTrack, synchroniser les événements Meta CAPI serveur et distribuer le flux par pays.
+                </p>
+              </div>
+            </div>
+
+            {/* Barre d'action rapide */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowCodeBox((v) => !v)}
+                className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3.5 text-xs font-semibold transition ${
+                  showCodeBox
+                    ? "border-amber-500/50 bg-amber-500/15 text-amber-300"
+                    : "border-surface-border bg-surface text-slate-300 hover:border-slate-500 hover:text-slate-100"
+                }`}
+              >
+                <Clipboard className="h-4 w-4" />
+                <span>{showCodeBox ? "Masquer code" : "Code AZIFY1"}</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={azifyBusy}
+                onClick={openAzifyOneClick}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-500 to-amber-600 px-5 text-xs font-bold text-slate-950 shadow-sm transition hover:brightness-110 active:translate-y-px disabled:opacity-60"
+              >
+                <Zap className={`h-4 w-4 fill-slate-950 ${azifyBusy ? "animate-pulse" : ""}`} />
+                <span>{azifyBusy ? "Connexion en cours…" : "Connecter Azify en 1 clic"}</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowCodeBox((v) => !v)}
-              className="rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs font-medium text-slate-300 transition hover:text-slate-100"
-            >
-              {showCodeBox ? "Masquer code" : "Code AZIFY1"}
-            </button>
-            <button
-              type="button"
-              disabled={azifyBusy}
-              onClick={openAzifyOneClick}
-              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-slate-950 shadow-sm transition hover:brightness-110 disabled:opacity-60"
-            >
-              <Zap className={`h-3.5 w-3.5 ${azifyBusy ? "animate-pulse" : ""}`} />
-              <span>{azifyBusy ? "Connexion Azify…" : "Connecter Azify en 1 clic"}</span>
-            </button>
-          </div>
+          {/* Formulaire de code d'appairage manuel AZIFY1 */}
+          {showCodeBox && (
+            <div className="mt-4 rounded-xl border border-amber-500/30 bg-surface p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-200">
+                  Appairage manuel par code sécurisé
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Copiez le code depuis votre tableau de bord Azify Studio
+                </span>
+              </div>
+              <form onSubmit={handleCodeSubmit} className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value)}
+                  placeholder="Coller ici votre code (ex: AZIFY1:eyJzdG9yZU5hbWUiOi...)"
+                  className="min-w-[260px] flex-1 rounded-lg border border-surface-border bg-surface-raised px-3.5 py-2.5 font-mono text-xs text-slate-100 placeholder:text-slate-500 outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={handlePasteCode}
+                  className="rounded-lg border border-surface-border bg-surface-subtle px-3 py-2.5 text-xs font-medium text-slate-300 transition hover:text-slate-100"
+                >
+                  Coller
+                </button>
+                <button
+                  type="submit"
+                  disabled={azifyBusy || !codeInput.trim()}
+                  className="rounded-lg bg-amber-500 px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
+                >
+                  Valider l&apos;appairage
+                </button>
+              </form>
+            </div>
+          )}
         </div>
 
-        {showCodeBox && (
-          <form
-            onSubmit={handleCodeSubmit}
-            className="flex flex-wrap items-center gap-2 rounded-xl border border-brand/30 bg-brand/5 p-3"
-          >
-            <input
-              type="text"
-              value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value)}
-              placeholder="Coller un code d'appairage Azify (AZIFY1:...)"
-              className="min-w-[220px] flex-1 rounded-lg border border-surface-border bg-surface px-3 py-2 font-mono text-xs text-slate-100 outline-none focus:border-brand"
-            />
-            <button
-              type="submit"
-              disabled={azifyBusy || !codeInput.trim()}
-              className="rounded-lg bg-brand px-3.5 py-2 text-xs font-bold text-slate-950 disabled:opacity-50"
-            >
-              Valider le code
-            </button>
-          </form>
+        {/* Barre de métriques rapides si au moins une boutique */}
+        {myConnections.length > 0 && (
+          <div className="grid grid-cols-2 divide-x divide-surface-border border-b border-surface-border bg-surface/40 text-center sm:grid-cols-4">
+            <div className="p-3.5">
+              <p className="text-[11px] font-medium text-slate-400">Boutiques actives</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums text-slate-100">
+                {myConnections.length}
+              </p>
+            </div>
+            <div className="p-3.5">
+              <p className="text-[11px] font-medium text-slate-400">Pays configurés</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums text-slate-100">
+                {totalAssignedCountries}
+              </p>
+            </div>
+            <div className="p-3.5">
+              <p className="text-[11px] font-medium text-slate-400">Flux partagés</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums text-slate-100">
+                {borrowedFlux.length}
+              </p>
+            </div>
+            <div className="p-3.5">
+              <p className="text-[11px] font-medium text-slate-400">Équipe locale</p>
+              <p className="mt-0.5 truncate text-xs font-bold text-slate-200">
+                {team.name}
+              </p>
+            </div>
+          </div>
         )}
 
-        {loading ? (
-          <p className="py-6 text-center text-xs text-slate-400">
-            Chargement des boutiques Azify…
-          </p>
-        ) : myConnections.length === 0 ? (
-          <div className="space-y-3 rounded-xl border border-dashed border-surface-border p-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand/15 text-brand">
-              <Zap className="h-6 w-6" />
+        {/* Corps de la liste des boutiques */}
+        <div className="p-5 md:p-6">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <RefreshCw className="h-6 w-6 animate-spin text-amber-500" />
+              <p className="mt-3 text-xs font-medium">Chargement des boutiques Azify…</p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-slate-200">
-                Aucune boutique Azify connectée sur cette équipe
+          ) : myConnections.length === 0 ? (
+            /* État vide / Onboarding clair */
+            <div className="rounded-xl border border-dashed border-surface-border bg-surface/30 p-8 text-center md:p-12">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-400">
+                <Store className="h-7 w-7" />
+              </div>
+              <h3 className="mt-4 text-sm font-bold text-slate-100">
+                Aucune boutique Azify connectée pour {team.name}
+              </h3>
+              <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-slate-400">
+                Associez votre boutique PWA Azify à WariTrack en 3 secondes. Vous pourrez ensuite router chaque pays vers vos équipes terrain respectives.
               </p>
-              <p className="mx-auto max-w-md text-xs text-slate-400">
-                Ouvrez la fenêtre d&apos;autorisation Azify, choisissez votre compte puis la boutique à synchroniser avec WariTrack.
-              </p>
-            </div>
-            <button
-              type="button"
-              disabled={azifyBusy}
-              onClick={openAzifyOneClick}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-xs font-bold text-slate-950 transition hover:brightness-110"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              <span>Connecter ma première boutique Azify</span>
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {myConnections.map((conn) => {
-              const routes = conn.countryRoutes || {};
-              const routeEntries = Object.entries(routes);
-              const health = getAzifyHealth(conn);
-              const iconSlug = conn.azifyStoreSlug || "azishop";
 
-              return (
-                <div
-                  key={conn.id}
-                  className="space-y-4 rounded-xl border border-surface-border bg-surface/50 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <img
-                        src={`${AZIFY_CONNECT_ORIGIN}/api/pwa-icon/${encodeURIComponent(iconSlug)}/192`}
-                        alt={conn.shopName || "Azify"}
-                        className="h-9 w-9 shrink-0 rounded-lg border border-surface-border bg-white object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = "none";
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-sm font-bold text-slate-100">
-                            {conn.shopName}
-                          </h3>
-                          <span className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-bold text-brand">
-                            Azify Studio
-                          </span>
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${health.badgeClass}`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${health.dotClass}`} />
-                            {health.label}
-                          </span>
-                        </div>
-                        <p className="truncate font-mono text-xs text-slate-400">
-                          {conn.shopDomain}
-                          {conn.azifyAccountEmail ? ` · Compte ${conn.azifyAccountEmail}` : ""}
-                        </p>
-                        <p className="text-[11px] text-slate-500">{health.detail}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {health.isDisconnected ? (
-                        <button
-                          type="button"
-                          onClick={() => handleReconnect(conn.id)}
-                          disabled={reconnectBusy === conn.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/25"
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 text-emerald-400 ${
-                              reconnectBusy === conn.id ? "animate-spin" : ""
-                            }`}
-                          />
-                          <span>
-                            {reconnectBusy === conn.id ? "Reconnexion…" : "Reconnecter"}
-                          </span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDisconnectTarget({
-                              connectionId: conn.id,
-                              shopDomain: conn.shopDomain,
-                              shopName: conn.shopName || conn.shopDomain,
-                            })
-                          }
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20"
-                        >
-                          <Unlink className="h-3.5 w-3.5 text-amber-400" />
-                          <span>Déconnecter</span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        disabled={testingId === conn.id}
-                        onClick={() => handleTestFlux(conn)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 disabled:opacity-60"
-                      >
-                        <RefreshCw
-                          className={`h-3.5 w-3.5 text-sky-400 ${
-                            testingId === conn.id ? "animate-spin" : ""
-                          }`}
-                        />
-                        <span>Tester le flux</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setAddCountryModal({ connectionId: conn.id })}
-                        className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-slate-100"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>Ajouter un pays</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDeleteTarget({
-                            connectionId: conn.id,
-                            shopDomain: conn.shopDomain,
-                            shopName: conn.shopName || conn.shopDomain,
-                          })
-                        }
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-300 hover:bg-rose-500/20"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-rose-400" />
-                        <span>Supprimer</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Routes par Pays Azify -> Équipes locales */}
-                  <div className="space-y-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      Routage des commandes Azify par pays
-                    </span>
-                    {routeEntries.length === 0 ? (
-                      <p className="text-xs text-amber-400">
-                        Aucun pays configuré. Ajoutez-en un ci-dessus.
-                      </p>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        {routeEntries.map(([code, r]) => {
-                          const meta = getCountryMeta(code);
-                          const isLocal = r.assignedTeamId === team.id;
-                          const eligibleTeams = allTeams.filter(
-                            (t) =>
-                              (t.defaultCountry || "BJ").toUpperCase() === code.toUpperCase()
-                          );
-
-                          return (
-                            <div
-                              key={code}
-                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface-raised p-3"
-                            >
-                              <div className="flex items-center gap-2.5">
-                                <CountryFlag code={code} />
-                                <div>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-bold text-slate-100">
-                                      {meta.name}
-                                    </span>
-                                    <span className="rounded bg-surface px-1 py-0.5 font-mono text-[10px] text-slate-400">
-                                      {code}
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-400">
-                                    Assigné à :{" "}
-                                    <span className="font-semibold text-slate-200">
-                                      {isLocal ? "Cette équipe (Propriétaire)" : r.assignedTeamName}
-                                    </span>
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div>
-                                {isLocal ? (
-                                  <select
-                                    defaultValue=""
-                                    onChange={(e) => {
-                                      if (!e.target.value) return;
-                                      const targetTeam = allTeams.find(
-                                        (t) => t.id === e.target.value
-                                      );
-                                      if (!targetTeam) return;
-                                      setConfirmModal({
-                                        connectionId: conn.id,
-                                        countryCode: code,
-                                        targetTeamId: targetTeam.id,
-                                        targetTeamName: targetTeam.name,
-                                        action: "assign",
-                                      });
-                                      e.target.value = "";
-                                    }}
-                                    className="rounded-md border border-surface-border bg-surface px-2 py-1 text-xs text-slate-300 outline-none hover:border-slate-500"
-                                  >
-                                    <option value="" disabled>
-                                      Partager à…
-                                    </option>
-                                    {eligibleTeams
-                                      .filter((t) => t.id !== team.id)
-                                      .map((t) => (
-                                        <option key={t.id} value={t.id}>
-                                          {t.name}
-                                        </option>
-                                      ))}
-                                    {eligibleTeams.filter((t) => t.id !== team.id).length === 0 && (
-                                      <option value="" disabled>
-                                        Aucune autre équipe dans ce pays
-                                      </option>
-                                    )}
-                                  </select>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setConfirmModal({
-                                        connectionId: conn.id,
-                                        countryCode: code,
-                                        targetTeamId: team.id,
-                                        targetTeamName: team.name,
-                                        action: "revoke",
-                                      })
-                                    }
-                                    className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-400 hover:bg-amber-500/20"
-                                  >
-                                    Révoquer
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+              {/* Étapes claires du flux */}
+              <div className="mx-auto my-6 grid max-w-lg grid-cols-1 gap-3 text-left sm:grid-cols-3">
+                <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
+                  <span className="text-[10px] font-bold text-amber-400">ÉTAPE 1</span>
+                  <p className="mt-1 text-xs font-semibold text-slate-200">Connexion 1-clic</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Authentification via OAuth Azify</p>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
+                  <span className="text-[10px] font-bold text-amber-400">ÉTAPE 2</span>
+                  <p className="mt-1 text-xs font-semibold text-slate-200">Routage Pays</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Affectation CI, BJ, SN, TG...</p>
+                </div>
+                <div className="rounded-lg border border-surface-border bg-surface-raised p-3">
+                  <span className="text-[10px] font-bold text-amber-400">ÉTAPE 3</span>
+                  <p className="mt-1 text-xs font-semibold text-slate-200">Closing & Envois</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Commandes directes aux équipes</p>
+                </div>
+              </div>
 
-        {borrowedFlux.length > 0 && (
-          <div className="space-y-3 border-t border-surface-border pt-4">
-            <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-300">
-              <span>Flux Azify partagés ({borrowedFlux.length})</span>
-            </h3>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {borrowedFlux.map((bf) => {
-                const meta = getCountryMeta(bf.countryCode);
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  disabled={azifyBusy}
+                  onClick={openAzifyOneClick}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-500 px-6 text-xs font-bold text-slate-950 transition hover:bg-amber-400 shadow-sm"
+                >
+                  <Zap className="h-4 w-4 fill-slate-950" />
+                  <span>Connecter ma première boutique Azify</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCodeBox(true)}
+                  className="inline-flex h-11 items-center gap-2 rounded-xl border border-surface-border bg-surface px-4 text-xs font-semibold text-slate-300 transition hover:text-slate-100"
+                >
+                  <Clipboard className="h-4 w-4" />
+                  <span>Saisir un code manuel</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Liste des boutiques connectées */
+            <div className="space-y-5">
+              {myConnections.map((conn) => {
+                const routes = conn.countryRoutes || {};
+                const routeEntries = Object.entries(routes);
+                const health = getAzifyHealth(conn);
+                const iconSlug = conn.azifyStoreSlug || "azishop";
+                const isTesting = testingId === conn.id;
+
                 return (
                   <div
-                    key={`${bf.connection.id}-${bf.countryCode}`}
-                    className="flex items-center justify-between rounded-lg border border-brand/20 bg-brand/5 p-3"
+                    key={conn.id}
+                    className="overflow-hidden rounded-xl border border-surface-border bg-surface/40 transition hover:border-slate-700"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <CountryFlag code={bf.countryCode} />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-slate-100">
-                            {bf.connection.shopName}
-                          </span>
-                          <span className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
-                            {meta.name}
-                          </span>
+                    {/* En-tête de la boutique */}
+                    <div className="border-b border-surface-border bg-surface-raised p-4 sm:p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        {/* Identité boutique */}
+                        <div className="flex items-start gap-3.5">
+                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-surface-border bg-white shadow-xs">
+                            <img
+                              src={`${AZIFY_CONNECT_ORIGIN}/api/pwa-icon/${encodeURIComponent(iconSlug)}/192`}
+                              alt={conn.shopName || "Azify"}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = "none";
+                              }}
+                            />
+                            <div className="flex h-full w-full items-center justify-center bg-surface-subtle text-xs font-bold text-amber-400">
+                              {(conn.shopName || "AZ").slice(0, 2).toUpperCase()}
+                            </div>
+                          </div>
+
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="truncate text-sm font-bold text-slate-100">
+                                {conn.shopName}
+                              </h3>
+                              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
+                                Azify Studio
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${health.badgeClass}`}
+                              >
+                                <span className={`h-1.5 w-1.5 rounded-full ${health.dotClass}`} />
+                                {health.label}
+                              </span>
+                              {conn.azifyDefaultCurrency && (
+                                <span className="rounded bg-surface-subtle px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-300">
+                                  {conn.azifyDefaultCurrency}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                              <a
+                                href={`https://${conn.shopDomain}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 font-mono text-slate-300 hover:text-amber-400 hover:underline"
+                              >
+                                <span>{conn.shopDomain}</span>
+                                <ExternalLink className="h-3 w-3 opacity-70" />
+                              </a>
+                              {conn.azifyAccountEmail && (
+                                <span className="text-slate-500">
+                                  Compte : {conn.azifyAccountEmail}
+                                </span>
+                              )}
+                              {conn.lastOrderAt && (
+                                <span className="tabular-nums text-slate-400">
+                                  {health.detail}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-[11px] text-slate-400">
-                          Gérée par :{" "}
-                          <span className="text-slate-300">{bf.connection.ownerTeamName}</span>
-                        </p>
+
+                        {/* Actions pour cette boutique */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {health.isDisconnected ? (
+                            <button
+                              type="button"
+                              onClick={() => handleReconnect(conn.id)}
+                              disabled={reconnectBusy === conn.id}
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/25"
+                            >
+                              <RefreshCw
+                                className={`h-3.5 w-3.5 text-emerald-400 ${
+                                  reconnectBusy === conn.id ? "animate-spin" : ""
+                                }`}
+                              />
+                              <span>
+                                {reconnectBusy === conn.id ? "Reconnexion…" : "Reconnecter"}
+                              </span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDisconnectTarget({
+                                  connectionId: conn.id,
+                                  shopDomain: conn.shopDomain,
+                                  shopName: conn.shopName || conn.shopDomain,
+                                })
+                              }
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-3 text-xs font-medium text-slate-300 hover:border-amber-500/40 hover:text-amber-300"
+                            >
+                              <Unlink className="h-3.5 w-3.5 text-amber-400" />
+                              <span>Mettre en pause</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={isTesting}
+                            onClick={() => handleTestFlux(conn)}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/20 disabled:opacity-60"
+                          >
+                            <RefreshCw
+                              className={`h-3.5 w-3.5 text-sky-400 ${isTesting ? "animate-spin" : ""}`}
+                            />
+                            <span>{isTesting ? "Test en cours…" : "Tester le flux"}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setAddCountryModal({ connectionId: conn.id })}
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-3 text-xs font-medium text-slate-200 transition hover:border-slate-500 hover:text-white"
+                          >
+                            <Plus className="h-3.5 w-3.5 text-amber-400" />
+                            <span>Ajouter un pays</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDeleteTarget({
+                                connectionId: conn.id,
+                                shopDomain: conn.shopDomain,
+                                shopName: conn.shopName || conn.shopDomain,
+                              })
+                            }
+                            className="inline-flex h-9 items-center justify-center rounded-lg border border-surface-border bg-surface p-2 text-xs text-rose-400 transition hover:border-rose-500/40 hover:bg-rose-500/10"
+                            title="Supprimer la connexion"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
+                    </div>
+
+                    {/* Zone de routage par pays */}
+                    <div className="p-4 sm:p-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Globe2 className="h-4 w-4 text-amber-400" />
+                          <h4 className="text-xs font-bold tracking-wider text-slate-300 uppercase">
+                            Routage des commandes par pays ({routeEntries.length})
+                          </h4>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAddCountryModal({ connectionId: conn.id })}
+                          className="text-xs font-semibold text-amber-400 hover:underline"
+                        >
+                          + Ajouter un autre pays
+                        </button>
+                      </div>
+
+                      {routeEntries.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-amber-500/30 bg-amber-500/5 p-4 text-center">
+                          <p className="text-xs text-amber-300">
+                            Aucun pays configuré pour cette boutique.
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-400">
+                            Ajoutez votre premier marché pour que les commandes soient distribuées aux bonnes équipes.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {routeEntries.map(([code, r]) => {
+                            const meta = getCountryMeta(code);
+                            const isLocal = r.assignedTeamId === team.id;
+                            const eligibleTeams = allTeams.filter(
+                              (t) => (t.defaultCountry || "BJ").toUpperCase() === code.toUpperCase()
+                            );
+
+                            return (
+                              <div
+                                key={code}
+                                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-border bg-surface-raised p-3.5 shadow-xs"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <CountryFlag code={code} />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold text-slate-100">
+                                        {meta.name}
+                                      </span>
+                                      <span className="rounded bg-surface px-1.5 py-0.2 font-mono text-[10px] text-slate-400">
+                                        {code}
+                                      </span>
+                                    </div>
+                                    <p className="mt-0.5 text-[11px] text-slate-400">
+                                      Assigné à :{" "}
+                                      <span
+                                        className={`font-semibold ${
+                                          isLocal ? "text-emerald-400" : "text-sky-300"
+                                        }`}
+                                      >
+                                        {isLocal ? "Cette équipe (Propriétaire)" : r.assignedTeamName}
+                                      </span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  {isLocal ? (
+                                    <select
+                                      defaultValue=""
+                                      onChange={(e) => {
+                                        if (!e.target.value) return;
+                                        const targetTeam = allTeams.find(
+                                          (t) => t.id === e.target.value
+                                        );
+                                        if (!targetTeam) return;
+                                        setConfirmModal({
+                                          connectionId: conn.id,
+                                          countryCode: code,
+                                          targetTeamId: targetTeam.id,
+                                          targetTeamName: targetTeam.name,
+                                          action: "assign",
+                                        });
+                                        e.target.value = "";
+                                      }}
+                                      className="h-8 rounded-lg border border-surface-border bg-surface px-2.5 text-xs font-medium text-slate-200 outline-none transition hover:border-slate-500 focus:border-amber-500"
+                                    >
+                                      <option value="" disabled>
+                                        Transférer le routage…
+                                      </option>
+                                      {eligibleTeams
+                                        .filter((t) => t.id !== team.id)
+                                        .map((t) => (
+                                          <option key={t.id} value={t.id}>
+                                            Transférer à {t.name}
+                                          </option>
+                                        ))}
+                                      {eligibleTeams.filter((t) => t.id !== team.id).length === 0 && (
+                                        <option value="" disabled>
+                                          Aucune autre équipe disponible
+                                        </option>
+                                      )}
+                                    </select>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setConfirmModal({
+                                          connectionId: conn.id,
+                                          countryCode: code,
+                                          targetTeamId: team.id,
+                                          targetTeamName: team.name,
+                                          action: "revoke",
+                                        })
+                                      }
+                                      className="inline-flex h-8 items-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 text-xs font-semibold text-amber-300 transition hover:bg-amber-500/20"
+                                    >
+                                      Reprendre localement
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Flux partagés depuis d'autres équipes */}
+          {borrowedFlux.length > 0 && (
+            <div className="mt-8 border-t border-surface-border pt-6">
+              <div className="mb-3 flex items-center gap-2">
+                <Share2 className="h-4 w-4 text-sky-400" />
+                <h3 className="text-xs font-bold tracking-wider text-slate-300 uppercase">
+                  Flux Azify partagés avec votre équipe ({borrowedFlux.length})
+                </h3>
+              </div>
+              <p className="mb-4 text-xs text-slate-400">
+                Ces boutiques appartiennent à d&apos;autres équipes du compte, mais leurs commandes pour ces pays sont automatiquement redirigées vers votre équipe locale.
+              </p>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {borrowedFlux.map((bf) => {
+                  const meta = getCountryMeta(bf.countryCode);
+                  return (
+                    <div
+                      key={`${bf.connection.id}-${bf.countryCode}`}
+                      className="flex items-center justify-between rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 shadow-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CountryFlag code={bf.countryCode} />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-100">
+                              {bf.connection.shopName}
+                            </span>
+                            <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">
+                              {meta.name}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] text-slate-400">
+                            Boutique gérée par :{" "}
+                            <span className="font-semibold text-slate-200">
+                              {bf.connection.ownerTeamName}
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                        <Check className="h-3 w-3" />
+                        Réception active
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
+      {/* Modale de déconnexion (pause) */}
       <ConfirmDialog
         open={!!disconnectTarget}
-        title="Déconnecter cette boutique Azify ?"
+        title="Mettre en pause cette boutique Azify ?"
         message={
           disconnectTarget
-            ? `Voulez-vous mettre en pause la boutique Azify « ${disconnectTarget.shopName} » (${disconnectTarget.shopDomain}) ? Vous pourrez la reconnecter en 1 clic sans perdre votre historique.`
+            ? `Voulez-vous suspendre temporairement la réception pour « ${disconnectTarget.shopName} » (${disconnectTarget.shopDomain}) ? La boutique restera enregistrée et vous pourrez la réactiver en 1 clic sans perdre vos configurations.`
             : ""
         }
-        confirmLabel="Déconnecter"
+        confirmLabel="Mettre en pause"
         danger={false}
         loading={disconnectBusy}
         onConfirm={confirmDisconnect}
         onCancel={() => setDisconnectTarget(null)}
       />
 
+      {/* Modale de suppression définitive */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Supprimer cette connexion Azify ?"
+        title="Supprimer définitivement cette boutique Azify ?"
         message={
           deleteTarget
-            ? `Supprimer définitivement la liaison avec la boutique Azify « ${deleteTarget.shopName} » (${deleteTarget.shopDomain}) de WariTrack ?`
+            ? `Êtes-vous sûr de vouloir supprimer définitivement la liaison avec « ${deleteTarget.shopName} » (${deleteTarget.shopDomain}) de WariTrack ? Cette action est irréversible.`
             : ""
         }
         confirmLabel="Supprimer définitivement"
@@ -1097,33 +1318,46 @@ export default function AzifyFluxManager({
         onCancel={() => setDeleteTarget(null)}
       />
 
+      {/* Modale de confirmation de transfert de routage pays */}
       {confirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
           <div className="w-full max-w-md space-y-4 rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl">
-            <h3 className="text-sm font-bold text-slate-100">
-              {confirmModal.action === "revoke"
-                ? "Révoquer le partage pays"
-                : "Assigner ce pays à une autre équipe"}
-            </h3>
+            <div className="flex items-center gap-3 border-b border-surface-border pb-3">
+              <CountryFlag code={confirmModal.countryCode} />
+              <h3 className="text-sm font-bold text-slate-100">
+                {confirmModal.action === "revoke"
+                  ? "Reprendre le routage localement"
+                  : "Déléguer le routage vers une autre équipe"}
+              </h3>
+            </div>
+
             <p className="text-xs leading-relaxed text-slate-300">
               {confirmModal.action === "revoke" ? (
                 <>
-                  Reprendre les commandes Azify venant de{" "}
-                  <strong>{getCountryMeta(confirmModal.countryCode).name}</strong> dans votre équipe ?
+                  Toutes les nouvelles commandes Azify en provenance de{" "}
+                  <strong className="text-white">
+                    {getCountryMeta(confirmModal.countryCode).name} ({confirmModal.countryCode})
+                  </strong>{" "}
+                  seront désormais gérées directement par votre équipe locale{" "}
+                  <strong className="text-amber-400">« {team.name} »</strong>.
                 </>
               ) : (
                 <>
-                  Routage des commandes Azify pour{" "}
-                  <strong>{getCountryMeta(confirmModal.countryCode).name}</strong> vers{" "}
-                  <strong>{confirmModal.targetTeamName}</strong> ?
+                  Transférer le routage des commandes Azify pour{" "}
+                  <strong className="text-white">
+                    {getCountryMeta(confirmModal.countryCode).name} ({confirmModal.countryCode})
+                  </strong>{" "}
+                  vers l&apos;équipe locale{" "}
+                  <strong className="text-sky-400">« {confirmModal.targetTeamName} »</strong> ? Les commandes en attente pour ce pays seront également réassignées.
                 </>
               )}
             </p>
-            <div className="flex justify-end gap-2 pt-2">
+
+            <div className="flex justify-end gap-2.5 pt-3">
               <button
                 type="button"
                 onClick={() => setConfirmModal(null)}
-                className="rounded-xl border border-surface-border px-4 py-2 text-xs font-medium text-slate-300 hover:bg-surface"
+                className="h-10 rounded-xl border border-surface-border bg-surface px-4 text-xs font-semibold text-slate-300 transition hover:bg-surface-subtle"
               >
                 Annuler
               </button>
@@ -1131,29 +1365,40 @@ export default function AzifyFluxManager({
                 type="button"
                 disabled={confirmBusy}
                 onClick={executeRouteAction}
-                className="rounded-xl bg-brand px-4 py-2 text-xs font-bold text-slate-950"
+                className="h-10 rounded-xl bg-amber-500 px-5 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-50"
               >
-                {confirmBusy ? "Traitement…" : "Confirmer"}
+                {confirmBusy ? "Traitement…" : "Confirmer le routage"}
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Modale d'ajout d'un pays de routage */}
       {addCountryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs">
           <div className="w-full max-w-sm space-y-4 rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl">
-            <h3 className="text-sm font-bold text-slate-100">Ajouter un pays Azify</h3>
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400">
-                Choisir le pays parmi vos équipes :
+            <div className="flex items-center justify-between border-b border-surface-border pb-3">
+              <h3 className="text-sm font-bold text-slate-100">Ajouter un pays de distribution</h3>
+              <button
+                type="button"
+                onClick={() => setAddCountryModal(null)}
+                className="rounded p-1 text-slate-400 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-300">
+                Sélectionnez le pays pour cette boutique Azify :
               </label>
               <select
                 value={selectedCountryToAdd}
                 onChange={(e) => setSelectedCountryToAdd(e.target.value)}
-                className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-200 outline-none"
+                className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-xs text-slate-100 outline-none transition focus:border-amber-500"
               >
-                <option value="">-- Sélectionner un pays --</option>
+                <option value="">-- Choisir un pays parmi vos marchés --</option>
                 {countriesWithTeams.map((c) => {
                   const meta = getCountryMeta(c);
                   return (
@@ -1163,12 +1408,16 @@ export default function AzifyFluxManager({
                   );
                 })}
               </select>
+              <p className="text-[11px] text-slate-400">
+                Le pays sera automatiquement rattaché à l&apos;équipe WariTrack correspondante.
+              </p>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+
+            <div className="flex justify-end gap-2.5 pt-3">
               <button
                 type="button"
                 onClick={() => setAddCountryModal(null)}
-                className="rounded-xl border border-surface-border px-3 py-1.5 text-xs text-slate-400 hover:bg-surface"
+                className="h-9 rounded-xl border border-surface-border bg-surface px-3.5 text-xs text-slate-400 transition hover:bg-surface-subtle hover:text-white"
               >
                 Annuler
               </button>
@@ -1176,9 +1425,9 @@ export default function AzifyFluxManager({
                 type="button"
                 disabled={!selectedCountryToAdd}
                 onClick={handleAddCountry}
-                className="rounded-xl bg-brand px-4 py-1.5 text-xs font-bold text-slate-950 disabled:opacity-40"
+                className="h-9 rounded-xl bg-amber-500 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:opacity-40"
               >
-                Ajouter
+                Ajouter ce pays
               </button>
             </div>
           </div>
