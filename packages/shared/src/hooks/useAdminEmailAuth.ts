@@ -29,20 +29,26 @@ interface AdminAuthResult {
  * workspace isole, la Cloud Function reste agnostique du fournisseur.
  */
 function formatAuthError(err: unknown, fallback: string): string {
-  if (err && typeof err === "object" && "code" in err) {
-    const code = String((err as any).code);
-    if (code === "auth/unauthorized-domain") {
-      return "Ce domaine n'est pas autorisé pour la connexion sécurisée. Veuillez vous connecter depuis l'adresse officielle de votre plateforme.";
-    }
-    if (code === "auth/unauthorized-continue-uri") {
-      return "L'adresse de redirection n'est pas autorisée. Veuillez vous connecter depuis l'adresse officielle de votre plateforme.";
-    }
-    if (code === "auth/network-request-failed") {
-      return "Impossible de joindre les serveurs sécurisés. Vérifiez votre connexion Internet.";
-    }
-    if (code === "auth/invalid-email") {
-      return "Adresse email invalide. Veuillez vérifier votre saisie.";
-    }
+  const code = err && typeof err === "object" && "code" in err ? String((err as any).code) : "";
+  const message = err instanceof Error ? err.message : String(err ?? "");
+
+  if (code === "auth/invalid-action-code" || message.includes("auth/invalid-action-code")) {
+    return "Ce lien a déjà été utilisé ou a expiré. Veuillez redemander un nouveau lien ci-dessous, ou connectez-vous directement avec Google en 1 clic.";
+  }
+  if (code === "auth/expired-action-code" || message.includes("auth/expired-action-code")) {
+    return "Ce lien de connexion a expiré (validité 15 min). Veuillez demander un nouveau lien ou vous connecter avec Google.";
+  }
+  if (code === "auth/unauthorized-domain" || message.includes("auth/unauthorized-domain")) {
+    return "Ce domaine n'est pas autorisé pour la connexion sécurisée. Veuillez vous connecter depuis l'adresse officielle de votre plateforme.";
+  }
+  if (code === "auth/unauthorized-continue-uri" || message.includes("auth/unauthorized-continue-uri")) {
+    return "L'adresse de redirection n'est pas autorisée. Veuillez vous connecter depuis l'adresse officielle de votre plateforme.";
+  }
+  if (code === "auth/network-request-failed" || message.includes("auth/network-request-failed")) {
+    return "Impossible de joindre les serveurs sécurisés. Vérifiez votre connexion Internet.";
+  }
+  if (code === "auth/invalid-email" || message.includes("auth/invalid-email")) {
+    return "Adresse email invalide. Veuillez vérifier votre saisie.";
   }
   return err instanceof Error ? err.message : fallback;
 }
@@ -123,7 +129,8 @@ export function useAdminEmailAuth() {
         await provision();
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Lien invalide ou expire.");
+        window.history.replaceState(null, "", window.location.pathname);
+        setError(formatAuthError(err, "Lien de connexion invalide ou expiré."));
       })
       .finally(() => setBusy(false));
   }, [provision]);
