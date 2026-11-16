@@ -17,6 +17,10 @@ self.addEventListener("install", () => {
   self.skipWaiting();
 });
 
+self.addEventListener("activate", (event) => {
+  event.waitUntil(clients.claim());
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.stopImmediatePropagation();
   event.notification.close();
@@ -65,11 +69,12 @@ async function getWhiteLabelBranding() {
 }
 
 messaging.onBackgroundMessage(async (payload) => {
-  if (payload && payload.notification) return;
-
   const wl = await getWhiteLabelBranding();
-  const title = payload?.data?.title || (wl?.brandName ? `${wl.brandName} — Admin` : "WariTrack — Admin");
-  const body = payload?.data?.body || "";
+  const title =
+    payload?.notification?.title ||
+    payload?.data?.title ||
+    (wl?.brandName ? `${wl.brandName} — Admin` : "WariTrack — Admin");
+  const body = payload?.notification?.body || payload?.data?.body || "";
   const orderId = payload?.data?.orderId || "";
   const targetUrl = payload?.data?.url || (orderId ? `/?orderId=${orderId}` : "/");
   const icon = resolveSafeIcon(wl?.logoUrl);
