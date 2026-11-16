@@ -32,6 +32,9 @@ function formatAuthError(err: unknown, fallback: string): string {
   const code = err && typeof err === "object" && "code" in err ? String((err as any).code) : "";
   const message = err instanceof Error ? err.message : String(err ?? "");
 
+  if (code === "functions/internal" || message === "internal" || message.includes("billing")) {
+    return "Connexion impossible : La facturation Google Cloud / Firebase (Plan Blaze) est désactivée pour ce projet. Veuillez réactiver le compte de facturation dans la console Firebase.";
+  }
   if (code === "auth/invalid-action-code" || message.includes("auth/invalid-action-code")) {
     return "Ce lien a déjà été utilisé ou a expiré. Veuillez redemander un nouveau lien ci-dessous, ou connectez-vous directement avec Google en 1 clic.";
   }
@@ -95,7 +98,7 @@ export function useAdminEmailAuth() {
         return false;
       }
       await signOut(getFirebaseAuth()).catch(() => {});
-      setError(err instanceof Error ? err.message : "Connexion impossible.");
+      setError(formatAuthError(err, "Connexion impossible."));
       return false;
     } finally {
       setBusy(false);
