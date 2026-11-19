@@ -106,7 +106,10 @@ messaging.onBackgroundMessage(async (payload) => {
 
   // N'afficher de grande image / bannire QUE s'il s'agit d'une vraie image produit en HTTP/HTTPS
   const rawImage = payload?.notification?.image || payload?.data?.image || payload?.data?.productImageUrl;
-  const hasProductImage = typeof rawImage === "string" && rawImage.startsWith("http");
+  const hasProductImage =
+    typeof rawImage === "string" &&
+    rawImage.startsWith("http") &&
+    !rawImage.includes("waritrack-brand-banner");
   const image = hasProductImage ? rawImage : undefined;
 
   const tag = payload?.data?.tag || (orderId ? `waritrack-order-${orderId}` : `waritrack-closeuse-${Date.now()}`);

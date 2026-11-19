@@ -115,7 +115,8 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
   const badge = toAbsoluteNotificationUrl(options.badge || "/icons/badge-96.png");
   const hasProductImage =
     typeof options.image === "string" &&
-    (options.image.startsWith("http://") || options.image.startsWith("https://"));
+    (options.image.startsWith("http://") || options.image.startsWith("https://")) &&
+    !options.image.includes("waritrack-brand-banner");
   const image = hasProductImage ? options.image : undefined;
   const tag =
     options.tag ||
@@ -124,17 +125,38 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
 
   let anyShown = false;
 
+  // 1. Déclenchement PRIORITAIRE via Service Worker (évite les doublons et assure le routage PWA au clic)
+  try {
+    const reg = await getSafeServiceWorkerRegistration();
+    if (reg && "showNotification" in reg) {
+      await reg.showNotification(options.title, {
+        body: options.body,
+        icon,
+        badge,
+        tag,
+        renotify: options.renotify ?? true,
+        requireInteraction: options.requireInteraction ?? true,
+        data: {
+          orderId: options.orderId,
+          url: targetUrl,
+        },
+        ...(image ? { image } : {}),
+      } as any);
+      anyShown = true;
+      console.log("[WariTrack Notification] Notification enregistrée via Service Worker.");
+    }
+  } catch (err) {
+    console.warn("[WariTrack Notification] ServiceWorker showNotification avertissement:", err);
+  }
+
+  // 2. Fallback direct si et seulement si aucun Service Worker n'a pu afficher la notification
   const isStandalone =
     typeof window !== "undefined" &&
     (window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as any).standalone === true ||
       document.referrer.includes("android-app://"));
 
-  // 1. Déclenchement direct dans la fenêtre PWA
-  // IMPORTANT: Si la page tourne dans un simple onglet de navigateur Chrome, on ne doit JAMAIS
-  // créer de new Notification() car son clic forcerait Chrome à revenir au premier plan au lieu de la PWA !
-  // Seul le Service Worker doit émettre pour toujours router vers l'application PWA installée.
-  if (isStandalone) {
+  if (!anyShown && isStandalone) {
     try {
       const directNotif = new Notification(options.title, {
         body: options.body,
@@ -178,34 +200,10 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
       };
 
       anyShown = true;
-      console.log("[WariTrack Notification] Popup écran déclenché dans la PWA installée");
+      console.log("[WariTrack Notification] Popup écran de secours déclenché dans la PWA");
     } catch (err) {
       console.warn("[WariTrack Notification] Direct Notification avertissement:", err);
     }
-  }
-
-  // 2. Déclenchement via Service Worker (assure l'enregistrement persistant dans le Centre de notifications Windows)
-  try {
-    const reg = await getSafeServiceWorkerRegistration();
-    if (reg && "showNotification" in reg) {
-      await reg.showNotification(options.title, {
-        body: options.body,
-        icon,
-        badge,
-        tag,
-        renotify: options.renotify ?? true,
-        requireInteraction: options.requireInteraction ?? true,
-        data: {
-          orderId: options.orderId,
-          url: targetUrl,
-        },
-        ...(image ? { image } : {}),
-      } as any);
-      anyShown = true;
-      console.log("[WariTrack Notification] Notification enregistrée via Service Worker.");
-    }
-  } catch (err) {
-    console.warn("[WariTrack Notification] ServiceWorker showNotification avertissement:", err);
   }
 
   return anyShown;

@@ -265,20 +265,34 @@ export function useRegisterPushNotifications(
           })
         );
 
-        // 2. Affiche systématiquement la notification OS native dans le Centre de notifications Windows / OS
-        const wl = await readCachedWhiteLabelForSw();
-        const icon = resolveSafeNotificationIcon(wl?.logoUrl);
-        void triggerSystemNotification({
-          title,
-          body,
-          icon,
-          image: payload.data?.image || payload.notification?.image || "/icons/waritrack-brand-banner.jpg",
-          badge: "/icons/badge-96.png",
-          requireInteraction: true,
-          orderId,
-          tag,
-          url: targetUrl,
-        });
+        // 2. Extraction stricte de l'image réelle du produit (aucun wallpaper générique)
+        const rawImage = payload.data?.image || payload.notification?.image || payload.data?.productImageUrl;
+        const validProductImage =
+          typeof rawImage === "string" &&
+          (rawImage.startsWith("http://") || rawImage.startsWith("https://")) &&
+          !rawImage.includes("waritrack-brand-banner")
+            ? rawImage
+            : undefined;
+
+        // 3. Notification OS native : seulement en arrière-plan OU s'il s'agit d'une vraie commande
+        const isDocumentVisible = typeof document !== "undefined" && document.visibilityState === "visible";
+        const isRealOrder = Boolean(orderId) || title.toLowerCase().includes("commande") || title.toLowerCase().includes("livraison");
+
+        if (!isDocumentVisible || isRealOrder) {
+          const wl = await readCachedWhiteLabelForSw();
+          const icon = resolveSafeNotificationIcon(wl?.logoUrl);
+          void triggerSystemNotification({
+            title,
+            body,
+            icon,
+            image: validProductImage,
+            badge: "/icons/badge-96.png",
+            requireInteraction: true,
+            orderId,
+            tag,
+            url: targetUrl,
+          });
+        }
       });
     };
 

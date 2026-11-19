@@ -1109,6 +1109,14 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         if (after.product) {
             await recordProductDeliveryStock(workspaceId, after.teamId, after.product, Number(after.quantity || 1));
         }
+        // Alerte instantanée pour la closeuse responsable du dossier
+        if (after.closeuseId) {
+            const livName = after.assignedLivreurName || after.livreurName || "Votre livreur";
+            const cName = after.clientName || "Client";
+            const cityStr = after.city ? ` (${after.city})` : "";
+            const amountStr = after.amount ? ` · ${after.amount} XOF` : "";
+            await sendPushToUser(workspaceId, after.closeuseId, `🎉 Commande livrée & encaissée (${cName})`, `${livName} a livré et encaissé le colis de ${cName}${cityStr}${amountStr} en espèces ! Félicitations pour votre closing.`, orderId, orderProductImg);
+        }
         // Synchronisation retour vers la vitrine Azify (Statut: Livrée & Encaissée)
         await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "delivered");
         // Isolation Meta CAPI pour les numéros doublons ("acces_libre_site") :
@@ -1300,6 +1308,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             const noteDetail = noteStr ? ` (Note: "${noteStr}")` : "";
             await sendPushToUser(workspaceId, after.closeuseId, `⚠️ Client injoignable sur le terrain (${cName})`, `${livName} signale que ${cName}${cityStr} ne répond pas${noteDetail}. Relancez le client sur WhatsApp ou appel immédiatement !`, orderId, orderProductImg);
         }
+        // Synchronisation retour vers la vitrine Azify (Statut: Client Injoignable terrain)
+        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "unreachable");
         // Alerte Administrateurs : Colis en échec de livraison
         const clientName = after.clientName || "Client";
         const livreurName = after.assignedLivreurName || after.livreurName || "Livreur";
@@ -1324,6 +1334,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         }
         else if (after.statutCloseuse === "injoignable") {
             await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
+            // Synchronisation retour vers la vitrine Azify (Statut: Injoignable)
+            await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "unreachable");
         }
     }
     // Sync retour Firestore -> Sheet pour tous les AUTRES changements de
@@ -1787,9 +1799,6 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId, 
                 requireInteraction: true,
                 data: dataPayload,
                 ...(hasImage ? { image: imageUrl } : {}),
-            },
-            fcmOptions: {
-                link: clickUrl,
             },
         },
     };

@@ -235,8 +235,20 @@ const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack
         <p className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
           {formattedAmount}
         </p>
-        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          À encaisser en cash
+        <span
+          className={`text-[11px] font-medium ${
+            status === "livre"
+              ? "text-emerald-600 dark:text-emerald-400 font-semibold"
+              : status === "injoignable"
+                ? "text-red-500 dark:text-red-400"
+                : "text-slate-500 dark:text-slate-400"
+          }`}
+        >
+          {status === "livre"
+            ? "Encaissé en espèces ✓"
+            : status === "injoignable"
+              ? "Échec / Non encaissé"
+              : "À encaisser en cash"}
         </span>
       </div>
 

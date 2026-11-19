@@ -482,12 +482,36 @@ export const shopifyWebhook = onRequest(
 
     try {
       const orderPayload = parseJsonBody(req);
+      const azifyVerifyTokenHeader = String(
+        req.headers["x-azify-verify-token"] ||
+        req.headers["x-azify-token"] ||
+        req.headers["x-verify-token"] ||
+        ""
+      ).trim();
+      const azifyShopDomainHeader = String(
+        req.headers["x-azify-shop-domain"] ||
+        req.headers["x-azify-store-id"] ||
+        ""
+      ).trim().toLowerCase();
+      const payloadVerifyToken = String(orderPayload?.verifyToken || orderPayload?.ecomcod_verify || "").trim();
+      const effectiveVerifyToken = azifyVerifyTokenHeader || payloadVerifyToken;
+
       const shopDomain = (
+        azifyShopDomainHeader ||
         (req.headers["x-shopify-shop-domain"] as string) ||
         orderPayload?.shop_url ||
         orderPayload?.domain ||
+        orderPayload?.shopDomain ||
         ""
       ).trim().toLowerCase();
+
+      const isAzifyRequest =
+        Boolean(azifyShopDomainHeader) ||
+        Boolean(azifyVerifyTokenHeader) ||
+        orderPayload?.sourcePlatform === "azify" ||
+        Boolean(payloadVerifyToken) ||
+        shopDomain.includes("azishop") ||
+        shopDomain.includes("azify");
 
       if (!orderPayload || !orderPayload.id) {
         res.status(400).send("Bad Request: payload manquant ou invalide.");
@@ -498,8 +522,29 @@ export const shopifyWebhook = onRequest(
       const orderNumber = orderPayload.order_number ? `#${orderPayload.order_number}` : (orderPayload.name || `#${shopifyOrderId}`);
       const db = getDb();
 
-      // Rechercher la connexion Shopify correspondante (Multi-boutique / Flux)
-      let found = await findConnection(db, shopDomain);
+      // Rechercher la connexion Shopify / Azify correspondante (Multi-boutique / Flux)
+      let found: { doc: admin.firestore.QueryDocumentSnapshot; status: ConnectionStatus } | null = null;
+
+      // Recherche directe prioritaire par verifyToken si fourni (requête Azify ou script)
+      if (effectiveVerifyToken) {
+        try {
+          const tokenSnap = await db
+            .collectionGroup("shopifyConnections")
+            .where("verifyToken", "==", effectiveVerifyToken)
+            .limit(1)
+            .get();
+          if (!tokenSnap.empty) {
+            const doc = tokenSnap.docs[0];
+            found = { doc, status: (doc.data().status as ConnectionStatus) || "active" };
+          }
+        } catch (tokenErr) {
+          console.warn("verifyToken collectionGroup lookup error in webhook:", tokenErr);
+        }
+      }
+
+      if (!found && shopDomain) {
+        found = await findConnection(db, shopDomain);
+      }
 
       // Si non trouvé via l'en-tête, chercher dans les métadonnées de commande
       if (!found && orderPayload) {
@@ -545,10 +590,37 @@ export const shopifyWebhook = onRequest(
       const connection = connDoc.data();
       const workspaceId = connection.workspaceId;
 
-      // SÉCURITÉ : Vérification de la signature cryptographique HMAC officielle Shopify
-      // Shopify envoie l'en-tête X-Shopify-Hmac-Sha256 calculé avec le webhookSecret partagé.
+      // SÉCURITÉ : Vérification de la signature cryptographique (Shopify HMAC ou Azify verifyToken/Signature)
       const hmacHeader = String(req.headers["x-shopify-hmac-sha256"] || "");
-      if (connection.webhookSecret) {
+      const azifySigHeader = String(req.headers["x-azify-signature"] || req.headers["x-waritrack-signature"] || "");
+
+      if (isAzifyRequest || effectiveVerifyToken) {
+        // Authentification Azify : soit correspondance stricte du verifyToken, soit signature HMAC
+        const tokenMatches = Boolean(
+          effectiveVerifyToken &&
+          connection.verifyToken &&
+          effectiveVerifyToken === connection.verifyToken
+        );
+
+        let hmacMatches = false;
+        if (azifySigHeader && (connection.webhookSecret || connection.verifyToken)) {
+          const secret = connection.webhookSecret || connection.verifyToken;
+          const rawBody = req.rawBody ? req.rawBody.toString("utf8") : JSON.stringify(orderPayload);
+          const expectedSig = crypto.createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
+          const sigBuf = Buffer.from(azifySigHeader);
+          const expBuf = Buffer.from(expectedSig);
+          if (sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf)) {
+            hmacMatches = true;
+          }
+        }
+
+        if (!tokenMatches && !hmacMatches && (connection.verifyToken || connection.webhookSecret)) {
+          console.warn("shopifyWebhook: rejeté car token/signature Azify invalide pour", shopDomain);
+          res.status(401).send("Unauthorized: Authentification Azify invalide.");
+          return;
+        }
+      } else if (connection.webhookSecret) {
+        // Validation HMAC officielle Shopify standard
         if (!hmacHeader) {
           console.warn("shopifyWebhook: rejeté car aucun en-tête HMAC présent pour", shopDomain);
           res.status(401).send("Unauthorized: En-tête X-Shopify-Hmac-Sha256 manquant.");
@@ -946,6 +1018,10 @@ export const shopifyWebhook = onRequest(
           noteMap["dialect"] ||
           null,
 
+        sourcePlatform: isAzifyRequest ? "azify" : "shopify",
+        azifyStoreId: isAzifyRequest ? (connection.azifyStoreId || connection.id) : null,
+        azifyStoreName: isAzifyRequest ? (connection.shopName || connection.shopDomain || "Azify Studio") : null,
+
         closeuseId: null,
         livreurId: null,
         statutCloseuse: "nouveau",
@@ -1199,19 +1275,51 @@ export const getStorefrontTrackerScript = onRequest(
 export async function syncOrderUpdateToAzify(
   workspaceId: string,
   orderData: Record<string, any>,
-  status: "confirmed" | "shipped" | "delivered" | "cancelled"
+  status: "confirmed" | "shipped" | "delivered" | "cancelled" | "unreachable" | "returned"
 ) {
   try {
-    const shopDomain = orderData?.shopifyData?.shopDomain;
-    const orderNumber = orderData?.orderNumber || orderData?.shopifyOrderId;
-    if (!shopDomain || !orderNumber) return;
+    const shopDomain = orderData?.shopifyData?.shopDomain || orderData?.shopDomain;
+    const orderNumber = orderData?.orderNumber || orderData?.shopifyOrderId || orderData?.id;
+    if (!orderNumber) return;
 
-    const cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    const connId = cleanDomain.replace(/[^a-z0-9]/gi, "_");
-    const connSnap = await getDb().collection("workspaces").doc(workspaceId).collection("shopifyConnections").doc(connId).get();
-    const conn = connSnap.data();
+    let conn: any = null;
+    let cleanDomain = "";
 
-    const targetUrl = conn?.azifyWebhookUrl || `https://${cleanDomain}/api/integrations/waritrack/webhook`;
+    if (shopDomain) {
+      cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+      const connId = cleanDomain.replace(/[^a-z0-9]/gi, "_");
+      const connSnap = await getDb().collection("workspaces").doc(workspaceId).collection("shopifyConnections").doc(connId).get();
+      if (connSnap.exists) conn = connSnap.data();
+    }
+
+    if (!conn) {
+      // Rechercher la première connexion active Azify dans ce workspace
+      const azifySnap = await getDb()
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("shopifyConnections")
+        .where("status", "==", "active")
+        .limit(5)
+        .get();
+      const azifyDoc = azifySnap.docs.find((d) => {
+        const data = d.data();
+        return (
+          data.sourcePlatform === "azify" ||
+          Boolean(data.azifyWebhookUrl) ||
+          Boolean(data.azifyStoreId) ||
+          (data.domains || []).some((dom: string) => dom.toLowerCase().includes("azishop")) ||
+          (data.shopDomain || "").toLowerCase().includes("azishop")
+        );
+      });
+      if (azifyDoc) {
+        conn = azifyDoc.data();
+        cleanDomain = conn.shopDomain || conn.customDomain || "azishop-pwa-studio.vercel.app";
+      }
+    }
+
+    const targetUrl = conn?.azifyWebhookUrl || (cleanDomain ? `https://${cleanDomain}/api/integrations/waritrack/webhook` : null);
+    if (!targetUrl) return;
+
     const payload = {
       orderId: orderNumber,
       orderNumber: orderNumber,
@@ -1219,16 +1327,28 @@ export async function syncOrderUpdateToAzify(
       courierName: orderData.assignedLivreurName || orderData.livreurName || undefined,
       courierPhone: orderData.assignedLivreurPhone || orderData.livreurPhone || undefined,
       amountCollected: status === "delivered" ? orderData.amount : undefined,
+      failureReason: orderData.deliveryFailureReason || orderData.rejectionReason || undefined,
+      notes: orderData.deliveryFieldNote || orderData.fieldNote || undefined,
       verifyToken: conn?.verifyToken || undefined,
       shopDomain: cleanDomain,
+      timestamp: Date.now(),
     };
+
+    const payloadJson = JSON.stringify(payload);
+    const secret = conn?.verifyToken || conn?.webhookSecret || "waritrack_secret";
+    const signature = crypto.createHmac("sha256", secret).update(payloadJson, "utf8").digest("hex");
 
     await fetch(targetUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+        "X-WariTrack-Signature": signature,
+        "X-Azify-Verify-Token": conn?.verifyToken || "",
+      },
+      body: payloadJson,
       signal: AbortSignal.timeout(6000),
     });
+    console.log(`syncOrderUpdateToAzify: statut ${status} synchronisé vers ${targetUrl}`);
   } catch (err) {
     console.warn("syncOrderUpdateToAzify error (non-bloquant):", err);
   }

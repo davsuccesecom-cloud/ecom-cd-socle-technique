@@ -35,6 +35,7 @@ import FluxTempsReel from "../components/FluxTempsReel";
 import PerformanceEmployes from "../components/PerformanceEmployes";
 import NotificationBell from "../components/NotificationBell";
 import ThemeQuickPicker from "../components/ThemeQuickPicker";
+import AzifyQuickSwitcher from "../components/AzifyQuickSwitcher";
 import WariTrackLogo from "../components/WariTrackLogo";
 import CommandPalette from "../components/CommandPalette";
 import TabErrorBoundary from "../components/TabErrorBoundary";
@@ -389,6 +390,11 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           />
         </div>
         <div className="flex items-center gap-1.5">
+          <AzifyQuickSwitcher
+            workspaceId={workspaceId}
+            onNavigateToAzifySettings={() => setPage("settings")}
+            compact
+          />
           <ThemeQuickPicker />
           <NotificationBell
             workspaceId={workspaceId}
@@ -463,6 +469,14 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             )}
 
             {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+
+            {/* Basculement Azify (Rectangle Noir en mode clair / Blanc en mode sombre) */}
+            <div className="hidden md:flex md:items-center">
+              <AzifyQuickSwitcher
+                workspaceId={workspaceId}
+                onNavigateToAzifySettings={() => setPage("settings")}
+              />
+            </div>
 
             {/* Contrôleur de thème & Palette */}
             <div className="hidden md:flex md:items-center">

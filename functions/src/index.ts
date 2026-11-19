@@ -1309,6 +1309,22 @@ export const onOrderUpdated = onDocumentUpdated(
         await recordProductDeliveryStock(workspaceId, after.teamId, after.product, Number(after.quantity || 1));
       }
 
+      // Alerte instantanée pour la closeuse responsable du dossier
+      if (after.closeuseId) {
+        const livName = after.assignedLivreurName || after.livreurName || "Votre livreur";
+        const cName = after.clientName || "Client";
+        const cityStr = after.city ? ` (${after.city})` : "";
+        const amountStr = after.amount ? ` · ${after.amount} XOF` : "";
+        await sendPushToUser(
+          workspaceId,
+          after.closeuseId,
+          `🎉 Commande livrée & encaissée (${cName})`,
+          `${livName} a livré et encaissé le colis de ${cName}${cityStr}${amountStr} en espèces ! Félicitations pour votre closing.`,
+          orderId,
+          orderProductImg
+        );
+      }
+
       // Synchronisation retour vers la vitrine Azify (Statut: Livrée & Encaissée)
       await syncOrderUpdateToAzify(workspaceId, after, "delivered");
 
@@ -1537,6 +1553,9 @@ export const onOrderUpdated = onDocumentUpdated(
         );
       }
 
+      // Synchronisation retour vers la vitrine Azify (Statut: Client Injoignable terrain)
+      await syncOrderUpdateToAzify(workspaceId, after, "unreachable");
+
       // Alerte Administrateurs : Colis en échec de livraison
       const clientName = after.clientName || "Client";
       const livreurName = after.assignedLivreurName || after.livreurName || "Livreur";
@@ -1570,6 +1589,8 @@ export const onOrderUpdated = onDocumentUpdated(
         );
       } else if (after.statutCloseuse === "injoignable") {
         await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
+        // Synchronisation retour vers la vitrine Azify (Statut: Injoignable)
+        await syncOrderUpdateToAzify(workspaceId, after, "unreachable");
       }
     }
 
@@ -2176,9 +2197,6 @@ function buildPushMulticastMessage(
         requireInteraction: true,
         data: dataPayload,
         ...(hasImage ? { image: imageUrl } : {}),
-      },
-      fcmOptions: {
-        link: clickUrl,
       },
     },
   };

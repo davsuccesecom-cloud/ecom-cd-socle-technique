@@ -168,6 +168,11 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
     const orderIdFromUrl = urlParams.get("orderId");
     if (orderIdFromUrl && orders.length > 0) {
       navigateToOrder(orderIdFromUrl);
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.delete("orderId");
+        window.history.replaceState({}, "", u.pathname + (u.search ? u.search : ""));
+      } catch {}
     }
 
     const handleMessage = (event: MessageEvent) => {
