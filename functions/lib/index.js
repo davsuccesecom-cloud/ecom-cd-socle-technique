@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -51,6 +51,8 @@ Object.defineProperty(exports, "trackSession", { enumerable: true, get: function
 Object.defineProperty(exports, "shopifyWebhook", { enumerable: true, get: function () { return shopifyTracking_1.shopifyWebhook; } });
 Object.defineProperty(exports, "getStorefrontTrackerScript", { enumerable: true, get: function () { return shopifyTracking_1.getStorefrontTrackerScript; } });
 Object.defineProperty(exports, "syncOrderUpdateToAzify", { enumerable: true, get: function () { return shopifyTracking_1.syncOrderUpdateToAzify; } });
+var azifyGateway_1 = require("./azifyGateway");
+Object.defineProperty(exports, "azifyGateway", { enumerable: true, get: function () { return azifyGateway_1.azifyGateway; } });
 const shopifyTracking_2 = require("./shopifyTracking");
 var aiProxy_1 = require("./aiProxy");
 Object.defineProperty(exports, "aiChatProxy", { enumerable: true, get: function () { return aiProxy_1.aiChatProxy; } });

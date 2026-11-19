@@ -21,6 +21,7 @@ import {
   disconnectMetaCapiConfig,
 } from "./metaAuth";
 export { trackSession, shopifyWebhook, getStorefrontTrackerScript, syncOrderUpdateToAzify } from "./shopifyTracking";
+export { azifyGateway } from "./azifyGateway";
 import { syncOrderUpdateToAzify } from "./shopifyTracking";
 export { aiChatProxy, aiProviders } from "./aiProxy";
 
