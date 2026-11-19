@@ -800,6 +800,18 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
         const utmSource = String(rawUtm.source || noteMap["utm_source"] || (landingSite.match(/[?&]utm_source=([^&#]+)/i)?.[1] ?? "")).toLowerCase();
         const utmMedium = String(rawUtm.medium || noteMap["utm_medium"] || (landingSite.match(/[?&]utm_medium=([^&#]+)/i)?.[1] ?? "")).toLowerCase();
         const utmCampaign = String(rawUtm.campaign || noteMap["utm_campaign"] || (landingSite.match(/[?&]utm_campaign=([^&#]+)/i)?.[1] ?? ""));
+        // Extraction des coordonnées GPS précises & Google Maps (EasySell / Azify)
+        const googleMapsUrl = noteMap["google_maps_url"] ||
+            noteMap["maps"] ||
+            noteMap["maps_url"] ||
+            orderPayload.google_maps_url ||
+            null;
+        const positionGps = noteMap["position_gps"] ||
+            noteMap["gps"] ||
+            (orderPayload.latitude && orderPayload.longitude
+                ? `${orderPayload.latitude},${orderPayload.longitude}`
+                : null);
+        const precisionGps = noteMap["precision_gps"] || noteMap["accuracy"] || null;
         let trafficSource = "organique";
         let capiIsolated = false;
         let attributionDetail = "";
@@ -877,6 +889,10 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             reminderAt: null,
             // Température initiale : "hot" car commande toute fraîche
             temperature: "hot",
+            // Localisation GPS précise
+            googleMapsUrl: googleMapsUrl || (positionGps ? `https://www.google.com/maps?q=${positionGps}` : null),
+            gpsCoordinates: positionGps || null,
+            gpsAccuracy: precisionGps || null,
             // Qualification doublon & isolation Meta CAPI
             isDuplicatePhone,
             previousOrdersCount,
@@ -907,6 +923,9 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
                 pageUrl: String(orderPayload.landing_site || sessionData.pageUrl || ""),
                 noteAttributes: Array.isArray(noteAttributes) ? noteAttributes : [],
                 rawCustomerNotes: String(orderPayload.note || ""),
+                googleMapsUrl: googleMapsUrl || (positionGps ? `https://www.google.com/maps?q=${positionGps}` : null),
+                gpsCoordinates: positionGps || null,
+                gpsAccuracy: precisionGps || null,
                 ...sessionData,
             },
             timestamps: {

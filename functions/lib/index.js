@@ -1610,8 +1610,8 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId) 
             notification: {
                 title,
                 body,
-                icon: "/icons/icon-192.png",
-                badge: "/icons/badge-96.png",
+                icon: "https://waritrack-admin.vercel.app/icons/icon-192.png",
+                badge: "https://waritrack-admin.vercel.app/icons/badge-96.png",
                 image: "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg",
                 tag,
                 renotify: true,

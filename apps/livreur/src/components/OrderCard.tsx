@@ -124,6 +124,15 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
   const mapsQuery = displayLocation
     ? encodeURIComponent(`${displayLocation} ${distinctAddressNote}`.trim())
     : null;
+  const directMapsUrl = (order as any).googleMapsUrl || order.shopifyData?.googleMapsUrl;
+  const directGpsCoords = (order as any).gpsCoordinates || order.shopifyData?.gpsCoordinates;
+  const mapsHref = directMapsUrl
+    ? directMapsUrl
+    : directGpsCoords
+      ? `https://www.google.com/maps?q=${encodeURIComponent(directGpsCoords)}`
+      : mapsQuery
+        ? `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
+        : null;
 
   // Filtrage strict : Aucune fuite d'info interne (tokens, IPs, URLs boutique, cart token)
   // Ne conserver que les rares indications opérationnelles de course (créneau, repère, étage)
@@ -241,14 +250,20 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
                 <MapPin className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
                 <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{displayLocation}</span>
               </p>
-              {mapsQuery && (
+              {mapsHref && (
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${mapsQuery}`}
+                  href={mapsHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-[30px] shrink-0 items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                  className={`inline-flex min-h-[30px] shrink-0 items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold transition-colors ${
+                    directMapsUrl || directGpsCoords
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold"
+                      : "border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  }`}
+                  title={directMapsUrl || directGpsCoords ? "Localisation GPS exacte capturée lors de la commande" : "Recherche Google Maps"}
                 >
-                  <span>Maps</span>
+                  <MapPin className={`h-3 w-3 ${directMapsUrl || directGpsCoords ? "text-emerald-600" : "text-sky-600"}`} />
+                  <span>{directMapsUrl || directGpsCoords ? "GPS Exact 📍" : "Maps"}</span>
                   <ExternalLink className="h-3 w-3" />
                 </a>
               )}
