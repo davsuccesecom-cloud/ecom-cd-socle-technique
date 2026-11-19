@@ -196,20 +196,20 @@ export default function Sidebar({
         {/* Basculement Azify Studio (Bonus Visibilité Écosystème) */}
         {collapsed ? (
           <a
-            href="https://azishop-pwa-studio.vercel.app"
+            href="https://azishop-pwa-studio.vercel.app/admin"
             target="_blank"
             rel="noopener noreferrer"
-            title="Ouvrir Azify Studio (PWA E-commerce COD)"
+            title="Ouvrir Azify Studio Admin (PWA E-commerce COD)"
             className="flex h-8 w-8 mx-auto items-center justify-center rounded-lg border border-slate-900 bg-slate-950 text-white transition-transform hover:scale-105 dark:border-white dark:bg-white dark:text-slate-950 shadow-xs"
           >
             <img src="/icons/azify-logo-192.png" alt="Azify" className="h-4 w-4 object-contain" />
           </a>
         ) : (
           <a
-            href="https://azishop-pwa-studio.vercel.app"
+            href="https://azishop-pwa-studio.vercel.app/admin"
             target="_blank"
             rel="noopener noreferrer"
-            title="Ouvrir Azify Studio (PWA E-commerce COD)"
+            title="Ouvrir Azify Studio Admin (PWA E-commerce COD)"
             className="flex items-center justify-between rounded-lg border border-slate-900 bg-slate-950 px-2.5 py-2 text-xs font-bold text-white transition-all hover:bg-slate-800 dark:border-white dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 shadow-xs"
           >
             <div className="flex items-center gap-2">

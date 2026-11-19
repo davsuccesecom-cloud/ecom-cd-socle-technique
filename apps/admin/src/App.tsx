@@ -254,6 +254,8 @@ export default function App() {
     searchParams.has("azifyConnect") ||
     searchParams.has("azify") ||
     searchParams.has("pairingCode") ||
+    searchParams.has("azishop_handshake") ||
+    searchParams.get("ref") === "azify" ||
     (searchParams.get("code") || "").startsWith("AZIFY1:") ||
     pathname === "/connect/azify" ||
     pathname === "/connect/waritrack" ||

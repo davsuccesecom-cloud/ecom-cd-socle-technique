@@ -20,7 +20,8 @@ interface AzifyMobileFabProps {
   onNavigateToAzifySettings?: () => void;
 }
 
-const AZIFY_ADMIN_URL = "https://azishop-pwa-studio.vercel.app";
+const AZIFY_ADMIN_URL = "https://azishop-pwa-studio.vercel.app/admin";
+const AZIFY_REGISTER_URL = "https://azishop-pwa-studio.vercel.app/admin/login";
 
 export default function AzifyMobileFab({
   workspaceId,
@@ -68,8 +69,8 @@ export default function AzifyMobileFab({
   };
 
   const handleRegisterAzify = () => {
-    // Redirige vers la création de compte / enregistrement de boutique Azify
-    window.open(`${AZIFY_ADMIN_URL}`, "_blank", "noopener,noreferrer");
+    // Redirige directement vers la création de compte / connexion admin Azify
+    window.open(AZIFY_REGISTER_URL, "_blank", "noopener,noreferrer");
     setIsOpen(false);
   };
 

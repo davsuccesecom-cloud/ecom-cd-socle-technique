@@ -110,7 +110,7 @@ export default function AzifyConnectionSheet({
         if (decoded) return decoded;
       }
 
-      const domain = sp.get("shopDomain") || sp.get("domain") || sp.get("slug") || sp.get("store");
+      const domain = sp.get("shopDomain") || sp.get("shop_domain") || sp.get("domain") || sp.get("slug") || sp.get("store");
       if (domain) {
         return {
           storeName: sp.get("storeName") || sp.get("name") || domain,

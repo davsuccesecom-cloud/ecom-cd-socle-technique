@@ -21,7 +21,8 @@ interface AzifyQuickSwitcherProps {
   compact?: boolean;
 }
 
-const AZIFY_ADMIN_URL = "https://azishop-pwa-studio.vercel.app";
+const AZIFY_ADMIN_URL = "https://azishop-pwa-studio.vercel.app/admin";
+const AZIFY_REGISTER_URL = "https://azishop-pwa-studio.vercel.app/admin/login";
 
 export default function AzifyQuickSwitcher({
   workspaceId,
@@ -80,14 +81,15 @@ export default function AzifyQuickSwitcher({
 
   const handleOpenAdminStudio = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    // Ouvre TOUJOURS l'admin Azify Studio, jamais la vitrine client
+    // Ouvre TOUJOURS l'admin Azify Studio (/admin), jamais la vitrine client
     window.open(AZIFY_ADMIN_URL, "_blank", "noopener,noreferrer");
     setIsOpen(false);
   };
 
   const handleRegisterAccount = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    window.open(`${AZIFY_ADMIN_URL}`, "_blank", "noopener,noreferrer");
+    // Ouvre la page d'inscription / connexion de l'admin Azify
+    window.open(AZIFY_REGISTER_URL, "_blank", "noopener,noreferrer");
     setIsOpen(false);
   };
 
