@@ -49,12 +49,13 @@ export default function PushToast({
         audio.play().catch(() => {});
       } catch {}
 
-      // Transmission directe au Centre de notifications Windows / OS via le Service Worker
+      // Transmission directe au Centre de notifications Windows / OS avec image produit ou bannière
+      const bannerImg = (detail as any).productImageUrl || (detail as any).image || "/icons/waritrack-brand-banner.jpg";
       void triggerSystemNotification({
         title: detail.title || "WariTrack",
         body: detail.body || "",
         icon: "/icons/icon-192.png",
-        image: "/icons/waritrack-brand-banner.jpg",
+        image: bannerImg,
         badge: "/icons/badge-96.png",
         orderId: detail.orderId,
         url: detail.orderId ? `/?orderId=${detail.orderId}` : "/",
@@ -76,7 +77,8 @@ export default function PushToast({
 
   if (!toast) return null;
 
-  const iconSrc = customLogoUrl || fallbackIcon;
+  const productImg = (toast as any).productImageUrl || (toast as any).image;
+  const iconSrc = productImg || customLogoUrl || fallbackIcon;
 
   return (
     <div

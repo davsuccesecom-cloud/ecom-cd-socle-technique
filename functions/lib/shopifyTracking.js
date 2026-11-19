@@ -790,6 +790,16 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
                 }
             }
         }
+        const firstLineItem = Array.isArray(orderPayload.line_items) && orderPayload.line_items[0] ? orderPayload.line_items[0] : null;
+        const productImageUrl = (typeof orderPayload.image === "string" ? orderPayload.image : orderPayload.image?.src) ||
+            orderPayload.image_url ||
+            firstLineItem?.image ||
+            firstLineItem?.image_url ||
+            firstLineItem?.product_image ||
+            noteMap["product_image_url"] ||
+            noteMap["image_url"] ||
+            noteMap["product_image"] ||
+            null;
         const effectiveFbp = String(sessionData.fbp || noteMap["_fbp"] || noteMap["fbp"] || "");
         const effectiveFbc = String(sessionData.fbc || noteMap["_fbc"] || noteMap["fbc"] || "");
         const effectiveFbclid = String(sessionData.fbclid || noteMap["fbclid"] || (landingSite.match(/[?&]fbclid=([^&#]+)/i)?.[1] ?? ""));
@@ -869,6 +879,7 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             city: city || "",
             addressNote: shipping.address1 || orderPayload.note || "",
             product: product || "Produit COD Shopify",
+            productImageUrl,
             quantity: Number(quantity) || 1,
             amount: Number(amount) || 0,
             orderNumber: orderNumber || `#${shopifyOrderId}`,
@@ -903,6 +914,7 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             // Données Shopify & EasySell enrichies
             shopifyData: {
                 shopifyOrderId,
+                productImageUrl,
                 orderNumber: orderNumber || `#${shopifyOrderId}`,
                 clientLanguage: orderPayload.clientLanguage ||
                     noteMap["clientlanguage"] ||

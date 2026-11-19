@@ -992,6 +992,7 @@ export const onOrderCreated = onDocumentCreated(
 
     // Notification personnalisée pour la closeuse avec mention de la langue locale
     const langBadge = order.clientLanguage ? ` · 🗣️ Parler en ${order.clientLanguage}` : "";
+    const orderProductImg = order.productImageUrl || order.shopifyData?.productImageUrl || null;
     await sendPushToUser(
       workspaceId,
       chosen.id,
@@ -999,15 +1000,18 @@ export const onOrderCreated = onDocumentCreated(
       order.isDuplicatePhone
         ? `${order.clientName} - ${order.product}${langBadge} · Vérifier si 1 ou 2 produits`
         : `${order.clientName} - ${order.product}${langBadge}`,
-      snap.id
+      snap.id,
+      orderProductImg
     );
 
-    // Notification push temps réel envoyée aux administrateurs du Cockpit
+    // Notification push temps réel envoyée aux administrateurs du Cockpit avec photo produit
     const orderQty = order.quantity && order.quantity > 1 ? `${order.quantity}x ` : "";
     await notifyAdmins(
       workspaceId,
       `🛍️ Nouvelle commande : ${orderQty}${order.product || "Produit"}`,
-      `${order.clientName} · ${order.city || "Ville non précisée"} · ${order.amount ? `${Number(order.amount).toLocaleString("fr-FR")} XOF` : "À confirmer"}`
+      `${order.clientName} · ${order.city || "Ville non précisée"} · ${order.amount ? `${Number(order.amount).toLocaleString("fr-FR")} XOF` : "À confirmer"}`,
+      orderProductImg,
+      snap.id
     );
 
     if (order.isDuplicatePhone) {
@@ -1265,7 +1269,8 @@ export const onOrderUpdated = onDocumentUpdated(
       const productStr = after.product ? `· ${after.product}` : "";
       const deliveryTitle = `💰 Colis Livré & Encaissé : ${amountStr}`;
       const deliveryBody = `${clientName} ${cityStr} · Livré par ${livreurName} ${productStr}`;
-      await notifyAdmins(workspaceId, deliveryTitle, deliveryBody);
+      const productImg = after.productImageUrl || after.shopifyData?.productImageUrl || null;
+      await notifyAdmins(workspaceId, deliveryTitle, deliveryBody, productImg, orderId);
     }
 
     if (
@@ -1929,6 +1934,7 @@ interface PushMulticastOptions {
   clickUrl: string;
   tag: string;
   orderId?: string;
+  imageUrl?: string;
 }
 
 /**
@@ -1940,14 +1946,18 @@ function buildPushMulticastMessage(
   body: string,
   clickUrl: string,
   tag: string,
-  orderId?: string
+  orderId?: string,
+  imageUrl?: string
 ): admin.messaging.MulticastMessage {
+  const bannerImg = imageUrl || "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg";
   const dataPayload: Record<string, string> = {
     title,
     body,
     url: clickUrl,
     tag,
     ...(orderId ? { orderId } : {}),
+    image: bannerImg,
+    productImageUrl: bannerImg,
   };
 
   return {
@@ -1955,6 +1965,7 @@ function buildPushMulticastMessage(
     notification: {
       title,
       body,
+      imageUrl: bannerImg,
     },
     data: dataPayload,
     android: {
@@ -1966,6 +1977,7 @@ function buildPushMulticastMessage(
         clickAction: clickUrl,
         defaultSound: true,
         tag,
+        imageUrl: bannerImg,
       },
     },
     apns: {
@@ -1977,7 +1989,11 @@ function buildPushMulticastMessage(
         aps: {
           alert: { title, body },
           sound: "default",
+          "mutable-content": 1,
         },
+      },
+      fcmOptions: {
+        imageUrl: bannerImg,
       },
     },
     webpush: {
@@ -1990,9 +2006,10 @@ function buildPushMulticastMessage(
         body,
         icon: "https://waritrack-admin.vercel.app/icons/icon-192.png",
         badge: "https://waritrack-admin.vercel.app/icons/badge-96.png",
-        image: "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg",
+        image: bannerImg,
         tag,
         renotify: true,
+        requireInteraction: true,
         data: dataPayload,
       },
       fcmOptions: {
@@ -2021,7 +2038,7 @@ async function sendMulticastAndPruneTokens(opts: PushMulticastOptions): Promise<
   for (let offset = 0; offset < tokens.length; offset += 500) {
     const chunk = tokens.slice(offset, offset + 500);
     const response = await messaging.sendEachForMulticast(
-      buildPushMulticastMessage(chunk, title, body, clickUrl, tag, orderId)
+      buildPushMulticastMessage(chunk, title, body, clickUrl, tag, orderId, opts.imageUrl)
     );
     totalSuccess += response.successCount;
     totalFailure += response.failureCount;
@@ -2050,7 +2067,14 @@ async function sendMulticastAndPruneTokens(opts: PushMulticastOptions): Promise<
   }
 }
 
-async function sendPushToUser(workspaceId: string, userId: string, title: string, body: string, orderId?: string) {
+async function sendPushToUser(
+  workspaceId: string,
+  userId: string,
+  title: string,
+  body: string,
+  orderId?: string,
+  imageUrl?: string | null
+) {
   const notifRef = await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
     userId,
     title,
@@ -2058,6 +2082,7 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
     read: false,
     createdAt: Date.now(),
     ...(orderId ? { orderId } : {}),
+    ...(imageUrl ? { productImageUrl: imageUrl, image: imageUrl } : {}),
   });
 
   const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
@@ -2082,16 +2107,25 @@ async function sendPushToUser(workspaceId: string, userId: string, title: string
     clickUrl,
     tag,
     orderId,
+    imageUrl: imageUrl || undefined,
   });
 }
 
-async function notifyAdmins(workspaceId: string, title: string, body: string) {
+async function notifyAdmins(
+  workspaceId: string,
+  title: string,
+  body: string,
+  imageUrl?: string | null,
+  orderId?: string | null
+) {
   const now = Date.now();
   const notifRef = await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
     title,
     body,
     read: false,
     createdAt: now,
+    ...(orderId ? { orderId } : {}),
+    ...(imageUrl ? { productImageUrl: imageUrl, image: imageUrl } : {}),
   });
 
   if (title.startsWith("🤖")) {
@@ -2139,8 +2173,10 @@ async function notifyAdmins(workspaceId: string, title: string, body: string) {
         rawTokens: tokens,
         title: displayTitle,
         body,
-        clickUrl: "/",
+        clickUrl: orderId ? `/?orderId=${orderId}` : "/",
         tag,
+        orderId: orderId || undefined,
+        imageUrl: imageUrl || undefined,
       });
     })
   );

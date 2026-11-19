@@ -10,6 +10,8 @@ export interface AppNotification {
   read: boolean;
   createdAt: number;
   orderId?: string;
+  productImageUrl?: string;
+  image?: string;
 }
 
 export interface IncomingPushDetail {
@@ -17,6 +19,8 @@ export interface IncomingPushDetail {
   title: string;
   body: string;
   orderId?: string;
+  productImageUrl?: string;
+  image?: string;
   source?: "fcm" | "firestore" | "tracker";
 }
 
@@ -91,6 +95,7 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
       toDispatch.forEach((n, idx) => {
         setTimeout(async () => {
           // 1. Déclenchement de la VRAIE notification OS native (Bannière Windows 11 + Action Center)
+          const bannerImg = n.productImageUrl || n.image || "/icons/waritrack-brand-banner.jpg";
           await triggerSystemNotification({
             title: n.title,
             body: n.body,
@@ -98,7 +103,7 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
             url: n.orderId ? `/?orderId=${n.orderId}` : "/",
             tag: `waritrack-notif-${n.id}`,
             requireInteraction: true,
-            image: "/icons/waritrack-brand-banner.jpg",
+            image: bannerImg,
           });
 
           // 2. Jouer le son
@@ -112,6 +117,8 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
                 title: n.title,
                 body: n.body,
                 orderId: n.orderId,
+                productImageUrl: n.productImageUrl,
+                image: n.productImageUrl || n.image,
                 source: isCatchUp ? "tracker" : "firestore",
               },
             })

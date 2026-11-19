@@ -867,12 +867,13 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
     await snap.ref.update(updatePayload);
     // Notification personnalisée pour la closeuse avec mention de la langue locale
     const langBadge = order.clientLanguage ? ` · 🗣️ Parler en ${order.clientLanguage}` : "";
+    const orderProductImg = order.productImageUrl || order.shopifyData?.productImageUrl || null;
     await sendPushToUser(workspaceId, chosen.id, order.isDuplicatePhone ? "⚠️ Nouvelle commande (Doublon N°)" : "Nouvelle commande", order.isDuplicatePhone
         ? `${order.clientName} - ${order.product}${langBadge} · Vérifier si 1 ou 2 produits`
-        : `${order.clientName} - ${order.product}${langBadge}`, snap.id);
-    // Notification push temps réel envoyée aux administrateurs du Cockpit
+        : `${order.clientName} - ${order.product}${langBadge}`, snap.id, orderProductImg);
+    // Notification push temps réel envoyée aux administrateurs du Cockpit avec photo produit
     const orderQty = order.quantity && order.quantity > 1 ? `${order.quantity}x ` : "";
-    await notifyAdmins(workspaceId, `🛍️ Nouvelle commande : ${orderQty}${order.product || "Produit"}`, `${order.clientName} · ${order.city || "Ville non précisée"} · ${order.amount ? `${Number(order.amount).toLocaleString("fr-FR")} XOF` : "À confirmer"}`);
+    await notifyAdmins(workspaceId, `🛍️ Nouvelle commande : ${orderQty}${order.product || "Produit"}`, `${order.clientName} · ${order.city || "Ville non précisée"} · ${order.amount ? `${Number(order.amount).toLocaleString("fr-FR")} XOF` : "À confirmer"}`, orderProductImg, snap.id);
     if (order.isDuplicatePhone) {
         await notifyAdmins(workspaceId, "🤖 Vigie IA · Numéro doublon (Accès libre site)", `${order.clientName} (${order.clientPhoneFormatted}) a commandé à nouveau (${order.product}). Isolé de Meta CAPI — vérifier avec ${chosen.data.name} si 1 ou 2 produits.`);
     }
@@ -1080,7 +1081,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         const productStr = after.product ? `· ${after.product}` : "";
         const deliveryTitle = `💰 Colis Livré & Encaissé : ${amountStr}`;
         const deliveryBody = `${clientName} ${cityStr} · Livré par ${livreurName} ${productStr}`;
-        await notifyAdmins(workspaceId, deliveryTitle, deliveryBody);
+        const productImg = after.productImageUrl || after.shopifyData?.productImageUrl || null;
+        await notifyAdmins(workspaceId, deliveryTitle, deliveryBody, productImg, orderId);
     }
     if (statutCloseuseChanged &&
         (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme" || after.statutCloseuse === "confirme")) {
@@ -1591,19 +1593,23 @@ function formatPushTitle(brandName, title) {
 /**
  * Build a complete cross-platform FCM multicast payload (WebPush, Android, APNs).
  */
-function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId) {
+function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId, imageUrl) {
+    const bannerImg = imageUrl || "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg";
     const dataPayload = {
         title,
         body,
         url: clickUrl,
         tag,
         ...(orderId ? { orderId } : {}),
+        image: bannerImg,
+        productImageUrl: bannerImg,
     };
     return {
         tokens,
         notification: {
             title,
             body,
+            imageUrl: bannerImg,
         },
         data: dataPayload,
         android: {
@@ -1615,6 +1621,7 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId) 
                 clickAction: clickUrl,
                 defaultSound: true,
                 tag,
+                imageUrl: bannerImg,
             },
         },
         apns: {
@@ -1626,7 +1633,11 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId) 
                 aps: {
                     alert: { title, body },
                     sound: "default",
+                    "mutable-content": 1,
                 },
+            },
+            fcmOptions: {
+                imageUrl: bannerImg,
             },
         },
         webpush: {
@@ -1639,9 +1650,10 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId) 
                 body,
                 icon: "https://waritrack-admin.vercel.app/icons/icon-192.png",
                 badge: "https://waritrack-admin.vercel.app/icons/badge-96.png",
-                image: "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg",
+                image: bannerImg,
                 tag,
                 renotify: true,
+                requireInteraction: true,
                 data: dataPayload,
             },
             fcmOptions: {
@@ -1666,7 +1678,7 @@ async function sendMulticastAndPruneTokens(opts) {
     // FCM sendEachForMulticast accepts at most 500 tokens per call
     for (let offset = 0; offset < tokens.length; offset += 500) {
         const chunk = tokens.slice(offset, offset + 500);
-        const response = await messaging.sendEachForMulticast(buildPushMulticastMessage(chunk, title, body, clickUrl, tag, orderId));
+        const response = await messaging.sendEachForMulticast(buildPushMulticastMessage(chunk, title, body, clickUrl, tag, orderId, opts.imageUrl));
         totalSuccess += response.successCount;
         totalFailure += response.failureCount;
         response.responses.forEach((r, i) => {
@@ -1687,7 +1699,7 @@ async function sendMulticastAndPruneTokens(opts) {
         console.log(`sendPush: ${invalidTokens.length} token(s) invalide(s) supprime(s) pour user ${userId}`);
     }
 }
-async function sendPushToUser(workspaceId, userId, title, body, orderId) {
+async function sendPushToUser(workspaceId, userId, title, body, orderId, imageUrl) {
     const notifRef = await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
         userId,
         title,
@@ -1695,6 +1707,7 @@ async function sendPushToUser(workspaceId, userId, title, body, orderId) {
         read: false,
         createdAt: Date.now(),
         ...(orderId ? { orderId } : {}),
+        ...(imageUrl ? { productImageUrl: imageUrl, image: imageUrl } : {}),
     });
     const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
     const userSnap = await userRef.get();
@@ -1716,15 +1729,18 @@ async function sendPushToUser(workspaceId, userId, title, body, orderId) {
         clickUrl,
         tag,
         orderId,
+        imageUrl: imageUrl || undefined,
     });
 }
-async function notifyAdmins(workspaceId, title, body) {
+async function notifyAdmins(workspaceId, title, body, imageUrl, orderId) {
     const now = Date.now();
     const notifRef = await db.collection("workspaces").doc(workspaceId).collection("notifications").add({
         title,
         body,
         read: false,
         createdAt: now,
+        ...(orderId ? { orderId } : {}),
+        ...(imageUrl ? { productImageUrl: imageUrl, image: imageUrl } : {}),
     });
     if (title.startsWith("🤖")) {
         const autoMsgId = `bot_auto_${now}`;
@@ -1765,8 +1781,10 @@ async function notifyAdmins(workspaceId, title, body) {
             rawTokens: tokens,
             title: displayTitle,
             body,
-            clickUrl: "/",
+            clickUrl: orderId ? `/?orderId=${orderId}` : "/",
             tag,
+            orderId: orderId || undefined,
+            imageUrl: imageUrl || undefined,
         });
     }));
 }
