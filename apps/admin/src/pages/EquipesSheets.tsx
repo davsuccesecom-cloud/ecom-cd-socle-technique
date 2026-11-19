@@ -339,57 +339,48 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
 
   return (
     <div className="mx-auto max-w-[940px] px-2 py-4 sm:px-4 sm:py-6">
-      {/* 1. Bar supérieure : Titre et bouton d'ajout */}
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-100">
-            Équipes &amp; marchés
-          </h1>
-          <p className="text-sm text-slate-400">
-            Choisissez une équipe, puis connectez ses commandes.
-          </p>
+      {/* Barre d'action supérieure et onglets des équipes */}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Équipes">
+          {teams.map((t) => {
+            const isSelected = t.id === cur;
+            const isHealthy = healthy(t);
+
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => setCur(t.id)}
+                className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                  isSelected
+                    ? "border-brand bg-brand-light text-slate-100 ring-1 ring-brand"
+                    : "border-surface-border bg-surface text-slate-300 hover:border-slate-500 hover:text-slate-100"
+                }`}
+              >
+                <img
+                  src={flagUrl(t.defaultCountry, "sm")}
+                  alt=""
+                  className="h-3 w-4 rounded-[2px] object-cover"
+                />
+                <span>{t.name}</span>
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isHealthy ? "bg-emerald-500" : "bg-amber-500"
+                  }`}
+                  title={isHealthy ? "Connectée" : "À configurer"}
+                />
+              </button>
+            );
+          })}
         </div>
+
         <button
           onClick={() => setShowCreateTeam(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:opacity-95"
         >
           + Nouvelle équipe
         </button>
-      </div>
-
-      {/* 2. Onglets des équipes (Style Pilule avec Drapeau et Statut) */}
-      <div className="mb-6 flex flex-wrap items-center gap-2" role="tablist" aria-label="Équipes">
-        {teams.map((t) => {
-          const isSelected = t.id === cur;
-          const isHealthy = healthy(t);
-
-          return (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={isSelected}
-              onClick={() => setCur(t.id)}
-              className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                isSelected
-                  ? "border-brand bg-brand-light text-slate-100 ring-1 ring-brand"
-                  : "border-surface-border bg-surface text-slate-300 hover:border-slate-500 hover:text-slate-100"
-              }`}
-            >
-              <img
-                src={flagUrl(t.defaultCountry, "sm")}
-                alt=""
-                className="h-3 w-4 rounded-[2px] object-cover"
-              />
-              <span>{t.name}</span>
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isHealthy ? "bg-emerald-500" : "bg-amber-500"
-                }`}
-                title={isHealthy ? "Connectée" : "À configurer"}
-              />
-            </button>
-          );
-        })}
       </div>
 
       {/* 3. Vue de l'équipe sélectionnée */}

@@ -365,7 +365,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
   );
 
   const loading = teamsLoading || ordersLoading;
-  const showPeriodFilter = page === "overview" || page === "remuneration" || page === "caisse";
+  const showPeriodFilter = page === "overview" || page === "remuneration" || page === "caisse" || page === "comptabilite";
   const currency = activeTeam?.currency || activeTeam?.metaCapiConfig?.currency || "XOF";
   const headerMeta = PAGE_TITLES[page] ?? PAGE_TITLES.overview;
 
@@ -535,7 +535,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               teams={teams}
               activeTeamId={teamId}
               onSelectTeam={setTeamId}
-              orders={allOrders}
+              orders={orders}
+              allOrders={allOrders}
+              period={period}
             />
           ) : page === "performance" ? (
             <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />

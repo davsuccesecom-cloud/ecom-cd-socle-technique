@@ -388,6 +388,7 @@ export interface ProductStock {
   teamId: string;
   productName: string;
   sku?: string;
+  initialStock?: number;
   quantityOnHand: number;
   lowStockThreshold: number;
   totalSold: number;

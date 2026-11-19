@@ -18,7 +18,7 @@ service cloud.firestore {
     // Collection: /workspaces/{workspaceId}
     //   - Workspace config (id, name, ownerEmail, createdAt, branding)
     //   - Subcollections:
-    //     - /teams/{teamId} (team config, /secrets/{secretId}, /dailyStats/{dateKey})
+    //     - /teams/{teamId} (team config, /secrets/{secretId}, /dailyStats/{dateKey}, /stocks/{stockId})
     //     - /users/{userId} (role, teamId, status, fcmTokens <= 20, fcmUpdatedAt int, reminderWindowStart/End)
     //     - /accessLinks/{linkId}, /accessLinkSecrets/{linkId}, /trackingSessions/{sessionId} (server-only)
     //     - /notifications/{notifId} (admin or recipient userId; client update 'read' only)
@@ -26,7 +26,7 @@ service cloud.firestore {
     //     - /codInsights/{countryCode} (read admin only; server-written via Admin SDK)
     //     - /orders/{orderId} (team-scoped orders; role-separated status & note updates)
     //     - /shopifyConnections/{id}, /shopifyUnroutedOrders/{id}, /aiAssistantChats/{id},
-    //       /cashSettlements/{id}, /metaOAuthSessions/{id} (admin-only)
+    //       /cashSettlements/{id}, /metaOAuthSessions/{id}, /stocks/{id} (admin-only)
     //
     // ===============================================================
     // Helper Functions
@@ -184,6 +184,11 @@ service cloud.firestore {
           allow read: if isAdmin(workspaceId);
           allow write: if false;
         }
+
+        // Gestion des stocks et de la comptabilité par équipe
+        match /stocks/{stockId} {
+          allow read, write: if isAdmin(workspaceId);
+        }
       }
 
       match /users/{userId} {
@@ -286,6 +291,11 @@ service cloud.firestore {
 
       // Sessions temporaires de pont OAuth Meta (Incognito / navigateur externe)
       match /metaOAuthSessions/{sessionId} {
+        allow read, write: if isAdmin(workspaceId);
+      }
+
+      // Gestion des stocks et de la comptabilité (consolidation workspace)
+      match /stocks/{stockId} {
         allow read, write: if isAdmin(workspaceId);
       }
     }
