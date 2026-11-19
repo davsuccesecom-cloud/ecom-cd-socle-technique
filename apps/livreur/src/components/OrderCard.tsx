@@ -124,8 +124,8 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
   const mapsQuery = displayLocation
     ? encodeURIComponent(`${displayLocation} ${distinctAddressNote}`.trim())
     : null;
-  const directMapsUrl = (order as any).googleMapsUrl || order.shopifyData?.googleMapsUrl;
-  const directGpsCoords = (order as any).gpsCoordinates || order.shopifyData?.gpsCoordinates;
+  const directMapsUrl = (order as any).googleMapsUrl || (order.shopifyData as any)?.googleMapsUrl;
+  const directGpsCoords = (order as any).gpsCoordinates || (order.shopifyData as any)?.gpsCoordinates;
   const mapsHref = directMapsUrl
     ? directMapsUrl
     : directGpsCoords

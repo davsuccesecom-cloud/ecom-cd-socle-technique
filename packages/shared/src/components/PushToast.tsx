@@ -54,10 +54,12 @@ export default function PushToast({
         title: detail.title || "WariTrack",
         body: detail.body || "",
         icon: "/icons/icon-192.png",
+        image: "/icons/waritrack-brand-banner.jpg",
         badge: "/icons/badge-96.png",
         orderId: detail.orderId,
         url: detail.orderId ? `/?orderId=${detail.orderId}` : "/",
         tag: detail.orderId ? `waritrack-order-${detail.orderId}` : `waritrack-toast-${now}`,
+        requireInteraction: true,
       });
 
       setToast({ ...detail, key: `${now}` });

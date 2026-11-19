@@ -53,8 +53,15 @@ self.addEventListener("notificationclick", (event) => {
 
 const messaging = firebase.messaging();
 
-function resolveSafeIcon(url) {
-  return typeof url === "string" && url.startsWith("https://") ? url : "/icons/icon-192.png";
+function toAbsolute(path) {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  const origin = self.location.origin;
+  return `${origin}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
+function resolveSafeIcon(url, fallback) {
+  return typeof url === "string" && url.startsWith("https://") ? url : fallback;
 }
 
 async function getWhiteLabelBranding() {
@@ -70,6 +77,7 @@ async function getWhiteLabelBranding() {
 
 messaging.onBackgroundMessage(async (payload) => {
   const wl = await getWhiteLabelBranding();
+  const origin = self.location.origin;
   const title =
     payload?.notification?.title ||
     payload?.data?.title ||
@@ -77,25 +85,34 @@ messaging.onBackgroundMessage(async (payload) => {
   const body = payload?.notification?.body || payload?.data?.body || "";
   const orderId = payload?.data?.orderId || "";
   const targetUrl = payload?.data?.url || (orderId ? `/?orderId=${orderId}` : "/");
-  const icon = resolveSafeIcon(wl?.logoUrl);
+  const icon = resolveSafeIcon(wl?.logoUrl, toAbsolute("/icons/app-closeuse-native.png"));
+  const badge = toAbsolute("/icons/badge-96.png");
+  const image = toAbsolute(
+    payload?.notification?.image ||
+    payload?.data?.image ||
+    "/icons/app-closeuse-native.png"
+  );
   const tag = payload?.data?.tag || (orderId ? `waritrack-order-${orderId}` : `waritrack-closeuse-${Date.now()}`);
 
   try {
     await self.registration.showNotification(title, {
       body,
       icon,
-      badge: "/icons/badge-96.png",
+      image,
+      badge,
       tag,
       renotify: true,
+      requireInteraction: true,
       data: { orderId, url: targetUrl },
     });
   } catch {
     await self.registration.showNotification(title, {
       body,
-      icon: "/icons/icon-192.png",
-      badge: "/icons/badge-96.png",
+      icon: toAbsolute("/icons/icon-192.png"),
+      badge,
       tag,
       renotify: true,
+      requireInteraction: true,
       data: { orderId, url: targetUrl },
     });
   }

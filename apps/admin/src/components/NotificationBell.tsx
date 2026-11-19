@@ -160,12 +160,14 @@ export default function NotificationBell({
                     }
 
                     if (perm === "granted") {
-                      // 1. Déclenchement local instantané
+                      // 1. Déclenchement local instantané avec bannière visuelle Windows
                       await triggerSystemNotification({
-                        title: "🔔 WariTrack · Test d'alerte",
-                        body: "Le système d'alerte sonore et visuelle est parfaitement opérationnel sur cet appareil.",
+                        title: "🔔 Nouvelle Commande #1010",
+                        body: "EBAMIA · 1x Verre incassable · 15 000 XOF (Kara)",
                         icon: "/icons/icon-192.png",
+                        image: "/icons/waritrack-brand-banner.jpg",
                         badge: "/icons/badge-96.png",
+                        requireInteraction: true,
                         tag: `waritrack-test-${Date.now()}`,
                         url: "/",
                       });
