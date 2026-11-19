@@ -8,7 +8,7 @@ import { triggerSystemNotification } from "../utils/systemNotification";
 const LAST_TOKEN_KEY_PREFIX = "ecomcod_last_fcm_token_";
 const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
 const PUSH_SW_PATH = "/firebase-messaging-sw.js";
-const PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
+const LEGACY_PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
 
 function isAppleWebKitBrowser(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -17,8 +17,6 @@ function isAppleWebKitBrowser(): boolean {
 }
 
 function resolveSafeNotificationIcon(logoUrl?: string | null): string {
-  // Android NotificationManager, iOS WebKit et Windows Action Center rejettent ou
-  // abandonnent silencieusement les data: URI volumineuses (ex. data:image/webp).
   if (typeof logoUrl === "string" && logoUrl.startsWith("https://")) {
     return logoUrl;
   }
@@ -62,11 +60,51 @@ async function registerToken(
     return { ok: false, permission };
   }
 
-  const swRegistration = await navigator.serviceWorker.register(PUSH_SW_PATH, {
-    scope: PUSH_SW_SCOPE,
-    updateViaCache: "none",
-  });
-  void swRegistration.update().catch(() => {});
+  // 1. Nettoyer l'ancien enregistrement sous /firebase-cloud-messaging-push-scope s'il existe
+  try {
+    const legacyReg = await navigator.serviceWorker.getRegistration(LEGACY_PUSH_SW_SCOPE);
+    if (legacyReg) {
+      await legacyReg.unregister();
+    }
+  } catch {}
+
+  // 2. Récupérer en priorité absolue l'enregistrement root PWA (scope: '/')
+  let swRegistration: ServiceWorkerRegistration | undefined;
+  try {
+    const rootReg = await navigator.serviceWorker.getRegistration("/");
+    if (rootReg && (rootReg.active || rootReg.installing || rootReg.waiting)) {
+      swRegistration = rootReg;
+    }
+  } catch {}
+
+  if (!swRegistration) {
+    try {
+      const readyReg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      if (readyReg) {
+        swRegistration = readyReg;
+      }
+    } catch {}
+  }
+
+  // 3. Repli si aucune registration root n'est encore active
+  if (!swRegistration) {
+    try {
+      swRegistration = await navigator.serviceWorker.register(PUSH_SW_PATH, {
+        scope: "/",
+        updateViaCache: "none",
+      });
+    } catch (err) {
+      console.warn("useRegisterPushNotifications: enregistrement SW root repli:", err);
+    }
+  }
+
+  if (swRegistration) {
+    void swRegistration.update().catch(() => {});
+  }
+
   if (cancelledRef.current) return { ok: false, permission };
 
   const token = await getToken(messaging, {
@@ -150,6 +188,64 @@ export function useRegisterPushNotifications(
     let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let unsubscribeOnMessage: (() => void) | undefined;
 
+    // Détection PWA autonome
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true ||
+      document.referrer.includes("android-app://");
+
+    // Annoncer périodiquement l'identité PWA au Service Worker
+    const announceIdentity = async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          reg.active?.postMessage({
+            type: "WARITRACK_CLIENT_IDENTITY",
+            isStandalone,
+            href: window.location.href,
+          });
+        }
+        if (navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: "WARITRACK_CLIENT_IDENTITY",
+            isStandalone,
+            href: window.location.href,
+          });
+        }
+      } catch {}
+    };
+
+    announceIdentity();
+    const announceTimer = setInterval(announceIdentity, 20_000);
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "CHECK_STANDALONE") {
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ isStandalone });
+        }
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handleSwMessage);
+
+    // Support de Launch Queue pour Chromium PWA
+    if ("launchQueue" in window && "setConsumer" in (window as any).launchQueue) {
+      try {
+        (window as any).launchQueue.setConsumer((launchParams: any) => {
+          if (launchParams.targetURL) {
+            try {
+              const url = new URL(launchParams.targetURL);
+              const orderId = url.searchParams.get("orderId");
+              if (orderId) {
+                window.dispatchEvent(
+                  new CustomEvent("waritrack-navigate-order", { detail: { orderId } })
+                );
+              }
+            } catch {}
+          }
+        });
+      } catch {}
+    }
+
     const attachForegroundListener = async () => {
       const messaging = await getFirebaseMessaging();
       if (!messaging || cancelledRef.current) return;
@@ -176,7 +272,7 @@ export function useRegisterPushNotifications(
           title,
           body,
           icon,
-          image: "/icons/waritrack-brand-banner.jpg",
+          image: payload.data?.image || payload.notification?.image || "/icons/waritrack-brand-banner.jpg",
           badge: "/icons/badge-96.png",
           requireInteraction: true,
           orderId,
@@ -245,6 +341,7 @@ export function useRegisterPushNotifications(
           void attempt();
         }
       }
+      announceIdentity();
     };
     window.addEventListener("focus", handleResumeCheck);
     document.addEventListener("visibilitychange", handleResumeCheck);
@@ -262,6 +359,8 @@ export function useRegisterPushNotifications(
 
     return () => {
       cancelledRef.current = true;
+      clearInterval(announceTimer);
+      navigator.serviceWorker.removeEventListener("message", handleSwMessage);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("focus", handleResumeCheck);
       document.removeEventListener("visibilitychange", handleResumeCheck);

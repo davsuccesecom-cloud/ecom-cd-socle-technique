@@ -13,15 +13,18 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["favicon.svg", "notification-ping.mp3"],
       manifest: {
-        name: "WariTrack — Cockpit Admin",
-        short_name: "WariTrack",
-        description: "Cash & Logistics Operating System for Africa",
         id: "/",
         start_url: "/",
         scope: "/",
+        name: "WariTrack — Cockpit Admin",
+        short_name: "WariTrack",
+        description: "Cash & Logistics Operating System for Africa",
         theme_color: "#07090F",
         background_color: "#07090F",
         display: "standalone",
+        launch_handler: {
+          client_mode: ["focus-existing", "auto"],
+        },
         icons: [
           { src: "icons/waritrack-3d-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
           { src: "icons/waritrack-3d-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
@@ -31,6 +34,7 @@ export default defineConfig({
       },
       workbox: {
         cacheId: "waritrack-admin-v5-live",
+        importScripts: ["/firebase-messaging-sw.js"],
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
         globIgnores: ["**/firebase-messaging-sw.js"],
         navigateFallback: "/index.html",
@@ -61,4 +65,3 @@ export default defineConfig({
     },
   },
 });
-

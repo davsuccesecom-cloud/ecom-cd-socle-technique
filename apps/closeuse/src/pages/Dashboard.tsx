@@ -104,10 +104,25 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
       }
     };
 
+    const handleCustomNav = (event: any) => {
+      if (event.detail?.orderId) {
+        navigateToOrder(event.detail.orderId);
+      }
+    };
+
+    window.addEventListener("waritrack-navigate-order", handleCustomNav);
+
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("message", handleMessage);
-      return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener("message", handleMessage);
+        window.removeEventListener("waritrack-navigate-order", handleCustomNav);
+      };
     }
+
+    return () => {
+      window.removeEventListener("waritrack-navigate-order", handleCustomNav);
+    };
   }, [orders]);
 
   return (

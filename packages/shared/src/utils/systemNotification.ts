@@ -5,10 +5,11 @@
  * Élimine tout risque de deadlock (gel) lié à navigator.serviceWorker.ready
  * et force l'apparition visuelle de la bannière à l'écran via requireInteraction
  * et des URLs absolues exigées par Windows ShellExperienceHost.
+ * Priorise la PWA installée pour ne jamais ouvrir un onglet externe du navigateur.
  */
 
 const PUSH_SW_PATH = "/firebase-messaging-sw.js";
-const PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
+const LEGACY_PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
 
 export function toAbsoluteNotificationUrl(path?: string | null): string {
   if (!path) return "";
@@ -25,13 +26,32 @@ export async function getSafeServiceWorkerRegistration(): Promise<ServiceWorkerR
     return null;
   }
 
-  // 1. Tenter d'abord de récupérer l'enregistrement FCM spécifique
+  // 1. Nettoyer tout ancien enregistrement isolé sur le sub-scope FCM
   try {
-    const fcmReg = await navigator.serviceWorker.getRegistration(PUSH_SW_SCOPE);
-    if (fcmReg) return fcmReg;
+    const legacyReg = await navigator.serviceWorker.getRegistration(LEGACY_PUSH_SW_SCOPE);
+    if (legacyReg) {
+      await legacyReg.unregister();
+    }
   } catch {}
 
-  // 2. Chercher parmi tous les Service Workers enregistrés sur cette origine
+  // 2. Tenter d'abord de récupérer l'enregistrement Root PWA (scope: '/')
+  try {
+    const rootReg = await navigator.serviceWorker.getRegistration("/");
+    if (rootReg && (rootReg.active || rootReg.installing || rootReg.waiting)) {
+      return rootReg;
+    }
+  } catch {}
+
+  // 3. Attendre navigator.serviceWorker.ready sans bloquer indéfiniment
+  try {
+    const readyReg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+    ]);
+    if (readyReg) return readyReg;
+  } catch {}
+
+  // 4. Chercher parmi tous les Service Workers enregistrés sur cette origine
   try {
     const regs = await navigator.serviceWorker.getRegistrations();
     if (regs && regs.length > 0) {
@@ -40,10 +60,10 @@ export async function getSafeServiceWorkerRegistration(): Promise<ServiceWorkerR
     }
   } catch {}
 
-  // 3. Si aucun enregistrement n'existe encore, enregistrer à la volée sans bloquer
+  // 5. Si aucun enregistrement n'existe encore, enregistrer le SW PWA à la racine
   try {
     const newReg = await navigator.serviceWorker.register(PUSH_SW_PATH, {
-      scope: PUSH_SW_SCOPE,
+      scope: "/",
       updateViaCache: "none",
     });
     return newReg;
@@ -115,9 +135,34 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
 
     directNotif.onclick = () => {
       window.focus();
-      if (options.url) {
-        window.location.href = options.url;
+
+      if (options.orderId) {
+        window.dispatchEvent(
+          new CustomEvent("waritrack-navigate-order", {
+            detail: { orderId: options.orderId },
+          })
+        );
+        window.dispatchEvent(
+          new MessageEvent("message", {
+            data: { type: "NAVIGATE_ORDER", orderId: options.orderId, url: targetUrl },
+          })
+        );
       }
+
+      if (options.url) {
+        try {
+          const currentPath = window.location.pathname + window.location.search;
+          const parsed = options.url.startsWith("http") ? new URL(options.url) : null;
+          const targetPath = parsed ? parsed.pathname + parsed.search : options.url;
+          if (currentPath !== targetPath) {
+            window.history.pushState({}, "", options.url);
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }
+        } catch {
+          window.location.href = options.url;
+        }
+      }
+
       directNotif.close();
     };
 

@@ -198,6 +198,49 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     workspaceId,
     teamId: activeTeamId ?? "",
   });
+
+  // Deep-linking automatique lors du clic sur notification OS / FCM
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const orderIdFromUrl = urlParams.get("orderId");
+    if (orderIdFromUrl) {
+      setPage("orders");
+      const matched = allOrders.find((o) => o.id === orderIdFromUrl || o.orderNumber === orderIdFromUrl);
+      if (matched) {
+        setReceiptOrder(matched);
+      }
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === "NAVIGATE_ORDER" && event.data?.orderId) {
+        setPage("orders");
+        const matched = allOrders.find((o) => o.id === event.data.orderId || o.orderNumber === event.data.orderId);
+        if (matched) {
+          setReceiptOrder(matched);
+        }
+      }
+    };
+
+    const handleCustomNav = (event: any) => {
+      if (event.detail?.orderId) {
+        setPage("orders");
+        const matched = allOrders.find((o) => o.id === event.detail.orderId || o.orderNumber === event.detail.orderId);
+        if (matched) {
+          setReceiptOrder(matched);
+        }
+      }
+    };
+
+    window.addEventListener("waritrack-navigate-order", handleCustomNav);
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", handleMessage);
+      return () => {
+        navigator.serviceWorker.removeEventListener("message", handleMessage);
+        window.removeEventListener("waritrack-navigate-order", handleCustomNav);
+      };
+    }
+    return () => window.removeEventListener("waritrack-navigate-order", handleCustomNav);
+  }, [allOrders]);
   const { users: closeuses } = useTeamUsers(workspaceId, activeTeamId, "closeuse");
   const { users: livreurs } = useTeamUsers(workspaceId, activeTeamId, "livreur");
 

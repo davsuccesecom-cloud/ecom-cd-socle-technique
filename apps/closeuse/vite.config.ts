@@ -9,13 +9,18 @@ export default defineConfig({
       registerType: "prompt",
       includeAssets: ["favicon.svg", "notification-ping.mp3"],
       manifest: {
+        id: "/",
+        start_url: "/",
+        scope: "/",
         name: "WariTrack — Closeuse",
         short_name: "Closeuse",
         description: "Gestion des commandes COD et qualification WhatsApp",
         theme_color: "#4F46E5",
         background_color: "#F8FAFC",
         display: "standalone",
-        start_url: "/",
+        launch_handler: {
+          client_mode: ["focus-existing", "auto"],
+        },
         icons: [
           { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
@@ -24,6 +29,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ["/firebase-messaging-sw.js"],
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
         globIgnores: ["**/firebase-messaging-sw.js"],
         navigateFallback: "/index.html",
