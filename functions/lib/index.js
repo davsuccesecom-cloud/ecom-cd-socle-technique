@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -50,6 +50,8 @@ var shopifyTracking_1 = require("./shopifyTracking");
 Object.defineProperty(exports, "trackSession", { enumerable: true, get: function () { return shopifyTracking_1.trackSession; } });
 Object.defineProperty(exports, "shopifyWebhook", { enumerable: true, get: function () { return shopifyTracking_1.shopifyWebhook; } });
 Object.defineProperty(exports, "getStorefrontTrackerScript", { enumerable: true, get: function () { return shopifyTracking_1.getStorefrontTrackerScript; } });
+Object.defineProperty(exports, "syncOrderUpdateToAzify", { enumerable: true, get: function () { return shopifyTracking_1.syncOrderUpdateToAzify; } });
+const shopifyTracking_2 = require("./shopifyTracking");
 var aiProxy_1 = require("./aiProxy");
 Object.defineProperty(exports, "aiChatProxy", { enumerable: true, get: function () { return aiProxy_1.aiChatProxy; } });
 Object.defineProperty(exports, "aiProviders", { enumerable: true, get: function () { return aiProxy_1.aiProviders; } });
@@ -868,6 +870,9 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
     await sendPushToUser(workspaceId, chosen.id, order.isDuplicatePhone ? "⚠️ Nouvelle commande (Doublon N°)" : "Nouvelle commande", order.isDuplicatePhone
         ? `${order.clientName} - ${order.product}${langBadge} · Vérifier si 1 ou 2 produits`
         : `${order.clientName} - ${order.product}${langBadge}`, snap.id);
+    // Notification push temps réel envoyée aux administrateurs du Cockpit
+    const orderQty = order.quantity && order.quantity > 1 ? `${order.quantity}x ` : "";
+    await notifyAdmins(workspaceId, `🛍️ Nouvelle commande : ${orderQty}${order.product || "Produit"}`, `${order.clientName} · ${order.city || "Ville non précisée"} · ${order.amount ? `${Number(order.amount).toLocaleString("fr-FR")} XOF` : "À confirmer"}`);
     if (order.isDuplicatePhone) {
         await notifyAdmins(workspaceId, "🤖 Vigie IA · Numéro doublon (Accès libre site)", `${order.clientName} (${order.clientPhoneFormatted}) a commandé à nouveau (${order.product}). Isolé de Meta CAPI — vérifier avec ${chosen.data.name} si 1 ou 2 produits.`);
     }
@@ -976,6 +981,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         if (after.product) {
             await recordProductDeliveryStock(workspaceId, after.teamId, after.product, Number(after.quantity || 1));
         }
+        // Synchronisation retour vers la vitrine Azify (Statut: Livrée & Encaissée)
+        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "delivered");
         // Isolation Meta CAPI pour les numéros doublons ("acces_libre_site") :
         // Si ce numéro a déjà fait l'objet d'un tracking CAPI ou est qualifié en doublon,
         // on l'isole du Pixel Meta et on le considère comme paiement accès libre site.
@@ -1605,6 +1612,7 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId) 
                 body,
                 icon: "/icons/icon-192.png",
                 badge: "/icons/badge-96.png",
+                image: "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg",
                 tag,
                 renotify: true,
                 data: dataPayload,
@@ -2089,4 +2097,56 @@ exports.testSheetConnection = (0, https_1.onCall)(async (request) => {
             message: `Erreur de connexion : ${errorMsg}`,
         };
     }
+});
+exports.testAdminPushNotification = (0, https_1.onCall)(async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new https_1.HttpsError("unauthenticated", "Connexion requise.");
+    }
+    const workspaceId = request.data?.workspaceId;
+    if (!workspaceId) {
+        throw new https_1.HttpsError("invalid-argument", "Workspace ID manquant.");
+    }
+    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    const userData = userSnap.data() || {};
+    const rawTokens = Array.isArray(userData.fcmTokens) ? userData.fcmTokens : [];
+    const tokens = Array.from(new Set(rawTokens.filter((t) => typeof t === "string" && t.length > 0)));
+    if (tokens.length === 0) {
+        return {
+            success: false,
+            tokensCount: 0,
+            message: "Aucun token FCM enregistré dans Firestore pour cet admin. Veuillez autoriser les notifications.",
+        };
+    }
+    const brandName = await getWorkspaceBrandName(workspaceId);
+    const displayTitle = formatPushTitle(brandName, "🔔 Test Push Serveur Google FCM");
+    const body = "Votre canal Firebase Cloud Messaging est 100% opérationnel sur cet appareil !";
+    const message = buildPushMulticastMessage(tokens, displayTitle, body, "/", `waritrack-test-${Date.now()}`);
+    const response = await messaging.sendEachForMulticast(message);
+    const invalidTokens = [];
+    response.responses.forEach((r, idx) => {
+        if (!r.success) {
+            const code = r.error?.code;
+            if (code === "messaging/registration-token-not-registered" ||
+                code === "messaging/invalid-registration-token") {
+                invalidTokens.push(tokens[idx]);
+            }
+        }
+    });
+    if (invalidTokens.length > 0) {
+        await userRef.update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+        });
+    }
+    return {
+        success: response.successCount > 0,
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+        tokensCount: tokens.length,
+        prunedTokens: invalidTokens.length,
+        message: response.successCount > 0
+            ? `Push FCM Google délivré avec succès (${response.successCount} appareil(s)) !`
+            : "Le token FCM enregistré était expiré et a été purgé. Un nouveau token frais sera généré.",
+    };
 });

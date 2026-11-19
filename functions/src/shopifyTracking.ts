@@ -1157,3 +1157,42 @@ export const getStorefrontTrackerScript = onRequest(
     res.status(200).send(scriptCode);
   }
 );
+
+// 4. syncOrderUpdateToAzify : Notifie automatiquement Azify lors des changements d'état (Confirmé, Livré, Annulé)
+export async function syncOrderUpdateToAzify(
+  workspaceId: string,
+  orderData: Record<string, any>,
+  status: "confirmed" | "shipped" | "delivered" | "cancelled"
+) {
+  try {
+    const shopDomain = orderData?.shopifyData?.shopDomain;
+    const orderNumber = orderData?.orderNumber || orderData?.shopifyOrderId;
+    if (!shopDomain || !orderNumber) return;
+
+    const cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const connId = cleanDomain.replace(/[^a-z0-9]/gi, "_");
+    const connSnap = await getDb().collection("workspaces").doc(workspaceId).collection("shopifyConnections").doc(connId).get();
+    const conn = connSnap.data();
+
+    const targetUrl = conn?.azifyWebhookUrl || `https://${cleanDomain}/api/integrations/waritrack/webhook`;
+    const payload = {
+      orderId: orderNumber,
+      orderNumber: orderNumber,
+      status: status,
+      courierName: orderData.assignedLivreurName || orderData.livreurName || undefined,
+      courierPhone: orderData.assignedLivreurPhone || orderData.livreurPhone || undefined,
+      amountCollected: status === "delivered" ? orderData.amount : undefined,
+      verifyToken: conn?.verifyToken || undefined,
+      shopDomain: cleanDomain,
+    };
+
+    await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(6000),
+    });
+  } catch (err) {
+    console.warn("syncOrderUpdateToAzify error (non-bloquant):", err);
+  }
+}

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { getApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { useNotifications, triggerSystemNotification, type AppNotification } from "@ecomcod/shared";
 import { ShoppingBag, Bot } from "lucide-react";
 
@@ -158,16 +160,36 @@ export default function NotificationBell({
                     }
 
                     if (perm === "granted") {
+                      // 1. Déclenchement local instantané
                       await triggerSystemNotification({
                         title: "🔔 WariTrack · Test d'alerte",
-                        body: "Le système d'alerte sonore et visuelle est parfaitement opérationnel.",
+                        body: "Le système d'alerte sonore et visuelle est parfaitement opérationnel sur cet appareil.",
                         icon: "/icons/icon-192.png",
                         badge: "/icons/badge-96.png",
                         tag: `waritrack-test-${Date.now()}`,
                         url: "/",
                       });
                       setTestSent(true);
-                      setTimeout(() => setTestSent(false), 3000);
+
+                      // 2. Déclenchement d'un VRAI Push FCM Serveur via Google Cloud
+                      try {
+                        const functions = getFunctions(getApp());
+                        const callTestPush = httpsCallable(functions, "testAdminPushNotification");
+                        const res: any = await callTestPush({ workspaceId });
+                        if (res?.data?.tokensCount === 0 || !res?.data?.success) {
+                          // Si le token en base est vide ou mort, forcer une réinscription immédiate
+                          localStorage.removeItem(`ecomcod_last_fcm_token_${userId}`);
+                          const PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
+                          const reg = await navigator.serviceWorker.getRegistration(PUSH_SW_SCOPE);
+                          if (reg) {
+                            await reg.update().catch(() => {});
+                          }
+                        }
+                      } catch (serverErr) {
+                        console.warn("[WariTrack] Notification push serveur:", serverErr);
+                      }
+
+                      setTimeout(() => setTestSent(false), 3500);
                     }
                   }}
                   className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"

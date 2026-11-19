@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.syncOrderUpdateToAzify = syncOrderUpdateToAzify;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -1090,3 +1091,36 @@ exports.getStorefrontTrackerScript = (0, https_1.onRequest)({ cors: true }, (req
 `;
     res.status(200).send(scriptCode);
 });
+// 4. syncOrderUpdateToAzify : Notifie automatiquement Azify lors des changements d'état (Confirmé, Livré, Annulé)
+async function syncOrderUpdateToAzify(workspaceId, orderData, status) {
+    try {
+        const shopDomain = orderData?.shopifyData?.shopDomain;
+        const orderNumber = orderData?.orderNumber || orderData?.shopifyOrderId;
+        if (!shopDomain || !orderNumber)
+            return;
+        const cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+        const connId = cleanDomain.replace(/[^a-z0-9]/gi, "_");
+        const connSnap = await getDb().collection("workspaces").doc(workspaceId).collection("shopifyConnections").doc(connId).get();
+        const conn = connSnap.data();
+        const targetUrl = conn?.azifyWebhookUrl || `https://${cleanDomain}/api/integrations/waritrack/webhook`;
+        const payload = {
+            orderId: orderNumber,
+            orderNumber: orderNumber,
+            status: status,
+            courierName: orderData.assignedLivreurName || orderData.livreurName || undefined,
+            courierPhone: orderData.assignedLivreurPhone || orderData.livreurPhone || undefined,
+            amountCollected: status === "delivered" ? orderData.amount : undefined,
+            verifyToken: conn?.verifyToken || undefined,
+            shopDomain: cleanDomain,
+        };
+        await fetch(targetUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(6000),
+        });
+    }
+    catch (err) {
+        console.warn("syncOrderUpdateToAzify error (non-bloquant):", err);
+    }
+}

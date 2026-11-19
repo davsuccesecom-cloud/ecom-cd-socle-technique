@@ -20,7 +20,8 @@ import {
   setupMetaSystemUserAndPixel,
   disconnectMetaCapiConfig,
 } from "./metaAuth";
-export { trackSession, shopifyWebhook, getStorefrontTrackerScript } from "./shopifyTracking";
+export { trackSession, shopifyWebhook, getStorefrontTrackerScript, syncOrderUpdateToAzify } from "./shopifyTracking";
+import { syncOrderUpdateToAzify } from "./shopifyTracking";
 export { aiChatProxy, aiProviders } from "./aiProxy";
 
 admin.initializeApp();
@@ -1001,6 +1002,14 @@ export const onOrderCreated = onDocumentCreated(
       snap.id
     );
 
+    // Notification push temps réel envoyée aux administrateurs du Cockpit
+    const orderQty = order.quantity && order.quantity > 1 ? `${order.quantity}x ` : "";
+    await notifyAdmins(
+      workspaceId,
+      `🛍️ Nouvelle commande : ${orderQty}${order.product || "Produit"}`,
+      `${order.clientName} · ${order.city || "Ville non précisée"} · ${order.amount ? `${Number(order.amount).toLocaleString("fr-FR")} XOF` : "À confirmer"}`
+    );
+
     if (order.isDuplicatePhone) {
       await notifyAdmins(
         workspaceId,
@@ -1149,6 +1158,9 @@ export const onOrderUpdated = onDocumentUpdated(
       if (after.product) {
         await recordProductDeliveryStock(workspaceId, after.teamId, after.product, Number(after.quantity || 1));
       }
+
+      // Synchronisation retour vers la vitrine Azify (Statut: Livrée & Encaissée)
+      await syncOrderUpdateToAzify(workspaceId, after, "delivered");
 
       // Isolation Meta CAPI pour les numéros doublons ("acces_libre_site") :
       // Si ce numéro a déjà fait l'objet d'un tracking CAPI ou est qualifié en doublon,
@@ -1938,6 +1950,7 @@ function buildPushMulticastMessage(
         body,
         icon: "/icons/icon-192.png",
         badge: "/icons/badge-96.png",
+        image: "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg",
         tag,
         renotify: true,
         data: dataPayload,
@@ -2523,4 +2536,74 @@ export const testSheetConnection = onCall(async (request) => {
       message: `Erreur de connexion : ${errorMsg}`,
     };
   }
+});
+
+export const testAdminPushNotification = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Connexion requise.");
+  }
+
+  const workspaceId = request.data?.workspaceId as string | undefined;
+  if (!workspaceId) {
+    throw new HttpsError("invalid-argument", "Workspace ID manquant.");
+  }
+
+  const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(uid);
+  const userSnap = await userRef.get();
+  const userData = userSnap.data() || {};
+  const rawTokens: string[] = Array.isArray(userData.fcmTokens) ? userData.fcmTokens : [];
+  const tokens = Array.from(new Set(rawTokens.filter((t) => typeof t === "string" && t.length > 0)));
+
+  if (tokens.length === 0) {
+    return {
+      success: false,
+      tokensCount: 0,
+      message: "Aucun token FCM enregistré dans Firestore pour cet admin. Veuillez autoriser les notifications.",
+    };
+  }
+
+  const brandName = await getWorkspaceBrandName(workspaceId);
+  const displayTitle = formatPushTitle(brandName, "🔔 Test Push Serveur Google FCM");
+  const body = "Votre canal Firebase Cloud Messaging est 100% opérationnel sur cet appareil !";
+
+  const message = buildPushMulticastMessage(
+    tokens,
+    displayTitle,
+    body,
+    "/",
+    `waritrack-test-${Date.now()}`
+  );
+
+  const response = await messaging.sendEachForMulticast(message);
+  const invalidTokens: string[] = [];
+
+  response.responses.forEach((r, idx) => {
+    if (!r.success) {
+      const code = r.error?.code;
+      if (
+        code === "messaging/registration-token-not-registered" ||
+        code === "messaging/invalid-registration-token"
+      ) {
+        invalidTokens.push(tokens[idx]);
+      }
+    }
+  });
+
+  if (invalidTokens.length > 0) {
+    await userRef.update({
+      fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+    });
+  }
+
+  return {
+    success: response.successCount > 0,
+    successCount: response.successCount,
+    failureCount: response.failureCount,
+    tokensCount: tokens.length,
+    prunedTokens: invalidTokens.length,
+    message: response.successCount > 0
+      ? `Push FCM Google délivré avec succès (${response.successCount} appareil(s)) !`
+      : "Le token FCM enregistré était expiré et a été purgé. Un nouveau token frais sera généré.",
+  };
 });
