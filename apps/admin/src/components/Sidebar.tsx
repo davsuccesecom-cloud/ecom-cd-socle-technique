@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   ArrowUpRight,
   PanelLeftOpen,
+  Calculator,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -45,6 +46,7 @@ const GROUPS: NavGroup[] = [
     title: "Pilotage",
     items: [
       { key: "overview", label: "Vue d'ensemble", icon: LayoutDashboard },
+      { key: "comptabilite", label: "Comptabilité & Stock", icon: Calculator },
       { key: "ai_assistant", label: "Analyste Direction", icon: FileBarChart2 },
     ],
   },

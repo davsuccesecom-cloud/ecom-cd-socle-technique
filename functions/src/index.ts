@@ -8,6 +8,7 @@ import * as bcrypt from "bcryptjs";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import {
   writeOrderStatusToSheet,
+  appendOrderToSheet,
   detectAndEnsureSheetColumns,
   pullNewOrdersFromSheet,
   getServiceAccountEmail,
@@ -1163,6 +1164,41 @@ export const onOrderCreated = onDocumentCreated(
     // Traçabilité du stock vendu
     if (order.product) {
       await recordOrderStockCreation(workspaceId, order.teamId, order.product, Number(order.quantity || 1));
+    }
+
+    // Synchronisation automatique vers le Google Sheet de l'équipe (si commande créée via Shopify, Azify, etc.)
+    if (!order.sheetId && order.teamId) {
+      try {
+        const teamData = teamSnap.data();
+        const sheetIds: string[] = Array.isArray(teamData?.sheetIds)
+          ? teamData.sheetIds
+          : teamData?.sheetId
+            ? [teamData.sheetId]
+            : [];
+        const targetSheetId = sheetIds.find((s) => Boolean(s));
+        if (targetSheetId) {
+          const sheets = getSheetsClient();
+          const appendRes = await appendOrderToSheet(sheets, targetSheetId, {
+            clientName: order.clientName || '',
+            phone: order.clientPhoneFormatted || order.phone || '',
+            city: order.city || '',
+            product: order.product || '',
+            amount: order.amount,
+            quantity: order.quantity || 1,
+            statutCloseuse: order.statutCloseuse || 'nouveau',
+            orderNumber: order.orderNumber,
+            orderId: snap.id,
+          });
+          if (appendRes) {
+            await snap.ref.update({
+              sheetId: targetSheetId,
+              sourceRowId: appendRes.sourceRowId,
+            });
+          }
+        }
+      } catch (sheetErr: any) {
+        console.warn('onOrderCreated: échec sync Google Sheet pour order ' + snap.id + ':', sheetErr?.message || sheetErr);
+      }
     }
   }
 );

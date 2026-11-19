@@ -531,7 +531,7 @@ export async function pullNewOrdersFromSheet(
     return [];
   }
 
-  const startRow = Math.max(2, structure.totalRows - 49);
+  const startRow = Math.max(2, structure.totalRows - 199);
   const endCol = colIndexToLetter(Math.max(15, structure.totalColumns - 1));
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
@@ -596,4 +596,99 @@ export async function pullNewOrdersFromSheet(
   });
 
   return candidates;
+}
+
+
+/**
+ * Ajoute une nouvelle commande (Shopify, Azify, etc.) dans le Google Sheet connecté de l'équipe.
+ */
+
+/**
+ * Ajoute une nouvelle commande (Shopify, Azify, etc.) dans le Google Sheet connecté de l'équipe.
+ */
+export async function appendOrderToSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  orderData: {
+    clientName: string;
+    phone: string;
+    city?: string;
+    product?: string;
+    amount?: number;
+    quantity?: number;
+    statutCloseuse?: CloseuseStatus | string;
+    livreurName?: string | null;
+    orderNumber?: string;
+    orderId?: string;
+  }
+): Promise<{ rowNumber: number; sourceRowId: string } | null> {
+  try {
+    const structure = await detectAndEnsureSheetColumns(sheets, spreadsheetId);
+    const colCount = Math.max(structure.totalColumns, 10);
+    const rowValues = new Array(colCount).fill('');
+
+    if (structure.clientColIndex !== null) {
+      rowValues[structure.clientColIndex] = orderData.clientName || '';
+    }
+    if (structure.phoneColIndex !== null) {
+      rowValues[structure.phoneColIndex] = orderData.phone || '';
+    }
+    if (structure.cityColIndex !== null) {
+      rowValues[structure.cityColIndex] = orderData.city || '';
+    }
+    if (structure.productColIndex !== null) {
+      rowValues[structure.productColIndex] = orderData.product || '';
+    }
+    if (structure.amountColIndex !== null && orderData.amount != null) {
+      rowValues[structure.amountColIndex] = orderData.amount;
+    }
+    if (structure.quantityColIndex !== null) {
+      rowValues[structure.quantityColIndex] = orderData.quantity || 1;
+    }
+    if (structure.statusColIndex !== null) {
+      const statusLabel =
+        STATUS_TO_SHEET_LABEL[orderData.statutCloseuse as CloseuseStatus] ||
+        orderData.statutCloseuse ||
+        'Nouveau';
+      rowValues[structure.statusColIndex] = statusLabel;
+    }
+    if (structure.livreurColIndex !== null && orderData.livreurName) {
+      rowValues[structure.livreurColIndex] = orderData.livreurName;
+    }
+    if (structure.updatedAtColIndex !== null) {
+      rowValues[structure.updatedAtColIndex] = new Date().toLocaleString('fr-FR', {
+        timeZone: 'Africa/Lome',
+      });
+    }
+    if (structure.uidColIndex !== null) {
+      rowValues[structure.uidColIndex] = orderData.orderNumber || orderData.orderId || '';
+    }
+
+    const appendRange = "'" + structure.sheetName + "'!A1";
+    const res = await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: appendRange,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    const updatedRange = res.data.updates?.updatedRange || '';
+    const match = updatedRange.match(/!.*?[A-Z]+(\d+):/i) || updatedRange.match(/:[A-Z]+(\d+)$/i);
+    const rowNumber = match ? parseInt(match[1], 10) : structure.totalRows + 1;
+
+    const uid = orderData.orderNumber || orderData.orderId;
+    const sourceRowId = structure.uidColIndex !== null && uid ? ('uid:' + uid) : ('row:' + rowNumber);
+
+    console.log(
+      'appendOrderToSheet: Commande ajoutée au tableur ' + spreadsheetId + ' (Ligne ' + rowNumber + ', sourceRowId=' + sourceRowId + ')'
+    );
+
+    return { rowNumber, sourceRowId };
+  } catch (err: any) {
+    console.error('appendOrderToSheet: échec pour ' + spreadsheetId + ':', err?.message || err);
+    return null;
+  }
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import type { AppUser, Order, Team, UserRole } from "@ecomcod/shared";
+import { buildWhatsAppLink, type AppUser, type Order, type Team, type UserRole } from "@ecomcod/shared";
 
 interface PerformanceEmployesProps {
   team: Team | null;
@@ -149,6 +149,24 @@ export default function PerformanceEmployes({ team, closeuses, livreurs, orders 
     return livreurs.map((u) => computeLivreurStats(u, orders, rangeStart, remunLivreur));
   }, [role, closeuses, livreurs, orders, rangeStart, remunCloseuse, remunLivreur]);
 
+  const sortedStats = useMemo(() => {
+    return [...stats].sort((a, b) => {
+      if (role === "closeuse") {
+        const rateB = b.tauxReussite ?? 0;
+        const rateA = a.tauxReussite ?? 0;
+        if (rateB !== rateA) return rateB - rateA;
+        return b.confirmees - a.confirmees;
+      } else {
+        const delB = b.livraisonsReussies;
+        const delA = a.livraisonsReussies;
+        if (delB !== delA) return delB - delA;
+        return (b.tauxReussite ?? 0) - (a.tauxReussite ?? 0);
+      }
+    });
+  }, [stats, role]);
+
+  const top3 = sortedStats.slice(0, 3);
+
   // Pré-sélectionner automatiquement le premier employé disponible pour éviter la zone vide
   useEffect(() => {
     if (!selectedId && stats.length > 0) {
@@ -213,6 +231,84 @@ export default function PerformanceEmployes({ team, closeuses, livreurs, orders 
           ))}
         </div>
       </div>
+
+      {/* PODIUM DES CHAMPIONS (TOP 3) */}
+      {top3.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+              <span>🏆</span>
+              <span>Podium des Meilleurs Opérateurs ({RANGE_LABELS[range]})</span>
+            </h3>
+            <span className="text-xs text-slate-400">Classement temps réel au mérite</span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {top3.map((champ, idx) => {
+              const medals = [
+                { label: "1er Champion", icon: "🥇", border: "border-amber-400/50 bg-amber-500/5", badge: "bg-amber-400/20 text-amber-300" },
+                { label: "2ème Place", icon: "🥈", border: "border-slate-300/40 bg-slate-300/5", badge: "bg-slate-300/20 text-slate-200" },
+                { label: "3ème Place", icon: "🥉", border: "border-amber-700/40 bg-amber-700/5", badge: "bg-amber-700/20 text-amber-200" },
+              ];
+              const m = medals[idx] || medals[2];
+              const cheerMsg = `Bonjour ${champ.user.name || "Champion"}, félicitations pour tes résultats sur WariTrack (${RANGE_LABELS[range]}) ! Tu es actuellement #${idx + 1} avec ${champ.tauxReussite !== null ? `${champ.tauxReussite}% de taux` : `${champ.livraisonsReussies} livraisons`}. Continue comme ça ! 🚀`;
+              const waUrl = champ.user.phone ? buildWhatsAppLink(champ.user.phone, cheerMsg) : null;
+
+              return (
+                <div key={champ.user.id} className={`rounded-2xl border ${m.border} bg-surface-raised p-4 shadow-xs relative flex flex-col justify-between`}>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${m.badge}`}>
+                        <span>{m.icon}</span>
+                        <span>{m.label}</span>
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-300">
+                        {role === "closeuse" ? `${champ.confirmees} confirmées` : `${champ.livraisonsReussies} livrés`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 mt-2">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface border border-surface-border text-sm font-bold text-white">
+                        {(champ.user.name || "E").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-100 truncate text-sm">{champ.user.name || "Sans nom"}</p>
+                        <p className="text-xs text-slate-400">{champ.user.phone || "Sans téléphone"}</p>
+                      </div>
+                    </div>
+
+                    {/* Jauge Taux */}
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs font-medium mb-1">
+                        <span className="text-slate-400">{role === "closeuse" ? "Taux Closing" : "Taux Livraison"}</span>
+                        <span className="font-bold tabular-nums text-slate-200">{champ.tauxReussite !== null ? `${champ.tauxReussite}%` : "—"}</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-surface overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            (champ.tauxReussite ?? 0) >= 70 ? "bg-emerald-500" : (champ.tauxReussite ?? 0) >= 50 ? "bg-amber-500" : "bg-rose-500"
+                          }`}
+                          style={{ width: `${Math.min(100, Math.max(0, champ.tauxReussite ?? 0))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {waUrl && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition active:scale-[0.98]"
+                    >
+                      <span>Féliciter sur WhatsApp</span>
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Rémunération du jour en temps réel */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-4">
@@ -298,7 +394,7 @@ export default function PerformanceEmployes({ team, closeuses, livreurs, orders 
             <p className="py-6 text-center text-sm text-slate-500">Aucun employé sur cette équipe.</p>
           ) : (
             <ul className="divide-y divide-surface-border">
-              {stats.map((s) => {
+              {sortedStats.map((s) => {
                 const isSelected = selected?.user?.id === s.user.id;
                 return (
                   <li key={s.user.id}>

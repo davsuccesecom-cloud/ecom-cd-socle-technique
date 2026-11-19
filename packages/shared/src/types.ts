@@ -393,5 +393,14 @@ export interface ProductStock {
   totalSold: number;
   totalDelivered: number;
   totalReturned: number;
+  // Unit Economics & Comptabilité COD
+  cogsUnitPrice?: number; // Prix d'achat unitaire usine (ex: 3 500 XOF)
+  transitTotalCost?: number; // Coût global transitaire / fret / douane
+  transitQuantity?: number; // Quantité totale importée dans le lot
+  transitUnitCost?: number; // Coût de fret unitaire calculé
+  reinvestRatio?: number; // Pourcentage conseillé à réinjecter (défaut: 0.65)
+  sellingPriceAvg?: number; // Prix de vente unitaire moyen
+  imageUrl?: string;
+  azifySyncedAt?: number;
   updatedAt: number;
 }

@@ -1005,6 +1005,41 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
     if (order.product) {
         await recordOrderStockCreation(workspaceId, order.teamId, order.product, Number(order.quantity || 1));
     }
+    // Synchronisation automatique vers le Google Sheet de l'équipe (si commande créée via Shopify, Azify, etc.)
+    if (!order.sheetId && order.teamId) {
+        try {
+            const teamData = teamSnap.data();
+            const sheetIds = Array.isArray(teamData?.sheetIds)
+                ? teamData.sheetIds
+                : teamData?.sheetId
+                    ? [teamData.sheetId]
+                    : [];
+            const targetSheetId = sheetIds.find((s) => Boolean(s));
+            if (targetSheetId) {
+                const sheets = (0, sheetsSync_1.getSheetsClient)();
+                const appendRes = await (0, sheetsSync_1.appendOrderToSheet)(sheets, targetSheetId, {
+                    clientName: order.clientName || '',
+                    phone: order.clientPhoneFormatted || order.phone || '',
+                    city: order.city || '',
+                    product: order.product || '',
+                    amount: order.amount,
+                    quantity: order.quantity || 1,
+                    statutCloseuse: order.statutCloseuse || 'nouveau',
+                    orderNumber: order.orderNumber,
+                    orderId: snap.id,
+                });
+                if (appendRes) {
+                    await snap.ref.update({
+                        sheetId: targetSheetId,
+                        sourceRowId: appendRes.sourceRowId,
+                    });
+                }
+            }
+        }
+        catch (sheetErr) {
+            console.warn('onOrderCreated: échec sync Google Sheet pour order ' + snap.id + ':', sheetErr?.message || sheetErr);
+        }
+    }
 });
 // ---------------------------------------------------------------------------
 // 2bis. Statistiques journalieres persistantes (survivent a la purge)

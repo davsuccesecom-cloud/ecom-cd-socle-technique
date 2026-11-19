@@ -57,6 +57,7 @@ export default function CaisseLivreurs({
   const [noteInput, setNoteInput] = useState("");
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [confirmDeleteEntry, setConfirmDeleteEntry] = useState<CashSettlementEntry | null>(null);
+  const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "settled">("all");
 
   const currency = team?.currency || "XOF";
 
@@ -136,6 +137,12 @@ export default function CaisseLivreurs({
       };
     });
   }, [livreurs, deliveredOrders, entries]);
+
+  const displayedSummaries = useMemo(() => {
+    if (filterStatus === "pending") return livreurSummaries.filter((s) => !s.isSettled);
+    if (filterStatus === "settled") return livreurSummaries.filter((s) => s.isSettled);
+    return livreurSummaries;
+  }, [livreurSummaries, filterStatus]);
 
   const globalTotals = useMemo(() => {
     return livreurSummaries.reduce(
@@ -335,14 +342,52 @@ export default function CaisseLivreurs({
 
       {/* Tableau de situation par livreur */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-xs">
-        <div className="mb-4">
-          <h3 className="text-sm font-semibold text-slate-100">Situation de caisse par livreur</h3>
-          <p className="text-xs text-slate-500">
-            Pointage des montants collectés, déductions validées et encaissement des versements.
-          </p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-100">Situation de caisse par livreur</h3>
+            <p className="text-xs text-slate-500">
+              Pointage des montants collectés, déductions validées et encaissement des versements.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1 rounded-xl border border-surface-border bg-surface p-1">
+            <button
+              type="button"
+              onClick={() => setFilterStatus("all")}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                filterStatus === "all" ? "bg-surface-raised text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Tous ({livreurSummaries.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterStatus("pending")}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                filterStatus === "pending" ? "bg-amber-500/20 text-amber-300 shadow-xs" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <span>À verser</span>
+              <span className="rounded-full bg-amber-500/30 px-1.5 py-0.2 text-[10px] font-bold text-amber-200">
+                {livreurSummaries.filter((s) => !s.isSettled).length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterStatus("settled")}
+              className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                filterStatus === "settled" ? "bg-emerald-500/20 text-emerald-300 shadow-xs" : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <span>Soldés</span>
+              <span className="rounded-full bg-emerald-500/30 px-1.5 py-0.2 text-[10px] font-bold text-emerald-200">
+                {livreurSummaries.filter((s) => s.isSettled).length}
+              </span>
+            </button>
+          </div>
         </div>
 
-        {livreurSummaries.length === 0 ? (
+        {displayedSummaries.length === 0 ? (
           <p className="py-8 text-center text-xs text-slate-500">
             Aucun livreur enregistré sur cette équipe.
           </p>
@@ -363,7 +408,7 @@ export default function CaisseLivreurs({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {livreurSummaries.map((s) => (
+                  {displayedSummaries.map((s) => (
                     <tr key={s.livreur.id} className="transition-colors hover:bg-surface/30">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
@@ -451,7 +496,7 @@ export default function CaisseLivreurs({
 
             {/* Cartes Mobile (ergonomie tactile propre) */}
             <div className="space-y-3 sm:hidden">
-              {livreurSummaries.map((s) => (
+              {displayedSummaries.map((s) => (
                 <div key={s.livreur.id} className="rounded-xl border border-surface-border bg-surface p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>

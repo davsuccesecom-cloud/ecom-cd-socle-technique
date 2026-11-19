@@ -53,6 +53,7 @@ import Parametres from "./Parametres";
 import Remuneration from "./Remuneration";
 import CaisseLivreurs from "./CaisseLivreurs";
 import AiAssistant from "./AiAssistant";
+import ComptabiliteStock from "./ComptabiliteStock";
 import LandingPage from "./LandingPage";
 import PeriodSelector, { type Period, periodRangeMs, periodLabel } from "../components/PeriodSelector";
 
@@ -81,6 +82,10 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
   ai_assistant: {
     title: "Analyste Direction",
     subtitle: "Diagnostic opérationnel, rentabilité et bilans stratégiques par marché",
+  },
+  comptabilite: {
+    title: "Comptabilité & Stock par Pays",
+    subtitle: "Prix de revient unitaire, fret transitaire, marge nette réelle et ventilation du cash",
   },
   performance: {
     title: "Performance des Opérateurs",
@@ -523,6 +528,14 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               livreurs={livreurs}
               codInsights={codInsights}
               onNavigate={setPage}
+            />
+          ) : page === "comptabilite" ? (
+            <ComptabiliteStock
+              workspaceId={workspaceId}
+              teams={teams}
+              activeTeamId={teamId}
+              onSelectTeam={setTeamId}
+              orders={allOrders}
             />
           ) : page === "performance" ? (
             <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
