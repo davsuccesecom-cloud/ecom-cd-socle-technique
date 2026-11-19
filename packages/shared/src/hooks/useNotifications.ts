@@ -95,29 +95,40 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
       toDispatch.forEach((n, idx) => {
         setTimeout(async () => {
           // 1. Déclenchement de la VRAIE notification OS native (Bannière Windows 11 + Action Center)
-          let bannerImg = n.productImageUrl || n.image || null;
-          if (!bannerImg && n.orderId && workspaceId) {
+          let bannerImg: string | undefined = undefined;
+          const candidate = n.productImageUrl || n.image;
+          if (candidate && typeof candidate === "string" && candidate.startsWith("http")) {
+            bannerImg = candidate;
+          } else if (n.orderId && workspaceId) {
             try {
               const oSnap = await getDoc(doc(getDb(), "workspaces", workspaceId, "orders", n.orderId));
               if (oSnap.exists()) {
                 const oData = oSnap.data() as any;
-                bannerImg = oData.productImageUrl || oData.image || oData.shopifyData?.productImageUrl || null;
+                const found = oData.productImageUrl || oData.image || oData.shopifyData?.productImageUrl;
+                if (found && typeof found === "string" && found.startsWith("http")) {
+                  bannerImg = found;
+                }
               }
             } catch {}
           }
-          if (!bannerImg) {
-            bannerImg = "/icons/waritrack-brand-banner.jpg";
-          }
 
-          await triggerSystemNotification({
-            title: n.title,
-            body: n.body,
-            orderId: n.orderId,
-            url: n.orderId ? `/?orderId=${n.orderId}&standalone=true` : "/?standalone=true",
-            tag: `waritrack-notif-${n.id}`,
-            requireInteraction: true,
-            image: bannerImg,
-          });
+          // RÈGLE STRICTE: Notification système OS (Windows/Android) UNIQUEMENT si l'utilisateur
+          // est HORS de l'application (onglet/fenêtre minimisée ou en arrière-plan) ET pour les vraies commandes !
+          // Si l'utilisateur est déjà dans l'app, seul le toast in-app (PushToast) apparaît à l'écran.
+          const isAppHidden = typeof document !== "undefined" && document.hidden;
+          const isRealOrder = Boolean(n.orderId) || /commande|livraison|livr[eé]|en route|tourn[eé]e|injoignable|assign/i.test(`${n.title} ${n.body}`);
+
+          if (isAppHidden && isRealOrder) {
+            await triggerSystemNotification({
+              title: n.title,
+              body: n.body,
+              orderId: n.orderId,
+              url: n.orderId ? `/?orderId=${n.orderId}&standalone=true` : "/?standalone=true",
+              tag: `waritrack-notif-${n.id}`,
+              requireInteraction: true,
+              image: bannerImg,
+            });
+          }
 
           // 2. Jouer le son
           playNotificationSound();

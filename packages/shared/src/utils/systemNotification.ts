@@ -113,9 +113,10 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
   // URLs absolues obligatoires pour que Windows 11 Action Center affiche les icônes et grandes images
   const icon = toAbsoluteNotificationUrl(options.icon || "/icons/icon-192.png");
   const badge = toAbsoluteNotificationUrl(options.badge || "/icons/badge-96.png");
-  const image = toAbsoluteNotificationUrl(
-    options.image || "/icons/waritrack-brand-banner.jpg"
-  );
+  const hasProductImage =
+    typeof options.image === "string" &&
+    (options.image.startsWith("http://") || options.image.startsWith("https://"));
+  const image = hasProductImage ? options.image : undefined;
   const tag =
     options.tag ||
     (options.orderId ? `waritrack-order-${options.orderId}` : `waritrack-${Date.now()}`);
@@ -138,9 +139,9 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
       const directNotif = new Notification(options.title, {
         body: options.body,
         icon,
-        image,
         tag,
         requireInteraction: options.requireInteraction ?? true,
+        ...(image ? { image } : {}),
       } as any);
 
       directNotif.onclick = () => {
@@ -190,7 +191,6 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
       await reg.showNotification(options.title, {
         body: options.body,
         icon,
-        image,
         badge,
         tag,
         renotify: options.renotify ?? true,
@@ -199,6 +199,7 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
           orderId: options.orderId,
           url: targetUrl,
         },
+        ...(image ? { image } : {}),
       } as any);
       anyShown = true;
       console.log("[WariTrack Notification] Notification enregistrée via Service Worker.");

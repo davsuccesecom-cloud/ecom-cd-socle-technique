@@ -90,6 +90,7 @@ export interface Order {
   city?: string;
   addressNote?: string;
   product: string;
+  productImageUrl?: string;
   quantity?: number;
   amount: number;
   orderNumber?: string;

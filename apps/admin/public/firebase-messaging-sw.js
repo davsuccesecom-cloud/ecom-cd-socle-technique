@@ -1,16 +1,4 @@
-// 1. Enregistrement PRIORITAIRE du listener de clic pour intercepter l'événement avant tout SDK tiers
-const standaloneClients = new Set();
-
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "WARITRACK_CLIENT_IDENTITY") {
-    if (event.data.isStandalone && event.source?.id) {
-      standaloneClients.add(event.source.id);
-    } else if (event.data.isStandalone === false && event.source?.id) {
-      standaloneClients.delete(event.source.id);
-    }
-  }
-});
-
+// 1. Enregistrement PRIORITAIRE du listener de clic pour focaliser instantanment la PWA installe
 function toAbsolute(path) {
   if (!path) return self.location.origin + "/";
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
@@ -39,42 +27,16 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      // 1. Chercher d'abord parmi les fenêtres déjà connues comme PWA autonome (standalone)
-      let targetClient =
-        windowClients.find((c) => c.url && c.url.includes("standalone=true")) ||
-        windowClients.find((c) => standaloneClients.has(c.id));
+      // 1. Chercher immdiatement une fentre active de l'application
+      let targetClient = windowClients.find(
+        (c) => c.url && (c.url.startsWith(self.location.origin) || c.url.includes("waritrack"))
+      );
 
-      // 2. Si pas en mémoire, interroger rapidement chaque fenêtre via MessageChannel
       if (!targetClient && windowClients.length > 0) {
-        for (const client of windowClients) {
-          try {
-            const messageChannel = new MessageChannel();
-            const isSt = await new Promise((resolve) => {
-              const timeout = setTimeout(() => resolve(false), 80);
-              messageChannel.port1.onmessage = (msgEvent) => {
-                clearTimeout(timeout);
-                resolve(msgEvent.data?.isStandalone === true);
-              };
-              client.postMessage({ type: "CHECK_STANDALONE" }, [messageChannel.port2]);
-            });
-            if (isSt) {
-              standaloneClients.add(client.id);
-              targetClient = client;
-              break;
-            }
-          } catch {}
-        }
+        targetClient = windowClients[0];
       }
 
-      // 3. Si toujours non trouvé, cibler une fenêtre visible ou de même origine
-      if (!targetClient && windowClients.length > 0) {
-        targetClient =
-          windowClients.find((c) => c.url.startsWith(self.location.origin) && c.visibilityState === "visible") ||
-          windowClients.find((c) => c.url.startsWith(self.location.origin)) ||
-          windowClients[0];
-      }
-
-      // 4. Si une fenêtre existante est trouvée, la focaliser SANS rechargement hard de page
+      // 2. Si trouve, la focaliser IMMDIATEMENT pour conserver le geste utilisateur natif
       if (targetClient && "focus" in targetClient) {
         if (orderId) {
           targetClient.postMessage({ type: "NAVIGATE_ORDER", orderId, url: targetUrl });
@@ -82,12 +44,9 @@ self.addEventListener("notificationclick", (event) => {
         return await targetClient.focus();
       }
 
-      // 5. Si aucune fenêtre n'est ouverte : ouvrir l'application (en mode standalone PWA)
+      // 3. Si aucune fentre n'est ouverte : ouvrir la PWA installe
       if (clients.openWindow) {
-        const pwaOpenUrl = targetUrl.includes("standalone=true")
-          ? targetUrl
-          : `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}standalone=true`;
-        return await clients.openWindow(pwaOpenUrl);
+        return await clients.openWindow(targetUrl);
       }
     })()
   );
@@ -104,7 +63,7 @@ if (!firebase.apps.length) {
     projectId: "meta-capi-app",
     storageBucket: "meta-capi-app.firebasestorage.app",
     messagingSenderId: "972779076968",
-    appId: "1:972779076968:web:0b3273a01644985aa82add",
+    appId: "1:972779076968:web:7a41da103d1be9a9a82add",
   });
 }
 
@@ -138,29 +97,29 @@ messaging.onBackgroundMessage(async (payload) => {
   const title =
     payload?.notification?.title ||
     payload?.data?.title ||
-    (wl?.brandName ? `${wl.brandName} — Cockpit Admin` : "WariTrack — Cockpit Admin");
+    (wl?.brandName ? `${wl.brandName} — Admin` : "WariTrack — Cockpit Admin");
   const body = payload?.notification?.body || payload?.data?.body || "";
   const orderId = payload?.data?.orderId || "";
   const targetUrl = toAbsolute(payload?.data?.url || (orderId ? `/?orderId=${orderId}` : "/"));
   const icon = resolveSafeIcon(wl?.logoUrl, toAbsolute("/icons/waritrack-3d-192.png"));
   const badge = toAbsolute("/icons/badge-96.png");
-  const image = toAbsolute(
-    payload?.notification?.image ||
-    payload?.data?.image ||
-    payload?.data?.productImageUrl ||
-    "/icons/waritrack-brand-banner.jpg"
-  );
+
+  // N'afficher de grande image / bannire QUE s'il s'agit d'une vraie image produit en HTTP/HTTPS
+  const rawImage = payload?.notification?.image || payload?.data?.image || payload?.data?.productImageUrl;
+  const hasProductImage = typeof rawImage === "string" && rawImage.startsWith("http");
+  const image = hasProductImage ? rawImage : undefined;
+
   const tag = payload?.data?.tag || (orderId ? `waritrack-order-${orderId}` : `waritrack-admin-${Date.now()}`);
 
   const notificationOptions = {
     body,
     icon,
-    image,
     badge,
     tag,
     renotify: true,
     requireInteraction: true,
     data: { orderId, url: targetUrl },
+    ...(image ? { image } : {}),
   };
 
   try {

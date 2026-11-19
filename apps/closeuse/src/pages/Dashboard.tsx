@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Menu } from "lucide-react";
 import {
   CLOSEUSE_PRIORITY_STATUSES,
@@ -75,6 +75,78 @@ export default function Dashboard({ workspaceId, teamId, closeuseId }: Dashboard
       }
     }, 250);
   };
+
+  // Surveillance temps réel des statuts livreurs terrain (la closeuse est responsable du suivi des livreurs)
+  const prevLivreurStatusMapRef = useRef<Map<string, string | null>>(new Map());
+  const initialLoadDoneRef = useRef(false);
+
+  useEffect(() => {
+    if (!orders || orders.length === 0) return;
+
+    if (!initialLoadDoneRef.current) {
+      orders.forEach((o) => {
+        prevLivreurStatusMapRef.current.set(o.id, o.statutLivreur ?? null);
+      });
+      initialLoadDoneRef.current = true;
+      return;
+    }
+
+    orders.forEach((o) => {
+      const prevStatus = prevLivreurStatusMapRef.current.get(o.id);
+      const currentStatus = o.statutLivreur ?? null;
+
+      if (prevStatus !== undefined && prevStatus !== currentStatus && currentStatus) {
+        const clientName = o.clientName || "Client";
+        const livreurName = o.assignedLivreurName || "Votre livreur";
+        const productImg = (o as any).productImageUrl || (o.shopifyData as any)?.productImageUrl;
+        const currency = team?.currency || "XOF";
+        const formattedAmount = o.amount ? `${Number(o.amount).toLocaleString("fr-FR")} ${currency}` : "";
+
+        if (currentStatus === "en_route") {
+          window.dispatchEvent(
+            new CustomEvent("waritrack-push-message", {
+              detail: {
+                id: `liv-enroute-${o.id}-${Date.now()}`,
+                orderId: o.id,
+                title: `🛵 Livraison en route (${clientName})`,
+                body: `${livreurName} est parti en livraison chez ${clientName} (${o.city || "Ville"}) pour « ${o.product} »`,
+                productImageUrl: productImg,
+                image: productImg,
+              },
+            })
+          );
+        } else if (currentStatus === "livre") {
+          window.dispatchEvent(
+            new CustomEvent("waritrack-push-message", {
+              detail: {
+                id: `liv-livre-${o.id}-${Date.now()}`,
+                orderId: o.id,
+                title: `✅ Colis livré & encaissé ! (${clientName})`,
+                body: `${clientName} a été livré par ${livreurName} · ${formattedAmount} encaissés en cash`,
+                productImageUrl: productImg,
+                image: productImg,
+              },
+            })
+          );
+        } else if (currentStatus === "injoignable") {
+          window.dispatchEvent(
+            new CustomEvent("waritrack-push-message", {
+              detail: {
+                id: `liv-injoignable-${o.id}-${Date.now()}`,
+                orderId: o.id,
+                title: `⚠️ Client injoignable sur le terrain (${clientName})`,
+                body: `${livreurName} signale que ${clientName} ne répond pas. Relancez-le vite par WhatsApp ou appel !`,
+                productImageUrl: productImg,
+                image: productImg,
+              },
+            })
+          );
+        }
+      }
+
+      prevLivreurStatusMapRef.current.set(o.id, currentStatus);
+    });
+  }, [orders, team]);
 
   const navigateToOrder = (orderId: string) => {
     const target = orders.find((o) => o.id === orderId);

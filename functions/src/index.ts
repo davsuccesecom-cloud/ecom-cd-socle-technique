@@ -953,30 +953,63 @@ async function resolveOrderProductImage(workspaceId: string, orderData: any): Pr
       : null;
   if (lineItems && lineItems.length > 0) {
     for (const item of lineItems) {
-      const img = item?.imageUrl || item?.image || item?.image_url || item?.product_image;
+      const img = item?.imageUrl || item?.image || item?.image_url || item?.product_image || item?.image?.src;
       if (typeof img === "string" && img.startsWith("http")) return img;
-      if (typeof img?.src === "string" && img.src.startsWith("http")) return img.src;
     }
   }
 
   // 4. Note attributes (Shopify / Azify / EasySell)
   const noteAttrs = orderData.shopifyData?.noteAttributes || orderData.note_attributes;
+  let candidateProductUrl: string | null = null;
   if (Array.isArray(noteAttrs)) {
-    const imgAttr = noteAttrs.find((a: any) =>
-      a?.name && ["product_image_url", "image_url", "product_image", "image"].includes(String(a.name).toLowerCase())
-    );
-    if (imgAttr?.value && typeof imgAttr.value === "string" && imgAttr.value.startsWith("http")) {
-      return imgAttr.value;
+    for (const a of noteAttrs) {
+      if (!a?.name) continue;
+      const k = String(a.name).toLowerCase().trim();
+      const v = typeof a.value === "string" ? a.value.trim() : "";
+      if (["product_image_url", "image_url", "product_image", "image", "product_img"].includes(k) && v.startsWith("http")) {
+        return v;
+      }
+      if (["full_url", "url", "page_url", "product_url"].includes(k) && v.includes("/products/")) {
+        candidateProductUrl = v;
+      }
     }
   }
 
-  // 5. Recherche tolérante dans la collection 'products' du workspace
+  // 5. Extraction depuis l'URL publique produit Shopify/Azify (ex: https://shop.com/products/handle.json)
+  const productPageUrl =
+    candidateProductUrl ||
+    orderData.shopifyData?.pageUrl ||
+    orderData.pageUrl ||
+    null;
+
+  if (productPageUrl && typeof productPageUrl === "string" && productPageUrl.includes("/products/")) {
+    try {
+      const cleanUrl = productPageUrl.split("?")[0].replace(/\/+$/, "");
+      const jsonUrl = cleanUrl.endsWith(".json") ? cleanUrl : `${cleanUrl}.json`;
+      const res = await fetch(jsonUrl, {
+        headers: { "User-Agent": "WariTrack-Bot/1.0" },
+        signal: AbortSignal.timeout(2000),
+      });
+      if (res.ok) {
+        const pJson = (await res.json()) as any;
+        const found =
+          pJson?.product?.image?.src ||
+          pJson?.product?.images?.[0]?.src ||
+          pJson?.product?.images?.[0];
+        if (typeof found === "string" && found.startsWith("http")) {
+          return found;
+        }
+      }
+    } catch {}
+  }
+
+  // 6. Recherche tolérante dans la collection 'products' du workspace
   const rawProduct = String(orderData.product || "").trim();
   if (rawProduct && workspaceId) {
     try {
       const cleanName = rawProduct
-        .replace(/^\d+x\s*/i, "")
-        .split(/,|\+|\[upsell\]/i)[0]
+        .replace(/^(\d+x\s*)+/gi, "")
+        .split(/,|\+|\[upsell\]|\s*-\s*/i)[0]
         .trim()
         .toLowerCase();
 
@@ -984,14 +1017,20 @@ async function resolveOrderProductImage(workspaceId: string, orderData: any): Pr
         .collection("workspaces")
         .doc(workspaceId)
         .collection("products")
-        .limit(50)
+        .limit(100)
         .get();
 
       if (!prodsSnap.empty) {
         for (const pDoc of prodsSnap.docs) {
           const p = pDoc.data();
           const pName = String(p.name || p.title || "").trim().toLowerCase();
-          if (pName && (pName === cleanName || cleanName.includes(pName) || pName.includes(cleanName))) {
+          if (
+            pName &&
+            (pName === cleanName ||
+              cleanName.includes(pName) ||
+              pName.includes(cleanName) ||
+              cleanName.split(/\s+/).some((w) => w.length >= 4 && pName.includes(w)))
+          ) {
             const foundImg = p.imageUrl || p.image || p.images?.[0]?.url || p.images?.[0] || null;
             if (typeof foundImg === "string" && foundImg.startsWith("http")) {
               return foundImg;
@@ -1218,7 +1257,18 @@ export const onOrderUpdated = onDocumentUpdated(
 
     if (statutLivreurChanged && after.statutLivreur === "en_route") {
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} - en cours de livraison`, orderId, orderProductImg);
+        const livName = after.assignedLivreurName || after.livreurName || "Votre livreur";
+        const cName = after.clientName || "Client";
+        const cityStr = after.city ? ` (${after.city})` : "";
+        const prodStr = after.product ? ` · ${after.product}` : "";
+        await sendPushToUser(
+          workspaceId,
+          after.closeuseId,
+          `🛵 Livraison en route (${cName})`,
+          `${livName} a démarré la livraison chez ${cName}${cityStr}${prodStr}`,
+          orderId,
+          orderProductImg
+        );
       }
       // Synchronisation retour vers la vitrine Azify (Statut: Expédiée)
       await syncOrderUpdateToAzify(workspaceId, after, "shipped");
@@ -1352,7 +1402,19 @@ export const onOrderUpdated = onDocumentUpdated(
       }
 
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId, orderProductImg);
+        const livName = after.assignedLivreurName || after.livreurName || "Votre livreur";
+        const cName = after.clientName || "Client";
+        const cityStr = after.city ? ` (${after.city})` : "";
+        const amountStr = after.amount ? ` · ${Number(after.amount).toLocaleString("fr-FR")} XOF` : "";
+        const prodStr = after.product ? ` · ${after.product}` : "";
+        await sendPushToUser(
+          workspaceId,
+          after.closeuseId,
+          `✅ Colis livré & encaissé ! (${cName})`,
+          `${cName} a été livré par ${livName}${cityStr}${amountStr} encaissés en cash${prodStr}`,
+          orderId,
+          orderProductImg
+        );
       }
 
       // Notification Push & In-app aux Administrateurs : Colis Livré & Encaissé
@@ -1460,7 +1522,19 @@ export const onOrderUpdated = onDocumentUpdated(
       await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
 
       if (after.closeuseId) {
-        await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} - le livreur n'a pas pu joindre le client`, orderId, orderProductImg);
+        const livName = after.assignedLivreurName || after.livreurName || "Votre livreur";
+        const cName = after.clientName || "Client";
+        const cityStr = after.city ? ` (${after.city})` : "";
+        const noteStr = after.deliveryFieldNote || after.fieldNote || "";
+        const noteDetail = noteStr ? ` (Note: "${noteStr}")` : "";
+        await sendPushToUser(
+          workspaceId,
+          after.closeuseId,
+          `⚠️ Client injoignable sur le terrain (${cName})`,
+          `${livName} signale que ${cName}${cityStr} ne répond pas${noteDetail}. Relancez le client sur WhatsApp ou appel immédiatement !`,
+          orderId,
+          orderProductImg
+        );
       }
 
       // Alerte Administrateurs : Colis en échec de livraison
@@ -2043,15 +2117,14 @@ function buildPushMulticastMessage(
   orderId?: string,
   imageUrl?: string
 ): admin.messaging.MulticastMessage {
-  const bannerImg = imageUrl || "https://waritrack-admin.vercel.app/icons/waritrack-brand-banner.jpg";
+  const hasImage = typeof imageUrl === "string" && imageUrl.startsWith("http");
   const dataPayload: Record<string, string> = {
     title,
     body,
     url: clickUrl,
     tag,
     ...(orderId ? { orderId } : {}),
-    image: bannerImg,
-    productImageUrl: bannerImg,
+    ...(hasImage ? { image: imageUrl, productImageUrl: imageUrl } : {}),
   };
 
   return {
@@ -2059,7 +2132,7 @@ function buildPushMulticastMessage(
     notification: {
       title,
       body,
-      imageUrl: bannerImg,
+      ...(hasImage ? { imageUrl } : {}),
     },
     data: dataPayload,
     android: {
@@ -2071,7 +2144,7 @@ function buildPushMulticastMessage(
         clickAction: clickUrl,
         defaultSound: true,
         tag,
-        imageUrl: bannerImg,
+        ...(hasImage ? { imageUrl } : {}),
       },
     },
     apns: {
@@ -2086,9 +2159,7 @@ function buildPushMulticastMessage(
           "mutable-content": 1,
         },
       },
-      fcmOptions: {
-        imageUrl: bannerImg,
-      },
+      ...(hasImage ? { fcmOptions: { imageUrl } } : {}),
     },
     webpush: {
       headers: {
@@ -2100,11 +2171,14 @@ function buildPushMulticastMessage(
         body,
         icon: "https://waritrack-admin.vercel.app/icons/icon-192.png",
         badge: "https://waritrack-admin.vercel.app/icons/badge-96.png",
-        image: bannerImg,
         tag,
         renotify: true,
         requireInteraction: true,
         data: dataPayload,
+        ...(hasImage ? { image: imageUrl } : {}),
+      },
+      fcmOptions: {
+        link: clickUrl,
       },
     },
   };

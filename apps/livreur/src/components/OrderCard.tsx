@@ -59,43 +59,6 @@ function cleanLivreurLocation(city?: string | null, locationHint?: string | null
   return cleaned || raw;
 }
 
-/**
- * Clés d'attributs strictement confidentielles ou redondantes
- * qui ne doivent JAMAIS fuiter vers l'interface livreur.
- */
-const SENSITIVE_ATTRIBUTE_KEYS = [
-  "token",
-  "cart",
-  "url",
-  "full_url",
-  "ip",
-  "address",
-  "pays",
-  "country",
-  "nom",
-  "name",
-  "tel",
-  "phone",
-  "adresse",
-  "region",
-  "city",
-  "ville",
-  "source",
-  "shopify",
-  "azify",
-  "utm",
-  "fbp",
-  "fbc",
-  "pixel",
-  "user_agent",
-  "useragent",
-  "target_language",
-  "dialect",
-  "language",
-  "clientlanguage",
-  "_",
-];
-
 const DELIVERY_FAILURE_REASONS = [
   "Client ne répond plus sur place",
   "Adresse introuvable / client absent",
@@ -134,42 +97,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         ? `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
         : null;
 
-  // Filtrage strict : Aucune fuite d'info interne (tokens, IPs, URLs boutique, cart token)
-  // Ne conserver que les rares indications opérationnelles de course (créneau, repère, étage)
-  const operationalDeliveryNotes = (order.shopifyData?.noteAttributes || []).filter((attr) => {
-    if (!attr?.name || !attr?.value) return false;
-    const name = String(attr.name).toLowerCase().trim();
-    const val = String(attr.value).trim();
-
-    if (
-      !val ||
-      val.length > 100 ||
-      val.startsWith("http://") ||
-      val.startsWith("https://") ||
-      val.includes("myshopify") ||
-      val.includes("key=")
-    ) {
-      return false;
-    }
-
-    if (SENSITIVE_ATTRIBUTE_KEYS.some((bad) => name === bad || name.startsWith(bad) || name.endsWith(bad))) {
-      return false;
-    }
-
-    return (
-      name.includes("creneau") ||
-      name.includes("heure") ||
-      name.includes("livraison") ||
-      name.includes("remarque") ||
-      name.includes("instruction") ||
-      name.includes("disponibilite") ||
-      name.includes("etage") ||
-      name.includes("batiment") ||
-      name.includes("porte")
-    );
-  });
-
-  const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack en route pour votre colis ${orderCode} (${
+const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack en route pour votre colis ${orderCode} (${
     order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""
   }${order.product} — ${formattedAmount}). Êtes-vous disponible à ${displayLocation || "votre adresse"} ?`;
 
@@ -233,7 +161,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         distinctAddressNote ||
         order.clientPhoneFormatted ||
         (order.quantity && order.quantity > 1) ||
-        operationalDeliveryNotes.length > 0) && (
+        (order.quantity && order.quantity > 1)) && (
         <div className="mb-2 space-y-1.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-2.5 text-[11px] text-slate-600 dark:text-slate-300">
           {order.clientPhoneFormatted && (
             <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
@@ -283,17 +211,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
             </p>
           )}
 
-          {operationalDeliveryNotes.length > 0 && (
-            <div className="space-y-1 border-t border-slate-200 dark:border-slate-600 pt-1.5">
-              {operationalDeliveryNotes.map((attr, idx) => (
-                <div key={idx} className="flex justify-between gap-2 text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400 capitalize">{attr.name} :</span>
-                  <span className="font-medium text-slate-800 dark:text-slate-200">{attr.value}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+</div>
       )}
 
       {/* Instructions directes de la closeuse pour le livreur */}

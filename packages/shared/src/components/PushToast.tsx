@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, X } from "lucide-react";
 import type { IncomingPushDetail } from "../hooks/useNotifications";
-import { triggerSystemNotification } from "../utils/systemNotification";
 
 interface PushToastProps {
   customLogoUrl?: string | null;
@@ -49,19 +48,8 @@ export default function PushToast({
         audio.play().catch(() => {});
       } catch {}
 
-      // Transmission directe au Centre de notifications Windows / OS avec image produit ou bannière
-      const bannerImg = (detail as any).productImageUrl || (detail as any).image || "/icons/waritrack-brand-banner.jpg";
-      void triggerSystemNotification({
-        title: detail.title || "WariTrack",
-        body: detail.body || "",
-        icon: "/icons/icon-192.png",
-        image: bannerImg,
-        badge: "/icons/badge-96.png",
-        orderId: detail.orderId,
-        url: detail.orderId ? `/?orderId=${detail.orderId}` : "/",
-        tag: detail.orderId ? `waritrack-order-${detail.orderId}` : `waritrack-toast-${now}`,
-        requireInteraction: true,
-      });
+      // Note : PushToast gère uniquement l'affichage in-app quand l'utilisateur est dans l'appli.
+      // Les notifications externes OS sont réservées au mode hors-application (arrière-plan).
 
       setToast({ ...detail, key: `${now}` });
       if (timerRef.current) clearTimeout(timerRef.current);
