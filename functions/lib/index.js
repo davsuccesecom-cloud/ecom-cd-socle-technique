@@ -1070,6 +1070,15 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         if (after.closeuseId) {
             await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
         }
+        // Notification Push & In-app aux Administrateurs : Colis Livré & Encaissé
+        const clientName = after.clientName || "Client";
+        const amountStr = after.amount ? `${Number(after.amount).toLocaleString("fr-FR")} XOF` : "";
+        const livreurName = after.assignedLivreurName || after.livreurName || "Livreur";
+        const cityStr = after.city ? `(${after.city})` : "";
+        const productStr = after.product ? `· ${after.product}` : "";
+        const deliveryTitle = `💰 Colis Livré & Encaissé : ${amountStr}`;
+        const deliveryBody = `${clientName} ${cityStr} · Livré par ${livreurName} ${productStr}`;
+        await notifyAdmins(workspaceId, deliveryTitle, deliveryBody);
     }
     // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse (réservé Meta Ads)
     if (statutCloseuseChanged &&
@@ -1147,6 +1156,12 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         if (after.closeuseId) {
             await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} - le livreur n'a pas pu joindre le client`, orderId);
         }
+        // Alerte Administrateurs : Colis en échec de livraison
+        const clientName = after.clientName || "Client";
+        const livreurName = after.assignedLivreurName || after.livreurName || "Livreur";
+        const cityStr = after.city ? `(${after.city})` : "";
+        const noteStr = after.livreurNote ? ` · Note : ${after.livreurNote}` : "";
+        await notifyAdmins(workspaceId, `⚠️ Échec Livraison : ${clientName} ${cityStr}`, `Le livreur ${livreurName} n'a pas pu joindre le client${noteStr}. Action requise.`);
     }
     if (statutCloseuseChanged && FINAL_STATUSES.includes(after.statutCloseuse)) {
         // Conservation permanente : aucune purge des commandes
@@ -1157,6 +1172,9 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         // bloc statutLivreur === "livre" ci-dessus, deja comptabilise).
         if (after.statutCloseuse === "rejete") {
             await incrementDailyStat(workspaceId, after.teamId, "rejetees", 1);
+            const clientName = after.clientName || "Client";
+            const reasonStr = after.rejectionReason ? ` (${after.rejectionReason})` : "";
+            await notifyAdmins(workspaceId, `❌ Commande Annulée : ${clientName}`, `Motif : ${reasonStr || "Refus client"} · Produit : ${after.product || "Article"}`);
         }
         else if (after.statutCloseuse === "injoignable") {
             await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
