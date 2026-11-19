@@ -950,6 +950,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         if (after.closeuseId) {
             await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} - en cours de livraison`, orderId);
         }
+        // Synchronisation retour vers la vitrine Azify (Statut: Expédiée)
+        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "shipped");
     }
     if (statutLivreurChanged && after.statutLivreur === "livre" && !before.timestamps?.delivered) {
         await ref.update({
@@ -1080,6 +1082,11 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         const deliveryBody = `${clientName} ${cityStr} · Livré par ${livreurName} ${productStr}`;
         await notifyAdmins(workspaceId, deliveryTitle, deliveryBody);
     }
+    if (statutCloseuseChanged &&
+        (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme" || after.statutCloseuse === "confirme")) {
+        // Synchronisation retour vers la vitrine Azify (Statut: Confirmée)
+        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "confirmed");
+    }
     // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse (réservé Meta Ads)
     if (statutCloseuseChanged &&
         (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme") &&
@@ -1172,6 +1179,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         // bloc statutLivreur === "livre" ci-dessus, deja comptabilise).
         if (after.statutCloseuse === "rejete") {
             await incrementDailyStat(workspaceId, after.teamId, "rejetees", 1);
+            // Synchronisation retour vers la vitrine Azify (Statut: Annulée)
+            await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "cancelled");
             const clientName = after.clientName || "Client";
             const reasonStr = after.rejectionReason ? ` (${after.rejectionReason})` : "";
             await notifyAdmins(workspaceId, `❌ Commande Annulée : ${clientName}`, `Motif : ${reasonStr || "Refus client"} · Produit : ${after.product || "Article"}`);
