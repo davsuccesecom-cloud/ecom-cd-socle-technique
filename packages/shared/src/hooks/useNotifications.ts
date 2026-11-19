@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, limit, onSnapshot, orderBy, query, updateDoc, where } from "firebase/firestore";
 import { getDb } from "../firebase";
 import { triggerSystemNotification } from "../utils/systemNotification";
 
@@ -95,12 +95,25 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
       toDispatch.forEach((n, idx) => {
         setTimeout(async () => {
           // 1. Déclenchement de la VRAIE notification OS native (Bannière Windows 11 + Action Center)
-          const bannerImg = n.productImageUrl || n.image || "/icons/waritrack-brand-banner.jpg";
+          let bannerImg = n.productImageUrl || n.image || null;
+          if (!bannerImg && n.orderId && workspaceId) {
+            try {
+              const oSnap = await getDoc(doc(getDb(), "workspaces", workspaceId, "orders", n.orderId));
+              if (oSnap.exists()) {
+                const oData = oSnap.data() as any;
+                bannerImg = oData.productImageUrl || oData.image || oData.shopifyData?.productImageUrl || null;
+              }
+            } catch {}
+          }
+          if (!bannerImg) {
+            bannerImg = "/icons/waritrack-brand-banner.jpg";
+          }
+
           await triggerSystemNotification({
             title: n.title,
             body: n.body,
             orderId: n.orderId,
-            url: n.orderId ? `/?orderId=${n.orderId}` : "/",
+            url: n.orderId ? `/?orderId=${n.orderId}&standalone=true` : "/?standalone=true",
             tag: `waritrack-notif-${n.id}`,
             requireInteraction: true,
             image: bannerImg,
@@ -117,8 +130,8 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
                 title: n.title,
                 body: n.body,
                 orderId: n.orderId,
-                productImageUrl: n.productImageUrl,
-                image: n.productImageUrl || n.image,
+                productImageUrl: bannerImg,
+                image: bannerImg,
                 source: isCatchUp ? "tracker" : "firestore",
               },
             })

@@ -123,53 +123,64 @@ export async function triggerSystemNotification(options: ShowSystemNotificationO
 
   let anyShown = false;
 
-  // 1. Déclenchement direct dans la fenêtre (force l'apparition immédiate de la bannière toast à l'écran)
-  try {
-    const directNotif = new Notification(options.title, {
-      body: options.body,
-      icon,
-      image,
-      tag,
-      requireInteraction: options.requireInteraction ?? true, // Force le toast à rester visible à l'écran
-    } as any);
+  const isStandalone =
+    typeof window !== "undefined" &&
+    (window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true ||
+      document.referrer.includes("android-app://"));
 
-    directNotif.onclick = () => {
-      window.focus();
+  // 1. Déclenchement direct dans la fenêtre PWA
+  // IMPORTANT: Si la page tourne dans un simple onglet de navigateur Chrome, on ne doit JAMAIS
+  // créer de new Notification() car son clic forcerait Chrome à revenir au premier plan au lieu de la PWA !
+  // Seul le Service Worker doit émettre pour toujours router vers l'application PWA installée.
+  if (isStandalone) {
+    try {
+      const directNotif = new Notification(options.title, {
+        body: options.body,
+        icon,
+        image,
+        tag,
+        requireInteraction: options.requireInteraction ?? true,
+      } as any);
 
-      if (options.orderId) {
-        window.dispatchEvent(
-          new CustomEvent("waritrack-navigate-order", {
-            detail: { orderId: options.orderId },
-          })
-        );
-        window.dispatchEvent(
-          new MessageEvent("message", {
-            data: { type: "NAVIGATE_ORDER", orderId: options.orderId, url: targetUrl },
-          })
-        );
-      }
+      directNotif.onclick = () => {
+        window.focus();
 
-      if (options.url) {
-        try {
-          const currentPath = window.location.pathname + window.location.search;
-          const parsed = options.url.startsWith("http") ? new URL(options.url) : null;
-          const targetPath = parsed ? parsed.pathname + parsed.search : options.url;
-          if (currentPath !== targetPath) {
-            window.history.pushState({}, "", options.url);
-            window.dispatchEvent(new PopStateEvent("popstate"));
-          }
-        } catch {
-          window.location.href = options.url;
+        if (options.orderId) {
+          window.dispatchEvent(
+            new CustomEvent("waritrack-navigate-order", {
+              detail: { orderId: options.orderId },
+            })
+          );
+          window.dispatchEvent(
+            new MessageEvent("message", {
+              data: { type: "NAVIGATE_ORDER", orderId: options.orderId, url: targetUrl },
+            })
+          );
         }
-      }
 
-      directNotif.close();
-    };
+        if (options.url) {
+          try {
+            const currentPath = window.location.pathname + window.location.search;
+            const parsed = options.url.startsWith("http") ? new URL(options.url) : null;
+            const targetPath = parsed ? parsed.pathname + parsed.search : options.url;
+            if (currentPath !== targetPath) {
+              window.history.pushState({}, "", options.url);
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }
+          } catch {
+            window.location.href = options.url;
+          }
+        }
 
-    anyShown = true;
-    console.log("[WariTrack Notification] Popup écran déclenché via new Notification()");
-  } catch (err) {
-    console.warn("[WariTrack Notification] Direct Notification avertissement:", err);
+        directNotif.close();
+      };
+
+      anyShown = true;
+      console.log("[WariTrack Notification] Popup écran déclenché dans la PWA installée");
+    } catch (err) {
+      console.warn("[WariTrack Notification] Direct Notification avertissement:", err);
+    }
   }
 
   // 2. Déclenchement via Service Worker (assure l'enregistrement persistant dans le Centre de notifications Windows)

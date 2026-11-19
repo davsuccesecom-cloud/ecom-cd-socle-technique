@@ -1,52 +1,4 @@
-// Ce fichier doit rester à la racine de public/ (portée requise par FCM).
-// Gère la réception des alertes en arrière-plan pour l'app Livreur.
-// Supporte à la fois le mode autonome et l'inclusion via Workbox importScripts.
-
-importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
-
-if (!firebase.apps.length) {
-  firebase.initializeApp({
-    apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
-    authDomain: "meta-capi-app.firebaseapp.com",
-    projectId: "meta-capi-app",
-    storageBucket: "meta-capi-app.firebasestorage.app",
-    messagingSenderId: "972779076968",
-    appId: "1:972779076968:web:7a41da103d1be9a9a82add",
-  });
-}
-
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
-});
-
-function toAbsolute(path) {
-  if (!path) return self.location.origin + "/";
-  if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  const origin = self.location.origin;
-  return `${origin}${path.startsWith("/") ? "" : "/"}${path}`;
-}
-
-function resolveSafeIcon(url, fallback) {
-  return typeof url === "string" && url.startsWith("https://") ? url : fallback;
-}
-
-async function getWhiteLabelBranding() {
-  try {
-    const cache = await caches.open("waritrack-whitelabel");
-    const res = await cache.match("/whitelabel.json");
-    if (!res) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-// Suivi des fenêtres PWA ouvertes en mode standalone
+// 1. Enregistrement PRIORITAIRE du listener de clic pour intercepter l'événement avant tout SDK tiers
 const standaloneClients = new Set();
 
 self.addEventListener("message", (event) => {
@@ -59,6 +11,13 @@ self.addEventListener("message", (event) => {
   }
 });
 
+function toAbsolute(path) {
+  if (!path) return self.location.origin + "/";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  const origin = self.location.origin;
+  return `${origin}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.stopImmediatePropagation();
   event.notification.close();
@@ -69,7 +28,6 @@ self.addEventListener("notificationclick", (event) => {
   const orderId = rawData.orderId || fcmData.orderId || "";
   const targetUrl = toAbsolute(
     rawData.url ||
-    fcmMsg.fcmOptions?.link ||
     fcmData.url ||
     (orderId ? `/?orderId=${orderId}` : "/")
   );
@@ -81,8 +39,10 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      // 1. Chercher d'abord parmi les fenêtres déjà connues comme PWA autonome
-      let targetClient = windowClients.find((c) => standaloneClients.has(c.id));
+      // 1. Chercher d'abord parmi les fenêtres déjà connues comme PWA autonome (standalone)
+      let targetClient =
+        windowClients.find((c) => c.url && c.url.includes("standalone=true")) ||
+        windowClients.find((c) => standaloneClients.has(c.id));
 
       // 2. Si pas en mémoire, interroger rapidement chaque fenêtre via MessageChannel
       if (!targetClient && windowClients.length > 0) {
@@ -90,7 +50,7 @@ self.addEventListener("notificationclick", (event) => {
           try {
             const messageChannel = new MessageChannel();
             const isSt = await new Promise((resolve) => {
-              const timeout = setTimeout(() => resolve(false), 90);
+              const timeout = setTimeout(() => resolve(false), 80);
               messageChannel.port1.onmessage = (msgEvent) => {
                 clearTimeout(timeout);
                 resolve(msgEvent.data?.isStandalone === true);
@@ -114,26 +74,62 @@ self.addEventListener("notificationclick", (event) => {
           windowClients[0];
       }
 
-      // 4. Si une fenêtre existante est trouvée, la focaliser et lui envoyer l'ordre de navigation
+      // 4. Si une fenêtre existante est trouvée, la focaliser SANS rechargement hard de page
       if (targetClient && "focus" in targetClient) {
         if (orderId) {
           targetClient.postMessage({ type: "NAVIGATE_ORDER", orderId, url: targetUrl });
         }
-        if ("navigate" in targetClient && targetUrl) {
-          try {
-            await targetClient.navigate(targetUrl);
-          } catch {}
-        }
         return await targetClient.focus();
       }
 
-      // 5. Si aucune fenêtre n'est ouverte : ouvrir l'application (la PWA s'ouvrira en mode autonome grâce à launch_handler)
+      // 5. Si aucune fenêtre n'est ouverte : ouvrir l'application (en mode standalone PWA)
       if (clients.openWindow) {
-        return await clients.openWindow(targetUrl);
+        const pwaOpenUrl = targetUrl.includes("standalone=true")
+          ? targetUrl
+          : `${targetUrl}${targetUrl.includes("?") ? "&" : "?"}standalone=true`;
+        return await clients.openWindow(pwaOpenUrl);
       }
     })()
   );
 });
+
+// 2. Import et initialisation du SDK Firebase Cloud Messaging
+importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
+
+if (!firebase.apps.length) {
+  firebase.initializeApp({
+    apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
+    authDomain: "meta-capi-app.firebaseapp.com",
+    projectId: "meta-capi-app",
+    storageBucket: "meta-capi-app.firebasestorage.app",
+    messagingSenderId: "972779076968",
+    appId: "1:972779076968:web:7a41da103d1be9a9a82add",
+  });
+}
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(clients.claim());
+});
+
+function resolveSafeIcon(url, fallback) {
+  return typeof url === "string" && url.startsWith("https://") ? url : fallback;
+}
+
+async function getWhiteLabelBranding() {
+  try {
+    const cache = await caches.open("waritrack-whitelabel");
+    const res = await cache.match("/whitelabel.json");
+    if (!res) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
 const messaging = firebase.messaging();
 
@@ -151,6 +147,7 @@ messaging.onBackgroundMessage(async (payload) => {
   const image = toAbsolute(
     payload?.notification?.image ||
     payload?.data?.image ||
+    payload?.data?.productImageUrl ||
     "/icons/app-livreur-native.png"
   );
   const tag = payload?.data?.tag || (orderId ? `waritrack-order-${orderId}` : `waritrack-livreur-${Date.now()}`);

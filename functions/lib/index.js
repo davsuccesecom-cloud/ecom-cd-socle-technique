@@ -810,6 +810,84 @@ async function recordProductDeliveryStock(workspaceId, teamId, productName, qty 
         console.warn("recordProductDeliveryStock ignoré :", err);
     }
 }
+/**
+ * Résout de manière exhaustive et tolérante l'image du produit d'une commande
+ * (champs directs, Shopify/Azify, line items, note attributes, ou catalogue Firestore).
+ */
+async function resolveOrderProductImage(workspaceId, orderData) {
+    if (!orderData)
+        return null;
+    // 1. Champ direct de premier niveau
+    if (typeof orderData.productImageUrl === "string" && orderData.productImageUrl.startsWith("http")) {
+        return orderData.productImageUrl;
+    }
+    if (typeof orderData.image === "string" && orderData.image.startsWith("http")) {
+        return orderData.image;
+    }
+    if (typeof orderData.image?.src === "string" && orderData.image.src.startsWith("http")) {
+        return orderData.image.src;
+    }
+    // 2. Champ Shopify / EasySell / Azify
+    if (typeof orderData.shopifyData?.productImageUrl === "string" && orderData.shopifyData.productImageUrl.startsWith("http")) {
+        return orderData.shopifyData.productImageUrl;
+    }
+    // 3. Line items
+    const lineItems = Array.isArray(orderData.lineItems)
+        ? orderData.lineItems
+        : Array.isArray(orderData.line_items)
+            ? orderData.line_items
+            : null;
+    if (lineItems && lineItems.length > 0) {
+        for (const item of lineItems) {
+            const img = item?.imageUrl || item?.image || item?.image_url || item?.product_image;
+            if (typeof img === "string" && img.startsWith("http"))
+                return img;
+            if (typeof img?.src === "string" && img.src.startsWith("http"))
+                return img.src;
+        }
+    }
+    // 4. Note attributes (Shopify / Azify / EasySell)
+    const noteAttrs = orderData.shopifyData?.noteAttributes || orderData.note_attributes;
+    if (Array.isArray(noteAttrs)) {
+        const imgAttr = noteAttrs.find((a) => a?.name && ["product_image_url", "image_url", "product_image", "image"].includes(String(a.name).toLowerCase()));
+        if (imgAttr?.value && typeof imgAttr.value === "string" && imgAttr.value.startsWith("http")) {
+            return imgAttr.value;
+        }
+    }
+    // 5. Recherche tolérante dans la collection 'products' du workspace
+    const rawProduct = String(orderData.product || "").trim();
+    if (rawProduct && workspaceId) {
+        try {
+            const cleanName = rawProduct
+                .replace(/^\d+x\s*/i, "")
+                .split(/,|\+|\[upsell\]/i)[0]
+                .trim()
+                .toLowerCase();
+            const prodsSnap = await db
+                .collection("workspaces")
+                .doc(workspaceId)
+                .collection("products")
+                .limit(50)
+                .get();
+            if (!prodsSnap.empty) {
+                for (const pDoc of prodsSnap.docs) {
+                    const p = pDoc.data();
+                    const pName = String(p.name || p.title || "").trim().toLowerCase();
+                    if (pName && (pName === cleanName || cleanName.includes(pName) || pName.includes(cleanName))) {
+                        const foundImg = p.imageUrl || p.image || p.images?.[0]?.url || p.images?.[0] || null;
+                        if (typeof foundImg === "string" && foundImg.startsWith("http")) {
+                            return foundImg;
+                        }
+                    }
+                }
+            }
+        }
+        catch (err) {
+            console.warn("resolveOrderProductImage: lookup products error:", err);
+        }
+    }
+    return null;
+}
 exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspaceId}/orders/{orderId}", async (event) => {
     const snap = event.data;
     if (!snap)
@@ -867,7 +945,10 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
     await snap.ref.update(updatePayload);
     // Notification personnalisée pour la closeuse avec mention de la langue locale
     const langBadge = order.clientLanguage ? ` · 🗣️ Parler en ${order.clientLanguage}` : "";
-    const orderProductImg = order.productImageUrl || order.shopifyData?.productImageUrl || null;
+    const orderProductImg = await resolveOrderProductImage(workspaceId, order);
+    if (orderProductImg && !order.productImageUrl) {
+        await snap.ref.update({ productImageUrl: orderProductImg });
+    }
     await sendPushToUser(workspaceId, chosen.id, order.isDuplicatePhone ? "⚠️ Nouvelle commande (Doublon N°)" : "Nouvelle commande", order.isDuplicatePhone
         ? `${order.clientName} - ${order.product}${langBadge} · Vérifier si 1 ou 2 produits`
         : `${order.clientName} - ${order.product}${langBadge}`, snap.id, orderProductImg);
@@ -937,8 +1018,12 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     const statutCloseuseChanged = before.statutCloseuse !== after.statutCloseuse;
     const livreurAssigned = !!after.livreurId && before.livreurId !== after.livreurId;
     const wasReassigned = !!before.livreurId && !!after.livreurId && before.livreurId !== after.livreurId;
+    const orderProductImg = await resolveOrderProductImage(workspaceId, after);
+    if (orderProductImg && !after.productImageUrl) {
+        await ref.update({ productImageUrl: orderProductImg });
+    }
     if (livreurAssigned) {
-        await sendPushToUser(workspaceId, after.livreurId, wasReassigned ? "Livraison réassignée" : "Nouvelle livraison", `${after.clientName} - ${after.product}`, orderId);
+        await sendPushToUser(workspaceId, after.livreurId, wasReassigned ? "Livraison réassignée" : "Nouvelle livraison", `${after.clientName} - ${after.product}`, orderId, orderProductImg);
         await ref.update({ "timestamps.assignedToLivreur": Date.now() });
     }
     if (statutCloseuseChanged && before.statutCloseuse === "nouveau" && !after.timestamps?.closeuseDecidedAt) {
@@ -949,7 +1034,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     }
     if (statutLivreurChanged && after.statutLivreur === "en_route") {
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} - en cours de livraison`, orderId);
+            await sendPushToUser(workspaceId, after.closeuseId, "Livraison en route", `${after.clientName} - en cours de livraison`, orderId, orderProductImg);
         }
         // Synchronisation retour vers la vitrine Azify (Statut: Expédiée)
         await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "shipped");
@@ -1071,7 +1156,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             }
         }
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId);
+            await sendPushToUser(workspaceId, after.closeuseId, "Commande livree", `${after.clientName} - confirme livre`, orderId, orderProductImg);
         }
         // Notification Push & In-app aux Administrateurs : Colis Livré & Encaissé
         const clientName = after.clientName || "Client";
@@ -1163,7 +1248,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         // ne pouvant pas se declencher sur le meme evenement Firestore.
         await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
         if (after.closeuseId) {
-            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} - le livreur n'a pas pu joindre le client`, orderId);
+            await sendPushToUser(workspaceId, after.closeuseId, "Client injoignable", `${after.clientName} - le livreur n'a pas pu joindre le client`, orderId, orderProductImg);
         }
         // Alerte Administrateurs : Colis en échec de livraison
         const clientName = after.clientName || "Client";
@@ -1655,9 +1740,6 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId, 
                 renotify: true,
                 requireInteraction: true,
                 data: dataPayload,
-            },
-            fcmOptions: {
-                link: clickUrl,
             },
         },
     };

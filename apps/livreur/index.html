@@ -6,6 +6,42 @@
     <meta name="theme-color" content="#0EA5E9" />
     <title>WariTrack — Espace Livreur</title>
     <meta name="description" content="Application mobile de livraison terrain, mise à jour des statuts et encaissement en direct." />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <script>
+      (function() {
+        var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        if (isStandalone) {
+          try {
+            var u = new URL(window.location.href);
+            if (!u.searchParams.has('standalone')) {
+              u.searchParams.set('standalone', 'true');
+              window.history.replaceState(null, '', u.toString());
+            }
+          } catch (e) {}
+        }
+        function sendIdentity() {
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'WARITRACK_CLIENT_IDENTITY',
+              isStandalone: isStandalone,
+              href: window.location.href
+            });
+          }
+        }
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'CHECK_STANDALONE') {
+              if (e.ports && e.ports[0]) {
+                e.ports[0].postMessage({ isStandalone: isStandalone });
+              }
+            }
+          });
+          sendIdentity();
+          navigator.serviceWorker.ready.then(sendIdentity);
+        }
+      })();
+    </script>
 
     <!-- Open Graph / WhatsApp Preview -->
     <meta property="og:site_name" content="WariTrack" />
@@ -31,7 +67,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-</head>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

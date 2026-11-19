@@ -23,7 +23,7 @@ export default defineConfig({
         background_color: "#07090F",
         display: "standalone",
         launch_handler: {
-          client_mode: ["focus-existing", "auto"],
+          client_mode: "navigate-existing",
         },
         icons: [
           { src: "icons/waritrack-3d-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

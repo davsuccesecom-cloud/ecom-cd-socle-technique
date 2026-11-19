@@ -19,7 +19,7 @@ export default defineConfig({
         background_color: "#F8FAFC",
         display: "standalone",
         launch_handler: {
-          client_mode: ["focus-existing", "auto"],
+          client_mode: "navigate-existing",
         },
         icons: [
           { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },

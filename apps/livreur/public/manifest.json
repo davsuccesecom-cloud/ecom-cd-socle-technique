@@ -9,7 +9,7 @@
   "background_color": "#F8FAFC",
   "theme_color": "#0EA5E9",
   "launch_handler": {
-    "client_mode": ["focus-existing", "auto"]
+    "client_mode": "navigate-existing"
   },
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
