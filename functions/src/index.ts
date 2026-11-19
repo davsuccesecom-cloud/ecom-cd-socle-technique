@@ -291,11 +291,12 @@ function generatePassword(): string {
 
 export const createAccessUser = onCall(async (request) => {
   const workspaceId = requireAdmin(request);
-  const { name, phone, role, teamId } = request.data as {
+  const { name, phone, role, teamId, languages } = request.data as {
     name: string;
     phone?: string;
     role: "closeuse" | "livreur";
     teamId: string;
+    languages?: string[];
   };
 
   if (!name?.trim() || !teamId || (role !== "closeuse" && role !== "livreur")) {
@@ -336,6 +337,7 @@ export const createAccessUser = onCall(async (request) => {
     role,
     name: name.trim(),
     phone: phone?.trim() ?? "",
+    languages: Array.isArray(languages) ? languages : [],
     fcmTokens: [],
     status: "active",
     createdAt: Date.now(),
@@ -603,6 +605,28 @@ export const deleteEmployee = onCall(async (request) => {
   return { success: true };
 });
 
+// Modification des langues et dialectes locaux parlés par un employé (Skill-Based Routing)
+export const updateEmployeeLanguages = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { userId, languages } = request.data as { userId: string; languages: string[] };
+  if (!userId || !Array.isArray(languages)) {
+    throw new HttpsError("invalid-argument", "userId et liste des langues requis.");
+  }
+
+  const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "Employé introuvable.");
+  }
+
+  await userRef.update({
+    languages,
+    updatedAt: Date.now(),
+  });
+
+  return { ok: true, languages };
+});
+
 // ---------------------------------------------------------------------------
 // 1quater. Reception des nouvelles commandes depuis Google Sheets
 // ---------------------------------------------------------------------------
@@ -819,6 +843,84 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
 // 2. Assignation automatique a la creation d'une commande (section 8)
 // ---------------------------------------------------------------------------
 
+
+// ---------------------------------------------------------------------------
+// Helpers Gestion de Stock & Traçabilité Anti-Fraude
+// ---------------------------------------------------------------------------
+
+function slugifyProduct(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60);
+}
+
+async function recordOrderStockCreation(workspaceId: string, teamId: string, productName: string, qty = 1) {
+  if (!productName?.trim() || !teamId) return;
+  const slug = slugifyProduct(productName);
+  const stockRef = db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).collection("stocks").doc(slug);
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(stockRef);
+      if (!snap.exists) {
+        tx.set(stockRef, {
+          id: slug,
+          workspaceId,
+          teamId,
+          productName: productName.trim(),
+          quantityOnHand: 0,
+          lowStockThreshold: 10,
+          totalSold: qty,
+          totalDelivered: 0,
+          totalReturned: 0,
+          updatedAt: Date.now(),
+        });
+      } else {
+        tx.update(stockRef, {
+          totalSold: admin.firestore.FieldValue.increment(qty),
+          updatedAt: Date.now(),
+        });
+      }
+    });
+  } catch (err) {
+    console.warn("recordOrderStockCreation ignoré :", err);
+  }
+}
+
+async function recordProductDeliveryStock(workspaceId: string, teamId: string, productName: string, qty = 1) {
+  if (!productName?.trim() || !teamId) return;
+  const slug = slugifyProduct(productName);
+  const stockRef = db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).collection("stocks").doc(slug);
+  try {
+    let alertRemaining: number | null = null;
+    let alertThreshold = 10;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(stockRef);
+      if (snap.exists) {
+        const d = snap.data()!;
+        const remaining = Math.max(0, Number(d.quantityOnHand ?? 0) - qty);
+        const threshold = Number(d.lowStockThreshold ?? 10);
+        tx.update(stockRef, {
+          quantityOnHand: remaining,
+          totalDelivered: admin.firestore.FieldValue.increment(qty),
+          updatedAt: Date.now(),
+        });
+        if (remaining <= threshold && Number(d.quantityOnHand ?? 0) > threshold) {
+          alertRemaining = remaining;
+          alertThreshold = threshold;
+        }
+      }
+    });
+
+    if (alertRemaining !== null) {
+      await notifyAdmins(
+        workspaceId,
+        "🤖 Vigie IA · Alerte Stock Critique",
+        `Le produit "${productName}" est en zone d'alerte sur ce marché : plus que ${alertRemaining} pièce(s) disponible(s) (seuil alerte : ${alertThreshold}). Pensez au réapprovisionnement.`
+      );
+    }
+  } catch (err) {
+    console.warn("recordProductDeliveryStock ignoré :", err);
+  }
+}
+
 export const onOrderCreated = onDocumentCreated(
   "workspaces/{workspaceId}/orders/{orderId}",
   async (event) => {
@@ -851,20 +953,51 @@ export const onOrderCreated = onDocumentCreated(
       })
     );
 
-    const chosen = loads.reduce((lowest, current) => (current.count < lowest.count ? current : lowest));
+    // -----------------------------------------------------------------------
+    // ROUTAGE INTELLIGENT PAR COMPÉTENCE LINGUISTIQUE (Skill-Based Routing)
+    // -----------------------------------------------------------------------
+    const orderLanguage = (order.clientLanguage || "").trim().toLowerCase();
+    let candidates = loads;
+    let languageMatched = false;
 
-    await snap.ref.update({
+    if (orderLanguage) {
+      const languageFiltered = loads.filter((c) => {
+        const userLangs: string[] = Array.isArray(c.data.languages) ? c.data.languages : [];
+        return userLangs.some((l) => {
+          const cleanL = l.toLowerCase();
+          return cleanL === orderLanguage || cleanL.includes(orderLanguage) || orderLanguage.includes(cleanL);
+        });
+      });
+
+      if (languageFiltered.length > 0) {
+        candidates = languageFiltered;
+        languageMatched = true;
+      }
+    }
+
+    const chosen = candidates.reduce((lowest, current) => (current.count < lowest.count ? current : lowest));
+
+    const updatePayload: Record<string, any> = {
       closeuseId: chosen.id,
       "timestamps.assignedToCloseuse": Date.now(),
-    });
+    };
 
+    if (orderLanguage && !languageMatched) {
+      updatePayload.languagePriorityNotified = true;
+      updatePayload.fieldNote = `⚠️ [Priorité : Rappel en ${order.clientLanguage}] (Aucune closeuse parlant ce dialecte n'était disponible)`;
+    }
+
+    await snap.ref.update(updatePayload);
+
+    // Notification personnalisée pour la closeuse avec mention de la langue locale
+    const langBadge = order.clientLanguage ? ` · 🗣️ Parler en ${order.clientLanguage}` : "";
     await sendPushToUser(
       workspaceId,
       chosen.id,
       order.isDuplicatePhone ? "⚠️ Nouvelle commande (Doublon N°)" : "Nouvelle commande",
       order.isDuplicatePhone
-        ? `${order.clientName} - ${order.product} · Vérifier si 1 ou 2 produits`
-        : `${order.clientName} - ${order.product}`,
+        ? `${order.clientName} - ${order.product}${langBadge} · Vérifier si 1 ou 2 produits`
+        : `${order.clientName} - ${order.product}${langBadge}`,
       snap.id
     );
 
@@ -884,6 +1017,11 @@ export const onOrderCreated = onDocumentCreated(
         "🤖 Vigie IA · Closeuse surchargée",
         `${chosen.data.name} a ${chosen.count + 1} commandes actives en attente.`
       );
+    }
+
+    // Traçabilité du stock vendu
+    if (order.product) {
+      await recordOrderStockCreation(workspaceId, order.teamId, order.product, Number(order.quantity || 1));
     }
   }
 );
@@ -1006,6 +1144,11 @@ export const onOrderUpdated = onDocumentUpdated(
         incrementDailyStat(workspaceId, after.teamId, "ca", after.amount),
         incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
       ]);
+
+      // Décrémentation automatique du stock & contrôle anti-fraude
+      if (after.product) {
+        await recordProductDeliveryStock(workspaceId, after.teamId, after.product, Number(after.quantity || 1));
+      }
 
       // Isolation Meta CAPI pour les numéros doublons ("acces_libre_site") :
       // Si ce numéro a déjà fait l'objet d'un tracking CAPI ou est qualifié en doublon,
@@ -1295,15 +1438,7 @@ export const cancelRemunerationPayment = onCall(async (request) => {
   return { ok: true };
 });
 
-// ---------------------------------------------------------------------------
-// 4. Purge automatique des commandes traitees (section 15/16)
-// ---------------------------------------------------------------------------
-
-export const scheduledPurge = onSchedule("every 24 hours", async () => {
-  // Purge désactivée définitivement à la demande du client :
-  // Toutes les commandes et données restent 100% permanentes dans Firestore pour l'historique complet.
-  console.log("scheduledPurge: conservation permanente activée, aucune commande supprimée.");
-});
+// Note: Purge désactivée définitivement (conservation permanente intégrale demandée).
 
 // ---------------------------------------------------------------------------
 // 5. Rappels automatiques 15-20 min sans action sur "Nouveau" (section 6)
@@ -1314,10 +1449,15 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
   const cutoff = now - REMINDER_DELAY_MINUTES * 60 * 1000;
   const workspacesSnap = await db.collection("workspaces").get();
 
+  const window24h = now - 24 * 60 * 60 * 1000;
+  const window48h = now - 48 * 60 * 60 * 1000;
+
   for (const wsDoc of workspacesSnap.docs) {
+    // Optimisation quota : ne scanner que les commandes de la fenêtre active (< 24h)
     const staleOrders = await wsDoc.ref
       .collection("orders")
       .where("statutCloseuse", "==", "nouveau")
+      .where("timestamps.received", ">=", window24h)
       .where("timestamps.received", "<=", cutoff)
       .get();
 
@@ -1355,10 +1495,11 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
       }
     }
 
-    // Rappels des commandes programmées arrivées à échéance
+    // Rappels des commandes programmées arrivées à échéance (fenêtre active < 24h)
     const dueScheduled = await wsDoc.ref
       .collection("orders")
       .where("statutCloseuse", "==", "programme")
+      .where("reminderAt", ">=", window24h)
       .where("reminderAt", "<=", now)
       .get();
 
@@ -1398,10 +1539,11 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
       }
     }
 
-    // Commandes confirmées (en_cours) mais oubliées sans livreur assigné (> 25 min)
+    // Commandes confirmées (en_cours) mais oubliées sans livreur assigné (> 25 min, fenêtre 48h)
     const confirmedSnap = await wsDoc.ref
       .collection("orders")
       .where("statutCloseuse", "==", "en_cours")
+      .where("timestamps.received", ">=", window48h)
       .get();
 
     let unassignedCount = 0;
@@ -1918,11 +2060,15 @@ async function notifyAdmins(workspaceId: string, title: string, body: string) {
     .collection("workspaces")
     .doc(workspaceId)
     .collection("users")
-    .where("role", "==", "admin")
-    .where("status", "==", "active")
+    .where("role", "in", ["admin", "owner"])
     .get();
 
-  if (adminsSnap.empty) {
+  const activeAdmins = adminsSnap.docs.filter((d) => {
+    const data = d.data();
+    return data.active !== false && data.status !== "inactive" && !data.disabledAt;
+  });
+
+  if (activeAdmins.length === 0) {
     console.log(`notifyAdmins: aucun admin actif pour workspace ${workspaceId}`);
     return;
   }
@@ -1932,7 +2078,7 @@ async function notifyAdmins(workspaceId: string, title: string, body: string) {
   const tag = `waritrack-admin-${notifRef.id}`;
 
   await Promise.all(
-    adminsSnap.docs.map((adminDoc) => {
+    activeAdmins.map((adminDoc) => {
       const tokens: string[] = adminDoc.data().fcmTokens ?? [];
       return sendMulticastAndPruneTokens({
         userRef: adminDoc.ref,
@@ -2290,55 +2436,7 @@ export const completeMetaOAuthBridgeSession = onCall(async (request) => {
 // employes existants dans Firestore (correction du bug d'authentification)
 // ---------------------------------------------------------------------------
 
-export const migrateUsers = onCall(async (request) => {
-  const workspaceId = requireAdmin(request);
-
-  // SÉCURITÉ : Ne migrer QUE le workspace de l'admin appelant (isolation multi-tenant stricte)
-  const wsDoc = await db.collection("workspaces").doc(workspaceId).get();
-  if (!wsDoc.exists) {
-    throw new HttpsError("not-found", "Workspace introuvable.");
-  }
-
-  let totalUsers = 0;
-  let created = 0;
-  let alreadyExists = 0;
-  let errors = 0;
-  const details: Array<{ name: string; userId: string; status: string }> = [];
-
-  const usersSnap = await wsDoc.ref.collection("users").get();
-  if (!usersSnap.empty) {
-    for (const userDoc of usersSnap.docs) {
-      totalUsers++;
-      const userData = userDoc.data();
-      const userId = userDoc.id;
-
-      try {
-        try {
-          await admin.auth().getUser(userId);
-          alreadyExists++;
-          details.push({ name: userData.name || userId, userId, status: "existe_deja" });
-        } catch (authErr: any) {
-          if (authErr.code === "auth/user-not-found") {
-            await admin.auth().createUser({
-              uid: userId,
-              displayName: userData.name || undefined,
-              phoneNumber: userData.phone || undefined,
-            });
-            created++;
-            details.push({ name: userData.name || userId, userId, status: "cree" });
-          } else {
-            throw authErr;
-          }
-        }
-      } catch (err: any) {
-        errors++;
-        details.push({ name: userData.name || userId, userId, status: `erreur: ${err.message}` });
-      }
-    }
-  }
-
-  return { totalUsers, created, alreadyExists, errors, details };
-});
+// Migration achevée avec succès en phase antérieure.
 
 
 

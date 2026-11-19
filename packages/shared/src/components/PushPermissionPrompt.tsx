@@ -20,6 +20,19 @@ export default function PushPermissionPrompt({ permission, onRequest }: PushPerm
   });
   const [requesting, setRequesting] = useState(false);
 
+  if (permission === "denied") {
+    return (
+      <div className="flex items-center justify-between gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-2.5 text-xs text-rose-300">
+        <div className="flex min-w-0 items-center gap-2">
+          <BellRing className="h-4 w-4 shrink-0 text-rose-400" />
+          <span className="font-medium">
+            Notifications bloquées par votre navigateur Chrome. Cliquez sur l'icône à gauche de l'URL pour autoriser les notifications.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   if (permission !== "default" || dismissed) return null;
 
   return (

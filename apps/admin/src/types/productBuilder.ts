@@ -102,6 +102,9 @@ export interface ProductPageData {
   productName: string;
   category: string;
   published: boolean;
+  stockQuantity?: number; // Stock disponible sur le marché lié
+  lowStockThreshold?: number; // Seuil d'alerte stock (ex: 10)
+  targetLanguage?: string; // Langue locale cible de la page (ex: "Mina / Ewé", "Kabyè", "Dioula", "Français")
   createdAt: number;
   updatedAt: number;
   theme: ThemeConfig;

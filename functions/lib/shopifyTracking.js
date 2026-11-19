@@ -859,6 +859,14 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             quantity: Number(quantity) || 1,
             amount: Number(amount) || 0,
             orderNumber: orderNumber || `#${shopifyOrderId}`,
+            clientLanguage: orderPayload.clientLanguage ||
+                noteMap["clientlanguage"] ||
+                noteMap["client_language"] ||
+                noteMap["language"] ||
+                noteMap["langue"] ||
+                noteMap["target_language"] ||
+                noteMap["dialect"] ||
+                null,
             closeuseId: null,
             livreurId: null,
             statutCloseuse: "nouveau",
@@ -879,6 +887,14 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             shopifyData: {
                 shopifyOrderId,
                 orderNumber: orderNumber || `#${shopifyOrderId}`,
+                clientLanguage: orderPayload.clientLanguage ||
+                    noteMap["clientlanguage"] ||
+                    noteMap["client_language"] ||
+                    noteMap["language"] ||
+                    noteMap["langue"] ||
+                    noteMap["target_language"] ||
+                    noteMap["dialect"] ||
+                    null,
                 shopDomain,
                 countryCode: countryCode || "",
                 city: city || "",

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { getApp } from "firebase/app";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { ConfirmDialog, type Team, type AppUser } from "@ecomcod/shared";
+import { ConfirmDialog, AFRICAN_LOCAL_LANGUAGES, type Team, type AppUser } from "@ecomcod/shared";
+import { Globe2 } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface UtilisateursProps {
@@ -26,12 +27,20 @@ const callRegeneratePassword = httpsCallable(functions, "regenerateAccessPasswor
 const callSetStatus = httpsCallable(functions, "setAccessLinkStatus");
 const callListLinks = httpsCallable(functions, "listAccessLinks");
 const callDeleteEmployee = httpsCallable(functions, "deleteEmployee");
+const callUpdateEmployeeLanguages = httpsCallable(functions, "updateEmployeeLanguages");
 
 const CLOSEUSE_URL = import.meta.env.VITE_CLOSEUSE_URL as string | undefined;
 const LIVREUR_URL = import.meta.env.VITE_LIVREUR_URL as string | undefined;
 
-export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }: UtilisateursProps) {
+export default function Utilisateurs({
+  workspaceId,
+  team,
+  closeuses,
+  livreurs,
+}: UtilisateursProps) {
   const [tab, setTab] = useState<Role>("closeuse");
+  const [selectedDialectFilter, setSelectedDialectFilter] = useState<string | null>(null);
+  const [languageOverrides, setLanguageOverrides] = useState<Record<string, string[]>>({});
   const [links, setLinks] = useState<AccessLink[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -40,9 +49,30 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
   const [confirmDelete, setConfirmDelete] = useState<AppUser | null>(null);
   const [confirmRegenerate, setConfirmRegenerate] = useState<AppUser | null>(null);
   const [confirmToggle, setConfirmToggle] = useState<AppUser | null>(null);
+  const [editingLanguagesUser, setEditingLanguagesUser] = useState<AppUser | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const users = tab === "closeuse" ? closeuses : livreurs;
+  const baseUsers = tab === "closeuse" ? closeuses : livreurs;
+  const users = selectedDialectFilter
+    ? baseUsers.filter((u) => {
+        const langs = languageOverrides[u.id] ?? u.languages ?? [];
+        return langs.some(
+          (l) => l.toLowerCase() === selectedDialectFilter.toLowerCase()
+        );
+      })
+    : baseUsers;
+
+  // Calcul des dialectes disponibles dans l'équipe active
+  const dialectCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    baseUsers.forEach((u) => {
+      const langs = languageOverrides[u.id] ?? u.languages ?? [];
+      langs.forEach((l) => {
+        counts[l] = (counts[l] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [baseUsers, languageOverrides]);
 
   useEffect(() => {
     if (!team) {
@@ -121,6 +151,58 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
 
   return (
     <div>
+      {/* Bannière de Couverture Linguistique (Skill-Based Routing) */}
+      <div className="mb-4 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <Globe2 className="h-4 w-4 text-indigo-400 shrink-0" />
+            <h3 className="text-xs font-bold text-slate-100">
+              Couverture Linguistique & Routage par Dialectes ({team.name})
+            </h3>
+          </div>
+          <span className="text-[11px] text-indigo-300 font-medium">
+            Skill-Based Routing Actif
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 mb-3">
+          Les commandes issues de vos pages produits avec une langue cible ou rédigées en dialectes locaux sont automatiquement attribuées en priorité aux collaborateurs maîtrisant ces langues.
+        </p>
+
+        {/* Filtre interactif par dialecte */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSelectedDialectFilter(null)}
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+              selectedDialectFilter === null
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Tous les collaborateurs ({baseUsers.length})
+          </button>
+          {Object.entries(dialectCounts).map(([dialect, count]) => {
+            const isSelected = selectedDialectFilter === dialect;
+            return (
+              <button
+                key={dialect}
+                type="button"
+                onClick={() =>
+                  setSelectedDialectFilter(isSelected ? null : dialect)
+                }
+                className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                  isSelected
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "border border-surface-border bg-surface text-slate-300 hover:text-white"
+                }`}
+              >
+                🗣️ {dialect} ({count})
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex rounded-xl border border-surface-border bg-surface-raised p-1">
           {(["closeuse", "livreur"] as Role[]).map((r) => (
@@ -172,7 +254,32 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
                   const disabled = !!link?.disabledAt;
                   return (
                     <tr key={user.id} className="border-b border-surface-border last:border-0">
-                      <td className="px-4 py-3 text-slate-200">{user.name}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-200">{user.name}</div>
+                        {(() => {
+                          const langs = languageOverrides[user.id] ?? user.languages ?? [];
+                          return (
+                            <div className="flex flex-wrap items-center gap-1 mt-1">
+                              {langs.length > 0 ? (
+                                langs.map((l) => (
+                                  <span key={l} className="inline-flex items-center rounded-md border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
+                                    🗣️ {l}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[10px] text-slate-500 italic">Français par défaut</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setEditingLanguagesUser(user)}
+                                className="text-[10px] text-sky-400 hover:text-sky-300 underline ml-1 cursor-pointer"
+                              >
+                                Modifier
+                              </button>
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-slate-400">{user.phone || "—"}</td>
                       <td className="px-4 py-3">
                         <StatusBadge disabled={disabled} />
@@ -206,6 +313,29 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate font-medium text-slate-200">{user.name}</p>
+                      {(() => {
+                        const langs = languageOverrides[user.id] ?? user.languages ?? [];
+                        return (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {langs.length > 0 ? (
+                              langs.map((l) => (
+                                <span key={l} className="inline-flex items-center rounded-md border border-indigo-500/30 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">
+                                  🗣️ {l}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-slate-500 italic">Français par défaut</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setEditingLanguagesUser(user)}
+                              className="text-[10px] text-sky-400 hover:text-sky-300 underline ml-1 cursor-pointer"
+                            >
+                              Modifier
+                            </button>
+                          </div>
+                        );
+                      })()}
                       <p className="truncate text-xs text-slate-500">{user.phone || "Pas de téléphone"}</p>
                     </div>
                     <StatusBadge disabled={disabled} />
@@ -279,6 +409,21 @@ export default function Utilisateurs({ workspaceId, team, closeuses, livreurs }:
         onConfirm={() => confirmToggle && handleToggleStatus(confirmToggle)}
         onCancel={() => setConfirmToggle(null)}
       />
+
+      {editingLanguagesUser && (
+        <EditLanguagesModal
+          user={editingLanguagesUser}
+          onClose={() => setEditingLanguagesUser(null)}
+          onSaved={(newLanguages) => {
+            editingLanguagesUser.languages = newLanguages;
+            setLanguageOverrides((prev) => ({
+              ...prev,
+              [editingLanguagesUser.id]: newLanguages,
+            }));
+            setEditingLanguagesUser(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -310,14 +455,28 @@ function UserActions({
   onToggle: () => void;
   onDelete: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!url) return;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {url && (
         <button
-          onClick={() => navigator.clipboard.writeText(url)}
-          className="rounded-lg border border-surface-border px-2.5 py-1 text-xs text-slate-300 hover:bg-surface"
+          type="button"
+          onClick={handleCopy}
+          className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+            copied
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-semibold"
+              : "border-surface-border text-slate-300 hover:bg-surface"
+          }`}
         >
-          Copier le lien
+          {copied ? "✓ Lien copié !" : "Copier le lien"}
         </button>
       )}
       <button
@@ -403,11 +562,23 @@ function CreateAccessModal({
   onClose: () => void;
   onCreated: (label: string, password: string) => void;
 }) {
+  const [assignedTeamId, setAssignedTeamId] = useState(team.id);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<Role>(defaultRole);
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(["Français"]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const toggleLanguage = (lang: string) => {
+    if (selectedLanguages.includes(lang)) {
+      if (selectedLanguages.length > 1) {
+        setSelectedLanguages(selectedLanguages.filter((l) => l !== lang));
+      }
+    } else {
+      setSelectedLanguages([...selectedLanguages, lang]);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -419,8 +590,9 @@ function CreateAccessModal({
         name: name.trim(),
         phone: phone.trim(),
         role,
-        teamId: team.id,
+        teamId: assignedTeamId || team.id,
         workspaceId,
+        languages: selectedLanguages,
       });
       const { password } = res.data as { password: string };
       onCreated(name.trim(), password);
@@ -434,8 +606,12 @@ function CreateAccessModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl border border-surface-border bg-surface-raised p-6">
-        <h2 className="mb-1 text-lg font-medium text-slate-100">Nouvel utilisateur</h2>
-        <p className="mb-6 text-sm text-slate-500">Équipe : {team.name}</p>
+        <h2 className="mb-1 text-lg font-medium text-slate-100">Nouvel accès employé</h2>
+        <p className="mb-4 text-xs text-slate-400">
+          Création d'un accès sécurisé avec routage par compétences linguistiques.
+        </p>
+
+        
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex rounded-xl border border-surface-border bg-surface p-1">
@@ -471,6 +647,36 @@ function CreateAccessModal({
               className="w-full rounded-xl border border-surface-border bg-surface px-4 py-3 text-base text-slate-100 outline-none placeholder:text-slate-600 focus:border-brand"
             />
           </div>
+
+          <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <Globe2 className="h-3.5 w-3.5 text-indigo-400" />
+                <span>Langues & Dialectes parlés (Skill-Based Routing)</span>
+              </label>
+              <p className="text-[11px] text-slate-500">
+                WariTrack attribuera automatiquement les commandes des campagnes rédigées ou parlées dans ces langues à cette closeuse.
+              </p>
+              <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto rounded-xl border border-surface-border bg-surface p-2.5">
+                {AFRICAN_LOCAL_LANGUAGES.map((lang) => {
+                  const active = selectedLanguages.includes(lang);
+                  return (
+                    <button
+                      key={lang}
+                      type="button"
+                      onClick={() => toggleLanguage(lang)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                        active
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "border border-surface-border bg-surface-raised text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      {active ? "✓ " : "+ "}
+                      {lang}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
           {error && <p className="text-sm text-red-400">{error}</p>}
 
@@ -524,6 +730,103 @@ function PasswordRevealModal({
         <button onClick={onClose} className="w-full rounded-xl bg-brand py-2.5 text-sm font-medium text-white">
           J'ai noté, fermer
         </button>
+      </div>
+    </div>
+  );
+}
+
+function EditLanguagesModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: AppUser;
+  onClose: () => void;
+  onSaved: (languages: string[]) => void;
+}) {
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(
+    Array.isArray(user.languages) && user.languages.length > 0 ? user.languages : ["Français"]
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggleLanguage = (lang: string) => {
+    if (selectedLanguages.includes(lang)) {
+      if (selectedLanguages.length > 1) {
+        setSelectedLanguages(selectedLanguages.filter((l) => l !== lang));
+      }
+    } else {
+      setSelectedLanguages([...selectedLanguages, lang]);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await callUpdateEmployeeLanguages({
+        userId: user.id,
+        languages: selectedLanguages,
+      });
+      onSaved(selectedLanguages);
+    } catch (err) {
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl">
+        <h2 className="mb-1 text-base font-bold text-slate-100 flex items-center gap-2">
+          <Globe2 className="h-4 w-4 text-indigo-400" />
+          <span>Langues de {user.name}</span>
+        </h2>
+        <p className="mb-4 text-xs text-slate-400">
+          Cochez tous les dialectes parlés par cette closeuse pour le routage automatique par compétence.
+        </p>
+
+        <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto rounded-xl border border-surface-border bg-surface p-2.5 mb-4">
+          {AFRICAN_LOCAL_LANGUAGES.map((lang) => {
+            const active = selectedLanguages.includes(lang);
+            return (
+              <button
+                key={lang}
+                type="button"
+                onClick={() => toggleLanguage(lang)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                  active
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "border border-surface-border bg-surface-raised text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {active ? "✓ " : "+ "}
+                {lang}
+              </button>
+            );
+          })}
+        </div>
+
+        {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-surface-border py-2 text-xs font-medium text-slate-300"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className="flex-1 rounded-xl bg-brand py-2 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Enregistrement..." : "Enregistrer les langues"}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -7,6 +7,8 @@ import Dashboard from "./pages/Dashboard";
 import MetaOAuthBridgePage from "./pages/MetaOAuthBridgePage";
 import LegalPrivacyModal, { type LegalTab } from "./components/LegalPrivacyModal";
 import WariTrackLogo from "./components/WariTrackLogo";
+import GoogleAccountConfirmation from "./components/GoogleAccountConfirmation";
+import AzifyConnectionSheet from "./components/AzifyConnectionSheet";
 
 interface SessionClaims {
   workspaceId: string;
@@ -51,11 +53,20 @@ export default function App() {
     }
   });
   const [showSlowLoadingNotice, setShowSlowLoadingNotice] = useState(false);
+  const [sessionConfirmed, setSessionConfirmed] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem("waritrack_google_session_confirmed") === "true";
+    } catch {
+      return false;
+    }
+  });
 
   const handleLogout = useCallback(async () => {
     try {
       localStorage.removeItem("waritrack_cached_workspace_claims");
+      sessionStorage.removeItem("waritrack_google_session_confirmed");
     } catch {}
+    setSessionConfirmed(false);
     await logout();
   }, [logout]);
 
@@ -237,6 +248,16 @@ export default function App() {
 
   const legalParam = searchParams.get("legal") as LegalTab | null;
   const pathname = window.location.pathname.toLowerCase();
+
+  const isAzifyConnect =
+    searchParams.get("connect") === "azify" ||
+    searchParams.has("azifyConnect") ||
+    searchParams.has("azify") ||
+    searchParams.has("pairingCode") ||
+    (searchParams.get("code") || "").startsWith("AZIFY1:") ||
+    pathname === "/connect/azify" ||
+    pathname === "/connect/waritrack" ||
+    pathname === "/connect";
   if (
     legalParam ||
     pathname === "/privacy" ||
@@ -287,12 +308,59 @@ export default function App() {
     );
   }
 
-  // Si l'utilisateur est connecté et possède un espace de travail, on affiche le tableau de bord
+  // Si l'utilisateur arrive pour connecter une boutique Azify et qu'il est authentifié
+  if (isAzifyConnect && firebaseUser && claims?.workspaceId) {
+    return (
+      <AzifyConnectionSheet
+        workspaceId={claims.workspaceId}
+        userEmail={firebaseUser.email}
+        userName={firebaseUser.displayName}
+        userPhoto={firebaseUser.photoURL}
+        standalone
+        onCompleted={(assignedTeam) => {
+          setTimeout(() => {
+            window.location.href = `/?teamId=${assignedTeam.id}`;
+          }, 1200);
+        }}
+        onCancel={() => {
+          window.location.href = "/";
+        }}
+        onSwitchAccount={async () => {
+          await handleLogout();
+          await signInWithGoogle();
+        }}
+      />
+    );
+  }
+
+  // Si l'utilisateur est connecté et possède un espace de travail, vérification et confirmation avant routage
   if (
     firebaseUser &&
     claims?.workspaceId &&
     (claims.role === "admin" || !claims.role || claims.role === "owner")
   ) {
+    if (!sessionConfirmed) {
+      return (
+        <GoogleAccountConfirmation
+          userEmail={firebaseUser.email}
+          userName={firebaseUser.displayName}
+          userPhoto={firebaseUser.photoURL}
+          workspaceId={claims.workspaceId}
+          role={claims.role || "admin"}
+          onConfirm={() => {
+            try {
+              sessionStorage.setItem("waritrack_google_session_confirmed", "true");
+            } catch {}
+            setSessionConfirmed(true);
+          }}
+          onSwitchAccount={async () => {
+            await handleLogout();
+            await signInWithGoogle();
+          }}
+        />
+      );
+    }
+
     return (
       <ConnectionGuard appName="Admin">
         <Dashboard

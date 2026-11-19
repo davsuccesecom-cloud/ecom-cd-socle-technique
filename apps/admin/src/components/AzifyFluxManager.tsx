@@ -40,6 +40,7 @@ import {
   Zap,
 } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
+import AzifyConnectionSheet from "./AzifyConnectionSheet";
 
 interface AzifyFluxManagerProps {
   workspaceId: string;
@@ -209,6 +210,8 @@ export default function AzifyFluxManager({
   const [notice, setNotice] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const [showSheetModal, setShowSheetModal] = useState(false);
+  const [sheetPayload, setSheetPayload] = useState<AzifyConnectPayload | null>(null);
   const [showCodeBox, setShowCodeBox] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
@@ -485,7 +488,8 @@ export default function AzifyFluxManager({
       setActionError("Code Azify invalide. Le code doit débuter par AZIFY1:...");
       return;
     }
-    await applyAzifyPayload(decoded);
+    setSheetPayload(decoded);
+    setShowSheetModal(true);
   };
 
   const handlePasteCode = async () => {
@@ -496,7 +500,8 @@ export default function AzifyFluxManager({
           setCodeInput(text.trim());
           const decoded = decodeAzifyPairingCode(text.trim());
           if (decoded) {
-            await applyAzifyPayload(decoded);
+            setSheetPayload(decoded);
+            setShowSheetModal(true);
           }
         }
       }
@@ -807,6 +812,18 @@ export default function AzifyFluxManager({
               >
                 <Clipboard className="h-4 w-4" />
                 <span>{showCodeBox ? "Masquer code" : "Code AZIFY1"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSheetPayload(null);
+                  setShowSheetModal(true);
+                }}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand px-5 text-xs font-bold text-white shadow-sm transition hover:opacity-95 active:translate-y-px cursor-pointer"
+              >
+                <Store className="h-4 w-4" />
+                <span>Fiche de Connexion Équipe</span>
               </button>
 
               <button
@@ -1430,6 +1447,23 @@ export default function AzifyFluxManager({
                 Ajouter ce pays
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Fiche de Connexion & Association d'Équipe Modale */}
+      {showSheetModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl">
+            <AzifyConnectionSheet
+              workspaceId={workspaceId}
+              userEmail={team.name}
+              initialPayload={sheetPayload}
+              onCompleted={(assignedTeam) => {
+                setShowSheetModal(false);
+                setNotice(`Boutique connectée avec succès à l'équipe « ${assignedTeam.name} » !`);
+              }}
+              onCancel={() => setShowSheetModal(false)}
+            />
           </div>
         </div>
       )}

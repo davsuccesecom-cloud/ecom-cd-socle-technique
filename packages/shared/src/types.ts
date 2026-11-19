@@ -141,6 +141,10 @@ export interface Order {
   sessionId?: string;
   temperature?: "hot" | "medium" | "cold";
   shopifyData?: ShopifyOrderData;
+
+  // Routage par langue & dialecte local (Skill-Based Routing)
+  clientLanguage?: string; // ex: "Mina / Ewé", "Kabyè", "Dioula", "Baoulé", "Wolof"
+  languagePriorityNotified?: boolean; // true si alerte supervision déclenchée si aucun agent disponible
 }
 
 export interface ShopifyNoteAttribute {
@@ -271,6 +275,7 @@ export interface AppUser {
   status: "active" | "disabled";
   reminderWindowStart?: string; // personnalisation closeuse, bornée par l'équipe
   reminderWindowEnd?: string;
+  languages?: string[]; // Langues et dialectes locaux parlés par l'employé
 }
 
 export interface AccessLink {
@@ -346,4 +351,46 @@ export interface CodCountryInsight {
     h24to48: { delivered: number; total: number };
     over48h: { delivered: number; total: number };
   };
+}
+
+// ---------------------------------------------------------------------------
+// Référentiel des langues & dialectes locaux africains (Skill-Based Routing)
+// ---------------------------------------------------------------------------
+
+export const AFRICAN_LOCAL_LANGUAGES = [
+  "Français",
+  "Mina / Ewé",
+  "Kabyè",
+  "Kotokoli / Tem",
+  "Haoussa",
+  "Dioula",
+  "Baoulé",
+  "Bété",
+  "Fon",
+  "Yoruba",
+  "Wolof",
+  "Bambara",
+  "Lingala",
+  "Moré",
+  "Anglais",
+] as const;
+
+export type AfricanLanguage = (typeof AFRICAN_LOCAL_LANGUAGES)[number];
+
+// ---------------------------------------------------------------------------
+// Gestion de Stock & Surveillance Anti-Fraude Terrain
+// ---------------------------------------------------------------------------
+
+export interface ProductStock {
+  id: string;
+  workspaceId: string;
+  teamId: string;
+  productName: string;
+  sku?: string;
+  quantityOnHand: number;
+  lowStockThreshold: number;
+  totalSold: number;
+  totalDelivered: number;
+  totalReturned: number;
+  updatedAt: number;
 }

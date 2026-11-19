@@ -35,3 +35,4 @@ export * from "./components/ConnectionGuard";
 export * from "./hooks/useTheme";
 export * from "./indicators";
 export * from "./utils/deliveryReceipt";
+export * from "./utils/systemNotification";

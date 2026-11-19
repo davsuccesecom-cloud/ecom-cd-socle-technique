@@ -3,6 +3,7 @@ import { arrayRemove, arrayUnion, doc, setDoc, updateDoc } from "firebase/firest
 import { getToken, onMessage } from "firebase/messaging";
 import { getDb, getFirebaseMessaging } from "../firebase";
 import type { IncomingPushDetail } from "./useNotifications";
+import { triggerSystemNotification } from "../utils/systemNotification";
 
 const LAST_TOKEN_KEY_PREFIX = "ecomcod_last_fcm_token_";
 const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
@@ -168,51 +169,18 @@ export function useRegisterPushNotifications(
           })
         );
 
-        // 2. Si l'onglet/PWA est derrière une autre fenêtre ou masqué, affiche la notification OS native
-        if (
-          Notification.permission === "granted" &&
-          (document.visibilityState !== "visible" || !document.hasFocus())
-        ) {
-          const wl = await readCachedWhiteLabelForSw();
-          const icon = resolveSafeNotificationIcon(wl?.logoUrl);
-          const reg =
-            swRegRef.current ||
-            (await navigator.serviceWorker.getRegistration(PUSH_SW_SCOPE).catch(() => undefined)) ||
-            (await navigator.serviceWorker.ready.catch(() => undefined));
-
-          const notifOptions: NotificationOptions & { renotify?: boolean } = {
-            body,
-            icon,
-            badge: "/icons/badge-96.png",
-            tag,
-            renotify: true,
-            data: { orderId, url: targetUrl },
-          };
-
-          try {
-            if (reg && "showNotification" in reg) {
-              await reg.showNotification(title, notifOptions);
-            } else {
-              new Notification(title, { body, icon, tag });
-            }
-          } catch {
-            try {
-              if (reg && "showNotification" in reg) {
-                await reg.showNotification(title, {
-                  body,
-                  icon: "/icons/icon-192.png",
-                  badge: "/icons/badge-96.png",
-                  tag,
-                  data: { orderId, url: targetUrl },
-                });
-              } else {
-                new Notification(title, { body, icon: "/icons/icon-192.png", tag });
-              }
-            } catch {
-              // Navigateur interdit notification système à cet instant
-            }
-          }
-        }
+        // 2. Affiche systématiquement la notification OS native dans le Centre de notifications Windows / OS
+        const wl = await readCachedWhiteLabelForSw();
+        const icon = resolveSafeNotificationIcon(wl?.logoUrl);
+        void triggerSystemNotification({
+          title,
+          body,
+          icon,
+          badge: "/icons/badge-96.png",
+          orderId,
+          tag,
+          url: targetUrl,
+        });
       });
     };
 

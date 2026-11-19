@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bell, X } from "lucide-react";
 import type { IncomingPushDetail } from "../hooks/useNotifications";
+import { triggerSystemNotification } from "../utils/systemNotification";
 
 interface PushToastProps {
   customLogoUrl?: string | null;
@@ -40,6 +41,24 @@ export default function PushToast({
         const firstKey = recentKeysRef.current.keys().next().value;
         if (firstKey) recentKeysRef.current.delete(firstKey);
       }
+
+      // Sonnette d'alerte sonore WariTrack
+      try {
+        const audio = new Audio("/notification-ping.mp3");
+        audio.volume = 0.95;
+        audio.play().catch(() => {});
+      } catch {}
+
+      // Transmission directe au Centre de notifications Windows / OS via le Service Worker
+      void triggerSystemNotification({
+        title: detail.title || "WariTrack",
+        body: detail.body || "",
+        icon: "/icons/icon-192.png",
+        badge: "/icons/badge-96.png",
+        orderId: detail.orderId,
+        url: detail.orderId ? `/?orderId=${detail.orderId}` : "/",
+        tag: detail.orderId ? `waritrack-order-${detail.orderId}` : `waritrack-toast-${now}`,
+      });
 
       setToast({ ...detail, key: `${now}` });
       if (timerRef.current) clearTimeout(timerRef.current);

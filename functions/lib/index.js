@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testSheetConnection = exports.migrateUsers = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.scheduledPurge = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -273,7 +273,7 @@ function generatePassword() {
 }
 exports.createAccessUser = (0, https_1.onCall)(async (request) => {
     const workspaceId = requireAdmin(request);
-    const { name, phone, role, teamId } = request.data;
+    const { name, phone, role, teamId, languages } = request.data;
     if (!name?.trim() || !teamId || (role !== "closeuse" && role !== "livreur")) {
         throw new https_1.HttpsError("invalid-argument", "Nom, role (closeuse/livreur) et equipe requis.");
     }
@@ -312,6 +312,7 @@ exports.createAccessUser = (0, https_1.onCall)(async (request) => {
         role,
         name: name.trim(),
         phone: phone?.trim() ?? "",
+        languages: Array.isArray(languages) ? languages : [],
         fcmTokens: [],
         status: "active",
         createdAt: Date.now(),
@@ -536,6 +537,24 @@ exports.deleteEmployee = (0, https_1.onCall)(async (request) => {
     await userRef.delete();
     return { success: true };
 });
+// Modification des langues et dialectes locaux parlés par un employé (Skill-Based Routing)
+exports.updateEmployeeLanguages = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { userId, languages } = request.data;
+    if (!userId || !Array.isArray(languages)) {
+        throw new https_1.HttpsError("invalid-argument", "userId et liste des langues requis.");
+    }
+    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+        throw new https_1.HttpsError("not-found", "Employé introuvable.");
+    }
+    await userRef.update({
+        languages,
+        updatedAt: Date.now(),
+    });
+    return { ok: true, languages };
+});
 exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecret] }, async (req, res) => {
     try {
         if (req.method !== "POST") {
@@ -716,6 +735,79 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
 // ---------------------------------------------------------------------------
 // 2. Assignation automatique a la creation d'une commande (section 8)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Helpers Gestion de Stock & Traçabilité Anti-Fraude
+// ---------------------------------------------------------------------------
+function slugifyProduct(name) {
+    return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60);
+}
+async function recordOrderStockCreation(workspaceId, teamId, productName, qty = 1) {
+    if (!productName?.trim() || !teamId)
+        return;
+    const slug = slugifyProduct(productName);
+    const stockRef = db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).collection("stocks").doc(slug);
+    try {
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(stockRef);
+            if (!snap.exists) {
+                tx.set(stockRef, {
+                    id: slug,
+                    workspaceId,
+                    teamId,
+                    productName: productName.trim(),
+                    quantityOnHand: 0,
+                    lowStockThreshold: 10,
+                    totalSold: qty,
+                    totalDelivered: 0,
+                    totalReturned: 0,
+                    updatedAt: Date.now(),
+                });
+            }
+            else {
+                tx.update(stockRef, {
+                    totalSold: admin.firestore.FieldValue.increment(qty),
+                    updatedAt: Date.now(),
+                });
+            }
+        });
+    }
+    catch (err) {
+        console.warn("recordOrderStockCreation ignoré :", err);
+    }
+}
+async function recordProductDeliveryStock(workspaceId, teamId, productName, qty = 1) {
+    if (!productName?.trim() || !teamId)
+        return;
+    const slug = slugifyProduct(productName);
+    const stockRef = db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId).collection("stocks").doc(slug);
+    try {
+        let alertRemaining = null;
+        let alertThreshold = 10;
+        await db.runTransaction(async (tx) => {
+            const snap = await tx.get(stockRef);
+            if (snap.exists) {
+                const d = snap.data();
+                const remaining = Math.max(0, Number(d.quantityOnHand ?? 0) - qty);
+                const threshold = Number(d.lowStockThreshold ?? 10);
+                tx.update(stockRef, {
+                    quantityOnHand: remaining,
+                    totalDelivered: admin.firestore.FieldValue.increment(qty),
+                    updatedAt: Date.now(),
+                });
+                if (remaining <= threshold && Number(d.quantityOnHand ?? 0) > threshold) {
+                    alertRemaining = remaining;
+                    alertThreshold = threshold;
+                }
+            }
+        });
+        if (alertRemaining !== null) {
+            await notifyAdmins(workspaceId, "🤖 Vigie IA · Alerte Stock Critique", `Le produit "${productName}" est en zone d'alerte sur ce marché : plus que ${alertRemaining} pièce(s) disponible(s) (seuil alerte : ${alertThreshold}). Pensez au réapprovisionnement.`);
+        }
+    }
+    catch (err) {
+        console.warn("recordProductDeliveryStock ignoré :", err);
+    }
+}
 exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspaceId}/orders/{orderId}", async (event) => {
     const snap = event.data;
     if (!snap)
@@ -742,14 +834,40 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
             .get();
         return { id: userDoc.id, data: userDoc.data(), count: activeSnap.size };
     }));
-    const chosen = loads.reduce((lowest, current) => (current.count < lowest.count ? current : lowest));
-    await snap.ref.update({
+    // -----------------------------------------------------------------------
+    // ROUTAGE INTELLIGENT PAR COMPÉTENCE LINGUISTIQUE (Skill-Based Routing)
+    // -----------------------------------------------------------------------
+    const orderLanguage = (order.clientLanguage || "").trim().toLowerCase();
+    let candidates = loads;
+    let languageMatched = false;
+    if (orderLanguage) {
+        const languageFiltered = loads.filter((c) => {
+            const userLangs = Array.isArray(c.data.languages) ? c.data.languages : [];
+            return userLangs.some((l) => {
+                const cleanL = l.toLowerCase();
+                return cleanL === orderLanguage || cleanL.includes(orderLanguage) || orderLanguage.includes(cleanL);
+            });
+        });
+        if (languageFiltered.length > 0) {
+            candidates = languageFiltered;
+            languageMatched = true;
+        }
+    }
+    const chosen = candidates.reduce((lowest, current) => (current.count < lowest.count ? current : lowest));
+    const updatePayload = {
         closeuseId: chosen.id,
         "timestamps.assignedToCloseuse": Date.now(),
-    });
+    };
+    if (orderLanguage && !languageMatched) {
+        updatePayload.languagePriorityNotified = true;
+        updatePayload.fieldNote = `⚠️ [Priorité : Rappel en ${order.clientLanguage}] (Aucune closeuse parlant ce dialecte n'était disponible)`;
+    }
+    await snap.ref.update(updatePayload);
+    // Notification personnalisée pour la closeuse avec mention de la langue locale
+    const langBadge = order.clientLanguage ? ` · 🗣️ Parler en ${order.clientLanguage}` : "";
     await sendPushToUser(workspaceId, chosen.id, order.isDuplicatePhone ? "⚠️ Nouvelle commande (Doublon N°)" : "Nouvelle commande", order.isDuplicatePhone
-        ? `${order.clientName} - ${order.product} · Vérifier si 1 ou 2 produits`
-        : `${order.clientName} - ${order.product}`, snap.id);
+        ? `${order.clientName} - ${order.product}${langBadge} · Vérifier si 1 ou 2 produits`
+        : `${order.clientName} - ${order.product}${langBadge}`, snap.id);
     if (order.isDuplicatePhone) {
         await notifyAdmins(workspaceId, "🤖 Vigie IA · Numéro doublon (Accès libre site)", `${order.clientName} (${order.clientPhoneFormatted}) a commandé à nouveau (${order.product}). Isolé de Meta CAPI — vérifier avec ${chosen.data.name} si 1 ou 2 produits.`);
     }
@@ -757,6 +875,10 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
     const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
     if (chosen.count + 1 >= threshold) {
         await notifyAdmins(workspaceId, "🤖 Vigie IA · Closeuse surchargée", `${chosen.data.name} a ${chosen.count + 1} commandes actives en attente.`);
+    }
+    // Traçabilité du stock vendu
+    if (order.product) {
+        await recordOrderStockCreation(workspaceId, order.teamId, order.product, Number(order.quantity || 1));
     }
 });
 // ---------------------------------------------------------------------------
@@ -850,6 +972,10 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             incrementDailyStat(workspaceId, after.teamId, "ca", after.amount),
             incrementDailyStat(workspaceId, after.teamId, "livraisons", 1),
         ]);
+        // Décrémentation automatique du stock & contrôle anti-fraude
+        if (after.product) {
+            await recordProductDeliveryStock(workspaceId, after.teamId, after.product, Number(after.quantity || 1));
+        }
         // Isolation Meta CAPI pour les numéros doublons ("acces_libre_site") :
         // Si ce numéro a déjà fait l'objet d'un tracking CAPI ou est qualifié en doublon,
         // on l'isole du Pixel Meta et on le considère comme paiement accès libre site.
@@ -1094,14 +1220,7 @@ exports.cancelRemunerationPayment = (0, https_1.onCall)(async (request) => {
     await ref.set({ montantPaye: 0, paidAt: admin.firestore.FieldValue.delete() }, { merge: true });
     return { ok: true };
 });
-// ---------------------------------------------------------------------------
-// 4. Purge automatique des commandes traitees (section 15/16)
-// ---------------------------------------------------------------------------
-exports.scheduledPurge = (0, scheduler_1.onSchedule)("every 24 hours", async () => {
-    // Purge désactivée définitivement à la demande du client :
-    // Toutes les commandes et données restent 100% permanentes dans Firestore pour l'historique complet.
-    console.log("scheduledPurge: conservation permanente activée, aucune commande supprimée.");
-});
+// Note: Purge désactivée définitivement (conservation permanente intégrale demandée).
 // ---------------------------------------------------------------------------
 // 5. Rappels automatiques 15-20 min sans action sur "Nouveau" (section 6)
 // ---------------------------------------------------------------------------
@@ -1109,10 +1228,14 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
     const now = Date.now();
     const cutoff = now - REMINDER_DELAY_MINUTES * 60 * 1000;
     const workspacesSnap = await db.collection("workspaces").get();
+    const window24h = now - 24 * 60 * 60 * 1000;
+    const window48h = now - 48 * 60 * 60 * 1000;
     for (const wsDoc of workspacesSnap.docs) {
+        // Optimisation quota : ne scanner que les commandes de la fenêtre active (< 24h)
         const staleOrders = await wsDoc.ref
             .collection("orders")
             .where("statutCloseuse", "==", "nouveau")
+            .where("timestamps.received", ">=", window24h)
             .where("timestamps.received", "<=", cutoff)
             .get();
         const byCloseuse = new Map();
@@ -1137,10 +1260,11 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
                 await notifyAdmins(wsDoc.id, "🤖 Vigie IA · Commandes hors délai d'appel", `${totalStale} commande(s) "Nouveau" dépassent ${REMINDER_DELAY_MINUTES} min sans appel chez ${byCloseuse.size} closeuse(s).`);
             }
         }
-        // Rappels des commandes programmées arrivées à échéance
+        // Rappels des commandes programmées arrivées à échéance (fenêtre active < 24h)
         const dueScheduled = await wsDoc.ref
             .collection("orders")
             .where("statutCloseuse", "==", "programme")
+            .where("reminderAt", ">=", window24h)
             .where("reminderAt", "<=", now)
             .get();
         let overdueAdminCount = 0;
@@ -1166,10 +1290,11 @@ exports.scheduledReminders = (0, scheduler_1.onSchedule)("every 5 minutes", asyn
                 await notifyAdmins(wsDoc.id, "🤖 Vigie IA · Rappels programmés oubliés", `${overdueAdminCount} commande(s) programmée(s) ont dépassé leur heure de rappel de plus de 20 min sans traitement.`);
             }
         }
-        // Commandes confirmées (en_cours) mais oubliées sans livreur assigné (> 25 min)
+        // Commandes confirmées (en_cours) mais oubliées sans livreur assigné (> 25 min, fenêtre 48h)
         const confirmedSnap = await wsDoc.ref
             .collection("orders")
             .where("statutCloseuse", "==", "en_cours")
+            .where("timestamps.received", ">=", window48h)
             .get();
         let unassignedCount = 0;
         confirmedSnap.docs.forEach((d) => {
@@ -1584,17 +1709,20 @@ async function notifyAdmins(workspaceId, title, body) {
         .collection("workspaces")
         .doc(workspaceId)
         .collection("users")
-        .where("role", "==", "admin")
-        .where("status", "==", "active")
+        .where("role", "in", ["admin", "owner"])
         .get();
-    if (adminsSnap.empty) {
+    const activeAdmins = adminsSnap.docs.filter((d) => {
+        const data = d.data();
+        return data.active !== false && data.status !== "inactive" && !data.disabledAt;
+    });
+    if (activeAdmins.length === 0) {
         console.log(`notifyAdmins: aucun admin actif pour workspace ${workspaceId}`);
         return;
     }
     const brandName = await getWorkspaceBrandName(workspaceId);
     const displayTitle = formatPushTitle(brandName, title);
     const tag = `waritrack-admin-${notifRef.id}`;
-    await Promise.all(adminsSnap.docs.map((adminDoc) => {
+    await Promise.all(activeAdmins.map((adminDoc) => {
         const tokens = adminDoc.data().fcmTokens ?? [];
         return sendMulticastAndPruneTokens({
             userRef: adminDoc.ref,
@@ -1883,53 +2011,7 @@ exports.completeMetaOAuthBridgeSession = (0, https_1.onCall)(async (request) => 
 // 9. Migration : cree les utilisateurs Firebase Auth manquants pour tous les
 // employes existants dans Firestore (correction du bug d'authentification)
 // ---------------------------------------------------------------------------
-exports.migrateUsers = (0, https_1.onCall)(async (request) => {
-    const workspaceId = requireAdmin(request);
-    // SÉCURITÉ : Ne migrer QUE le workspace de l'admin appelant (isolation multi-tenant stricte)
-    const wsDoc = await db.collection("workspaces").doc(workspaceId).get();
-    if (!wsDoc.exists) {
-        throw new https_1.HttpsError("not-found", "Workspace introuvable.");
-    }
-    let totalUsers = 0;
-    let created = 0;
-    let alreadyExists = 0;
-    let errors = 0;
-    const details = [];
-    const usersSnap = await wsDoc.ref.collection("users").get();
-    if (!usersSnap.empty) {
-        for (const userDoc of usersSnap.docs) {
-            totalUsers++;
-            const userData = userDoc.data();
-            const userId = userDoc.id;
-            try {
-                try {
-                    await admin.auth().getUser(userId);
-                    alreadyExists++;
-                    details.push({ name: userData.name || userId, userId, status: "existe_deja" });
-                }
-                catch (authErr) {
-                    if (authErr.code === "auth/user-not-found") {
-                        await admin.auth().createUser({
-                            uid: userId,
-                            displayName: userData.name || undefined,
-                            phoneNumber: userData.phone || undefined,
-                        });
-                        created++;
-                        details.push({ name: userData.name || userId, userId, status: "cree" });
-                    }
-                    else {
-                        throw authErr;
-                    }
-                }
-            }
-            catch (err) {
-                errors++;
-                details.push({ name: userData.name || userId, userId, status: `erreur: ${err.message}` });
-            }
-        }
-    }
-    return { totalUsers, created, alreadyExists, errors, details };
-});
+// Migration achevée avec succès en phase antérieure.
 // ---------------------------------------------------------------------------
 // Diagnostic & Test de connexion Google Sheets en direct
 // ---------------------------------------------------------------------------

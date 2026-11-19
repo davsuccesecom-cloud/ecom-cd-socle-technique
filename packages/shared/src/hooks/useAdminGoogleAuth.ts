@@ -76,6 +76,7 @@ export function useAdminGoogleAuth() {
     try {
       const auth = getFirebaseAuth();
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, provider);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion Google impossible.");

@@ -80,3 +80,6 @@ dist/
 
 .vercel
 .env*
+
+scratch/
+*.mp4

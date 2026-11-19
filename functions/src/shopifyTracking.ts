@@ -908,6 +908,15 @@ export const shopifyWebhook = onRequest(
         quantity: Number(quantity) || 1,
         amount: Number(amount) || 0,
         orderNumber: orderNumber || `#${shopifyOrderId}`,
+        clientLanguage:
+          orderPayload.clientLanguage ||
+          noteMap["clientlanguage"] ||
+          noteMap["client_language"] ||
+          noteMap["language"] ||
+          noteMap["langue"] ||
+          noteMap["target_language"] ||
+          noteMap["dialect"] ||
+          null,
 
         closeuseId: null,
         livreurId: null,
@@ -932,6 +941,15 @@ export const shopifyWebhook = onRequest(
         shopifyData: {
           shopifyOrderId,
           orderNumber: orderNumber || `#${shopifyOrderId}`,
+        clientLanguage:
+          orderPayload.clientLanguage ||
+          noteMap["clientlanguage"] ||
+          noteMap["client_language"] ||
+          noteMap["language"] ||
+          noteMap["langue"] ||
+          noteMap["target_language"] ||
+          noteMap["dialect"] ||
+          null,
           shopDomain,
           countryCode: countryCode || "",
           city: city || "",

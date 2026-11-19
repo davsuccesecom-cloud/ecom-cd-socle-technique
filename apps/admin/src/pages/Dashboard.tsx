@@ -368,7 +368,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       </div>
 
       <main className="min-w-0 flex-1 px-4 py-5 pb-24 md:px-6 md:py-4 md:pb-8">
-        {pushPermission === "default" && (
+        {(pushPermission === "default" || pushPermission === "denied") && (
           <div className="mb-3">
             <PushPermissionPrompt permission={pushPermission} onRequest={requestPushPermission} />
           </div>
@@ -483,7 +483,12 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           ) : page === "performance" ? (
             <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
           ) : page === "users" ? (
-            <Utilisateurs workspaceId={workspaceId} team={activeTeam} closeuses={closeuses} livreurs={livreurs} />
+            <Utilisateurs
+              workspaceId={workspaceId}
+              team={activeTeam}
+              closeuses={closeuses}
+              livreurs={livreurs}
+            />
           ) : page === "orders" ? (
             <Commandes
               workspaceId={workspaceId}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { collection, doc, onSnapshot, setDoc, deleteDoc, query, orderBy, where, addDoc, getDocs, limit } from "firebase/firestore";
 import { getDb, ConfirmDialog, useRemunerationTotals } from "@ecomcod/shared";
-import type { Team, Order, CashSettlementEntry, CodCountryInsight } from "@ecomcod/shared";
+import type { Team, Order, CashSettlementEntry, CodCountryInsight, ProductStock } from "@ecomcod/shared";
 import {
   BarChart3,
   Award,
@@ -27,6 +27,9 @@ import {
   GraduationCap,
   BookOpenCheck,
   Compass,
+  Boxes,
+  Languages,
+  Store,
 } from "lucide-react";
 import {
   aiService,
@@ -84,6 +87,27 @@ const SUGGESTIONS = [
     desc: "Commandes hors délai, rappels oubliés, colis sur le terrain.",
     prompt:
       "Agis comme ma Vigie Logistique : liste-moi tout ce que j'ai oublié ou ce qui dépasse les délais d'opération (commandes Nouveau > 15 min, rappels programmés en retard, colis confirmés sans livreur, colis sur le terrain et numéros doublons à vérifier).",
+  },
+  {
+    icon: Store,
+    title: "Flux Azify & Routage Pays",
+    desc: "Boutiques Azify PWA connectées, pays assigné et commandes orphelines.",
+    prompt:
+      "Fais-moi l'audit complet de nos flux de boutiques Azify PWA Studio : quelles boutiques sont connectées, chaque boutique est-elle bien reliée à son équipe locale/pays, et y a-t-il des commandes en attente d'attribution pays ?",
+  },
+  {
+    icon: Boxes,
+    title: "Surveillance Stock & Anti-Fraude",
+    desc: "Alerte de rupture critique et rapprochement sorties de stock vs cash caisse.",
+    prompt:
+      "Fais l'état des lieux de nos stocks : quels produits approchent du seuil critique de rupture ? Vérifie également la cohérence anti-fraude entre les unités sorties/livrées et les montants collectés en caisse.",
+  },
+  {
+    icon: Languages,
+    title: "Compétences & Dialectes Équipe",
+    desc: "Vérifier la couverture des langues locales (Mina, Kabyè, Dioula...).",
+    prompt:
+      "Analyse les compétences linguistiques de nos closeuses par rapport aux commandes reçues : couvrons-nous bien tous les dialectes locaux demandés par nos acheteurs ou avons-nous des failles de compétences à combler ?",
   },
 ];
 
@@ -281,9 +305,9 @@ const formatTime = (ts: unknown) => {
 interface AiAssistantProps {
   workspaceId: string;
   team: Team | null;
-  allTeams: Team[];
+  allTeams?: Team[];
   orders: Order[];
-  closeuses: { id: string; name: string }[];
+  closeuses: { id: string; name: string; languages?: string[] }[];
   livreurs: { id: string; name: string }[];
   codInsights?: CodCountryInsight[];
   onNavigate?: (page: string) => void;
@@ -292,6 +316,7 @@ interface AiAssistantProps {
 export default function AiAssistant({
   workspaceId,
   team,
+  allTeams = [],
   orders,
   closeuses,
   livreurs,
@@ -310,6 +335,8 @@ export default function AiAssistant({
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [clearingBusy, setClearingBusy] = useState(false);
   const [cashEntries, setCashEntries] = useState<CashSettlementEntry[]>([]);
+  const [stocks, setStocks] = useState<ProductStock[]>([]);
+  const [connections, setConnections] = useState<any[]>([]);
   const [watchdogScanning, setWatchdogScanning] = useState(false);
   const [watchdogFeedback, setWatchdogFeedback] = useState<string | null>(null);
 
@@ -327,6 +354,29 @@ export default function AiAssistant({
         ...(d.data() as Omit<CashSettlementEntry, "id">),
       }));
       setCashEntries(list);
+    });
+    return () => unsub();
+  }, [workspaceId, team?.id]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const db = getDb();
+    const connCol = collection(db, `workspaces/${workspaceId}/shopifyConnections`);
+    const unsub = onSnapshot(connCol, (snap) => {
+      setConnections(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId || !team?.id) {
+      setStocks([]);
+      return;
+    }
+    const db = getDb();
+    const stockCol = collection(db, `workspaces/${workspaceId}/teams/${team.id}/stocks`);
+    const unsub = onSnapshot(stockCol, (snap) => {
+      setStocks(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProductStock, "id">) })));
     });
     return () => unsub();
   }, [workspaceId, team?.id]);
@@ -659,8 +709,63 @@ export default function AiAssistant({
       totalUnsettledCash,
       totalRemunResteAPayer,
       codInsights,
+      azifyContext: (() => {
+        const azifyStores = connections.filter(
+          (c) => c.sourcePlatform === "azify" || c.azifyStoreId || c.azifyStoreSlug
+        );
+        const unroutedOrders = orders.filter((o) => !o.teamId || o.teamId === "unrouted");
+        return {
+          connectedStoresCount: azifyStores.length,
+          unroutedOrdersCount: unroutedOrders.length,
+          storesSummary: azifyStores.length
+            ? azifyStores
+                .map(
+                  (s) =>
+                    `${s.shopName || s.azifyStoreSlug || "Boutique Azify"} (${s.defaultCountry || "Pays non assigné"})`
+                )
+                .join(", ")
+            : undefined,
+        };
+      })(),
+      stockAlerts: stocks
+        .filter((s) => s.quantityOnHand <= (s.lowStockThreshold || 5))
+        .map((s) => ({
+          productName: s.productName || s.id,
+          remaining: s.quantityOnHand,
+          threshold: s.lowStockThreshold || 5,
+          totalSold: s.totalSold || 0,
+        })),
+      languageCoverage: (() => {
+        const demandedLangsSet = new Set<string>();
+        orders.forEach((o) => {
+          if (o.clientLanguage) demandedLangsSet.add(o.clientLanguage);
+        });
+        const demandedLanguages = Array.from(demandedLangsSet);
+
+        const availableLangsSet = new Set<string>();
+        closeuses.forEach((c) => {
+          c.languages?.forEach((l) => availableLangsSet.add(l));
+        });
+        const availableLanguages = Array.from(availableLangsSet);
+
+        const gapAlerts: string[] = [];
+        demandedLanguages.forEach((dl) => {
+          if (!availableLangsSet.has(dl)) {
+            const count = orders.filter((o) => o.clientLanguage === dl).length;
+            gapAlerts.push(
+              `${count} commande(s) enregistrée(s) en dialecte "${dl}", mais aucune closeuse active de l'équipe ne maîtrise cette langue.`
+            );
+          }
+        });
+
+        return {
+          availableLanguages,
+          demandedLanguages,
+          gapAlerts,
+        };
+      })(),
     };
-  }, [orders, closeuses, livreurs, team, cashEntries, closeuseRemunTotals, livreurRemunTotals, codInsights]);
+  }, [orders, closeuses, livreurs, team, cashEntries, closeuseRemunTotals, livreurRemunTotals, codInsights, stocks, connections]);
 
   // Extract all chart artifacts generated across the conversation
   const chartArtifacts = useMemo(() => {

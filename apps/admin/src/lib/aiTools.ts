@@ -35,6 +35,9 @@ export interface ToolHandlers {
   usersAndRoles(ctx: ToolContext): Promise<unknown>;
   remuneration(ctx: ToolContext, a: { period: 'today' | '7d' | '30d' }): Promise<unknown>;
   shopsStatus(ctx: ToolContext): Promise<unknown>;
+  azifyStores?(ctx: ToolContext): Promise<unknown>;
+  stockAlerts?(ctx: ToolContext): Promise<unknown>;
+  languageRouting?(ctx: ToolContext): Promise<unknown>;
 }
 
 interface ToolDef {
@@ -139,6 +142,30 @@ export const TOOLS: ToolDef[] = [
     parameters: { type: 'object', properties: {} },
     roles: ['owner', 'admin'],
     run: (h, ctx) => h.shopsStatus(ctx),
+  },
+  {
+    name: 'get_azify_stores_and_routing',
+    description:
+      "Boutiques Azify PWA Studio connectées, pays assigné, devise locale et commandes Azify en attente d'attribution pays.",
+    parameters: { type: 'object', properties: {} },
+    roles: ['owner', 'admin', 'manager'],
+    run: (h, ctx) => (h.azifyStores ? h.azifyStores(ctx) : Promise.resolve({ info: 'Non branché' })),
+  },
+  {
+    name: 'get_stock_and_inventory_alerts',
+    description:
+      "État des stocks physiques par produit : quantités restantes, seuils critiques de rupture, et rapprochement ventes vs livraisons anti-fraude.",
+    parameters: { type: 'object', properties: {} },
+    roles: ['owner', 'admin', 'manager'],
+    run: (h, ctx) => (h.stockAlerts ? h.stockAlerts(ctx) : Promise.resolve({ info: 'Non branché' })),
+  },
+  {
+    name: 'get_language_routing_status',
+    description:
+      "Adéquation des compétences linguistiques (Mina, Ewé, Kabyè, Dioula, Baoulé...) des closeuses actives avec la demande des commandes entrantes.",
+    parameters: { type: 'object', properties: {} },
+    roles: ['owner', 'admin', 'manager'],
+    run: (h, ctx) => (h.languageRouting ? h.languageRouting(ctx) : Promise.resolve({ info: 'Non branché' })),
   },
 ];
 

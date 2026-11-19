@@ -42,6 +42,60 @@ const STATUS_BADGE_CLASS: Record<LivreurStatus, string> = {
   injoignable: "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400",
 };
 
+/**
+ * Nettoie la localisation pour le livreur terrain :
+ * Supprime les suffixes de pays (, TG, , CI, etc.) et garde la ville / commune locale.
+ */
+function cleanLivreurLocation(city?: string | null, locationHint?: string | null): string {
+  const raw = (city || locationHint || "").trim();
+  if (!raw) return "";
+
+  let cleaned = raw
+    .replace(/,\s*(TG|CI|BJ|SN|BF|NE|ML|GN|CM|GA|CD|Togo|Côte d'Ivoire|Cote d'Ivoire|Benin|Bénin|Sénégal|Senegal|Burkina|Niger|Mali)\b/gi, "")
+    .replace(/\b(TG|CI|BJ|SN|BF|NE|ML|GN|CM|GA|CD)\b$/i, "")
+    .replace(/,\s*$/, "")
+    .trim();
+
+  return cleaned || raw;
+}
+
+/**
+ * Clés d'attributs strictement confidentielles ou redondantes
+ * qui ne doivent JAMAIS fuiter vers l'interface livreur.
+ */
+const SENSITIVE_ATTRIBUTE_KEYS = [
+  "token",
+  "cart",
+  "url",
+  "full_url",
+  "ip",
+  "address",
+  "pays",
+  "country",
+  "nom",
+  "name",
+  "tel",
+  "phone",
+  "adresse",
+  "region",
+  "city",
+  "ville",
+  "source",
+  "shopify",
+  "azify",
+  "utm",
+  "fbp",
+  "fbc",
+  "pixel",
+  "user_agent",
+  "useragent",
+  "target_language",
+  "dialect",
+  "language",
+  "clientlanguage",
+  "_",
+];
+
 const DELIVERY_FAILURE_REASONS = [
   "Client ne répond plus sur place",
   "Adresse introuvable / client absent",
@@ -63,13 +117,48 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
   const [failureReason, setFailureReason] = useState("");
   const [failureNote, setFailureNote] = useState("");
 
-  const displayLocation = (order.shopifyData?.locationHint || order.city || "").trim();
+  const displayLocation = cleanLivreurLocation(order.city, order.shopifyData?.locationHint);
   const noteClean = (order.addressNote || "").trim();
   const distinctAddressNote =
     noteClean && noteClean.toLowerCase() !== displayLocation.toLowerCase() ? noteClean : "";
   const mapsQuery = displayLocation
     ? encodeURIComponent(`${displayLocation} ${distinctAddressNote}`.trim())
     : null;
+
+  // Filtrage strict : Aucune fuite d'info interne (tokens, IPs, URLs boutique, cart token)
+  // Ne conserver que les rares indications opérationnelles de course (créneau, repère, étage)
+  const operationalDeliveryNotes = (order.shopifyData?.noteAttributes || []).filter((attr) => {
+    if (!attr?.name || !attr?.value) return false;
+    const name = String(attr.name).toLowerCase().trim();
+    const val = String(attr.value).trim();
+
+    if (
+      !val ||
+      val.length > 100 ||
+      val.startsWith("http://") ||
+      val.startsWith("https://") ||
+      val.includes("myshopify") ||
+      val.includes("key=")
+    ) {
+      return false;
+    }
+
+    if (SENSITIVE_ATTRIBUTE_KEYS.some((bad) => name === bad || name.startsWith(bad) || name.endsWith(bad))) {
+      return false;
+    }
+
+    return (
+      name.includes("creneau") ||
+      name.includes("heure") ||
+      name.includes("livraison") ||
+      name.includes("remarque") ||
+      name.includes("instruction") ||
+      name.includes("disponibilite") ||
+      name.includes("etage") ||
+      name.includes("batiment") ||
+      name.includes("porte")
+    );
+  });
 
   const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack en route pour votre colis ${orderCode} (${
     order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""
@@ -130,12 +219,12 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         )}
       </div>
 
-      {/* Localisation et repères sans doublons */}
+      {/* Localisation et repères de livraison strictement confidentiels */}
       {(displayLocation ||
         distinctAddressNote ||
         order.clientPhoneFormatted ||
         (order.quantity && order.quantity > 1) ||
-        (order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0)) && (
+        operationalDeliveryNotes.length > 0) && (
         <div className="mb-2 space-y-1.5 rounded-xl bg-slate-50 dark:bg-slate-700/50 p-2.5 text-[11px] text-slate-600 dark:text-slate-300">
           {order.clientPhoneFormatted && (
             <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
@@ -151,11 +240,6 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
               <p className="flex min-w-0 items-center gap-1.5">
                 <MapPin className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
                 <span className="truncate font-semibold text-slate-900 dark:text-slate-100">{displayLocation}</span>
-                {order.sourceType === "shopify" && (
-                  <span className="shrink-0 rounded bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 dark:text-slate-300">
-                    Shopify
-                  </span>
-                )}
               </p>
               {mapsQuery && (
                 <a
@@ -184,11 +268,11 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
             </p>
           )}
 
-          {order.shopifyData?.noteAttributes && order.shopifyData.noteAttributes.length > 0 && (
+          {operationalDeliveryNotes.length > 0 && (
             <div className="space-y-1 border-t border-slate-200 dark:border-slate-600 pt-1.5">
-              {order.shopifyData.noteAttributes.map((attr, idx) => (
+              {operationalDeliveryNotes.map((attr, idx) => (
                 <div key={idx} className="flex justify-between gap-2 text-[11px]">
-                  <span className="text-slate-500 dark:text-slate-400">{attr.name} :</span>
+                  <span className="text-slate-500 dark:text-slate-400 capitalize">{attr.name} :</span>
                   <span className="font-medium text-slate-800 dark:text-slate-200">{attr.value}</span>
                 </div>
               ))}
@@ -197,9 +281,9 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         </div>
       )}
 
-      {/* Note closeuse / échec terrain */}
+      {/* Instructions directes de la closeuse pour le livreur */}
       {(order.fieldNote || order.deliveryFailureReason || order.deliveryFieldNote) && (
-        <div className="mb-2 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-2 text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+        <div className="mb-2 rounded-xl border border-sky-100 dark:border-sky-900/50 bg-sky-50/50 dark:bg-sky-950/30 p-2 text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
           {order.deliveryFailureReason && (
             <p className="flex items-center gap-1.5 font-semibold text-red-600 dark:text-red-400">
               <MessageSquareText className="h-3 w-3 shrink-0" />
@@ -207,8 +291,8 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
             </p>
           )}
           {(order.deliveryFieldNote || order.fieldNote) && (
-            <p className="text-slate-500 dark:text-slate-400 italic">
-              Note : « {order.deliveryFieldNote || order.fieldNote} »
+            <p className="text-sky-900 dark:text-sky-200 font-medium">
+              <span className="font-semibold text-sky-700 dark:text-sky-400">Note Closeuse :</span> « {order.deliveryFieldNote || order.fieldNote} »
             </p>
           )}
         </div>

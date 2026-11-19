@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNotifications, type AppNotification } from "@ecomcod/shared";
+import { useNotifications, triggerSystemNotification, type AppNotification } from "@ecomcod/shared";
 import { ShoppingBag, Bot } from "lucide-react";
 
 function timeAgo(ts: number) {
@@ -70,6 +70,7 @@ export default function NotificationBell({
   userId,
   onNotificationClick,
 }: NotificationBellProps) {
+  const [testSent, setTestSent] = useState(false);
   const [open, setOpen] = useState(false);
   const {
     notifications,
@@ -121,6 +122,59 @@ export default function NotificationBell({
                 )}
               </span>
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    // 1. Son d'alerte
+                    try {
+                      const audio = new Audio("/notification-ping.mp3");
+                      audio.volume = 0.95;
+                      void audio.play().catch(() => {});
+                    } catch {}
+
+                    if (!("Notification" in window)) {
+                      alert("Votre navigateur ne supporte pas les notifications.");
+                      return;
+                    }
+
+                    let perm = Notification.permission;
+                    if (perm === "default") {
+                      try {
+                        perm = await Notification.requestPermission();
+                      } catch {
+                        perm = Notification.permission;
+                      }
+                    }
+
+                    if (perm === "denied") {
+                      alert(
+                        "⚠️ Les notifications sont actuellement BLOQUÉES par votre navigateur Chrome pour ce site.\n\n" +
+                        "Pour les autoriser dans Chrome :\n" +
+                        "1. Cliquez sur l'icône de réglages / cadenas à gauche de l'URL du site (dans la barre d'adresse).\n" +
+                        "2. Activez « Notifications ».\n" +
+                        "3. Rechargez la page (Ctrl + F5) puis réessayez."
+                      );
+                      return;
+                    }
+
+                    if (perm === "granted") {
+                      await triggerSystemNotification({
+                        title: "🔔 WariTrack · Test d'alerte",
+                        body: "Le système d'alerte sonore et visuelle est parfaitement opérationnel.",
+                        icon: "/icons/icon-192.png",
+                        badge: "/icons/badge-96.png",
+                        tag: `waritrack-test-${Date.now()}`,
+                        url: "/",
+                      });
+                      setTestSent(true);
+                      setTimeout(() => setTestSent(false), 3000);
+                    }
+                  }}
+                  className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer"
+                  title="Tester le son et l'alerte sur cet appareil"
+                >
+                  {testSent ? "✓ Envoyé !" : "🔊 Tester"}
+                </button>
                 {unreadCount > 0 && (
                   <button
                     type="button"
