@@ -15,6 +15,8 @@ import {
 import {
   AlertCircle,
   AlertTriangle,
+  Calendar,
+  Clock,
   ArrowRight,
   Calculator,
   CheckCircle2,
@@ -196,6 +198,19 @@ export default function ComptabiliteStock({
     return counts;
   }, [filteredAllOrders]);
 
+  // Facteur Jours : Détermination du nombre exact de jours de la période sélectionnée
+  const numberOfDaysInPeriod = useMemo(() => {
+    if (!period) return 1;
+    if (period.type === "preset") {
+      if (period.value === "jour") return 1;
+      if (period.value === "semaine") return 7;
+      if (period.value === "mois") return 30;
+      return 365;
+    }
+    const days = Math.ceil((period.end - period.start) / (24 * 60 * 60 * 1000));
+    return Math.max(1, days);
+  }, [period]);
+
   // 4. Fusion des métriques produits avec les fiches de stock et coûts unitaires
   const productsFinancialList = useMemo(() => {
     const list: Array<{
@@ -214,6 +229,9 @@ export default function ComptabiliteStock({
       initialStock: number;
       currentStock: number;
       lowStockThreshold: number;
+      dailyVelocity: number;
+      daysOfStockRemaining: number | null;
+      estimatedRuptureDate: string | null;
       hasConfiguredCosts: boolean;
       stockDoc?: ProductStock;
     }> = [];
@@ -264,6 +282,17 @@ export default function ComptabiliteStock({
             ? sellingPriceAvg - landedCost - (commCloseuse + commLivreur)
             : 0;
 
+      const dailyVelocity = unitsDeliveredInPeriod / numberOfDaysInPeriod;
+      const daysOfStockRemaining =
+        dailyVelocity > 0 ? Math.round(currentStock / dailyVelocity) : null;
+      const estimatedRuptureDate =
+        daysOfStockRemaining !== null && Number.isFinite(daysOfStockRemaining)
+          ? new Date(Date.now() + daysOfStockRemaining * 86400000).toLocaleDateString("fr-FR", {
+              day: "numeric",
+              month: "short",
+            })
+          : null;
+
       list.push({
         id: stockDoc?.id || key.replace(/[^a-z0-9]/gi, "_"),
         productName,
@@ -280,13 +309,16 @@ export default function ComptabiliteStock({
         initialStock,
         currentStock,
         lowStockThreshold,
+        dailyVelocity,
+        daysOfStockRemaining,
+        estimatedRuptureDate,
         hasConfiguredCosts: cogsUnitPrice > 0 || transitUnitCost > 0,
         stockDoc,
       });
     });
 
     return list.sort((a, b) => b.revenueInPeriod - a.revenueInPeriod);
-  }, [productAggregates, stocks, lifetimeDeliveredUnitsByProduct, activeTeam]);
+  }, [productAggregates, stocks, lifetimeDeliveredUnitsByProduct, activeTeam, numberOfDaysInPeriod]);
 
   // 5. Totaux financiers consolidés sur la période choisie
   const financialTotals = useMemo(() => {
@@ -321,6 +353,14 @@ export default function ComptabiliteStock({
     const amountToReinvest = Math.round(netProfitTotal * reinvestRatio);
     const amountSecuredProfit = netProfitTotal - amountToReinvest;
 
+    const dailyAvgRevenue = Math.round(totalRevenue / numberOfDaysInPeriod);
+    const dailyAvgCogsAndTransit = Math.round(totalCogsAndTransit / numberOfDaysInPeriod);
+    const dailyAvgCommissions = Math.round(totalCommissions / numberOfDaysInPeriod);
+    const dailyAvgNetProfit = Math.round(netProfitTotal / numberOfDaysInPeriod);
+    const dailyAvgDeliveredUnits = (totalDeliveredUnits / numberOfDaysInPeriod).toFixed(1);
+    const dailyAvgReinvest = Math.round(amountToReinvest / numberOfDaysInPeriod);
+    const dailyAvgSecured = Math.round(amountSecuredProfit / numberOfDaysInPeriod);
+
     return {
       totalRevenue,
       totalCogsAndTransit,
@@ -330,8 +370,86 @@ export default function ComptabiliteStock({
       totalDeliveredUnits,
       amountToReinvest,
       amountSecuredProfit,
+      numberOfDaysInPeriod,
+      dailyAvgRevenue,
+      dailyAvgCogsAndTransit,
+      dailyAvgCommissions,
+      dailyAvgNetProfit,
+      dailyAvgDeliveredUnits,
+      dailyAvgReinvest,
+      dailyAvgSecured,
     };
   }, [filteredPeriodOrders, productsFinancialList, activeTeam, reinvestRatio]);
+
+  // 6. Ventilation Quotidienne (Jour par Jour) de la comptabilité
+  const dailyFinancialBreakdown = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        dateKey: string;
+        dateLabel: string;
+        timestamp: number;
+        ordersDelivered: number;
+        unitsDelivered: number;
+        revenue: number;
+        cogsAndTransit: number;
+        commissions: number;
+        netProfit: number;
+      }
+    >();
+
+    const landedCostMap = new Map<string, number>();
+    productsFinancialList.forEach((p) => {
+      landedCostMap.set(p.productName.trim().toLowerCase(), p.landedCost);
+    });
+
+    const commCloseuse = activeTeam?.remunerationCloseusePerOrder ?? 500;
+    const commLivreur = activeTeam?.remunerationLivreurPerOrder ?? 1500;
+
+    for (const o of filteredPeriodOrders) {
+      const isDelivered = o.statutCloseuse === "livre" || o.statutLivreur === "livre";
+      if (!isDelivered) continue;
+
+      const ts = safeOrderTs(o.timestamps?.delivered || o.timestamps?.received || (o as any).createdAt);
+      if (!ts) continue;
+      const d = new Date(ts);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const dateLabel = d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+
+      const amt = Number(o.amount) || 0;
+      const qty = Math.max(1, Number(o.quantity) || 1);
+      const prodKey = (o.product || "").trim().toLowerCase();
+      const unitLanded = landedCostMap.get(prodKey) || 0;
+      const cogsAndTransit = qty * unitLanded;
+      const commissions = commCloseuse + commLivreur;
+
+      const current = map.get(dateKey) || {
+        dateKey,
+        dateLabel,
+        timestamp: ts,
+        ordersDelivered: 0,
+        unitsDelivered: 0,
+        revenue: 0,
+        cogsAndTransit: 0,
+        commissions: 0,
+        netProfit: 0,
+      };
+
+      current.ordersDelivered += 1;
+      current.unitsDelivered += qty;
+      current.revenue += amt;
+      current.cogsAndTransit += cogsAndTransit;
+      current.commissions += commissions;
+      current.netProfit += amt - cogsAndTransit - commissions;
+
+      map.set(dateKey, current);
+    }
+
+    return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+  }, [filteredPeriodOrders, productsFinancialList, activeTeam]);
+
+  // Onglet d'affichage : 'products' ou 'daily'
+  const [activeTab, setActiveTab] = useState<"products" | "daily">("products");
 
   // Ouverture du formulaire de modification des coûts
   const handleOpenEditCosts = (p: (typeof productsFinancialList)[number]) => {
@@ -467,10 +585,16 @@ export default function ComptabiliteStock({
                 )}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Chiffres calculés sur la période sélectionnée :{" "}
-              <strong className="text-slate-200">{periodTitle}</strong>.
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-400">
+              <span>Période : <strong className="text-slate-200">{periodTitle}</strong></span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1 font-semibold text-sky-400">
+                <Calendar className="h-3 w-3" />
+                <span>Facteur temps : {financialTotals.numberOfDaysInPeriod} jour{financialTotals.numberOfDaysInPeriod > 1 ? "s" : ""}</span>
+              </span>
+              <span>·</span>
+              <span>Cadence : <strong className="text-slate-200 tabular-nums">{financialTotals.dailyAvgDeliveredUnits} colis/jour</strong></span>
+            </div>
           </div>
         </div>
 
@@ -507,9 +631,10 @@ export default function ComptabiliteStock({
             {financialTotals.totalRevenue.toLocaleString("fr-FR")}{" "}
             <span className="text-xs font-normal text-slate-400">{currency}</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Sur <strong className="text-slate-300 tabular-nums">{financialTotals.totalDeliveredUnits}</strong> unités livrées
-          </p>
+          <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Sur {financialTotals.totalDeliveredUnits} unités</span>
+            <span className="font-semibold text-slate-200 tabular-nums">~{financialTotals.dailyAvgRevenue.toLocaleString("fr-FR")} {currency}/j</span>
+          </div>
         </div>
 
         {/* Coût des Marchandises + Fret */}
@@ -522,9 +647,10 @@ export default function ComptabiliteStock({
             {financialTotals.totalCogsAndTransit.toLocaleString("fr-FR")}{" "}
             <span className="text-xs font-normal text-slate-400">{currency}</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Coût de revient déboursé (*Landed Cost*)
-          </p>
+          <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Coût de revient</span>
+            <span className="font-semibold text-slate-200 tabular-nums">~{financialTotals.dailyAvgCogsAndTransit.toLocaleString("fr-FR")} {currency}/j</span>
+          </div>
         </div>
 
         {/* Frais Variables Terrain */}
@@ -537,9 +663,10 @@ export default function ComptabiliteStock({
             {financialTotals.totalCommissions.toLocaleString("fr-FR")}{" "}
             <span className="text-xs font-normal text-slate-400">{currency}</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Closeuses &amp; Livreurs payés au résultat
-          </p>
+          <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Closeuses &amp; Livreurs</span>
+            <span className="font-semibold text-slate-200 tabular-nums">~{financialTotals.dailyAvgCommissions.toLocaleString("fr-FR")} {currency}/j</span>
+          </div>
         </div>
 
         {/* Marge Nette Réelle */}
@@ -552,9 +679,10 @@ export default function ComptabiliteStock({
             {financialTotals.netProfitTotal.toLocaleString("fr-FR")}{" "}
             <span className="text-xs font-normal text-slate-400">{currency}</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Rentabilité nette : <strong className="text-emerald-400 tabular-nums">{financialTotals.netProfitRatio}%</strong>
-          </p>
+          <div className="mt-1.5 flex items-center justify-between text-[11px]">
+            <span className="text-slate-400">Marge : <strong className="text-emerald-400 tabular-nums">{financialTotals.netProfitRatio}%</strong></span>
+            <span className="font-bold text-emerald-400 tabular-nums">~{financialTotals.dailyAvgNetProfit.toLocaleString("fr-FR")} {currency} net/j</span>
+          </div>
         </div>
       </div>
 
@@ -614,7 +742,7 @@ export default function ComptabiliteStock({
               </span>
             </div>
             <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-              Consacrez ce montant au <strong className="text-slate-200">restockage auprès du transitaire</strong> (fret aérien / conteneur) et au <strong className="text-slate-200">budget publicitaire Meta</strong> pour soutenir le flux d'acquisition.
+              Consacrez ce montant au <strong className="text-slate-200">restockage auprès du transitaire</strong> et au <strong className="text-slate-200">budget publicitaire Meta</strong> (~<span className="font-bold tabular-nums text-sky-300">{financialTotals.dailyAvgReinvest.toLocaleString("fr-FR")} {currency}/jour</span>).
             </p>
           </div>
 
@@ -629,35 +757,56 @@ export default function ComptabiliteStock({
               </span>
             </div>
             <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-              Trésorerie saine et dividende disponible à virer sur votre compte personnel ou épargne sécurisée, totalement immunisé contre les aléas opérationnels.
+              Trésorerie saine et dividende disponible à virer sur votre compte personnel ou épargne sécurisée (~<span className="font-bold tabular-nums text-emerald-300">{financialTotals.dailyAvgSecured.toLocaleString("fr-FR")} {currency}/jour</span>).
             </p>
           </div>
         </div>
       </div>
 
-      {/* 4. Tableau Financier des Produits & Stocks */}
+      {/* 4. Tableau Financier des Produits & Stocks avec Facteur Jours */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-xs">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-slate-100">
-              Rentabilité Unitaire &amp; Suivi des Stocks
-            </h3>
-            <p className="text-xs text-slate-400">
-              Cliquez sur un produit pour renseigner le prix d'achat usine et la facture transitaire.
-            </p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("products")}
+              className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                activeTab === "products"
+                  ? "bg-brand text-white shadow-xs"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              <span>Suivi par Produit &amp; Facteur Jours ({productsFinancialList.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("daily")}
+              className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                activeTab === "daily"
+                  ? "bg-brand text-white shadow-xs"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              <span>Ventilation Jour par Jour ({dailyFinancialBreakdown.length} j)</span>
+            </button>
           </div>
+
           <span className="text-xs font-medium text-slate-400">
-            {productsFinancialList.length} produit{productsFinancialList.length > 1 ? "s" : ""} référencé{productsFinancialList.length > 1 ? "s" : ""}
+            {activeTab === "products" ? "Autonomie calculée sur la cadence de vente" : "Détail chronologique quotidien"}
           </span>
         </div>
 
-        {productsFinancialList.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-500">
-            Aucun produit ni commande enregistrée sur cette sélection.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+        {activeTab === "products" && (
+          productsFinancialList.length === 0 ? (
+            <div className="py-12 text-center text-xs text-slate-500">
+              Aucun produit ni commande enregistrée sur cette sélection.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-surface-border text-slate-400 font-semibold">
                   <th className="px-4 py-3">Produit</th>
@@ -666,6 +815,7 @@ export default function ComptabiliteStock({
                   <th className="px-4 py-3 text-right">Fret Transitaire</th>
                   <th className="px-4 py-3 text-right">Coût Revient (*Landed*)</th>
                   <th className="px-4 py-3 text-center">Stock Restant</th>
+                  <th className="px-4 py-3 text-center">Facteur Jours (Autonomie)</th>
                   <th className="px-4 py-3 text-right">Marge Nette / Pièce</th>
                   <th className="px-4 py-3 text-right">Bénéfice Période</th>
                   <th className="px-4 py-3 text-right">Action</th>
@@ -729,6 +879,33 @@ export default function ComptabiliteStock({
                         </span>
                       </td>
 
+                      {/* Facteur Jours & Autonomie avant rupture */}
+                      <td className="px-4 py-3 text-center">
+                        {p.daysOfStockRemaining !== null ? (
+                          <div className="space-y-0.5">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
+                                p.daysOfStockRemaining >= 15
+                                  ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                  : p.daysOfStockRemaining >= 7
+                                    ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
+                                    : "bg-rose-500/20 text-rose-300 border border-rose-500/40"
+                              }`}
+                            >
+                              <span>{p.daysOfStockRemaining >= 15 ? "🟢" : p.daysOfStockRemaining >= 7 ? "🟡" : "🔴"}</span>
+                              <span>{p.daysOfStockRemaining} jours</span>
+                            </span>
+                            <span className="block text-[10px] text-slate-400 tabular-nums">
+                              ~{p.dailyVelocity.toFixed(1)} pcs/j · Rupture le {p.estimatedRuptureDate}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-500">
+                            0 vente sur {financialTotals.numberOfDaysInPeriod}j
+                          </span>
+                        )}
+                      </td>
+
                       <td className="px-4 py-3 text-right font-bold tabular-nums">
                         {p.hasConfiguredCosts ? (
                           <span className={p.netMarginPerUnit > 0 ? "text-emerald-400" : "text-rose-400"}>
@@ -764,6 +941,70 @@ export default function ComptabiliteStock({
                 })}
               </tbody>
             </table>
+          </div>
+        ))}
+
+        {activeTab === "daily" && (
+          <div>
+            {dailyFinancialBreakdown.length === 0 ? (
+              <div className="py-12 text-center text-xs text-slate-500">
+                Aucune livraison enregistrée sur les jours de cette période.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-surface-border text-slate-400 font-semibold">
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3 text-center">Colis Livrés</th>
+                      <th className="px-4 py-3 text-right">CA Encaissé</th>
+                      <th className="px-4 py-3 text-right">Achat + Fret</th>
+                      <th className="px-4 py-3 text-right">Commissions</th>
+                      <th className="px-4 py-3 text-right">Marge Nette du Jour</th>
+                      <th className="px-4 py-3 text-right">Réinjection (65%)</th>
+                      <th className="px-4 py-3 text-right">Bénéfice Net Sécurisé (35%)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-border">
+                    {dailyFinancialBreakdown.map((row) => {
+                      const dailyReinvest = Math.round(row.netProfit * reinvestRatio);
+                      const dailySecured = row.netProfit - dailyReinvest;
+
+                      return (
+                        <tr key={row.dateKey} className="transition-colors hover:bg-surface/40">
+                          <td className="px-4 py-3 font-bold text-slate-200">
+                            {row.dateLabel}
+                          </td>
+                          <td className="px-4 py-3 text-center font-semibold text-slate-300 tabular-nums">
+                            {row.ordersDelivered} colis ({row.unitsDelivered} pcs)
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-100 tabular-nums">
+                            {row.revenue.toLocaleString("fr-FR")} {currency}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-300">
+                            {row.cogsAndTransit.toLocaleString("fr-FR")} {currency}
+                          </td>
+                          <td className="px-4 py-3 text-right tabular-nums text-slate-300">
+                            {row.commissions.toLocaleString("fr-FR")} {currency}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold tabular-nums">
+                            <span className={row.netProfit > 0 ? "text-emerald-400" : "text-rose-400"}>
+                              {row.netProfit.toLocaleString("fr-FR")} {currency}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-sky-400 tabular-nums">
+                            {dailyReinvest.toLocaleString("fr-FR")} {currency}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-emerald-400 tabular-nums">
+                            {dailySecured.toLocaleString("fr-FR")} {currency}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
