@@ -539,6 +539,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               orders={orders}
               allOrders={allOrders}
               period={period}
+              closeuses={closeuses}
+              livreurs={livreurs}
             />
           ) : page === "performance" ? (
             <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />
