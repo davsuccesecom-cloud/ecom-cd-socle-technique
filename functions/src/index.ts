@@ -2924,8 +2924,11 @@ export const saveProductStock = onCall(async (request) => {
       const mappingSnap = await db.collection("adminsByEmail").doc(email).get();
       if (mappingSnap.exists) {
         workspaceId = mappingSnap.data()?.workspaceId;
-        if (workspaceId) {
-          await admin.auth().setCustomUserClaims(uid, { workspaceId, role: "admin" }).catch(() => {});
+      } else {
+        // Recherche dans workspaces par ownerEmail
+        const wsSnap = await db.collection("workspaces").where("ownerEmail", "==", email).limit(1).get();
+        if (!wsSnap.empty) {
+          workspaceId = wsSnap.docs[0].id;
         }
       }
     }
@@ -2934,7 +2937,9 @@ export const saveProductStock = onCall(async (request) => {
   const { stockId, data } = request.data as { stockId: string; data: Record<string, any> };
   const targetWorkspaceId = workspaceId || data?.workspaceId;
 
-  if (!targetWorkspaceId) {
+  if (targetWorkspaceId) {
+    await admin.auth().setCustomUserClaims(uid, { workspaceId: targetWorkspaceId, role: "admin" }).catch(() => {});
+  } else {
     throw new HttpsError("permission-denied", "Accès réservé aux administrateurs.");
   }
 

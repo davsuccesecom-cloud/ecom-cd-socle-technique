@@ -338,9 +338,9 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
   const countryMeta = team ? getCountryMeta(team.defaultCountry) : null;
 
   return (
-    <div className="mx-auto max-w-[940px] px-2 py-4 sm:px-4 sm:py-6">
-      {/* Barre d'action supérieure et onglets des équipes */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-[960px] px-2 py-3 sm:px-4 sm:py-4 space-y-5">
+      {/* 1. Sélecteur d'équipes en pilules horizontales & Bouton d'ajout */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-surface-border pb-4">
         <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Équipes">
           {teams.map((t) => {
             const isSelected = t.id === cur;
@@ -352,10 +352,10 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                 role="tab"
                 aria-selected={isSelected}
                 onClick={() => setCur(t.id)}
-                className={`flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer select-none ${
                   isSelected
-                    ? "border-brand bg-brand-light text-slate-100 ring-1 ring-brand"
-                    : "border-surface-border bg-surface text-slate-300 hover:border-slate-500 hover:text-slate-100"
+                    ? "border-[#16181D] bg-[#16181D] text-white dark:border-white dark:bg-white dark:text-[#16181D] shadow-sm"
+                    : "border-slate-200 dark:border-surface-border bg-white dark:bg-surface text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
                 <img
@@ -376,28 +376,29 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
         </div>
 
         <button
+          type="button"
           onClick={() => setShowCreateTeam(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:opacity-95"
+          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-[#16181D] text-white dark:bg-white dark:text-[#16181D] px-3.5 py-2 text-xs font-bold transition hover:opacity-90 active:scale-95 cursor-pointer shadow-xs"
         >
           + Nouvelle équipe
         </button>
       </div>
 
-      {/* 3. Vue de l'équipe sélectionnée */}
+      {/* 2. Vue de l'équipe sélectionnée */}
       {team && countryMeta ? (
         <section className="space-y-4">
           {/* En-tête de l'équipe avec drapeau large et menu ⋯ */}
-          <div className="relative flex items-center gap-3.5 border-b border-surface-border pb-4">
+          <div className="relative flex items-center gap-3.5 rounded-2xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised p-4 shadow-xs">
             <img
               src={flagUrl(team.defaultCountry, "lg")}
               alt={country?.name || team.defaultCountry}
-              className="h-7 w-10 rounded-md object-cover border border-surface-border shadow-sm shrink-0"
+              className="h-8 w-11 rounded-md object-cover border border-slate-200 dark:border-surface-border shadow-xs shrink-0"
             />
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-lg font-extrabold text-slate-100">
+              <h2 className="truncate text-lg font-bold text-slate-900 dark:text-slate-100">
                 {team.name}
               </h2>
-              <div className="truncate text-xs text-slate-400">
+              <div className="truncate text-xs text-slate-500 dark:text-slate-400">
                 {country?.name || team.defaultCountry} · Hub {countryMeta.capital} · {team.currency} ({countryMeta.dialCode})
               </div>
             </div>
@@ -411,7 +412,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                   setMenuOpen(!menuOpen);
                 }}
                 aria-label="Plus d'actions"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-surface-border bg-surface text-sm font-bold text-slate-300 hover:border-slate-500 hover:text-slate-100 transition"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 dark:border-surface-border bg-[#F6F6F3] dark:bg-surface text-sm font-bold text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition cursor-pointer"
               >
                 ⋯
               </button>
@@ -419,7 +420,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
               {menuOpen && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-10 z-20 min-w-[220px] rounded-xl border border-surface-border bg-surface-raised p-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+                  className="absolute right-0 top-11 z-20 min-w-[220px] rounded-xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised p-1.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
                   role="menu"
                 >
                   <button
@@ -429,7 +430,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                       openEdit();
                     }}
                     role="menuitem"
-                    className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-200 hover:bg-surface transition"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-surface transition cursor-pointer"
                   >
                     Modifier la devise ou le nom
                   </button>
@@ -440,7 +441,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                       setShowDeleteModal(true);
                     }}
                     role="menuitem"
-                    className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition cursor-pointer"
                   >
                     Supprimer l'équipe
                   </button>
@@ -449,23 +450,23 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
             </div>
           </div>
 
-          {/* 4. Grille à 2 cartes : Shopify & Google Sheets */}
+          {/* 3. Grille à 2 cartes : Shopify & Google Sheets */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* CARTE SHOPIFY */}
-            <article className="flex min-h-[300px] flex-col justify-between rounded-2xl border border-surface-border bg-surface-raised p-5">
+            <article className="flex min-h-[300px] flex-col justify-between rounded-2xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised p-5 shadow-xs">
               <div>
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20">
                       <ShopifyIcon />
                     </div>
                     <div>
-                      <h3 className="text-base font-extrabold text-slate-100">Shopify</h3>
-                      <p className="text-xs text-slate-400">Commandes en temps réel</p>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Shopify</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Commandes en temps réel</p>
                     </div>
                   </div>
                   {teamShopify ? (
-                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                       Actif
                     </span>
                   ) : null}
@@ -473,28 +474,28 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
 
                 {teamShopify ? (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2 rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs">
-                      <span className="truncate font-mono text-slate-200">{teamShopify.domain}</span>
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-surface-border bg-[#F6F6F3] dark:bg-surface px-3 py-2 text-xs">
+                      <span className="truncate font-mono text-slate-800 dark:text-slate-200">{teamShopify.domain}</span>
                       <button
                         type="button"
                         onClick={() => copy(teamShopify.domain, "Domaine copié")}
-                        className="rounded-lg border border-surface-border px-2.5 py-1 text-[11px] font-semibold text-slate-300 hover:border-slate-500"
+                        className="rounded-lg border border-slate-300 dark:border-surface-border px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:border-slate-500 cursor-pointer"
                       >
                         Copier
                       </button>
                     </div>
-                    <div className="rounded-xl border border-surface-border bg-surface/50 p-3 text-xs">
-                      <b className="text-slate-200 font-semibold block mb-0.5">
+                    <div className="rounded-xl border border-slate-200 dark:border-surface-border bg-[#F6F6F3]/60 dark:bg-surface/50 p-3 text-xs">
+                      <b className="text-slate-900 dark:text-slate-200 font-semibold block mb-0.5">
                         Flux direct actif ({teamShopify.label})
                       </b>
-                      <small className="text-slate-400 block">
+                      <small className="text-slate-500 dark:text-slate-400 block">
                         Chaque commande passée sur la boutique arrive directement dans WariTrack pour {team.name}.
                       </small>
                     </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-6 text-center">
-                    <p className="max-w-[32ch] text-xs text-slate-400">
+                    <p className="max-w-[32ch] text-xs text-slate-500 dark:text-slate-400">
                       Recevez chaque commande de votre boutique automatiquement par webhook, sans tableur.
                     </p>
                   </div>
@@ -506,7 +507,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                   <button
                     type="button"
                     onClick={handleUnlinkShopify}
-                    className="w-full rounded-xl border border-surface-border py-2.5 text-xs font-semibold text-slate-300 hover:border-rose-500/40 hover:text-rose-400 transition"
+                    className="w-full rounded-xl border border-slate-200 dark:border-surface-border py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:border-rose-400 hover:text-rose-600 dark:hover:text-rose-400 transition cursor-pointer"
                   >
                     Dissocier Shopify
                   </button>
@@ -514,7 +515,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                   <button
                     type="button"
                     onClick={() => setShowShopifyModal(true)}
-                    className="w-full rounded-xl bg-brand py-2.5 text-xs font-semibold text-white shadow transition hover:opacity-95"
+                    className="w-full rounded-xl bg-[#16181D] text-white dark:bg-white dark:text-[#16181D] py-2.5 text-xs font-bold shadow-xs transition hover:opacity-90 active:scale-95 cursor-pointer"
                   >
                     Connecter Shopify
                   </button>
@@ -523,20 +524,20 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
             </article>
 
             {/* CARTE GOOGLE SHEETS */}
-            <article className="flex min-h-[300px] flex-col justify-between rounded-2xl border border-surface-border bg-surface-raised p-5">
+            <article className="flex min-h-[300px] flex-col justify-between rounded-2xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised p-5 shadow-xs">
               <div>
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <GoogleSheetsIcon className="h-9 w-auto shrink-0" />
                     <div>
-                      <h3 className="text-base font-extrabold text-slate-100">Google Sheets</h3>
-                      <p className="text-xs text-slate-400">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Google Sheets</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         {team.sheetIds.length} / {MAX_SHEETS} tableurs
                       </p>
                     </div>
                   </div>
                   {team.sheetIds.length > 0 ? (
-                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
                       Synchronisé
                     </span>
                   ) : null}
@@ -547,18 +548,18 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                     {team.sheetIds.map((sId, idx) => (
                       <div
                         key={sId}
-                        className="flex items-center justify-between gap-2.5 rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs"
+                        className="flex items-center justify-between gap-2.5 rounded-xl border border-slate-200 dark:border-surface-border bg-[#F6F6F3] dark:bg-surface px-3 py-2 text-xs"
                       >
                         <GoogleSheetsIcon className="h-4 w-auto shrink-0" />
                         <div className="min-w-0 flex-1 truncate font-mono">
-                          <b className="text-slate-200">Tableur {idx + 1}</b>
-                          <small className="text-slate-400 block truncate">…{sId.slice(-8)}</small>
+                          <b className="text-slate-800 dark:text-slate-200">Tableur {idx + 1}</b>
+                          <small className="text-slate-500 dark:text-slate-400 block truncate">…{sId.slice(-8)}</small>
                         </div>
                         <a
                           href={`https://docs.google.com/spreadsheets/d/${sId}/edit`}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[11px] font-semibold text-brand hover:underline"
+                          className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
                         >
                           Ouvrir
                         </a>
@@ -566,7 +567,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                           type="button"
                           onClick={() => handleRemoveSheet(sId)}
                           aria-label={`Retirer tableur ${idx + 1}`}
-                          className="rounded p-1 text-slate-400 hover:text-rose-400 transition"
+                          className="rounded p-1 text-slate-400 hover:text-rose-500 transition cursor-pointer"
                         >
                           ✕
                         </button>
@@ -576,7 +577,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                 ) : (
                   <div className="flex flex-col items-center justify-center py-6 text-center">
                     <GoogleSheetsIcon className="h-10 w-auto mb-2 opacity-80" />
-                    <p className="max-w-[32ch] text-xs text-slate-400">
+                    <p className="max-w-[32ch] text-xs text-slate-500 dark:text-slate-400">
                       Aucun tableur connecté. Les ventes hors campagne (WhatsApp, influenceurs) arrivent ici.
                     </p>
                   </div>
@@ -588,7 +589,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                   type="button"
                   onClick={openWizard}
                   disabled={team.sheetIds.length >= MAX_SHEETS}
-                  className="w-full rounded-xl bg-brand py-2.5 text-xs font-semibold text-white shadow transition hover:opacity-95 disabled:opacity-40"
+                  className="w-full rounded-xl bg-[#16181D] text-white dark:bg-white dark:text-[#16181D] py-2.5 text-xs font-bold shadow-xs transition hover:opacity-90 active:scale-95 disabled:opacity-40 cursor-pointer"
                 >
                   {team.sheetIds.length >= MAX_SHEETS ? "Limite atteinte (5 tableurs)" : "Connecter un tableur"}
                 </button>

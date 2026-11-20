@@ -53,7 +53,7 @@ export function ConnectionGuard({ children, appName }: ConnectionGuardProps) {
     setIsUpdating(true);
 
     try {
-      // 1. Exécuter le handler enregistré par Vite PWA
+      // 1. Exécuter le handler enregistré par Vite PWA s'il est fourni
       if (swUpdateHandler) {
         try {
           swUpdateHandler();
@@ -71,32 +71,35 @@ export function ConnectionGuard({ children, appName }: ConnectionGuardProps) {
               reg.waiting.postMessage({ type: "SKIP_WAITING" });
             }
           }
-
-          // Écouter le changement de contrôleur pour recharger dès que le nouveau SW est actif
-          navigator.serviceWorker.addEventListener(
-            "controllerchange",
-            () => {
-              window.location.reload();
-            },
-            { once: true }
-          );
         } catch (e) {
           console.warn("[PWA] Erreur broadcast SKIP_WAITING :", e);
         }
+      }
+
+      // 3. Vider les caches du navigateur (sauf caches persistant Firebase)
+      if (typeof window !== "undefined" && "caches" in window) {
+        try {
+          const cacheKeys = await window.caches.keys();
+          await Promise.all(
+            cacheKeys
+              .filter((k) => !k.toLowerCase().includes("firebase"))
+              .map((k) => window.caches.delete(k))
+          );
+        } catch {}
       }
     } catch (err) {
       console.warn("[PWA] Erreur durant la mise à jour :", err);
     }
 
-    // 3. Filet de sécurité 1 : Forcer le rechargement après 350ms si controllerchange n'a pas tiré
+    // 4. Rechargement immédiat et garanti avec bris de cache (évite toute mise en pause)
     setTimeout(() => {
-      window.location.reload();
-    }, 350);
-
-    // 4. Filet de sécurité 2 : Forcer par URL après 1200ms au cas où reload() soit mis en pause
-    setTimeout(() => {
-      window.location.href = window.location.href.split("#")[0];
-    }, 1200);
+      try {
+        const cleanUrl = window.location.href.split("#")[0].split("?")[0];
+        window.location.href = `${cleanUrl}?_sw=${Date.now()}`;
+      } catch {
+        window.location.reload();
+      }
+    }, 120);
   }, [isUpdating, swUpdateHandler]);
 
   return (
@@ -123,6 +126,7 @@ export function ConnectionGuard({ children, appName }: ConnectionGuardProps) {
               <button
                 type="button"
                 onClick={handleApplyUpdate}
+                onPointerDown={handleApplyUpdate}
                 disabled={isUpdating}
                 className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-brand hover:bg-brand/90 active:scale-95 px-3.5 py-1.5 text-xs font-bold text-white shadow-md transition-all cursor-pointer select-none disabled:opacity-60"
               >

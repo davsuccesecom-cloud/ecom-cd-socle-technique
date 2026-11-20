@@ -100,8 +100,8 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Dispatch des colis, impression des bons et traçabilité en temps réel",
   },
   teams: {
-    title: "Marchés & Google Sheets",
-    subtitle: "Configuration des équipes par pays et synchronisation des flux tableurs",
+    title: "Équipes & Marchés",
+    subtitle: "Configuration par pays, connexions Shopify et synchronisation Google Sheets",
   },
   caisse: {
     title: "Caisse & Versements Livreurs",
@@ -425,10 +425,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         {/* Global Top Header Bar : 1 seule ligne compacte sur ordinateur, inchangé sur mobile */}
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3 md:flex-nowrap">
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-semibold leading-tight tracking-tight text-slate-100 md:text-xl">
+            <h1 className="truncate text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-xl">
               {headerMeta.title}
             </h1>
-            <p className="mt-0.5 truncate text-xs text-slate-500">{headerMeta.subtitle}</p>
+            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{headerMeta.subtitle}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">
@@ -539,8 +539,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               orders={orders}
               allOrders={allOrders}
               period={period}
-              closeuses={closeuses}
-              livreurs={livreurs}
             />
           ) : page === "performance" ? (
             <PerformanceEmployes team={activeTeam} closeuses={closeuses} livreurs={livreurs} orders={allOrders} />

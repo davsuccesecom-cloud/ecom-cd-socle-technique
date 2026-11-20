@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Search,
   LayoutDashboard,
@@ -119,44 +120,49 @@ export default function CommandPalette({
     <>
       <button
         type="button"
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setOpen(true);
         }}
         title="Rechercher une commande, un client ou une page (⌘K / Ctrl+K)"
-        className="inline-flex min-h-[44px] md:h-9 items-center gap-2.5 rounded-lg border border-surface-border bg-surface-raised px-3 text-xs text-slate-300 transition-all hover:border-slate-500 hover:text-slate-100 cursor-pointer active:scale-95 select-none"
+        className="inline-flex min-h-[44px] md:h-9 items-center gap-2.5 rounded-lg border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised px-3 text-xs text-slate-700 dark:text-slate-300 transition-all hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer active:scale-95 select-none shadow-xs"
       >
         <Search className="h-3.5 w-3.5 text-slate-400" />
         <span className="hidden xl:inline">Rechercher une commande…</span>
         <span className="hidden sm:inline xl:hidden">Rechercher…</span>
-        <kbd className="hidden rounded border border-surface-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-400 sm:inline-block">
+        <kbd className="hidden rounded border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-500 dark:text-slate-400 sm:inline-block">
           ⌘K
         </kbd>
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 px-4 pt-12 md:pt-16 backdrop-blur-xs"
+          className="fixed inset-0 z-[99999] flex items-start justify-center bg-black/70 px-4 pt-12 md:pt-16 backdrop-blur-xs animate-in fade-in duration-150"
           onClick={() => setOpen(false)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="surface-popover w-full max-w-xl overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-2xl"
+            className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 dark:border-surface-border bg-white dark:bg-surface-raised shadow-2xl"
           >
-            <div className="flex min-h-[48px] items-center gap-3 border-b border-surface-border px-4 py-3">
+            <div className="flex min-h-[48px] items-center gap-3 border-b border-slate-200 dark:border-surface-border px-4 py-3 bg-white dark:bg-surface-raised">
               <Search className="h-4 w-4 shrink-0 text-slate-400" />
               <input
                 ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Tapez un nom de client, téléphone, #commande ou page…"
-                className="flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
+                className="flex-1 bg-transparent text-sm text-slate-900 dark:text-slate-100 outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500"
               />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-surface-border px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-400 hover:text-slate-200"
+                className="rounded-md border border-slate-200 dark:border-surface-border px-1.5 py-0.5 font-mono text-[10px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 cursor-pointer"
               >
                 ESC
               </button>
@@ -181,18 +187,18 @@ export default function CommandPalette({
                             onNavigate("orders");
                           }
                         }}
-                        className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-surface"
+                        className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:bg-slate-100 dark:hover:bg-surface cursor-pointer"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-semibold text-brand">
                               {o.orderNumber || `#${o.id.slice(-5)}`}
                             </span>
-                            <span className="truncate font-medium text-slate-200">{o.clientName}</span>
-                            <span className="text-slate-400">{o.clientPhoneFormatted}</span>
+                            <span className="truncate font-medium text-slate-800 dark:text-slate-200">{o.clientName}</span>
+                            <span className="text-slate-500 dark:text-slate-400">{o.clientPhoneFormatted}</span>
                           </div>
-                          <p className="truncate text-[11px] text-slate-400">
-                            {o.product} • {o.city} • <span className="font-mono text-slate-300 tabular-nums">{o.amount?.toLocaleString()} FCFA</span>
+                          <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                            {o.product} • {o.city} • <span className="font-mono text-slate-700 dark:text-slate-300 tabular-nums">{o.amount?.toLocaleString()} FCFA</span>
                           </p>
                         </div>
                         <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
@@ -218,7 +224,7 @@ export default function CommandPalette({
                             setOpen(false);
                             onNavigate(item.key);
                           }}
-                          className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-slate-300 transition-colors hover:bg-surface hover:text-slate-100"
+                          className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-100 dark:hover:bg-surface hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer"
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Icon className="h-4 w-4 shrink-0 text-slate-400" />
@@ -302,12 +308,13 @@ export default function CommandPalette({
               </div>
             </div>
 
-            <div className="flex items-center justify-between border-t border-surface-border bg-surface px-4 py-2 text-[11px] text-slate-400">
+            <div className="flex items-center justify-between border-t border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface px-4 py-2 text-[11px] text-slate-500 dark:text-slate-400">
               <span>Tapez <strong>?</strong> pour l'aide des raccourcis</span>
               <span className="font-mono text-[10px]">ESC pour fermer</span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

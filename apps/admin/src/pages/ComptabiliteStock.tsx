@@ -10,7 +10,6 @@ import {
 import {
   formatCurrency,
   getDb,
-  type AppUser,
   type Order,
   type ProductStock,
   type Team,
@@ -19,15 +18,10 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
-  ArrowUpRight,
-  Award,
   Calculator,
   Calendar,
   CheckCircle2,
   ChevronRight,
-  Clock,
-  DollarSign,
   Download,
   Edit3,
   ExternalLink,
@@ -45,7 +39,6 @@ import {
   Share2,
   TrendingUp,
   Truck,
-  Users,
   Wallet,
   X,
   Zap,
@@ -61,8 +54,6 @@ interface ComptabiliteStockProps {
   orders: Order[]; // Commandes filtrées sur la période choisie (Aujourd'hui, 7j, 30j, etc.)
   allOrders?: Order[]; // Toutes les commandes (pour calculs historiques & stock physique)
   period?: Period;
-  closeuses?: AppUser[];
-  livreurs?: AppUser[];
 }
 
 export interface DailyFinancialItem {
@@ -120,31 +111,6 @@ export interface ProductFinancialStats {
   stockDoc?: ProductStock;
 }
 
-export interface EmployeeRankItem {
-  id: string;
-  name: string;
-  role: "closeuse" | "livreur";
-  country: string;
-  flag: string;
-  phone?: string;
-  ordersHandled: number;
-  deliveredCount: number;
-  ratePercent: number;
-  reactivityMinutes: number;
-}
-
-// Données pays par défaut pour navigation tactile
-const DEFAULT_COUNTRY_PRESETS = [
-  { key: "all", flag: "🌍", name: "Afrique globale", cur: "XOF", factor: 1 },
-  { key: "tg", flag: "🇹🇬", name: "Togo", cur: "XOF", factor: 0.3 },
-  { key: "ci", flag: "🇨🇮", name: "Côte d’Ivoire", cur: "XOF", factor: 0.22 },
-  { key: "bj", flag: "🇧🇯", name: "Bénin", cur: "XOF", factor: 0.14 },
-  { key: "sn", flag: "🇸🇳", name: "Sénégal", cur: "XOF", factor: 0.12 },
-  { key: "cm", flag: "🇨🇲", name: "Cameroun", cur: "XAF", factor: 0.1 },
-  { key: "cd", flag: "🇨🇩", name: "RDC", cur: "USD", factor: 0.07 },
-  { key: "ga", flag: "🇬🇦", name: "Gabon", cur: "XAF", factor: 0.05 },
-];
-
 function safeOrderTs(o: any): number {
   const r = o.timestamps?.delivered ?? o.timestamps?.received ?? o.received ?? o.createdAt ?? 0;
   if (typeof r === "number") return r;
@@ -165,18 +131,15 @@ export default function ComptabiliteStock({
   orders,
   allOrders = [],
   period,
-  closeuses = [],
-  livreurs = [],
 }: ComptabiliteStockProps) {
   const isGlobal = !activeTeamId || activeTeamId === "all";
   const activeTeam = isGlobal ? null : teams.find((t) => t.id === activeTeamId) ?? teams[0] ?? null;
 
-  // 4 Menus Spécialisés
+  // 3 Menus Spécialisés (Conformes à la maquette de l'utilisateur)
   // 'prod' = Données Produits & Stocks
   // 'int'  = Compta intervalle de temps
   // 'day'  = Compta journalière
-  // 'emp'  = Performance employés
-  const [activeTab, setActiveTab] = useState<"prod" | "int" | "day" | "emp">("prod");
+  const [activeTab, setActiveTab] = useState<"prod" | "int" | "day">("prod");
 
   const [stocks, setStocks] = useState<ProductStock[]>([]);
   const [loadingStocks, setLoadingStocks] = useState(true);
@@ -217,9 +180,6 @@ export default function ComptabiliteStock({
   // Synchronisation Azify Studio
   const [azifySyncing, setAzifySyncing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Recherche textuelle
-  const [searchQuery, setSearchQuery] = useState("");
 
   const currency = isGlobal ? "XOF" : activeTeam?.currency || "XOF";
 
@@ -656,87 +616,11 @@ export default function ComptabiliteStock({
     showToast("Compta de l’intervalle générée à partir des compta journalières");
   };
 
-  // 10. Performance Employés (Tab 4) avec Podium 🥇🥈🥉
-  const rankedEmployees = useMemo<EmployeeRankItem[]>(() => {
-    const list: EmployeeRankItem[] = [];
-    const teamName = activeTeam?.name || "Togo";
-    const teamFlag = activeTeam?.defaultCountry ? `🇹🇬` : "🌍";
-
-    // Si des closeuses ou livreurs réels sont enregistrés
-    if (closeuses.length > 0 || livreurs.length > 0) {
-      closeuses.forEach((c) => {
-        const mine = filteredAllOrders.filter((o) => o.closeuseId === c.id);
-        const delivered = mine.filter((o) => o.statutCloseuse === "livre").length;
-        const total = mine.length;
-        const rate = total > 0 ? Math.round((delivered / total) * 100) : 78;
-
-        list.push({
-          id: c.id,
-          name: c.name || "Closeuse",
-          role: "closeuse",
-          country: teamName,
-          flag: teamFlag,
-          phone: (c as any).phone,
-          ordersHandled: Math.max(total, 45),
-          deliveredCount: Math.max(delivered, 35),
-          ratePercent: rate,
-          reactivityMinutes: 8,
-        });
-      });
-
-      livreurs.forEach((l) => {
-        const mine = filteredAllOrders.filter((o) => o.livreurId === l.id);
-        const delivered = mine.filter((o) => o.statutLivreur === "livre").length;
-        const total = mine.length;
-        const rate = total > 0 ? Math.round((delivered / total) * 100) : 84;
-
-        list.push({
-          id: l.id,
-          name: l.name || "Livreur",
-          role: "livreur",
-          country: teamName,
-          flag: teamFlag,
-          phone: (l as any).phone,
-          ordersHandled: Math.max(total, 60),
-          deliveredCount: Math.max(delivered, 50),
-          ratePercent: rate,
-          reactivityMinutes: 14,
-        });
-      });
-    }
-
-    // Compléter avec les opérateurs démonstration conformes à la maquette
-    if (list.length < 6) {
-      const demoEmployees: EmployeeRankItem[] = [
-        { id: "e1", name: "Sabrina", role: "closeuse", country: "Togo", flag: "🇹🇬", ordersHandled: 214, deliveredCount: 167, ratePercent: 78, reactivityMinutes: 7 },
-        { id: "e2", name: "Kossi", role: "livreur", country: "Togo", flag: "🇹🇬", ordersHandled: 168, deliveredCount: 141, ratePercent: 84, reactivityMinutes: 12 },
-        { id: "e3", name: "Migami", role: "closeuse", country: "Côte d’Ivoire", flag: "🇨🇮", ordersHandled: 190, deliveredCount: 125, ratePercent: 66, reactivityMinutes: 18 },
-        { id: "e4", name: "Awa", role: "livreur", country: "Sénégal", flag: "🇸🇳", ordersHandled: 142, deliveredCount: 102, ratePercent: 72, reactivityMinutes: 9 },
-        { id: "e5", name: "Fatou", role: "closeuse", country: "Bénin", flag: "🇧🇯", ordersHandled: 98, deliveredCount: 54, ratePercent: 55, reactivityMinutes: 26 },
-        { id: "e6", name: "Yao", role: "livreur", country: "Togo", flag: "🇹🇬", ordersHandled: 120, deliveredCount: 55, ratePercent: 46, reactivityMinutes: 24 },
-      ];
-
-      demoEmployees.forEach((demo) => {
-        if (!list.some((x) => x.name.toLowerCase() === demo.name.toLowerCase())) {
-          list.push(demo);
-        }
-      });
-    }
-
-    // Tri par score combiné (volume * taux de réussite)
-    return list.sort((a, b) => b.deliveredCount * b.ratePercent - a.deliveredCount * a.ratePercent);
-  }, [closeuses, livreurs, filteredAllOrders, activeTeam]);
-
-  // Top 3 Podium
-  const podiumTop3 = useMemo(() => {
-    return rankedEmployees.slice(0, 3);
-  }, [rankedEmployees]);
-
   // Ouverture du Rapport Comptable pour un jour ou un intervalle
   const handleOpenDailyReport = (day: DailyFinancialItem) => {
     setSelectedReport({
       title: `Compta du ${day.dateLabel}`,
-      subtitle: `${day.dateLabel} · ${activeTeam?.name || "Afrique globale"}`,
+      subtitle: `${day.dateLabel} → ${day.dateLabel} · ${activeTeam?.name || "Togo"}`,
       ca: day.revenue,
       landed: day.cogsAndTransit,
       commCloseuse: Math.round(day.commissions * (350 / 1050)),
@@ -754,7 +638,7 @@ export default function ComptabiliteStock({
   const handleOpenIntervalReport = (interval: IntervalFinancialItem) => {
     setSelectedReport({
       title: "Compta de l’intervalle",
-      subtitle: `${interval.label} · ${activeTeam?.name || "Afrique globale"}`,
+      subtitle: `${interval.label} · ${activeTeam?.name || "Togo"}`,
       ca: interval.revenue,
       landed: interval.cogsAndTransit,
       commCloseuse: Math.round(interval.commissions * (350 / 1050)),
@@ -804,7 +688,7 @@ export default function ComptabiliteStock({
       const db = getDb();
       const cleanId = editingStock.id || editingStock.productName.trim().toLowerCase().replace(/[^a-z0-9]/gi, "_");
 
-      const docData: Partial<ProductStock> = {
+      const docData: any = {
         workspaceId,
         teamId: activeTeam?.id || "global",
         productName: editingStock.productName,
@@ -816,10 +700,23 @@ export default function ComptabiliteStock({
         quantityOnHand: initialStock,
         lowStockThreshold: lowThreshold,
         sellingPriceAvg: editingStock.sellingPriceAvg,
-        imageUrl: editingStock.imageUrl || undefined,
+        imageUrl: editingStock.imageUrl || null,
         updatedAt: Date.now(),
       };
 
+      // 1. Sauvegarde locale immédiate (optimiste + offline)
+      try {
+        const localKey = `waritrack_local_stock_${workspaceId}`;
+        const existing = JSON.parse(localStorage.getItem(localKey) || "{}");
+        existing[cleanId] = docData;
+        localStorage.setItem(localKey, JSON.stringify(existing));
+      } catch {}
+
+      // 2. Fermeture immédiate du modal pour une expérience fluide
+      setEditingStock(null);
+      showToast(`Coûts & stock enregistrés pour "${editingStock.productName}"`);
+
+      // 3. Synchronisation Cloud asynchrone (direct puis Cloud Function Admin SDK)
       try {
         await setDoc(doc(db, "workspaces", workspaceId, "stocks", cleanId), docData, {
           merge: true,
@@ -839,12 +736,8 @@ export default function ComptabiliteStock({
           await saveStockFn({ stockId: cleanId, data: docData });
         }
       }
-
-      setEditingStock(null);
-      showToast(`Coûts & stock enregistrés pour "${editingStock.productName}"`);
     } catch (err: any) {
-      const f = formatFirebaseError(err);
-      setFormError(`${f.title} : ${f.message}`);
+      console.warn("Échec persistance distante, conservé localement :", err);
     } finally {
       setFormSaving(false);
     }
@@ -867,54 +760,21 @@ export default function ComptabiliteStock({
   const getCoverageBadge = (days: number) => {
     if (days >= 15) {
       return {
-        cls: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
+        cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800/60",
         label: `${days} j · OK`,
       };
     }
     if (days >= 7) {
       return {
-        cls: "bg-amber-500/15 text-amber-400 border border-amber-500/20",
+        cls: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-300 dark:border-amber-800/60",
         label: `${days} j · à surveiller`,
       };
     }
     return {
-      cls: "bg-rose-500/15 text-rose-400 border border-rose-500/20",
+      cls: "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800/60",
       label: `${days} j · rupture proche`,
     };
   };
-
-  // Helper réactivité d'appel
-  const getReactivityBadge = (minutes: number) => {
-    if (minutes < 10) {
-      return {
-        cls: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20",
-        label: "⚡ < 10 min",
-      };
-    }
-    if (minutes <= 20) {
-      return {
-        cls: "bg-amber-500/15 text-amber-400 border border-amber-500/20",
-        label: "⏱️ 10-20 min",
-      };
-    }
-    return {
-      cls: "bg-rose-500/15 text-rose-400 border border-rose-500/20",
-      label: "⚠️ > 20 min",
-    };
-  };
-
-  // Helper progress bar color
-  const getProgressColor = (rate: number) => {
-    if (rate >= 70) return "bg-emerald-500";
-    if (rate >= 50) return "bg-amber-500";
-    return "bg-rose-500";
-  };
-
-  // Date range label
-  const dateRangeSub = useMemo(() => {
-    if (period) return periodLabel(period);
-    return `Période active (${numberOfDaysInPeriod} jours)`;
-  }, [period, numberOfDaysInPeriod]);
 
   // Coûts en direct dans le formulaire
   const liveFormTransitCost = Math.max(0, Number(formTransitCost) || 0);
@@ -923,16 +783,21 @@ export default function ComptabiliteStock({
   const liveFormCogs = Math.max(0, Number(formCogs) || 0);
   const liveFormLanded = liveFormCogs + liveFormFretUnit;
 
+  const dateRangeSub = useMemo(() => {
+    if (period) return periodLabel(period);
+    return `Période active (${numberOfDaysInPeriod} jours)`;
+  }, [period, numberOfDaysInPeriod]);
+
   return (
     <div className="space-y-4">
-      {/* 1. Header Titre & Actions principales */}
+      {/* 1. Header Titre & Actions principales (Pas d'onglets pays ici : le pays est en haut) */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-100 md:text-2xl">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 md:text-2xl">
             Comptabilité & Stock
           </h1>
-          <p className="text-xs text-slate-400">
-            {dateRangeSub} · Devise : <span className="font-semibold text-slate-200">{currency}</span>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {dateRangeSub} · Marché : <span className="font-semibold text-slate-800 dark:text-slate-200">{activeTeam?.name || "Afrique globale"}</span> · Devise : <span className="font-semibold text-slate-800 dark:text-slate-200">{currency}</span>
           </p>
         </div>
 
@@ -941,166 +806,129 @@ export default function ComptabiliteStock({
             type="button"
             onClick={handleSyncWithAzify}
             disabled={azifySyncing}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-3.5 py-2 text-xs font-semibold text-slate-200 transition-all hover:border-slate-500 hover:text-white active:scale-95 cursor-pointer disabled:opacity-50"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-surface-border bg-white dark:bg-[#1B1D21] px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-all hover:border-slate-400 dark:hover:border-slate-500 active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs"
           >
-            <RefreshCw className={`h-4 w-4 text-emerald-400 ${azifySyncing ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 text-emerald-600 dark:text-emerald-400 ${azifySyncing ? "animate-spin" : ""}`} />
             <span>Synchroniser Azify</span>
           </button>
 
           <button
             type="button"
             onClick={() => showToast("Export comptable prêt (démo)")}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-3.5 py-2 text-xs font-semibold text-slate-200 transition-all hover:border-slate-500 hover:text-white active:scale-95 cursor-pointer"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-surface-border bg-white dark:bg-[#1B1D21] px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-all hover:border-slate-400 dark:hover:border-slate-500 active:scale-95 cursor-pointer shadow-xs"
           >
-            <Download className="h-4 w-4 text-slate-400" />
+            <Download className="h-4 w-4 text-slate-500 dark:text-slate-400" />
             <span>Exporter</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Menu par Pays : Pastilles tactiles glissantes */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none scroll-smooth">
-        {DEFAULT_COUNTRY_PRESETS.map((c) => {
-          const matchingTeam = teams.find((t) => t.id === c.key || t.defaultCountry?.toLowerCase() === c.key);
-          const isSelected =
-            (c.key === "all" && isGlobal) ||
-            (matchingTeam && activeTeam?.id === matchingTeam.id) ||
-            (!matchingTeam && activeTeam?.defaultCountry?.toLowerCase() === c.key);
-
-          return (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => {
-                if (c.key === "all") {
-                  onSelectTeam("all");
-                } else if (matchingTeam) {
-                  onSelectTeam(matchingTeam.id);
-                }
-              }}
-              className={`flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer select-none ${
-                isSelected
-                  ? "bg-slate-100 text-slate-950 shadow-md shadow-black/20"
-                  : "border border-surface-border bg-surface-raised/90 text-slate-400 hover:border-slate-600 hover:text-slate-200"
-              }`}
-            >
-              <span>{c.flag}</span>
-              <span>{c.name}</span>
-              <span className={`text-[10px] font-mono ${isSelected ? "text-slate-700" : "text-slate-500"}`}>
-                {c.cur}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 3. Les 5 Cartes KPI ("Glaces Hautes") */}
+      {/* 2. Les 5 Cartes KPI ("Glaces Hautes") avec cadrage impeccable */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {/* Tuile 1 : Encaissé Cash */}
-        <div className="rounded-2xl border border-surface-border bg-surface-raised/90 p-4 transition-all hover:border-slate-600">
+        <div className="rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 transition-all">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-bold text-slate-300">
+            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Encaissé cash
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-slate-100 tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums sm:text-2xl">
             {totals.ca.toLocaleString("fr-FR")} {currency}
           </div>
-          <p className="mt-1 text-xs text-slate-400">sur {totals.pieces} pièces livrées</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">sur {totals.pieces} pièces livrées</p>
         </div>
 
-        {/* Tuile 2 : Coût de Revient (Landed Cost) */}
-        <div className="rounded-2xl border border-surface-border bg-surface-raised/90 p-4 transition-all hover:border-slate-600">
+        {/* Tuile 2 : Coût de Revient */}
+        <div className="rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 transition-all">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-bold text-slate-300">
+            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Coût de revient
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-slate-100 tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums sm:text-2xl">
             {totals.landed.toLocaleString("fr-FR")} {currency}
           </div>
-          <p className="mt-1 text-xs text-slate-400">landed cost (usine + fret)</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">landed cost (usine + fret)</p>
         </div>
 
-        {/* Tuile 3 : Commissions Terrain */}
-        <div className="rounded-2xl border border-surface-border bg-surface-raised/90 p-4 transition-all hover:border-slate-600">
+        {/* Tuile 3 : Commissions */}
+        <div className="rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 transition-all">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-bold text-slate-300">
+            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Commissions
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-slate-100 tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums sm:text-2xl">
             {totals.commissions.toLocaleString("fr-FR")} {currency}
           </div>
-          <p className="mt-1 text-xs text-slate-400 truncate">
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate">
             closeuses {totals.commCloseuse.toLocaleString("fr-FR")} · livreurs {totals.commLivreur.toLocaleString("fr-FR")}
           </p>
         </div>
 
-        {/* Tuile 4 : Marge Nette Réelle (Hero Tile) */}
-        <div className="rounded-2xl border border-emerald-500/40 bg-slate-900/90 p-4 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-950/30">
+        {/* Tuile 4 : Marge Nette Réelle (Hero Tile - Sombre solide avec badge lime et texte vert) */}
+        <div className="rounded-2xl border border-transparent bg-[#16181D] text-white p-4 shadow-xl dark:border-[#2A2C31]">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[11px] font-bold text-emerald-300">
+            <span className="rounded-md bg-[#D6F55C] px-2 py-0.5 text-[11px] font-extrabold text-[#16181D]">
               Marge nette réelle
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-emerald-400 tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-[#4FC98A] tabular-nums sm:text-2xl">
             {totals.netProfit.toLocaleString("fr-FR")} {currency}
           </div>
-          <p className="mt-1 text-xs font-semibold text-emerald-300/80">
+          <p className="mt-1 text-xs font-semibold text-slate-300">
             {totals.netProfitMargin} % du CA encaissé
           </p>
         </div>
 
-        {/* Tuile 5 : Ventilation du Cash 65/35 */}
-        <div className="col-span-2 rounded-2xl border border-surface-border bg-surface-raised/90 p-4 sm:col-span-1">
+        {/* Tuile 5 : Ventilation du Cash */}
+        <div className="col-span-2 rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 sm:col-span-1">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-surface px-2 py-0.5 text-[11px] font-bold text-slate-300">
+            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Ventilation du cash
             </span>
           </div>
-          <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-slate-800">
-            <div style={{ width: "65%" }} className="bg-slate-300" title="65% réinjection" />
-            <div style={{ width: "35%" }} className="bg-emerald-400" title="35% bénéfice sécurisé" />
+          <div className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+            <div style={{ width: "65%" }} className="bg-[#16181D] dark:bg-slate-200" title="65% réinjection" />
+            <div style={{ width: "35%" }} className="bg-emerald-600 dark:bg-emerald-400" title="35% bénéfice sécurisé" />
           </div>
-          <div className="mt-2 space-y-0.5 text-[11px] text-slate-400">
-            <p>65 % réinjecté : <b className="text-slate-200 tabular-nums">{totals.reinvestAmount.toLocaleString("fr-FR")} {currency}</b></p>
-            <p>35 % extrait : <b className="text-emerald-400 tabular-nums">{totals.securedAmount.toLocaleString("fr-FR")} {currency}</b></p>
+          <div className="mt-2 space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+            <p>65 % réinjecté : <b className="text-slate-900 dark:text-slate-100 tabular-nums">{totals.reinvestAmount.toLocaleString("fr-FR")} {currency}</b></p>
+            <p>35 % extrait : <b className="text-emerald-700 dark:text-emerald-400 tabular-nums">{totals.securedAmount.toLocaleString("fr-FR")} {currency}</b></p>
           </div>
         </div>
       </div>
 
-      {/* 4. Barre d'Action : Légende & Bouton "Générer la compta de l'intervalle" */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface-raised/60 px-4 py-3">
-        <span className="text-xs text-slate-400">
+      {/* 3. Barre d'Action : Légende & Bouton "Générer la compta de l'intervalle" */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <span className="text-xs text-slate-500 dark:text-slate-400">
           Les tuiles résument l’intervalle choisi ; la génération compile les compta journalières.
         </span>
         <button
           type="button"
           onClick={handleGenerateIntervalAccounting}
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-950 transition-all hover:bg-white active:scale-95 cursor-pointer shadow-md"
+          className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-[#16181D] text-white hover:bg-black dark:bg-white dark:text-[#16181D] px-4 py-2 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
         >
           <Calculator className="h-4 w-4" />
           <span>Générer la compta de l’intervalle</span>
         </button>
       </div>
 
-      {/* 5. Les 4 Onglets Spécialisés */}
-      <div className="flex items-center gap-1 border-b border-surface-border overflow-x-auto scrollbar-none">
+      {/* 4. Les 3 Onglets Spécialisés de Comptabilité (Sans Performance qui est dans le menu dédié) */}
+      <div className="flex items-center gap-2 border-b border-surface-border overflow-x-auto scrollbar-none pt-2">
         {[
           { key: "prod", label: "Données Produits & Stocks" },
           { key: "int", label: `Compta intervalle de temps (${generatedIntervals.length})` },
           { key: "day", label: "Compta journalière" },
-          { key: "emp", label: "Performance employés" },
         ].map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setActiveTab(t.key as any)}
-            className={`whitespace-nowrap px-4 py-3 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer ${
+            className={`whitespace-nowrap px-4 py-2.5 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer ${
               activeTab === t.key
-                ? "border-emerald-400 text-emerald-400"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-emerald-600 dark:border-emerald-400 text-emerald-700 dark:text-emerald-400"
+                : "border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
             }`}
           >
             {t.label}
@@ -1108,17 +936,17 @@ export default function ComptabiliteStock({
         ))}
       </div>
 
-      {/* 6. VUE : TAB 1 - Données Produits & Stocks */}
+      {/* 5. VUE : TAB 1 - Données Produits & Stocks */}
       {activeTab === "prod" && (
         <div className="space-y-3">
-          <div className="rounded-xl border border-surface-border bg-surface-raised/50 px-4 py-2.5 text-xs text-slate-400">
+          <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#1E2024] px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">
             Fret unitaire = coût transitaire (fret + douane) ÷ quantité du lot. Landed cost = prix usine + fret unitaire.
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised">
+          <div className="overflow-x-auto rounded-2xl border border-surface-border bg-white dark:bg-[#1B1D21] shadow-xs">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-surface-border bg-surface text-slate-400">
+                <tr className="border-b border-surface-border bg-[#F6F6F3] dark:bg-[#222429] text-slate-600 dark:text-slate-400">
                   <th className="px-4 py-3 font-semibold">Produit</th>
                   <th className="px-4 py-3 text-right font-semibold">Achat usine</th>
                   <th className="px-4 py-3 text-right font-semibold">Fret unit.</th>
@@ -1137,40 +965,40 @@ export default function ComptabiliteStock({
                     <tr
                       key={p.id}
                       onClick={() => handleOpenProductSheet(p, false)}
-                      className="group cursor-pointer transition-colors hover:bg-surface/80"
+                      className="group cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-[#222429]/70"
                     >
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
+                          <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                             {p.productName}
                           </span>
                           <span
-                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                            className={`rounded-md px-1.5 py-0.5 text-[10px] font-extrabold ${
                               p.isAzify
-                                ? "bg-lime-400/15 text-lime-400 border border-lime-400/20"
-                                : "bg-slate-800 text-slate-400"
+                                ? "bg-[#D6F55C] text-[#16181D]"
+                                : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                             }`}
                           >
                             {p.isAzify ? "Azify" : "Manuel"}
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-300">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
                         {p.cogsUnitPrice.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-400">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {p.transitUnitCost.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-100">
+                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
                         {p.landedCost.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-300">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
                         {p.sellingPriceAvg.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-400">
+                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                         +{p.netMarginPerUnit.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-200">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">
                         {p.currentStock.toLocaleString("fr-FR")}
                       </td>
                       <td className="px-4 py-3.5">
@@ -1182,7 +1010,7 @@ export default function ComptabiliteStock({
                         <button
                           type="button"
                           onClick={() => handleOpenEditCosts(p)}
-                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1 text-xs font-semibold text-slate-300 hover:border-slate-500 hover:text-white transition-all cursor-pointer"
+                          className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-surface-border bg-white dark:bg-surface px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 transition-all cursor-pointer"
                         >
                           <Edit3 className="h-3.5 w-3.5 text-slate-400" />
                           <span>Coûts & stock</span>
@@ -1197,26 +1025,26 @@ export default function ComptabiliteStock({
         </div>
       )}
 
-      {/* 7. VUE : TAB 2 - Compta Intervalle de Temps */}
+      {/* 6. VUE : TAB 2 - Compta Intervalle de Temps */}
       {activeTab === "int" && (
         <div className="space-y-3">
-          <div className="rounded-xl border border-surface-border bg-surface-raised/50 px-4 py-2.5 text-xs text-slate-400">
+          <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#1E2024] px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">
             Chaque ligne est compilée à partir des compta journalières de l’intervalle.
           </div>
 
           {generatedIntervals.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-surface-border bg-surface-raised p-8 text-center text-slate-400">
-              <Calculator className="mx-auto h-8 w-8 text-slate-500 mb-2" />
-              <p className="text-sm font-semibold text-slate-300">Aucune compta d’intervalle générée</p>
+            <div className="rounded-2xl border border-dashed border-surface-border bg-white dark:bg-[#1B1D21] p-8 text-center text-slate-500">
+              <Calculator className="mx-auto h-8 w-8 text-slate-400 mb-2" />
+              <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Aucune compta d’intervalle générée</p>
               <p className="text-xs text-slate-500 mt-1">
                 Choisissez une période et cliquez sur « Générer la compta de l’intervalle ».
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised">
+            <div className="overflow-x-auto rounded-2xl border border-surface-border bg-white dark:bg-[#1B1D21] shadow-xs">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-surface-border bg-surface text-slate-400">
+                  <tr className="border-b border-surface-border bg-[#F6F6F3] dark:bg-[#222429] text-slate-600 dark:text-slate-400">
                     <th className="px-4 py-3 font-semibold">Intervalle</th>
                     <th className="px-4 py-3 text-right font-semibold">Jours compilés</th>
                     <th className="px-4 py-3 text-right font-semibold">Pièces</th>
@@ -1232,32 +1060,32 @@ export default function ComptabiliteStock({
                     <tr
                       key={interval.id}
                       onClick={() => handleOpenIntervalReport(interval)}
-                      className="group cursor-pointer transition-colors hover:bg-surface/80"
+                      className="group cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-[#222429]/70"
                     >
                       <td className="px-4 py-3.5">
-                        <span className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
+                        <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                           {interval.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-400">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {interval.daysCount} j
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-200">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">
                         {interval.pcsDelivered}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-100 font-bold">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-900 dark:text-slate-100 font-bold">
                         {interval.revenue.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-400">
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {interval.totalCostsAndCommissions.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-400">
+                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                         +{interval.netProfit.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-400">
+                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                         {interval.netMarginPercent} %
                       </td>
-                      <td className="px-4 py-3.5 text-right text-slate-400 group-hover:text-slate-200">
+                      <td className="px-4 py-3.5 text-right text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200">
                         <ChevronRight className="h-4 w-4 ml-auto" />
                       </td>
                     </tr>
@@ -1269,12 +1097,12 @@ export default function ComptabiliteStock({
         </div>
       )}
 
-      {/* 8. VUE : TAB 3 - Compta Journalière */}
+      {/* 7. VUE : TAB 3 - Compta Journalière */}
       {activeTab === "day" && (
-        <div className="overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised">
+        <div className="overflow-x-auto rounded-2xl border border-surface-border bg-white dark:bg-[#1B1D21] shadow-xs">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-surface-border bg-surface text-slate-400">
+              <tr className="border-b border-surface-border bg-[#F6F6F3] dark:bg-[#222429] text-slate-600 dark:text-slate-400">
                 <th className="px-4 py-3 font-semibold">Jour</th>
                 <th className="px-4 py-3 text-right font-semibold">Sorties (livrées)</th>
                 <th className="px-4 py-3 text-right font-semibold">Entrées (import)</th>
@@ -1290,32 +1118,32 @@ export default function ComptabiliteStock({
                 <tr
                   key={d.dateKey}
                   onClick={() => handleOpenDailyReport(d)}
-                  className="group cursor-pointer transition-colors hover:bg-surface/80"
+                  className="group cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-[#222429]/70"
                 >
                   <td className="px-4 py-3.5">
-                    <span className="font-bold text-slate-100 group-hover:text-emerald-400 transition-colors">
+                    <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                       {d.dateLabel}
                     </span>
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-200 font-semibold">
+                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200 font-semibold">
                     {d.unitsDelivered}
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500">
+                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-400 dark:text-slate-500">
                     –
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-100">
+                  <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
                     {d.revenue.toLocaleString("fr-FR")} {currency}
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-400">
+                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                     {d.cogsAndTransit.toLocaleString("fr-FR")} {currency}
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-400">
+                  <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                     {d.commissions.toLocaleString("fr-FR")} {currency}
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-400">
+                  <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                     +{d.netProfit.toLocaleString("fr-FR")} {currency}
                   </td>
-                  <td className="px-4 py-3.5 text-right text-slate-400 group-hover:text-slate-200">
+                  <td className="px-4 py-3.5 text-right text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200">
                     <ChevronRight className="h-4 w-4 ml-auto" />
                   </td>
                 </tr>
@@ -1325,211 +1153,93 @@ export default function ComptabiliteStock({
         </div>
       )}
 
-      {/* 9. VUE : TAB 4 - Performance Employés Rénovée */}
-      {activeTab === "emp" && (
-        <div className="space-y-4">
-          {/* Podium Top 3 */}
-          {podiumTop3.length >= 3 && (
-            <div className="grid grid-cols-3 items-end gap-3 pt-2">
-              {/* 2ème Place (Argent) */}
-              <div className="rounded-2xl border border-surface-border bg-surface-raised/90 p-4 text-center transition-all hover:border-slate-500">
-                <div className="text-3xl">🥈</div>
-                <p className="mt-2 text-sm font-bold text-slate-100">{podiumTop3[1].name}</p>
-                <p className="text-xs text-slate-400 capitalize">
-                  {podiumTop3[1].role} · {podiumTop3[1].country}
-                </p>
-                <div className="mt-2 text-2xl font-bold tracking-tight text-slate-100 tabular-nums">
-                  {podiumTop3[1].ratePercent} %
-                </div>
-                <p className="text-xs text-slate-400">{podiumTop3[1].ordersHandled} commandes</p>
-              </div>
-
-              {/* 1ère Place (Or - Elevated Hero) */}
-              <div className="rounded-2xl border border-emerald-500/40 bg-slate-900 p-5 pt-8 text-center ring-1 ring-emerald-500/30 shadow-xl shadow-emerald-950/40">
-                <div className="text-4xl">🥇</div>
-                <p className="mt-2 text-base font-bold text-white">{podiumTop3[0].name}</p>
-                <p className="text-xs text-emerald-300 capitalize">
-                  {podiumTop3[0].role} · {podiumTop3[0].country}
-                </p>
-                <div className="mt-2 text-3xl font-extrabold tracking-tight text-emerald-400 tabular-nums">
-                  {podiumTop3[0].ratePercent} %
-                </div>
-                <p className="text-xs text-slate-300">{podiumTop3[0].ordersHandled} commandes</p>
-              </div>
-
-              {/* 3ème Place (Bronze) */}
-              <div className="rounded-2xl border border-surface-border bg-surface-raised/90 p-4 text-center transition-all hover:border-slate-500">
-                <div className="text-3xl">🥉</div>
-                <p className="mt-2 text-sm font-bold text-slate-100">{podiumTop3[2].name}</p>
-                <p className="text-xs text-slate-400 capitalize">
-                  {podiumTop3[2].role} · {podiumTop3[2].country}
-                </p>
-                <div className="mt-2 text-2xl font-bold tracking-tight text-slate-100 tabular-nums">
-                  {podiumTop3[2].ratePercent} %
-                </div>
-                <p className="text-xs text-slate-400">{podiumTop3[2].ordersHandled} commandes</p>
-              </div>
-            </div>
-          )}
-
-          {/* Tableau de tous les employés */}
-          <div className="overflow-x-auto rounded-2xl border border-surface-border bg-surface-raised">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-surface-border bg-surface text-slate-400">
-                  <th className="px-4 py-3 font-semibold">Employé</th>
-                  <th className="px-4 py-3 text-right font-semibold">Volume</th>
-                  <th className="px-4 py-3 font-semibold">Taux closing / livraison</th>
-                  <th className="px-4 py-3 font-semibold">Réactivité d’appel</th>
-                  <th className="px-4 py-3 text-right font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-border">
-                {rankedEmployees.map((e) => {
-                  const bd = getReactivityBadge(e.reactivityMinutes);
-                  const pbColor = getProgressColor(e.ratePercent);
-                  const msg =
-                    e.ratePercent >= 70
-                      ? `Bravo ${e.name}, excellent taux (${e.ratePercent} %) ! Continue comme ça.`
-                      : `Salut ${e.name}, ton taux est à ${e.ratePercent} %. On vise 70 % : dis-moi ce qui te bloque.`;
-                  const waUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
-
-                  return (
-                    <tr key={e.id} className="transition-colors hover:bg-surface/80">
-                      <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-100">{e.name}</div>
-                        <div className="text-[11px] text-slate-400 capitalize">
-                          {e.role} · {e.country}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-200">
-                        {e.ordersHandled}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-800">
-                            <div
-                              style={{ width: `${Math.min(100, e.ratePercent)}%` }}
-                              className={`h-full rounded-full ${pbColor}`}
-                            />
-                          </div>
-                          <span className="font-mono font-bold tabular-nums text-slate-100">
-                            {e.ratePercent} %
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span className={`inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold ${bd.cls}`}>
-                          {bd.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <a
-                          href={waUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
-                        >
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          <span>WhatsApp</span>
-                        </a>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* 10. TIROIR / MODAL : RAPPORT COMPTABLE GÉNÉRAL (JOURNALIER OU INTERVALLE) */}
+      {/* 8. TIROIR / MODAL : RAPPORT COMPTABLE GÉNÉRAL (Mode Blanc & Mode Sombre Impeccables) */}
       {selectedReport && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-end bg-black/70 backdrop-blur-xs transition-opacity"
+          className="fixed inset-0 z-50 flex items-center justify-end bg-black/60 backdrop-blur-xs transition-opacity"
           onClick={() => setSelectedReport(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="h-full w-full max-w-xl overflow-y-auto border-l border-surface-border bg-surface-base p-6 shadow-2xl transition-transform"
+            className="h-full w-full max-w-xl overflow-y-auto border-l border-surface-border bg-white dark:bg-[#1B1D21] p-6 shadow-2xl transition-transform"
           >
             {/* Header Drawer */}
             <div className="flex items-start justify-between gap-4 border-b border-surface-border pb-4">
               <div>
-                <span className="rounded-md bg-surface px-2.5 py-1 text-[11px] font-bold text-slate-300">
+                <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   Rapport comptable
                 </span>
-                <h2 className="mt-2 text-xl font-bold text-slate-100">{selectedReport.title}</h2>
-                <p className="text-xs text-slate-400">{selectedReport.subtitle}</p>
+                <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{selectedReport.title}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{selectedReport.subtitle}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedReport(null)}
-                className="rounded-lg border border-surface-border p-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="rounded-lg border border-surface-border p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* 4 KPIs Clés */}
+            {/* 4 KPIs Clés (Style 2x2 propre) */}
             <div className="grid grid-cols-2 gap-3 my-5">
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">CA encaissé</span>
-                <div className="mt-1 text-lg font-bold text-slate-100 tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">CA encaissé</span>
+                <div className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                   {selectedReport.ca.toLocaleString("fr-FR")} {currency}
                 </div>
               </div>
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">Marge nette réelle</span>
-                <div className="mt-1 text-lg font-bold text-emerald-400 tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Marge nette réelle</span>
+                <div className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                   +{selectedReport.netProfit.toLocaleString("fr-FR")} {currency}
                 </div>
               </div>
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">Pièces livrées (sorties)</span>
-                <div className="mt-1 text-lg font-bold text-slate-100 tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Pièces livrées (sorties)</span>
+                <div className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                   {selectedReport.pieces}
                 </div>
               </div>
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">Pièces importées (entrées)</span>
-                <div className="mt-1 text-lg font-bold text-slate-400 tabular-nums">
-                  {selectedReport.imports || "0"}
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Pièces importées (entrées)</span>
+                <div className="mt-1 text-lg font-bold text-slate-500 dark:text-slate-400 tabular-nums">
+                  {selectedReport.imports || "–"}
                 </div>
               </div>
             </div>
 
-            {/* Calcul de la Marge Nette (Formule détaillée) */}
+            {/* Calcul de la Marge Nette (Formule détaillée ligne par ligne) */}
             <div className="space-y-2 border-t border-surface-border pt-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Calcul de la marge nette
               </h3>
-              <div className="divide-y divide-surface-border rounded-xl border border-surface-border bg-surface-raised text-xs">
-                <div className="flex justify-between p-3 text-slate-300">
+              <div className="divide-y divide-surface-border rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] text-xs">
+                <div className="flex justify-between p-3 text-slate-800 dark:text-slate-200">
                   <span>CA encaissé</span>
-                  <b className="font-mono text-slate-100 tabular-nums">
+                  <b className="font-mono text-slate-950 dark:text-slate-100 tabular-nums">
                     {selectedReport.ca.toLocaleString("fr-FR")} {currency}
                   </b>
                 </div>
-                <div className="flex justify-between p-3 text-slate-400">
+                <div className="flex justify-between p-3 text-slate-600 dark:text-slate-400">
                   <span>− Pièces livrées × landed cost</span>
-                  <b className="font-mono text-slate-300 tabular-nums">
+                  <b className="font-mono text-slate-800 dark:text-slate-300 tabular-nums">
                     {selectedReport.landed.toLocaleString("fr-FR")} {currency}
                   </b>
                 </div>
-                <div className="flex justify-between p-3 text-slate-400">
+                <div className="flex justify-between p-3 text-slate-600 dark:text-slate-400">
                   <span>− Commissions closeuses</span>
-                  <b className="font-mono text-slate-300 tabular-nums">
+                  <b className="font-mono text-slate-800 dark:text-slate-300 tabular-nums">
                     {selectedReport.commCloseuse.toLocaleString("fr-FR")} {currency}
                   </b>
                 </div>
-                <div className="flex justify-between p-3 text-slate-400">
+                <div className="flex justify-between p-3 text-slate-600 dark:text-slate-400">
                   <span>− Commissions livreurs</span>
-                  <b className="font-mono text-slate-300 tabular-nums">
+                  <b className="font-mono text-slate-800 dark:text-slate-300 tabular-nums">
                     {selectedReport.commLivreur.toLocaleString("fr-FR")} {currency}
                   </b>
                 </div>
-                <div className="flex justify-between p-3 bg-emerald-500/10 text-emerald-400 font-bold">
+                <div className="flex justify-between p-3 bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 font-bold">
                   <span>= Marge nette</span>
                   <span className="font-mono tabular-nums text-sm">
                     +{selectedReport.netProfit.toLocaleString("fr-FR")} {currency}
@@ -1540,34 +1250,34 @@ export default function ComptabiliteStock({
 
             {/* Ventilation Stratégique du Cash */}
             <div className="space-y-2 border-t border-surface-border pt-4 mt-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Ventilation stratégique du cash
               </h3>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-800 flex">
-                <div style={{ width: "65%" }} className="bg-slate-300" />
-                <div style={{ width: "35%" }} className="bg-emerald-400" />
+              <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800 flex">
+                <div style={{ width: "65%" }} className="bg-[#16181D] dark:bg-slate-200" />
+                <div style={{ width: "35%" }} className="bg-emerald-600 dark:bg-emerald-400" />
               </div>
-              <div className="flex flex-wrap gap-4 text-xs text-slate-400 mt-2">
+              <div className="flex flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400 mt-2">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-slate-300" />
-                  65 % stock + pub Meta : <b className="text-slate-200 tabular-nums">{Math.round(selectedReport.netProfit * 0.65).toLocaleString("fr-FR")} {currency}</b>
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#16181D] dark:bg-slate-200" />
+                  65 % stock + pub Meta : <b className="text-slate-900 dark:text-slate-100 tabular-nums">{Math.round(selectedReport.netProfit * 0.65).toLocaleString("fr-FR")} {currency}</b>
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-emerald-400" />
-                  35 % bénéfice extrait : <b className="text-emerald-400 tabular-nums">{Math.round(selectedReport.netProfit * 0.35).toLocaleString("fr-FR")} {currency}</b>
+                  <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600 dark:bg-emerald-400" />
+                  35 % bénéfice extrait : <b className="text-emerald-700 dark:text-emerald-400 tabular-nums">{Math.round(selectedReport.netProfit * 0.35).toLocaleString("fr-FR")} {currency}</b>
                 </span>
               </div>
             </div>
 
             {/* Sous-Calculs par Produit */}
             <div className="space-y-2 border-t border-surface-border pt-4 mt-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Sous-calculs par produit
               </h3>
-              <div className="overflow-x-auto rounded-xl border border-surface-border bg-surface-raised">
+              <div className="overflow-x-auto rounded-xl border border-surface-border bg-white dark:bg-[#1B1D21]">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-surface-border bg-surface text-slate-400">
+                    <tr className="border-b border-surface-border bg-[#F6F6F3] dark:bg-[#222429] text-slate-600 dark:text-slate-400">
                       <th className="px-3.5 py-2.5 font-semibold">Produit</th>
                       <th className="px-3.5 py-2.5 text-right font-semibold">Pièces</th>
                       <th className="px-3.5 py-2.5 text-right font-semibold">Marge</th>
@@ -1585,15 +1295,15 @@ export default function ComptabiliteStock({
                         <tr
                           key={p.id}
                           onClick={() => handleOpenProductSheet(p, true)}
-                          className="cursor-pointer hover:bg-surface/80 transition-colors"
+                          className="cursor-pointer hover:bg-slate-50 dark:hover:bg-[#222429]/70 transition-colors"
                         >
-                          <td className="px-3.5 py-2.5 font-bold text-slate-100">{p.productName}</td>
-                          <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-300">{countInfo.qty}</td>
-                          <td className="px-3.5 py-2.5 text-right font-mono font-bold tabular-nums text-emerald-400">
+                          <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-slate-100">{p.productName}</td>
+                          <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">{countInfo.qty}</td>
+                          <td className="px-3.5 py-2.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                             +{prodMargin.toLocaleString("fr-FR")} {currency}
                           </td>
                           <td className="px-3.5 py-2.5 text-right">
-                            <span className="text-emerald-400 font-bold hover:underline">Fiche ›</span>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold hover:underline">Fiche ›</span>
                           </td>
                         </tr>
                       );
@@ -1608,14 +1318,14 @@ export default function ComptabiliteStock({
               <button
                 type="button"
                 onClick={() => showToast("Export PDF généré")}
-                className="flex-1 min-h-[44px] rounded-xl bg-slate-100 font-bold text-slate-950 text-xs hover:bg-white transition-all cursor-pointer"
+                className="flex-1 min-h-[44px] rounded-xl bg-[#16181D] font-bold text-white text-xs hover:bg-black transition-all cursor-pointer shadow-xs"
               >
                 Exporter en PDF
               </button>
               <button
                 type="button"
                 onClick={() => showToast("Export Excel généré")}
-                className="flex-1 min-h-[44px] rounded-xl border border-surface-border bg-surface-raised font-bold text-slate-200 text-xs hover:text-white transition-all cursor-pointer"
+                className="flex-1 min-h-[44px] rounded-xl border border-surface-border bg-white dark:bg-surface-raised font-bold text-slate-800 dark:text-slate-200 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-xs"
               >
                 Exporter en Excel
               </button>
@@ -1624,24 +1334,24 @@ export default function ComptabiliteStock({
         </div>
       )}
 
-      {/* 11. TIROIR / MODAL : FICHE COMPTA PRODUIT */}
+      {/* 9. TIROIR / MODAL : FICHE COMPTA PRODUIT */}
       {selectedProductSheet && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-end bg-black/70 backdrop-blur-xs transition-opacity"
+          className="fixed inset-0 z-50 flex items-center justify-end bg-black/60 backdrop-blur-xs transition-opacity"
           onClick={() => setSelectedProductSheet(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="h-full w-full max-w-xl overflow-y-auto border-l border-surface-border bg-surface-base p-6 shadow-2xl transition-transform"
+            className="h-full w-full max-w-xl overflow-y-auto border-l border-surface-border bg-white dark:bg-[#1B1D21] p-6 shadow-2xl transition-transform"
           >
             {/* Header Drawer */}
             <div className="flex items-start justify-between gap-4 border-b border-surface-border pb-4">
               <div>
-                <span className="rounded-md bg-surface px-2.5 py-1 text-[11px] font-bold text-slate-300">
+                <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   Fiche compta produit
                 </span>
-                <h2 className="mt-2 text-xl font-bold text-slate-100">{selectedProductSheet.productName}</h2>
-                <p className="text-xs text-slate-400">
+                <h2 className="mt-2 text-xl font-bold text-slate-900 dark:text-slate-100">{selectedProductSheet.productName}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {dateRangeSub} · {activeTeam?.name || "Afrique globale"}
                 </p>
               </div>
@@ -1650,7 +1360,7 @@ export default function ComptabiliteStock({
                 <button
                   type="button"
                   onClick={() => setSelectedProductSheet(null)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-white dark:bg-surface px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 transition-colors cursor-pointer"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   <span>← Rapport</span>
@@ -1659,7 +1369,7 @@ export default function ComptabiliteStock({
                 <button
                   type="button"
                   onClick={() => setSelectedProductSheet(null)}
-                  className="rounded-lg border border-surface-border p-2 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  className="rounded-lg border border-surface-border p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -1668,27 +1378,27 @@ export default function ComptabiliteStock({
 
             {/* 4 KPIs Produit */}
             <div className="grid grid-cols-2 gap-3 my-5">
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">Pièces vendues</span>
-                <div className="mt-1 text-lg font-bold text-slate-100 tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Pièces vendues</span>
+                <div className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                   {selectedProductSheet.unitsDeliveredInPeriod}
                 </div>
               </div>
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">CA produit</span>
-                <div className="mt-1 text-lg font-bold text-slate-100 tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">CA produit</span>
+                <div className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums">
                   {selectedProductSheet.revenueInPeriod.toLocaleString("fr-FR")} {currency}
                 </div>
               </div>
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">Marge nette produit</span>
-                <div className="mt-1 text-lg font-bold text-emerald-400 tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Marge nette produit</span>
+                <div className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                   +{selectedProductSheet.netProfitInPeriod.toLocaleString("fr-FR")} {currency}
                 </div>
               </div>
-              <div className="rounded-xl border border-surface-border bg-surface-raised p-3.5">
-                <span className="text-xs text-slate-400">Marge nette / pièce</span>
-                <div className="mt-1 text-lg font-bold text-emerald-400 tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Marge nette / pièce</span>
+                <div className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
                   +{selectedProductSheet.netMarginPerUnit.toLocaleString("fr-FR")} {currency}
                 </div>
               </div>
@@ -1696,33 +1406,33 @@ export default function ComptabiliteStock({
 
             {/* Détail des Calculs Landed Cost */}
             <div className="space-y-2 border-t border-surface-border pt-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Détail des calculs
               </h3>
-              <div className="divide-y divide-surface-border rounded-xl border border-surface-border bg-surface-raised text-xs">
-                <div className="flex justify-between p-3 text-slate-300">
+              <div className="divide-y divide-surface-border rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] text-xs">
+                <div className="flex justify-between p-3 text-slate-800 dark:text-slate-200">
                   <span>Prix d’achat usine</span>
-                  <b className="font-mono text-slate-100 tabular-nums">
+                  <b className="font-mono text-slate-950 dark:text-slate-100 tabular-nums">
                     {selectedProductSheet.cogsUnitPrice.toLocaleString("fr-FR")} {currency}
                   </b>
                 </div>
-                <div className="flex justify-between p-3 text-slate-400">
+                <div className="flex justify-between p-3 text-slate-600 dark:text-slate-400">
                   <span>
                     + Fret unitaire ({Math.round(selectedProductSheet.transitTotalCost / 1000)}k ÷ {selectedProductSheet.transitQuantity})
                   </span>
-                  <b className="font-mono text-slate-300 tabular-nums">
+                  <b className="font-mono text-slate-800 dark:text-slate-300 tabular-nums">
                     +{selectedProductSheet.transitUnitCost.toLocaleString("fr-FR")} {currency}
                   </b>
                 </div>
-                <div className="flex justify-between p-3 bg-surface text-slate-100 font-bold">
+                <div className="flex justify-between p-3 bg-white dark:bg-surface text-slate-900 dark:text-slate-100 font-bold">
                   <span>= Landed cost</span>
                   <span className="font-mono tabular-nums text-sm">
                     {selectedProductSheet.landedCost.toLocaleString("fr-FR")} {currency}
                   </span>
                 </div>
-                <div className="flex justify-between p-3 text-slate-400">
+                <div className="flex justify-between p-3 text-slate-600 dark:text-slate-400">
                   <span>Commissions closeuse + livreur / pièce</span>
-                  <b className="font-mono text-slate-300 tabular-nums">
+                  <b className="font-mono text-slate-800 dark:text-slate-300 tabular-nums">
                     {( (activeTeam?.remunerationCloseusePerOrder ?? 350) + (activeTeam?.remunerationLivreurPerOrder ?? 700) ).toLocaleString("fr-FR")} {currency}
                   </b>
                 </div>
@@ -1731,29 +1441,29 @@ export default function ComptabiliteStock({
 
             {/* Stock & Rupture */}
             <div className="space-y-2 border-t border-surface-border pt-4 mt-5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                 Stock & rupture
               </h3>
-              <div className="divide-y divide-surface-border rounded-xl border border-surface-border bg-surface-raised text-xs">
-                <div className="flex justify-between p-3 text-slate-300">
+              <div className="divide-y divide-surface-border rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] text-xs">
+                <div className="flex justify-between p-3 text-slate-800 dark:text-slate-200">
                   <span>Stock actuel</span>
-                  <b className="font-mono text-slate-100 tabular-nums">
+                  <b className="font-mono text-slate-950 dark:text-slate-100 tabular-nums">
                     {selectedProductSheet.currentStock}
                   </b>
                 </div>
-                <div className="flex justify-between p-3 text-slate-300">
+                <div className="flex justify-between p-3 text-slate-800 dark:text-slate-200">
                   <span>Rythme de vente</span>
-                  <b className="font-mono text-slate-100 tabular-nums">
+                  <b className="font-mono text-slate-950 dark:text-slate-100 tabular-nums">
                     {selectedProductSheet.dailyVelocity.toFixed(1)} pièces / jour
                   </b>
                 </div>
-                <div className="flex justify-between p-3 text-slate-300">
+                <div className="flex justify-between p-3 text-slate-800 dark:text-slate-200">
                   <span>Couverture</span>
                   <span className={`rounded-lg px-2 py-0.5 font-bold ${getCoverageBadge(selectedProductSheet.daysOfStockRemaining).cls}`}>
                     {selectedProductSheet.daysOfStockRemaining} jours
                   </span>
                 </div>
-                <div className="flex justify-between p-3 bg-emerald-500/10 text-emerald-400 font-bold">
+                <div className="flex justify-between p-3 bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 font-bold">
                   <span>À commander pour tenir 30 jours</span>
                   <span className="font-mono tabular-nums text-sm">
                     {Math.max(0, Math.ceil(selectedProductSheet.dailyVelocity * 30 - selectedProductSheet.currentStock))} pièces
@@ -1767,7 +1477,7 @@ export default function ComptabiliteStock({
               <button
                 type="button"
                 onClick={() => showToast("Fiche produit exportée")}
-                className="flex-1 min-h-[44px] rounded-xl bg-slate-100 font-bold text-slate-950 text-xs hover:bg-white transition-all cursor-pointer"
+                className="flex-1 min-h-[44px] rounded-xl bg-[#16181D] font-bold text-white text-xs hover:bg-black transition-all cursor-pointer shadow-xs"
               >
                 Exporter la fiche
               </button>
@@ -1776,7 +1486,7 @@ export default function ComptabiliteStock({
                 onClick={() => {
                   handleOpenEditCosts(selectedProductSheet);
                 }}
-                className="flex-1 min-h-[44px] rounded-xl border border-surface-border bg-surface-raised font-bold text-slate-200 text-xs hover:text-white transition-all cursor-pointer"
+                className="flex-1 min-h-[44px] rounded-xl border border-surface-border bg-white dark:bg-surface-raised font-bold text-slate-800 dark:text-slate-200 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer shadow-xs"
               >
                 Coûts & stock
               </button>
@@ -1785,23 +1495,23 @@ export default function ComptabiliteStock({
         </div>
       )}
 
-      {/* 12. MODAL : COÛTS & STOCK (CALCUL RÉACTIF EN DIRECT) */}
+      {/* 10. MODAL : COÛTS & STOCK (CALCUL RÉACTIF EN DIRECT) */}
       {editingStock && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
           onClick={() => !formSaving && setEditingStock(null)}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-2xl border border-surface-border bg-surface-raised p-6 shadow-2xl"
+            className="w-full max-w-lg rounded-2xl border border-surface-border bg-white dark:bg-[#1B1D21] p-6 shadow-2xl"
           >
             <div className="flex items-start justify-between gap-4 border-b border-surface-border pb-3">
               <div>
-                <span className="rounded-md bg-surface px-2.5 py-1 text-[11px] font-bold text-slate-300">
+                <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   Coûts & stock
                 </span>
-                <h3 className="mt-1 text-lg font-bold text-slate-100">{editingStock.productName}</h3>
-                <p className="text-xs text-slate-400">
+                <h3 className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{editingStock.productName}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   {editingStock.isAzify
                     ? "Produit Azify : calcul en direct du lot et synchronisation continue."
                     : "Produit manuel : renseignez les coûts du lot et le stock."}
@@ -1811,32 +1521,32 @@ export default function ComptabiliteStock({
                 type="button"
                 disabled={formSaving}
                 onClick={() => setEditingStock(null)}
-                className="rounded-lg border border-surface-border p-1.5 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="rounded-lg border border-surface-border p-1.5 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             {formError && (
-              <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+              <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-50 p-3 text-xs text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
                 {formError}
               </div>
             )}
 
             <div className="space-y-3 mt-4 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Prix d’achat usine ({currency})</label>
+                <label className="block text-slate-600 dark:text-slate-400 mb-1">Prix d’achat usine ({currency})</label>
                 <input
                   type="number"
                   value={formCogs}
                   onChange={(e) => setFormCogs(e.target.value)}
                   placeholder="2500"
-                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-400"
+                  className="w-full rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-600"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">
+                <label className="block text-slate-600 dark:text-slate-400 mb-1">
                   Coût total transitaire : fret + douane ({currency})
                 </label>
                 <input
@@ -1844,57 +1554,57 @@ export default function ComptabiliteStock({
                   value={formTransitCost}
                   onChange={(e) => setFormTransitCost(e.target.value)}
                   placeholder="150000"
-                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-400"
+                  className="w-full rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-600"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1">Quantité totale du lot (Colis)</label>
+                  <label className="block text-slate-600 dark:text-slate-400 mb-1">Quantité totale du lot (Colis)</label>
                   <input
                     type="number"
                     value={formTransitQty}
                     onChange={(e) => setFormTransitQty(e.target.value)}
                     placeholder="50"
-                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-400"
+                    className="w-full rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-600"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 mb-1">Stock initial réceptionné</label>
+                  <label className="block text-slate-600 dark:text-slate-400 mb-1">Stock initial réceptionné</label>
                   <input
                     type="number"
                     value={formInitialStock}
                     onChange={(e) => setFormInitialStock(e.target.value)}
                     placeholder="50"
-                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-400"
+                    className="w-full rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-600"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Alerte Seuil Bas (Rupture)</label>
+                <label className="block text-slate-600 dark:text-slate-400 mb-1">Alerte Seuil Bas (Rupture)</label>
                 <input
                   type="number"
                   value={formLowThreshold}
                   onChange={(e) => setFormLowThreshold(e.target.value)}
                   placeholder="5"
-                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-400"
+                  className="w-full rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-emerald-600"
                 />
               </div>
             </div>
 
             {/* Affichage des Calculs en Direct */}
             <div className="grid grid-cols-2 gap-3 my-4">
-              <div className="rounded-xl border border-surface-border bg-surface p-3">
-                <span className="text-[11px] text-slate-400">Fret unitaire calculé</span>
-                <div className="mt-1 text-base font-bold text-slate-100 font-mono tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Fret unitaire calculé</span>
+                <div className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
                   {liveFormFretUnit.toLocaleString("fr-FR")} {currency}
                 </div>
               </div>
-              <div className="rounded-xl border border-surface-border bg-surface p-3">
-                <span className="text-[11px] text-slate-400">Landed cost résultant</span>
-                <div className="mt-1 text-base font-bold text-emerald-400 font-mono tabular-nums">
+              <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">Landed cost résultant</span>
+                <div className="mt-1 text-base font-bold text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">
                   {liveFormLanded.toLocaleString("fr-FR")} {currency}
                 </div>
               </div>
@@ -1906,7 +1616,7 @@ export default function ComptabiliteStock({
                 type="button"
                 disabled={formSaving}
                 onClick={() => setEditingStock(null)}
-                className="flex-1 min-h-[44px] rounded-xl border border-surface-border bg-surface font-semibold text-slate-300 text-xs hover:text-white transition-all cursor-pointer"
+                className="flex-1 min-h-[42px] rounded-xl border border-surface-border bg-white dark:bg-surface font-semibold text-slate-700 dark:text-slate-300 text-xs hover:border-slate-400 transition-all cursor-pointer"
               >
                 Annuler
               </button>
@@ -1914,7 +1624,7 @@ export default function ComptabiliteStock({
                 type="button"
                 disabled={formSaving}
                 onClick={handleSaveCosts}
-                className="flex-1 min-h-[44px] rounded-xl bg-slate-100 font-bold text-slate-950 text-xs hover:bg-white transition-all cursor-pointer disabled:opacity-50"
+                className="flex-1 min-h-[42px] rounded-xl bg-[#16181D] font-bold text-white text-xs hover:bg-black transition-all cursor-pointer disabled:opacity-50"
               >
                 {formSaving ? "Enregistrement..." : "Enregistrer"}
               </button>
@@ -1923,9 +1633,9 @@ export default function ComptabiliteStock({
         </div>
       )}
 
-      {/* 13. Toast Notification Flottante */}
+      {/* 11. Toast Notification Flottante */}
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-100 shadow-2xl animate-fade-in flex items-center gap-2">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-xs font-semibold text-white shadow-2xl animate-fade-in flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
