@@ -12,7 +12,18 @@ const updateSW = registerSW({
   onNeedRefresh() {
     window.dispatchEvent(
       new CustomEvent("waritrack-sw-update", {
-        detail: { applyUpdate: () => updateSW(true) },
+        detail: {
+          applyUpdate: async () => {
+            try {
+              await updateSW(true);
+            } catch (err) {
+              console.warn("[PWA] updateSW error:", err);
+            }
+            setTimeout(() => {
+              window.location.reload();
+            }, 300);
+          },
+        },
       })
     );
   },
