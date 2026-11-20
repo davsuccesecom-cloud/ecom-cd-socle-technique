@@ -441,6 +441,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               onSelectTeam={setTeamId}
               onInspectOrder={(order) => setReceiptOrder(order)}
               isOpenExternal={commandPaletteOpen}
+              onOpenExternal={() => setCommandPaletteOpen(true)}
               onCloseExternal={() => setCommandPaletteOpen(false)}
               onOpenShortcuts={() => setShowShortcutsModal(true)}
             />

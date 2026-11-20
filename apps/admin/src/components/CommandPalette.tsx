@@ -25,6 +25,7 @@ interface CommandPaletteProps {
   onSelectTeam: (teamId: string) => void;
   onInspectOrder?: (order: Order) => void;
   isOpenExternal?: boolean;
+  onOpenExternal?: () => void;
   onCloseExternal?: () => void;
   onOpenShortcuts?: () => void;
 }
@@ -37,6 +38,7 @@ export default function CommandPalette({
   onSelectTeam,
   onInspectOrder,
   isOpenExternal,
+  onOpenExternal,
   onCloseExternal,
   onOpenShortcuts,
 }: CommandPaletteProps) {
@@ -45,9 +47,7 @@ export default function CommandPalette({
 
   const setOpen = (val: boolean | ((prev: boolean) => boolean)) => {
     const nextVal = typeof val === "function" ? val(open) : val;
-    if (isOpenExternal !== undefined && onCloseExternal && !nextVal) {
-      onCloseExternal();
-    }
+    if (nextVal) { onOpenExternal?.(); } else { onCloseExternal?.(); }
     setInternalOpen(nextVal);
   };
 
@@ -119,8 +119,13 @@ export default function CommandPalette({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex min-h-[44px] md:h-9 items-center gap-2.5 rounded-lg border border-surface-border bg-surface-raised px-3 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        title="Rechercher une commande, un client ou une page (⌘K / Ctrl+K)"
+        className="inline-flex min-h-[44px] md:h-9 items-center gap-2.5 rounded-lg border border-surface-border bg-surface-raised px-3 text-xs text-slate-300 transition-all hover:border-slate-500 hover:text-slate-100 cursor-pointer active:scale-95 select-none"
       >
         <Search className="h-3.5 w-3.5 text-slate-400" />
         <span className="hidden xl:inline">Rechercher une commande…</span>
