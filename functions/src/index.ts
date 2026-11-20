@@ -2903,3 +2903,55 @@ export const testAdminPushNotification = onCall(async (request) => {
       : "Le token FCM enregistré était expiré et a été purgé. Un nouveau token frais sera généré.",
   };
 });
+
+/**
+ * Sauvegarde sécurisée des paramètres financiers et stocks d'un produit
+ * Accessible à l'admin du workspace avec auto-réparation des custom claims si nécessaire.
+ */
+export const saveProductStock = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Connexion requise.");
+  }
+
+  let workspaceId = request.auth?.token?.workspaceId as string | undefined;
+  const role = request.auth?.token?.role as string | undefined;
+
+  // Récupération automatique si les claims ne sont pas encore rafraîchis
+  if (!workspaceId || role !== "admin") {
+    const email = (request.auth?.token?.email as string | undefined)?.toLowerCase();
+    if (email) {
+      const mappingSnap = await db.collection("adminsByEmail").doc(email).get();
+      if (mappingSnap.exists) {
+        workspaceId = mappingSnap.data()?.workspaceId;
+        if (workspaceId) {
+          await admin.auth().setCustomUserClaims(uid, { workspaceId, role: "admin" }).catch(() => {});
+        }
+      }
+    }
+  }
+
+  const { stockId, data } = request.data as { stockId: string; data: Record<string, any> };
+  const targetWorkspaceId = workspaceId || data?.workspaceId;
+
+  if (!targetWorkspaceId) {
+    throw new HttpsError("permission-denied", "Accès réservé aux administrateurs.");
+  }
+
+  if (!stockId || !data) {
+    throw new HttpsError("invalid-argument", "stockId et data requis.");
+  }
+
+  const cleanId = stockId.trim().toLowerCase().replace(/[^a-z0-9]/gi, "_");
+  const docRef = db.collection("workspaces").doc(targetWorkspaceId).collection("stocks").doc(cleanId);
+  await docRef.set(
+    {
+      ...data,
+      workspaceId: targetWorkspaceId,
+      updatedAt: Date.now(),
+    },
+    { merge: true }
+  );
+
+  return { success: true, id: cleanId };
+});

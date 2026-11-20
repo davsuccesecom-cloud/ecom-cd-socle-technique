@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -2372,4 +2372,45 @@ exports.testAdminPushNotification = (0, https_1.onCall)(async (request) => {
             ? `Push FCM Google délivré avec succès (${response.successCount} appareil(s)) !`
             : "Le token FCM enregistré était expiré et a été purgé. Un nouveau token frais sera généré.",
     };
+});
+/**
+ * Sauvegarde sécurisée des paramètres financiers et stocks d'un produit
+ * Accessible à l'admin du workspace avec auto-réparation des custom claims si nécessaire.
+ */
+exports.saveProductStock = (0, https_1.onCall)(async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new https_1.HttpsError("unauthenticated", "Connexion requise.");
+    }
+    let workspaceId = request.auth?.token?.workspaceId;
+    const role = request.auth?.token?.role;
+    // Récupération automatique si les claims ne sont pas encore rafraîchis
+    if (!workspaceId || role !== "admin") {
+        const email = request.auth?.token?.email?.toLowerCase();
+        if (email) {
+            const mappingSnap = await db.collection("adminsByEmail").doc(email).get();
+            if (mappingSnap.exists) {
+                workspaceId = mappingSnap.data()?.workspaceId;
+                if (workspaceId) {
+                    await admin.auth().setCustomUserClaims(uid, { workspaceId, role: "admin" }).catch(() => { });
+                }
+            }
+        }
+    }
+    const { stockId, data } = request.data;
+    const targetWorkspaceId = workspaceId || data?.workspaceId;
+    if (!targetWorkspaceId) {
+        throw new https_1.HttpsError("permission-denied", "Accès réservé aux administrateurs.");
+    }
+    if (!stockId || !data) {
+        throw new https_1.HttpsError("invalid-argument", "stockId et data requis.");
+    }
+    const cleanId = stockId.trim().toLowerCase().replace(/[^a-z0-9]/gi, "_");
+    const docRef = db.collection("workspaces").doc(targetWorkspaceId).collection("stocks").doc(cleanId);
+    await docRef.set({
+        ...data,
+        workspaceId: targetWorkspaceId,
+        updatedAt: Date.now(),
+    }, { merge: true });
+    return { success: true, id: cleanId };
 });

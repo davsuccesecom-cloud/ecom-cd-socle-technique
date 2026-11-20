@@ -125,7 +125,9 @@ export default function App() {
               wsId = authRes.data.workspaceId;
               role = authRes.data.role || "admin";
               // Rafraîchissement en tâche de fond pour les prochaines requêtes
-              firebaseUser!.getIdTokenResult(true).catch(() => {});
+              try {
+                await firebaseUser!.getIdTokenResult(true);
+              } catch {}
             }
           } catch (callErr) {
             console.warn("Tentative d'auto-rattachement authenticateAdmin :", callErr);
