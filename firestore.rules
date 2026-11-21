@@ -11,6 +11,7 @@ service cloud.firestore {
     //   - claims.workspaceId: string (required for all tenant access)
     //   - claims.role: 'admin' | 'closeuse' | 'livreur'
     //   - claims.teamId: string (required for closeuse & livreur)
+    //   - claims.allocatedTeamIds: list of strings (optional, cross-team allocation)
     //
     // Collection: /adminsByEmail/{email}
     //   - Server-only Google email -> { workspaceId, uid, createdAt }
@@ -58,6 +59,10 @@ service cloud.firestore {
     }
     function isSameTeam(teamId) {
       return 'teamId' in claims() && claims().teamId == teamId;
+    }
+    function isSameTeamOrAllocated(teamId) {
+      return isSameTeam(teamId)
+        || ('allocatedTeamIds' in claims() && claims().allocatedTeamIds is list && teamId in claims().allocatedTeamIds);
     }
 
     function isValidOptionalNullableString(dataMap, field, maxLen) {
@@ -237,25 +242,26 @@ service cloud.firestore {
       }
 
       match /orders/{orderId} {
-        // Admin voit tout le workspace ; Closeuse voit toutes les commandes de son équipe ;
-        // Livreur ne voit QUE les commandes qui lui sont directement assignées (protection PII).
+        // Admin voit tout le workspace ;
+        // Closeuse voit les commandes de son équipe (principale ou allouée) ou qui lui sont assignées ;
+        // Livreur ne voit STRICTEMENT QUE ses propres commandes assignées (protection PII).
         allow read: if isAdmin(workspaceId)
-          || (isCloseuse(workspaceId) && isSameTeam(resource.data.teamId))
-          || (isLivreur(workspaceId) && isSameTeam(resource.data.teamId) && resource.data.livreurId == auth_().uid);
+          || (isCloseuse(workspaceId) && (isSameTeamOrAllocated(resource.data.teamId) || resource.data.closeuseId == auth_().uid))
+          || (isLivreur(workspaceId) && resource.data.livreurId == auth_().uid);
 
         allow create: if isAdmin(workspaceId); // créées par la sync Sheet→Firestore ou Cloud Functions
 
         // Closeuse : statutCloseuse + callInProgress + livreurId/statutLivreur + reminderAt + motifs/notes.
         // SÉCURITÉ : La closeuse ne peut assigner que le statut initial 'recu' (ou null) pour statutLivreur,
         // ou le laisser inchangé (ex. 'injoignable'). Elle NE PEUT PAS marquer 'livre' ni 'en_route'.
+        // Elle peut traiter toute commande non assignée (closeuseId == null) ou assignée à elle-même.
         allow update: if isCloseuse(workspaceId)
-          && isSameTeam(resource.data.teamId)
-          && resource.data.closeuseId == auth_().uid
+          && (isSameTeamOrAllocated(resource.data.teamId) || resource.data.closeuseId == auth_().uid)
+          && (resource.data.closeuseId == auth_().uid || resource.data.closeuseId == null)
           && isValidCloseuseOrderUpdate();
 
         // Livreur : uniquement statutLivreur, motifs et note terrain sur ses propres commandes
         allow update: if isLivreur(workspaceId)
-          && isSameTeam(resource.data.teamId)
           && resource.data.livreurId == auth_().uid
           && isValidLivreurOrderUpdate();
 

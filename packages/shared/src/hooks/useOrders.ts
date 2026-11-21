@@ -6,6 +6,7 @@ import type { Order } from "../types";
 interface UseOrdersOptions {
   workspaceId: string;
   teamId?: string | null; // si vide, null ou "all", écoute toutes les commandes du workspace
+  allocatedTeamIds?: string[]; // IDs des équipes additionnelles allouées (prêt d'employés)
   closeuseId?: string; // si fourni, filtre sur les commandes de cette closeuse uniquement
   livreurId?: string; // si fourni, filtre sur les commandes de ce livreur uniquement
 }
@@ -24,12 +25,15 @@ function safeOrderTs(o: any): number {
 
 /**
  * Écoute temps réel des commandes d'une équipe (ou de tout le workspace).
- * Résilient : gère automatiquement l'absence d'index composite avec repli client-side.
+ * Supporte le filtrage propre par teamId (compatible index et règles de sécurité Firestore),
+ * et supporte également les équipes allouées (prêt d'employés) sans casser les index composites.
  */
-export function useOrders({ workspaceId, teamId, closeuseId, livreurId }: UseOrdersOptions) {
+export function useOrders({ workspaceId, teamId, allocatedTeamIds, closeuseId, livreurId }: UseOrdersOptions) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const allocatedKey = allocatedTeamIds && allocatedTeamIds.length > 0 ? allocatedTeamIds.slice().sort().join(",") : "";
 
   useEffect(() => {
     if (!workspaceId) {
@@ -41,56 +45,86 @@ export function useOrders({ workspaceId, teamId, closeuseId, livreurId }: UseOrd
     const db = getDb();
     const ordersRef = collection(db, "workspaces", workspaceId, "orders");
 
-    const clauses: any[] = [];
-    // Si closeuseId ou livreurId est fourni, ne pas restreindre par teamId pour permettre
-    // à l'employé de recevoir et traiter les commandes de son équipe d'origine ET des équipes allouées (même pays).
-    const isEmployeePersonalView = Boolean(closeuseId || livreurId);
-    if (teamId && teamId !== "all" && teamId.trim() !== "" && !isEmployeePersonalView) {
-      clauses.push(where("teamId", "==", teamId));
-    }
-    if (closeuseId) clauses.push(where("closeuseId", "==", closeuseId));
-    if (livreurId) clauses.push(where("livreurId", "==", livreurId));
+    // Construire la liste des équipes cibles :
+    // - Si teamId est "all", vide ou non spécifié => écoute globale sans filtre teamId (ex: Admin)
+    // - Si teamId est spécifié => écoute teamId + éventuelles allocatedTeamIds (sans duplication)
+    const isGlobal = !teamId || teamId === "all" || teamId.trim() === "";
+    const targetTeams: (string | null)[] = isGlobal
+      ? [null]
+      : Array.from(new Set([teamId, ...(allocatedTeamIds || [])].filter(Boolean))) as string[];
 
-    let q = query(ordersRef, ...clauses, orderBy("timestamps.received", "desc"));
-    let unsubscribeFallback: (() => void) | null = null;
+    const unsubs: (() => void)[] = [];
+    const ordersByTeam = new Map<string, Order[]>();
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const result = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
-        setOrders(result);
-        setLoading(false);
-      },
-      (err) => {
-        console.warn("[useOrders] Query avec orderBy échouée (index en cours ou manquant), repli automatique sans orderBy:", err.message);
-        // Repli immédiat sans orderBy pour ne jamais casser l'affichage
-        try {
-          const fallbackQ = query(ordersRef, ...clauses);
-          unsubscribeFallback = onSnapshot(
-            fallbackQ,
-            (snap) => {
-              const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
-              list.sort((a, b) => safeOrderTs(b) - safeOrderTs(a));
-              setOrders(list);
-              setLoading(false);
-            },
-            (fallbackErr) => {
-              setError(fallbackErr as Error);
-              setLoading(false);
-            }
-          );
-        } catch (e) {
-          setError(err as Error);
-          setLoading(false);
+    const mergeAndSet = () => {
+      const all: Order[] = [];
+      const seenIds = new Set<string>();
+      ordersByTeam.forEach((teamOrders) => {
+        for (const o of teamOrders) {
+          if (!seenIds.has(o.id)) {
+            seenIds.add(o.id);
+            all.push(o);
+          }
         }
+      });
+      all.sort((a, b) => safeOrderTs(b) - safeOrderTs(a));
+      setOrders(all);
+      setLoading(false);
+    };
+
+    targetTeams.forEach((tId) => {
+      const clauses: any[] = [];
+      if (tId) {
+        clauses.push(where("teamId", "==", tId));
       }
-    );
+      if (closeuseId) clauses.push(where("closeuseId", "==", closeuseId));
+      if (livreurId) clauses.push(where("livreurId", "==", livreurId));
+
+      const teamKey = tId || "__global__";
+      let q = query(ordersRef, ...clauses, orderBy("timestamps.received", "desc"));
+      let unsubFallback: (() => void) | null = null;
+
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+          ordersByTeam.set(teamKey, list);
+          mergeAndSet();
+        },
+        (err) => {
+          console.warn(`[useOrders] Query avec orderBy échouée pour team ${teamKey}, repli sans orderBy:`, err.message);
+          try {
+            const fallbackQ = query(ordersRef, ...clauses);
+            unsubFallback = onSnapshot(
+              fallbackQ,
+              (snap) => {
+                const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+                ordersByTeam.set(teamKey, list);
+                mergeAndSet();
+              },
+              (fallbackErr) => {
+                console.error(`[useOrders] Erreur fallback pour team ${teamKey}:`, fallbackErr);
+                setError(fallbackErr as Error);
+                setLoading(false);
+              }
+            );
+          } catch (e) {
+            setError(err as Error);
+            setLoading(false);
+          }
+        }
+      );
+
+      unsubs.push(() => {
+        unsub();
+        if (unsubFallback) unsubFallback();
+      });
+    });
 
     return () => {
-      unsubscribe();
-      if (unsubscribeFallback) unsubscribeFallback();
+      unsubs.forEach((fn) => fn());
     };
-  }, [workspaceId, teamId, closeuseId, livreurId]);
+  }, [workspaceId, teamId, allocatedKey, closeuseId, livreurId]);
 
   return { orders, loading, error };
 }

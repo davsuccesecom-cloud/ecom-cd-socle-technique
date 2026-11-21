@@ -59,6 +59,28 @@ function cleanLivreurLocation(city?: string | null, locationHint?: string | null
   return cleaned || raw;
 }
 
+function extractMapsUrl(text?: string | null): string | null {
+  if (!text) return null;
+  const match = text.match(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/i);
+  return match ? match[0].replace(/[\])]+$/, "") : null;
+}
+
+function stripGpsInfo(text?: string | null): string {
+  if (!text) return "";
+  return text
+    .replace(/\[\s*GPS\s*:[^\]]*\]/gi, "")
+    .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function formatOrderProductDisplay(product?: string | null, quantity?: number): string {
+  const clean = (product || "").trim();
+  if (!quantity || quantity <= 1) return clean;
+  if (/^\d+\s*x\s+/i.test(clean)) return clean;
+  return `${quantity}x ${clean}`;
+}
+
 const DELIVERY_FAILURE_REASONS = [
   "Client ne répond plus sur place",
   "Adresse introuvable / client absent",
@@ -76,19 +98,23 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
   const orderCode = cleanNum ? `#${cleanNum}` : `#${order.id.slice(-6).toUpperCase()}`;
   const formattedAmount = formatCurrency(order.amount, currency);
 
+  const displayProduct = formatOrderProductDisplay(order.product, order.quantity);
+
   const [pendingFinalStatus, setPendingFinalStatus] = useState<LivreurStatus | null>(null);
   const [failureReason, setFailureReason] = useState("");
   const [failureNote, setFailureNote] = useState("");
 
-  const displayLocation = cleanLivreurLocation(order.city, order.shopifyData?.locationHint);
-  const noteClean = (order.addressNote || "").trim();
+  const embeddedMapsUrl = extractMapsUrl(order.addressNote) || extractMapsUrl(order.city);
+  const directMapsUrl = (order as any).mapUrl || (order as any).googleMapsUrl || (order.shopifyData as any)?.googleMapsUrl || embeddedMapsUrl;
+  const directGpsCoords = (order as any).gpsCoordinates || (order.shopifyData as any)?.gpsCoordinates;
+
+  const displayLocation = stripGpsInfo(cleanLivreurLocation(order.city, order.shopifyData?.locationHint));
+  const noteClean = stripGpsInfo(order.addressNote);
   const distinctAddressNote =
     noteClean && noteClean.toLowerCase() !== displayLocation.toLowerCase() ? noteClean : "";
   const mapsQuery = displayLocation
     ? encodeURIComponent(`${displayLocation} ${distinctAddressNote}`.trim())
     : null;
-  const directMapsUrl = (order as any).mapUrl || (order as any).googleMapsUrl || (order.shopifyData as any)?.googleMapsUrl;
-  const directGpsCoords = (order as any).gpsCoordinates || (order.shopifyData as any)?.gpsCoordinates;
   const mapsHref = directMapsUrl
     ? directMapsUrl
     : directGpsCoords
@@ -97,9 +123,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
         ? `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
         : null;
 
-const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack en route pour votre colis ${orderCode} (${
-    order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""
-  }${order.product} — ${formattedAmount}). Êtes-vous disponible à ${displayLocation || "votre adresse"} ?`;
+  const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack en route pour votre colis ${orderCode} (${displayProduct} — ${formattedAmount}). Êtes-vous disponible à ${displayLocation || "votre adresse"} ?`;
 
   return (
     <article
@@ -138,8 +162,7 @@ const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-            {order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}
-            {order.product}
+            {displayProduct}
           </p>
         </div>
 

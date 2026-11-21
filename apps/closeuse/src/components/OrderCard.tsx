@@ -103,6 +103,22 @@ const RESCHEDULE_REASONS = [
   "Doit confirmer avec un proche",
 ];
 
+function formatOrderProductDisplay(product?: string | null, quantity?: number): string {
+  const clean = (product || "").trim();
+  if (!quantity || quantity <= 1) return clean;
+  if (/^\d+\s*x\s+/i.test(clean)) return clean;
+  return `${quantity}x ${clean}`;
+}
+
+function stripGpsInfo(text?: string | null): string {
+  if (!text) return "";
+  return text
+    .replace(/\[\s*GPS\s*:[^\]]*\]/gi, "")
+    .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function useNativeDialog(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDialogElement>(null);
   const pressedOutsideRef = useRef(false);
@@ -172,9 +188,10 @@ export default function OrderCard({
   const cleanNum = cleanOrderNumber(order.orderNumber);
   const orderCode = cleanNum ? `#${cleanNum}` : `#${order.id.slice(-6).toUpperCase()}`;
   const formattedAmount = formatCurrency(order.amount, currency);
+  const displayProduct = formatOrderProductDisplay(order.product, order.quantity);
 
-  const cityClean = (order.city || "").trim();
-  const noteClean = (order.addressNote || "").trim();
+  const cityClean = stripGpsInfo(order.city);
+  const noteClean = stripGpsInfo(order.addressNote);
   const distinctAddressNote =
     noteClean && noteClean.toLowerCase() !== cityClean.toLowerCase() ? noteClean : "";
 
@@ -264,12 +281,12 @@ export default function OrderCard({
 
   const whatsAppMessage =
     order.statutCloseuse === "injoignable"
-      ? `Bonjour ${displayName}, nous avons essayé de vous joindre par téléphone concernant votre commande ${orderCode} (${order.product} — ${formattedAmount}). À quelle heure pouvons-nous vous livrer ?`
+      ? `Bonjour ${displayName}, nous avons essayé de vous joindre par téléphone concernant votre commande ${orderCode} (${displayProduct} — ${formattedAmount}). À quelle heure pouvons-nous vous livrer ?`
       : order.statutCloseuse === "programme"
-      ? `Bonjour ${displayName}, comme convenu nous revenons vers vous pour votre livraison ${orderCode} (${order.product} — ${formattedAmount}). Êtes-vous disponible pour recevoir le livreur ?`
+      ? `Bonjour ${displayName}, comme convenu nous revenons vers vous pour votre livraison ${orderCode} (${displayProduct} — ${formattedAmount}). Êtes-vous disponible pour recevoir le livreur ?`
       : order.isDuplicatePhone
-      ? `Bonjour ${displayName}, nous avons bien reçu votre commande (${order.product} — ${formattedAmount}). Votre numéro apparaissant deux fois, souhaitez-vous recevoir 1 seul ou 2 articles ?`
-      : `Bonjour ${displayName}, je vous contacte pour confirmer votre commande ${orderCode} (${order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}${order.product}) d'un montant de ${formattedAmount} payable en espèces à la livraison.`;
+      ? `Bonjour ${displayName}, nous avons bien reçu votre commande (${displayProduct} — ${formattedAmount}). Votre numéro apparaissant deux fois, souhaitez-vous recevoir 1 seul ou 2 articles ?`
+      : `Bonjour ${displayName}, je vous contacte pour confirmer votre commande ${orderCode} (${displayProduct}) d'un montant de ${formattedAmount} payable en espèces à la livraison.`;
 
   const actionsGridClass =
     actions.length >= 4 ? "grid-cols-4" : actions.length === 3 ? "grid-cols-3" : "grid-cols-2";
@@ -344,8 +361,7 @@ export default function OrderCard({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{displayName}</p>
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-            {order.quantity && order.quantity > 1 ? `${order.quantity}x ` : ""}
-            {order.product}
+            {displayProduct}
           </p>
         </div>
 
@@ -397,22 +413,6 @@ export default function OrderCard({
           </p>
         )}
 
-        {(order.mapUrl || (order as any).googleMapsUrl || (order as any).gpsCoordinates) && (
-          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-600/50">
-            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <MapPin className="h-3 w-3 text-emerald-500 shrink-0" />
-              <span>Position GPS réelle</span>
-            </span>
-            <a
-              href={order.mapUrl || (order as any).googleMapsUrl || `https://www.google.com/maps?q=${(order as any).gpsCoordinates}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-[10px] font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900 transition shrink-0"
-            >
-              <span>Voir sur Maps ↗</span>
-            </a>
-          </div>
-        )}
 
         {order.notes && (
           <div className="rounded-lg bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/50 p-2 text-[11px] text-amber-900 dark:text-amber-200">
