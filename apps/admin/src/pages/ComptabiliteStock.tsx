@@ -143,7 +143,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining: 0,
       coverageLabel: "Rupture de stock",
-      coverageBadgeCls: "border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400",
+      coverageBadgeCls: "border border-rose-300 dark:border-rose-700 bg-rose-100 dark:bg-[#381119] text-rose-900 dark:text-rose-200",
     };
   }
 
@@ -152,7 +152,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity: 0,
       daysOfStockRemaining: 999,
       coverageLabel: "Stock dormant (0 vte)",
-      coverageBadgeCls: "border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
+      coverageBadgeCls: "border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-[#1a2030] text-slate-800 dark:text-slate-200",
     };
   }
 
@@ -163,7 +163,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Rupture proche`,
-      coverageBadgeCls: "border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400",
+      coverageBadgeCls: "border border-rose-300 dark:border-rose-700 bg-rose-100 dark:bg-[#381119] text-rose-900 dark:text-rose-200",
     };
   }
   if (daysOfStockRemaining <= 14) {
@@ -171,7 +171,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Réappro urgente`,
-      coverageBadgeCls: "border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
+      coverageBadgeCls: "border border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-[#332009] text-amber-900 dark:text-amber-200",
     };
   }
   if (daysOfStockRemaining <= 60) {
@@ -179,7 +179,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Optimal`,
-      coverageBadgeCls: "border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
+      coverageBadgeCls: "border border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-900 dark:text-emerald-200",
     };
   }
   if (daysOfStockRemaining <= 90) {
@@ -187,34 +187,34 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Confortable`,
-      coverageBadgeCls: "border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400",
+      coverageBadgeCls: "border border-sky-300 dark:border-sky-700 bg-sky-100 dark:bg-[#10233b] text-sky-900 dark:text-sky-200",
     };
   }
   return {
     dailyVelocity,
     daysOfStockRemaining,
     coverageLabel: `> 90 j · Surstock`,
-    coverageBadgeCls: "border border-purple-200 dark:border-purple-800/40 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
+    coverageBadgeCls: "border border-purple-300 dark:border-purple-700 bg-purple-100 dark:bg-[#231435] text-purple-900 dark:text-purple-200",
   };
 }
 
 export function renderSignedCurrency(amount: number, currency: string) {
   if (amount > 0) {
     return (
-      <span className="font-mono font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+      <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
         +{amount.toLocaleString("fr-FR")} {currency}
       </span>
     );
   }
   if (amount < 0) {
     return (
-      <span className="font-mono font-bold tabular-nums text-rose-600 dark:text-rose-400">
+      <span className="font-bold tabular-nums text-rose-600 dark:text-rose-400">
         {amount.toLocaleString("fr-FR")} {currency}
       </span>
     );
   }
   return (
-    <span className="font-mono font-semibold tabular-nums text-slate-500">
+    <span className="font-semibold tabular-nums text-slate-500 dark:text-slate-400">
       0 {currency}
     </span>
   );
@@ -728,33 +728,56 @@ export default function ComptabiliteStock({
       */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised shadow-xs overflow-hidden">
         
-        {/* 1. TOP HEADER BAR GLOBALBANK */}
+        {/* 1. TOP TOOLBAR BAR (Sans titre en double - Sélecteur d'onglets direct) */}
         <div className="border-b border-surface-border px-4 py-3 sm:px-6">
-          {/* Fil d'Ariane (Breadcrumb) */}
-          <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-            <span>Comptabilité & Stock</span>
-            <span>›</span>
-            <span>Grand Livre</span>
-            <span>›</span>
-            <span className="text-slate-900 dark:text-slate-200 font-semibold">
-              {activeTab === "ledger" ? "Clôtures Certifiées" : "Catalogue Coûts & Stocks"}
-            </span>
-          </div>
-
-          {/* Rangée Principale : Titre + Search Pill + Avatars + Tabs + Actions */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Gauche : Titre et badge Live */}
+            {/* Gauche : Onglets direct Grand Livre / Produits (Élimine le double titre) */}
             <div className="flex items-center gap-2.5">
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
-                <span>Répertoire Comptable & Stock</span>
-              </h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="inline-flex items-center rounded-xl border border-surface-border bg-surface p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("ledger");
+                    setCurrentPage(1);
+                  }}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 font-bold transition-all cursor-pointer ${
+                    activeTab === "ledger"
+                      ? "bg-surface-raised text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <FolderPlus className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Grand Livre des Clôtures</span>
+                  <span className="rounded-md bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
+                    {filteredLedgerEntries.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("products")}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 font-bold transition-all cursor-pointer ${
+                    activeTab === "products"
+                      ? "bg-surface-raised text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <Package className="h-3.5 w-3.5 text-indigo-500" />
+                  <span>Catalogue Produits & Coûts</span>
+                  <span className="rounded-md bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
+                    {productsFinancialList.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Badge En direct solide sans transparence */}
+              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-[#0c2e1f] border border-emerald-300 dark:border-emerald-700/80 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span>En direct</span>
               </span>
             </div>
 
-            {/* Centre : Search Pill avec Search Icon propre (sans chevauchement !) */}
+            {/* Centre : Search Pill avec Search Icon propre */}
             <div className="relative flex-1 max-w-xs min-w-[200px]">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
@@ -764,7 +787,7 @@ export default function ComptabiliteStock({
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Rechercher une clôture, marché, alerte..."
+                placeholder="Rechercher une clôture, marché..."
                 className="h-9 w-full rounded-full border border-surface-border bg-surface pl-9.5 pr-8 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none focus:border-brand transition"
               />
               {searchQuery && (
@@ -778,63 +801,8 @@ export default function ComptabiliteStock({
               )}
             </div>
 
-            {/* Droite : Avatars + Switcher Tabs + Boutons */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Stack d'avatars style GlobalBank */}
-              <div className="hidden xl:flex items-center -space-x-2 mr-1">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-raised bg-brand text-[10px] font-bold text-white" title="Sabrina (Closeuse)">
-                  SA
-                </div>
-                <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-raised bg-emerald-600 text-[10px] font-bold text-white" title="Kossi (Livreur)">
-                  KO
-                </div>
-                <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-raised bg-amber-600 text-[10px] font-bold text-white" title="Migami (Closeuse)">
-                  MI
-                </div>
-                <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface-raised bg-slate-700 text-[9px] font-bold text-slate-200">
-                  +4
-                </div>
-              </div>
-
-              {/* View Switcher Pills */}
-              <div className="inline-flex items-center rounded-xl border border-surface-border bg-surface p-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("ledger");
-                    setCurrentPage(1);
-                  }}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all cursor-pointer ${
-                    activeTab === "ledger"
-                      ? "bg-surface-raised text-slate-900 dark:text-white shadow-xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  <FolderPlus className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Grand Livre</span>
-                  <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-1.5 py-0.2 text-[10px] font-mono">
-                    {filteredLedgerEntries.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("products")}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1 font-bold transition-all cursor-pointer ${
-                    activeTab === "products"
-                      ? "bg-surface-raised text-slate-900 dark:text-white shadow-xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  <Package className="h-3.5 w-3.5 text-indigo-500" />
-                  <span>Produits & Coûts</span>
-                  <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-1.5 py-0.2 text-[10px] font-mono">
-                    {productsFinancialList.length}
-                  </span>
-                </button>
-              </div>
-
-              {/* Bouton Synchro Azify */}
+            {/* Droite : Boutons d'Action */}
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -851,7 +819,6 @@ export default function ComptabiliteStock({
                 <span className="hidden sm:inline">{azifySyncing ? "Synchro..." : "Synchro Azify"}</span>
               </button>
 
-              {/* Bouton Primaire : + Nouvelle Clôture */}
               <button
                 type="button"
                 onClick={() => setShowNewClosureModal(true)}
@@ -881,7 +848,7 @@ export default function ComptabiliteStock({
 
             {selectedEntryIds.size > 0 && (
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 dark:bg-[#0c2e1f] border border-emerald-300 dark:border-emerald-700/80 px-2.5 py-1 font-bold text-emerald-800 dark:text-emerald-300">
                   <Check className="h-3 w-3" />
                   <span>{selectedEntryIds.size} sélectionné(s)</span>
                 </span>
@@ -939,13 +906,13 @@ export default function ComptabiliteStock({
           <div className="hidden md:flex items-center gap-4 text-xs font-medium">
             <div>
               <span className="text-slate-600 dark:text-slate-400 mr-1.5">CA Total :</span>
-              <strong className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
+              <strong className="tabular-nums font-bold text-slate-900 dark:text-slate-100">
                 {summaryTotals.totalRev.toLocaleString("fr-FR")} {currency}
               </strong>
             </div>
             <div>
               <span className="text-slate-600 dark:text-slate-400 mr-1.5">Pubs Meta :</span>
-              <strong className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
+              <strong className="tabular-nums font-bold text-slate-900 dark:text-slate-100">
                 {summaryTotals.totalAds.toLocaleString("fr-FR")} {currency}
               </strong>
             </div>
@@ -1032,8 +999,8 @@ export default function ComptabiliteStock({
                           onClick={() => setActiveDetailEntry(entry)}
                           className={`group cursor-pointer transition-all duration-150 ${
                             isSelected
-                              ? "bg-brand/5 dark:bg-brand/10 border-l-4 border-l-brand shadow-2xs"
-                              : "hover:bg-slate-50/80 dark:hover:bg-surface/50 border-l-4 border-l-transparent"
+                              ? "bg-brand/5 dark:bg-[#161c33] border-l-4 border-l-brand shadow-2xs"
+                              : "hover:bg-slate-50/80 dark:hover:bg-[#151a2b] border-l-4 border-l-transparent"
                           }`}
                         >
                           {/* 1. Checkbox & Star Compactés */}
@@ -1062,7 +1029,7 @@ export default function ComptabiliteStock({
                           {/* 2. Avatar + Période & Clôture (2 Lignes nettes sans chevauchement) */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-surface border border-surface-border text-xs font-bold text-slate-700 dark:text-slate-200 shrink-0 shadow-2xs">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-[#1c2235] border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 shrink-0 shadow-2xs">
                                 {initials}
                               </div>
                               <div className="min-w-0">
@@ -1082,40 +1049,40 @@ export default function ComptabiliteStock({
                               <Globe className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                               <span>{entry.countryName}</span>
                             </div>
-                            <span className="text-[11px] text-slate-500 block mt-0.5 font-mono">
+                            <span className="text-[11px] text-slate-500 block mt-0.5">
                               Marché {entry.currency}
                             </span>
                           </td>
 
-                          {/* 4. CA Encaissé (Gros chiffre tabular-nums + Landed Cost) */}
+                          {/* 4. CA Encaissé (Gros chiffre sans-serif tabular-nums + Landed Cost) */}
                           <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                            <div className="text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                            <div className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">
                               {entry.revenue.toLocaleString("fr-FR")} {entry.currency}
                             </div>
-                            <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
+                            <span className="text-[11px] tabular-nums text-slate-500 block mt-0.5">
                               Landed : {entry.landedCost.toLocaleString("fr-FR")} {entry.currency}
                             </span>
                           </td>
 
-                          {/* 5. Délivrabilité COD (Chiffres + Pourcentage + Slim Micro-Gauge intégrée) */}
+                          {/* 5. Délivrabilité COD (Chiffres + Pourcentage solide + Slim Micro-Gauge) */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
                             <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="font-mono tabular-nums text-xs font-bold text-slate-900 dark:text-slate-100">
+                              <span className="tabular-nums text-xs font-bold text-slate-900 dark:text-slate-100">
                                 {entry.ordersDelivered} / {entry.ordersReceived} livrées
                               </span>
                               <span
-                                className={`text-[11px] font-bold font-mono px-1.5 py-0.2 rounded ${
+                                className={`text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-full border ${
                                   entry.deliveryRatePercent >= 75
-                                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                    ? "bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700/80"
                                     : entry.deliveryRatePercent >= 60
-                                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                                    : "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                                    ? "bg-amber-100 dark:bg-[#34220b] text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700/80"
+                                    : "bg-rose-100 dark:bg-[#36131b] text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-700/80"
                                 }`}
                               >
                                 {entry.deliveryRatePercent}%
                               </span>
                             </div>
-                            <div className="w-full max-w-[160px] h-1.5 rounded-full bg-slate-200 dark:bg-surface border border-surface-border/60 overflow-hidden">
+                            <div className="w-full max-w-[160px] h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-300 ${
                                   entry.deliveryRatePercent >= 75
@@ -1132,12 +1099,12 @@ export default function ComptabiliteStock({
                           {/* 6. Pub Meta & ROAS */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono font-semibold tabular-nums text-xs text-slate-900 dark:text-slate-100">
+                              <span className="font-semibold tabular-nums text-xs text-slate-900 dark:text-slate-100">
                                 {entry.adSpendTotal > 0
                                   ? `${entry.adSpendTotal.toLocaleString("fr-FR")} ${entry.currency}`
                                   : `0 ${entry.currency}`}
                               </span>
-                              <span className="inline-flex items-center rounded-md border border-indigo-500/20 bg-indigo-500/10 px-1.5 py-0.2 text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                              <span className="inline-flex items-center rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-100 dark:bg-[#151c3d] px-2 py-0.5 text-[11px] font-bold tabular-nums text-indigo-800 dark:text-indigo-200">
                                 ROAS {entry.roasReal}x
                               </span>
                             </div>
@@ -1148,27 +1115,27 @@ export default function ComptabiliteStock({
 
                           {/* 7. Bénéfice Net Réel */}
                           <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                            <div className="text-sm font-bold font-mono tabular-nums">
+                            <div className="text-sm font-bold tabular-nums">
                               {renderSignedCurrency(entry.netProfit, entry.currency)}
                             </div>
-                            <span className="text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                            <span className="text-[11px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 block mt-0.5">
                               {entry.netMarginPercent}% de marge nette
                             </span>
                           </td>
 
-                          {/* 8. Statut Pill (Copie fidèle référence photo) */}
+                          {/* 8. Statut Pill (100% Solide sans transparence + point de couleur) */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap border ${
                                 entry.auditStatus === "optimal"
-                                  ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                  ? "border-emerald-300 dark:border-emerald-700/80 bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-900 dark:text-emerald-200"
                                   : entry.auditStatus === "crash"
-                                  ? "border border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300"
-                                  : "border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                  ? "border-rose-300 dark:border-rose-700/80 bg-rose-100 dark:bg-[#381119] text-rose-900 dark:text-rose-200"
+                                  : "border-amber-300 dark:border-amber-700/80 bg-amber-100 dark:bg-[#332009] text-amber-900 dark:text-amber-200"
                               }`}
                             >
                               <span
-                                className={`h-1.5 w-1.5 rounded-full ${
+                                className={`h-2 w-2 rounded-full ${
                                   entry.auditStatus === "optimal"
                                     ? "bg-emerald-500"
                                     : entry.auditStatus === "crash"
@@ -1213,15 +1180,15 @@ export default function ComptabiliteStock({
               {/* Gauche : 1-10 sur N clôtures */}
               <div className="font-medium">
                 Affichage de{" "}
-                <b className="text-slate-900 dark:text-slate-100 font-mono">
+                <b className="text-slate-900 dark:text-slate-100 tabular-nums">
                   {sortedLedgerEntries.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
                 </b>{" "}
                 à{" "}
-                <b className="text-slate-900 dark:text-slate-100 font-mono">
+                <b className="text-slate-900 dark:text-slate-100 tabular-nums">
                   {Math.min(currentPage * pageSize, sortedLedgerEntries.length)}
                 </b>{" "}
                 sur{" "}
-                <b className="text-slate-900 dark:text-slate-100 font-mono">
+                <b className="text-slate-900 dark:text-slate-100 tabular-nums">
                   {sortedLedgerEntries.length}
                 </b>{" "}
                 clôtures
@@ -1258,7 +1225,7 @@ export default function ComptabiliteStock({
                       <button
                         type="button"
                         onClick={() => setCurrentPage(p)}
-                        className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-lg text-xs font-bold font-mono transition cursor-pointer ${
+                        className={`flex h-7 min-w-[28px] px-2 items-center justify-center rounded-lg text-xs font-bold tabular-nums transition cursor-pointer ${
                           currentPage === p
                             ? "bg-brand text-white shadow-xs"
                             : "border border-surface-border bg-surface-raised hover:bg-surface text-slate-700 dark:text-slate-300"
@@ -1320,7 +1287,7 @@ export default function ComptabiliteStock({
                   <strong>Unit Economics :</strong> Landed Cost = Achat usine + Fret unitaire. Le bénéfice déduit usine, fret, commissions closeuse/livreur et pub Meta.
                 </span>
               </div>
-              <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+              <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
                 {productsFinancialList.length} produit{productsFinancialList.length > 1 ? "s" : ""} actif{productsFinancialList.length > 1 ? "s" : ""}
               </span>
             </div>
@@ -1377,31 +1344,31 @@ export default function ComptabiliteStock({
 
                         {/* 2. Landed Cost (Achat Usine + Fret unitaire en sous-texte) */}
                         <td className="px-4 py-4 text-right whitespace-nowrap">
-                          <div className="font-mono font-bold tabular-nums text-xs sm:text-[13px] text-slate-900 dark:text-slate-100">
+                          <div className="font-bold tabular-nums text-xs sm:text-[13px] text-slate-900 dark:text-slate-100">
                             {p.landedCost.toLocaleString("fr-FR")} {currency}
                           </div>
-                          <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
+                          <span className="text-[11px] tabular-nums text-slate-500 block mt-0.5">
                             Usine {p.cogsUnitPrice.toLocaleString("fr-FR")} + Fret {p.transitUnitCost.toLocaleString("fr-FR")}
                           </span>
                         </td>
 
                         {/* 3. Prix de Vente Moyen & Marge nette par pièce */}
                         <td className="px-4 py-4 text-right whitespace-nowrap">
-                          <div className="font-mono font-semibold tabular-nums text-xs text-slate-800 dark:text-slate-200">
+                          <div className="font-semibold tabular-nums text-xs text-slate-800 dark:text-slate-200">
                             {p.sellingPriceAvg.toLocaleString("fr-FR")} {currency}
                           </div>
-                          <span className="text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                          <span className="text-[11px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 block mt-0.5">
                             +{p.netMarginPerUnit.toLocaleString("fr-FR")} {currency} / pce
                           </span>
                         </td>
 
                         {/* 4. Stock Actuel */}
                         <td className="px-4 py-4 text-right whitespace-nowrap">
-                          <span className="font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100 text-xs sm:text-[13px]">
+                          <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100 text-xs sm:text-[13px]">
                             {p.currentStock}
                           </span>
                           <span className="text-[11px] text-slate-500 ml-1">pcs</span>
-                          <span className="text-[10px] text-slate-400 block font-mono">
+                          <span className="text-[10px] text-slate-400 block tabular-nums">
                             {p.unitsDeliveredInPeriod} vendues
                           </span>
                         </td>
@@ -1423,7 +1390,7 @@ export default function ComptabiliteStock({
                                 }}
                               />
                             </div>
-                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 font-mono">
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
                               {p.daysOfStockRemaining === 999 ? "Dormant" : `${p.daysOfStockRemaining} j`}
                             </span>
                           </div>
@@ -1432,7 +1399,7 @@ export default function ComptabiliteStock({
                         {/* 6. Campagne Meta Ads Liée */}
                         <td className="px-4 py-4 whitespace-nowrap">
                           {p.metaCampaignName ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 max-w-[180px] truncate">
+                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-100 dark:bg-[#151c3d] px-2.5 py-1 text-xs font-semibold text-indigo-900 dark:text-indigo-200 max-w-[180px] truncate">
                               <Radio className="h-3 w-3 text-indigo-500 shrink-0" />
                               <span className="truncate">{p.metaCampaignName}</span>
                             </span>
@@ -1456,19 +1423,19 @@ export default function ComptabiliteStock({
                           )}
                         </td>
 
-                        {/* 7. Statut Rupture Pill */}
+                        {/* 7. Statut Rupture Pill (100% Solide opaque) */}
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span
-                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap border ${
                               p.daysOfStockRemaining >= 15
-                                ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                ? "border-emerald-300 dark:border-emerald-700/80 bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-900 dark:text-emerald-200"
                                 : p.daysOfStockRemaining >= 7
-                                ? "border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                                : "border border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                ? "border-amber-300 dark:border-amber-700/80 bg-amber-100 dark:bg-[#332009] text-amber-900 dark:text-amber-200"
+                                : "border-rose-300 dark:border-rose-700/80 bg-rose-100 dark:bg-[#381119] text-rose-900 dark:text-rose-200"
                             }`}
                           >
                             <span
-                              className={`h-1.5 w-1.5 rounded-full ${
+                              className={`h-2 w-2 rounded-full ${
                                 p.daysOfStockRemaining >= 15
                                   ? "bg-emerald-500"
                                   : p.daysOfStockRemaining >= 7
@@ -1486,7 +1453,7 @@ export default function ComptabiliteStock({
                             <button
                               type="button"
                               onClick={() => handleTriggerStockAlert(p)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition cursor-pointer"
+                              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-100 hover:bg-amber-200 dark:bg-[#332009] dark:hover:bg-[#452b0d] px-2.5 py-1 text-xs font-bold text-amber-900 dark:text-amber-200 transition cursor-pointer"
                               title="Router une alerte stock vers les notifications"
                             >
                               <Bell className="h-3 w-3" />
@@ -1563,7 +1530,7 @@ export default function ComptabiliteStock({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="rounded-xl border border-surface-border bg-surface p-3">
                 <span className="text-[11px] text-slate-500">CA Encaissé</span>
-                <div className="mt-1 text-base font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                <div className="mt-1 text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">
                   {activeDetailEntry.revenue.toLocaleString("fr-FR")} {activeDetailEntry.currency}
                 </div>
                 <span className="text-[10px] text-slate-500">{activeDetailEntry.ordersDelivered} livraisons</span>
@@ -1571,7 +1538,7 @@ export default function ComptabiliteStock({
 
               <div className="rounded-xl border border-surface-border bg-surface p-3">
                 <span className="text-[11px] text-slate-500">Dépenses Meta Ads</span>
-                <div className="mt-1 text-base font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                <div className="mt-1 text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">
                   {activeDetailEntry.adSpendTotal.toLocaleString("fr-FR")} {activeDetailEntry.currency}
                 </div>
                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">ROAS : {activeDetailEntry.roasReal}x</span>
@@ -1579,31 +1546,31 @@ export default function ComptabiliteStock({
 
               <div className="rounded-xl border border-surface-border bg-surface p-3">
                 <span className="text-[11px] text-slate-500">Landed + Comms</span>
-                <div className="mt-1 text-base font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                <div className="mt-1 text-base font-bold tabular-nums text-slate-900 dark:text-slate-100">
                   {(activeDetailEntry.landedCost + activeDetailEntry.totalCommissions).toLocaleString("fr-FR")} {activeDetailEntry.currency}
                 </div>
                 <span className="text-[10px] text-slate-500">Fret & équipes</span>
               </div>
 
-              <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">Bénéfice Net Réel</span>
-                <div className="mt-1 text-base font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
+              <div className="rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-[#0c2e1f] p-3">
+                <span className="text-[11px] font-bold text-emerald-900 dark:text-emerald-200">Bénéfice Net Réel</span>
+                <div className="mt-1 text-base font-bold tabular-nums text-emerald-800 dark:text-emerald-300">
                   +{activeDetailEntry.netProfit.toLocaleString("fr-FR")} {activeDetailEntry.currency}
                 </div>
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300">
                   {activeDetailEntry.netMarginPercent} % de marge
                 </span>
               </div>
             </div>
 
-            {/* Alerte & Détecteur de Crash / Amélioration */}
+            {/* Alerte & Détecteur de Crash / Amélioration (100% Solide opaque) */}
             <div
               className={`rounded-xl border p-4 text-xs font-semibold ${
                 activeDetailEntry.auditStatus === "optimal"
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                  ? "border-emerald-300 dark:border-emerald-700 bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-900 dark:text-emerald-200"
                   : activeDetailEntry.auditStatus === "crash"
-                  ? "border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-300"
-                  : "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                  ? "border-rose-300 dark:border-rose-700 bg-rose-100 dark:bg-[#381119] text-rose-900 dark:text-rose-200"
+                  : "border-amber-300 dark:border-amber-700 bg-amber-100 dark:bg-[#332009] text-amber-900 dark:text-amber-200"
               }`}
             >
               <div className="flex items-center gap-2">
@@ -1626,7 +1593,7 @@ export default function ComptabiliteStock({
                   const hPct = Math.max(15, Math.round((pt.revenue / maxRev) * 85));
                   return (
                     <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                      <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
                         {Math.round(pt.netProfit / 1000)}k
                       </span>
                       <div
@@ -1653,7 +1620,7 @@ export default function ComptabiliteStock({
                       <span className="h-2 w-2 rounded-full bg-blue-500" />
                       <span>Meta Ads (Facebook/Insta)</span>
                     </span>
-                    <b className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                    <b className="tabular-nums text-slate-900 dark:text-slate-100">
                       {activeDetailEntry.trafficBreakdown?.meta_ads?.orders || 0} commandes
                     </b>
                   </div>
@@ -1662,7 +1629,7 @@ export default function ComptabiliteStock({
                       <span className="h-2 w-2 rounded-full bg-emerald-500" />
                       <span>Organique & Accès direct</span>
                     </span>
-                    <b className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                    <b className="tabular-nums text-slate-900 dark:text-slate-100">
                       {activeDetailEntry.trafficBreakdown?.organique?.orders || 0} commandes
                     </b>
                   </div>
@@ -1671,7 +1638,7 @@ export default function ComptabiliteStock({
                       <span className="h-2 w-2 rounded-full bg-slate-400" />
                       <span>TikTok Ads</span>
                     </span>
-                    <b className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                    <b className="tabular-nums text-slate-900 dark:text-slate-100">
                       {activeDetailEntry.trafficBreakdown?.tiktok_ads?.orders || 0} commandes
                     </b>
                   </div>
@@ -1686,7 +1653,7 @@ export default function ComptabiliteStock({
                   {activeDetailEntry.topLocations.map((loc, idx) => (
                     <div key={idx} className="flex justify-between items-center py-1 border-b border-surface-border last:border-0">
                       <span className="font-semibold text-slate-800 dark:text-slate-200">{loc.name}</span>
-                      <span className="font-mono tabular-nums text-slate-600 dark:text-slate-400">
+                      <span className="tabular-nums text-slate-600 dark:text-slate-400">
                         <b>{loc.delivered}</b> livrés ({loc.rate}%)
                       </span>
                     </div>
@@ -1706,12 +1673,12 @@ export default function ComptabiliteStock({
                     <div key={camp.id} className="flex justify-between items-center py-2">
                       <div>
                         <p className="font-bold text-slate-900 dark:text-slate-100">{camp.name}</p>
-                        <p className="text-[10px] text-slate-500 font-mono">
+                        <p className="text-[10px] text-slate-500">
                           {camp.clicks ? `${camp.clicks} clics` : ""} {camp.leads ? `· ${camp.leads} leads` : ""}
                         </p>
                       </div>
                       <div className="text-right">
-                        <span className="font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                        <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
                           {camp.spend.toLocaleString("fr-FR")} {activeDetailEntry.currency}
                         </span>
                       </div>
@@ -1731,7 +1698,7 @@ export default function ComptabiliteStock({
                   setActiveDetailEntry(null);
                   showToast("Clôture supprimée du Grand Livre");
                 }}
-                className="rounded-xl border border-rose-500/40 text-rose-600 px-3 py-2 text-xs font-bold hover:bg-rose-50 dark:hover:bg-rose-950/20 transition cursor-pointer"
+                className="rounded-xl border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-[#34141a] dark:hover:bg-[#451821] px-3 py-2 text-xs font-bold transition cursor-pointer"
               >
                 Supprimer
               </button>
@@ -1813,7 +1780,7 @@ export default function ComptabiliteStock({
                   value={closureAdSpendInput}
                   onChange={(e) => setClosureAdSpendInput(e.target.value)}
                   placeholder="150000"
-                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-brand"
+                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold tabular-nums outline-none focus:border-brand"
                 />
                 <span className="text-[11px] text-slate-500 mt-1 block">
                   Ce montant sera directement déduit du CA pour établir le Vrai Bénéfice Net Réel et le ROAS.
@@ -1892,7 +1859,7 @@ export default function ComptabiliteStock({
                   type="number"
                   value={formCogs}
                   onChange={(e) => setFormCogs(e.target.value)}
-                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-brand"
+                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold tabular-nums outline-none focus:border-brand"
                 />
               </div>
 
@@ -1905,7 +1872,7 @@ export default function ComptabiliteStock({
                     type="number"
                     value={formTransitCost}
                     onChange={(e) => setFormTransitCost(e.target.value)}
-                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-brand"
+                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold tabular-nums outline-none focus:border-brand"
                   />
                 </div>
                 <div>
@@ -1916,7 +1883,7 @@ export default function ComptabiliteStock({
                     type="number"
                     value={formTransitQty}
                     onChange={(e) => setFormTransitQty(e.target.value)}
-                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-brand"
+                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold tabular-nums outline-none focus:border-brand"
                   />
                 </div>
               </div>
@@ -1943,7 +1910,7 @@ export default function ComptabiliteStock({
                     type="number"
                     value={formInitialStock}
                     onChange={(e) => setFormInitialStock(e.target.value)}
-                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-brand"
+                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold tabular-nums outline-none focus:border-brand"
                   />
                 </div>
                 <div>
@@ -1954,7 +1921,7 @@ export default function ComptabiliteStock({
                     type="number"
                     value={formLowThreshold}
                     onChange={(e) => setFormLowThreshold(e.target.value)}
-                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-mono tabular-nums outline-none focus:border-brand"
+                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 font-semibold tabular-nums outline-none focus:border-brand"
                   />
                 </div>
               </div>
