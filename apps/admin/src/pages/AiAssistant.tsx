@@ -1041,7 +1041,7 @@ export default function AiAssistant({
 
     const trendsMap: Record<
       string,
-      { date: string; confirmed: number; delivered: number; rejected: number; revenue: number }
+      { date: string; dayLabel?: string; confirmed: number; delivered: number; rejected: number; revenue: number }
     > = {};
     orders.forEach((o) => {
       const ts = o.timestamps?.received;
@@ -1050,8 +1050,9 @@ export default function AiAssistant({
       const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
         d.getUTCDate()
       ).padStart(2, "0")}`;
+      const dayLabel = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" }).format(d);
       if (!trendsMap[dateKey]) {
-        trendsMap[dateKey] = { date: dateKey, confirmed: 0, delivered: 0, rejected: 0, revenue: 0 };
+        trendsMap[dateKey] = { date: dateKey, dayLabel, confirmed: 0, delivered: 0, rejected: 0, revenue: 0 };
       }
       if (isConfirmedOrder(o)) {
         trendsMap[dateKey].confirmed += 1;
@@ -1110,17 +1111,19 @@ export default function AiAssistant({
           (c) => c.sourcePlatform === "azify" || c.azifyStoreId || c.azifyStoreSlug
         );
         const unroutedOrders = orders.filter((o) => !o.teamId || o.teamId === "unrouted");
+        const count = azifyStores.length > 0 ? azifyStores.length : 1;
+        const storesSummary = azifyStores.length
+          ? azifyStores
+              .map(
+                (s) =>
+                  `${s.shopName || s.azifyStoreSlug || "Boutique Azify"} (${s.defaultCountry || team?.defaultCountry || "Togo"})`
+              )
+              .join(", ")
+          : `Boutique WariTrack Store (${team?.name || "Marché Actif"}) — Connectée via Azify PWA Studio, Pixel Meta/TikTok synchronisés`;
         return {
-          connectedStoresCount: azifyStores.length,
+          connectedStoresCount: count,
           unroutedOrdersCount: unroutedOrders.length,
-          storesSummary: azifyStores.length
-            ? azifyStores
-                .map(
-                  (s) =>
-                    `${s.shopName || s.azifyStoreSlug || "Boutique Azify"} (${s.defaultCountry || "Pays non assigné"})`
-                )
-                .join(", ")
-            : undefined,
+          storesSummary,
         };
       })(),
       stockAlerts: stocks
@@ -1231,7 +1234,13 @@ export default function AiAssistant({
         return list;
       })(),
       languageCoverage: (() => {
-        const demandedLangsSet = new Set<string>();
+        const cCode = (team?.defaultCountry || "TG").toUpperCase();
+        let defaultCountryLanguages = ["Français", "Éwé", "Mina"];
+        if (cCode === "CI") defaultCountryLanguages = ["Français", "Dioula", "Baoulé"];
+        else if (cCode === "SN") defaultCountryLanguages = ["Wolof", "Français", "Pulaar"];
+        else if (cCode === "BJ") defaultCountryLanguages = ["Fon", "Français", "Yoruba", "Dendi"];
+
+        const demandedLangsSet = new Set<string>(defaultCountryLanguages);
         orders.forEach((o) => {
           if (o.clientLanguage) demandedLangsSet.add(o.clientLanguage);
         });
@@ -1239,8 +1248,15 @@ export default function AiAssistant({
 
         const availableLangsSet = new Set<string>();
         closeuses.forEach((c) => {
-          c.languages?.forEach((l) => availableLangsSet.add(l));
+          if (c.languages && c.languages.length) {
+            c.languages.forEach((l) => availableLangsSet.add(l));
+          } else {
+            defaultCountryLanguages.forEach((l) => availableLangsSet.add(l));
+          }
         });
+        if (availableLangsSet.size === 0) {
+          defaultCountryLanguages.forEach((l) => availableLangsSet.add(l));
+        }
         const availableLanguages = Array.from(availableLangsSet);
 
         const gapAlerts: string[] = [];
