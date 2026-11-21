@@ -10,6 +10,8 @@ export * from "./utils/loadBalancing";
 export * from "./utils/remuneration";
 export * from "./utils/logoImage";
 export * from "./utils/country";
+export * from "./utils/antiTheft";
+export * from "./utils/passkeys";
 
 export * from "./hooks/useOrders";
 export * from "./hooks/useCashSettlements";

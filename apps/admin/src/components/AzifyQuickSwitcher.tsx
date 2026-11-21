@@ -10,6 +10,9 @@ import {
   Sparkles,
   Store,
   UserPlus,
+  Users,
+  Mail,
+  ShieldCheck,
   Zap,
 } from "lucide-react";
 import AzifyConnectionSheet from "./AzifyConnectionSheet";
@@ -34,6 +37,45 @@ export default function AzifyQuickSwitcher({
   const [showConnectSheet, setShowConnectSheet] = useState(false);
   const [azifyConns, setAzifyConns] = useState<ShopifyConnection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeAccount, setActiveAccount] = useState<string>(() => {
+    return localStorage.getItem("waritrack_azify_active_account") || "principal";
+  });
+  const [multiAccounts, setMultiAccounts] = useState<Array<{ id: string; name: string; email: string; provider: "google" | "email"; active: boolean }>>(() => {
+    try {
+      const saved = localStorage.getItem("waritrack_azify_multi_accounts");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      { id: "principal", name: "Compte Principal", email: "admin@azify.com", provider: "google", active: true }
+    ];
+  });
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [newAccountEmail, setNewAccountEmail] = useState("");
+  const [newAccountProvider, setNewAccountProvider] = useState<"google" | "email">("google");
+
+  const handleSwitchAccount = (accountId: string) => {
+    setActiveAccount(accountId);
+    localStorage.setItem("waritrack_azify_active_account", accountId);
+    setMultiAccounts((prev) => {
+      const updated = prev.map((a) => ({ ...a, active: a.id === accountId }));
+      localStorage.setItem("waritrack_azify_multi_accounts", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleAddAccount = (provider: "google" | "email", customEmail?: string) => {
+    const id = `acc_${Date.now()}`;
+    const email = customEmail || (provider === "google" ? "google-auth@azify.com" : "email-auth@azify.com");
+    const name = `Boutique ${provider === "google" ? "Google" : "Email"} #${multiAccounts.length + 1}`;
+    const newAcc = { id, name, email, provider, active: true };
+    const updated = multiAccounts.map((a) => ({ ...a, active: false })).concat(newAcc);
+    setMultiAccounts(updated);
+    setActiveAccount(id);
+    localStorage.setItem("waritrack_azify_active_account", id);
+    localStorage.setItem("waritrack_azify_multi_accounts", JSON.stringify(updated));
+    setShowAddAccountModal(false);
+    setNewAccountEmail("");
+  };
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Écoute en temps réel des boutiques Azify connectées au workspace
@@ -189,20 +231,57 @@ export default function AzifyQuickSwitcher({
               <ArrowUpRight className="h-4 w-4 shrink-0 text-brand" />
             </button>
 
-            {/* Invitation à créer un compte si non existant */}
+            {/* Sélecteur Multi-Comptes Azify (Google & Email) */}
             <div className="rounded-lg bg-surface p-2 text-left mb-2 border border-surface-border">
-              <p className="text-[11px] font-semibold text-slate-200">Pas encore de compte ?</p>
-              <p className="text-[10px] text-slate-400 mt-0.5 mb-1.5">
-                Créez une boutique COD en 1 clic sur Azify.
-              </p>
-              <button
-                type="button"
-                onClick={handleRegisterAccount}
-                className="flex items-center gap-1 rounded bg-brand/15 px-2 py-1 text-[10px] font-semibold text-brand-light hover:bg-brand/25 transition-colors"
-              >
-                <UserPlus className="h-3 w-3" />
-                <span>Créer mon compte Azify</span>
-              </button>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  <Users className="h-3 w-3 text-brand" />
+                  Multi-Comptes Azify
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400">{multiAccounts.length} compte(s)</span>
+              </div>
+              <div className="space-y-1 max-h-24 overflow-y-auto mb-2">
+                {multiAccounts.map((acc) => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => handleSwitchAccount(acc.id)}
+                    className={`flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs transition-colors ${
+                      acc.id === activeAccount
+                        ? "bg-brand/20 text-white font-bold border border-brand/40"
+                        : "text-slate-300 hover:bg-surface-raised"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {acc.provider === "google" ? (
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500/20 text-[9px] font-bold text-red-300">G</span>
+                      ) : (
+                        <Mail className="h-3 w-3 shrink-0 text-sky-400" />
+                      )}
+                      <span className="truncate text-[11px]">{acc.name}</span>
+                    </div>
+                    {acc.id === activeAccount && <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1 pt-1 border-t border-surface-border">
+                <button
+                  type="button"
+                  onClick={() => handleAddAccount("google")}
+                  className="flex-1 flex items-center justify-center gap-1 rounded bg-surface-raised hover:bg-surface-subtle px-2 py-1 text-[10px] font-semibold text-slate-200 border border-surface-border transition-colors"
+                >
+                  <span className="text-red-400 font-bold">G</span>
+                  <span>+ Google</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddAccount("email")}
+                  className="flex-1 flex items-center justify-center gap-1 rounded bg-surface-raised hover:bg-surface-subtle px-2 py-1 text-[10px] font-semibold text-slate-200 border border-surface-border transition-colors"
+                >
+                  <Mail className="h-3 w-3 text-sky-400" />
+                  <span>+ Email</span>
+                </button>
+              </div>
             </div>
 
             {/* Action d'appairage & sélection d'équipe */}

@@ -109,16 +109,31 @@ function estimateTokens(messages: AiMessage[]): number {
 }
 
 /**
- * Garde le prompt système + le dernier message utilisateur, puis ajoute
- * l'historique du plus récent au plus ancien tant que le budget le permet.
- * Un message trop long (ex. ancien bilan) est raccourci plutôt que gardé entier.
+ * Garde en priorité absolue le prompt système (instructions & base de vérité métier)
+ * et la dernière question utilisateur. L'historique récent est filtré (exclusion des
+ * anciens refus de réponse pour éviter l'empoisonnement few-shot) et ajouté tant que
+ * le budget de tokens le permet.
  */
 function fitToBudget(messages: AiMessage[], completionReserve: number): AiMessage[] {
   const budget = TPM_BUDGET - completionReserve;
   const system = messages.filter((m) => m.role === "system");
   const rest = messages.filter((m) => m.role !== "system");
   const last = rest[rest.length - 1];
-  const history = rest.slice(0, -1);
+  // Filtrer les refus de l'historique pour ne jamais contaminer les futures réponses
+  const history = rest.slice(0, -1).filter((m) => {
+    if (m.role === "assistant") {
+      const c = m.content || "";
+      if (
+        c.includes("Nous ne disposons d'aucune donnée") ||
+        c.includes("Aucun des indicateurs requis") ||
+        c.includes("Données manquantes") ||
+        c.includes("impossible de produire un audit")
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   const kept: AiMessage[] = [];
   let used = estimateTokens(system) + (last ? estimateTokens([last]) : 0);
@@ -126,8 +141,8 @@ function fitToBudget(messages: AiMessage[], completionReserve: number): AiMessag
   for (let i = history.length - 1; i >= 0; i--) {
     let msg = history[i];
     let cost = estimateTokens([msg]);
-    if (cost > 900) {
-      msg = { ...msg, content: msg.content.slice(0, 2600) + "\n[…réponse précédente abrégée…]" };
+    if (cost > 600) {
+      msg = { ...msg, content: msg.content.slice(0, 1800) + "\n[…synthèse précédente abrégée…]" };
       cost = estimateTokens([msg]);
     }
     if (used + cost > budget) break;
@@ -135,16 +150,7 @@ function fitToBudget(messages: AiMessage[], completionReserve: number): AiMessag
     used += cost;
   }
 
-  // Si même système + dernière question dépassent, on raccourcit le système.
-  let sys = system;
-  if (used > budget && system.length) {
-    const overflowChars = Math.ceil((used - budget) * 3.2) + 200;
-    sys = system.map((s, idx) =>
-      idx === 0 ? { ...s, content: s.content.slice(0, Math.max(2000, s.content.length - overflowChars)) } : s
-    );
-  }
-
-  return [...sys, ...kept, ...(last ? [last] : [])];
+  return [...system, ...kept, ...(last ? [last] : [])];
 }
 
 function extractText(payload: unknown): string {

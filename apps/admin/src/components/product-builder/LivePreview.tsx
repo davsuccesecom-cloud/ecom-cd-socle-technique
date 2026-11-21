@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useContentProtection } from "@ecomcod/shared";
 import type {
   ProductPageData,
   FeatureItem,
@@ -52,6 +53,9 @@ export default function LivePreview({
   const [selectedOfferIndex, setSelectedOfferIndex] = useState(1); // Par défaut le pack Duo / populaire
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(0);
+
+  // Protection anti-vol de contenu & anti-« Save As » sur les pages produits publiques
+  useContentProtection(isPublic, { enableAlert: false, disableSelection: true });
 
   // Formulaire COD
   const [clientName, setClientName] = useState("");

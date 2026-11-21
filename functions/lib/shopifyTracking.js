@@ -1203,6 +1203,50 @@ exports.getStorefrontTrackerScript = (0, https_1.onRequest)({ cors: true }, (req
       }
     } catch(err) {}
   }, true);
+
+  // 5. Bouclier Anti-Vol de Contenu & Anti « Save As » (Protection Droits d'Auteur)
+  try {
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      return false;
+    }, true);
+
+    window.addEventListener('keydown', function(e) {
+      var isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      var mod = isMac ? e.metaKey : e.ctrlKey;
+      var key = (e.key || '').toLowerCase();
+      var code = (e.code || '').toLowerCase();
+
+      if (mod && (key === 's' || code === 'keys')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+      if (mod && (key === 'u' || code === 'keyu')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+      if (mod && (key === 'p' || code === 'keyp')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+      if (key === 'f12' || (mod && e.shiftKey && key === 'i')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }, true);
+
+    document.addEventListener('dragstart', function(e) {
+      var tag = (e.target && e.target.tagName || '').toUpperCase();
+      if (tag === 'IMG' || tag === 'PICTURE' || tag === 'VIDEO') {
+        e.preventDefault();
+        return false;
+      }
+    }, true);
+  } catch(e) {}
 })();
 `;
     res.status(200).send(scriptCode);

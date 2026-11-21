@@ -459,3 +459,16 @@ export interface MarketplaceCampaign {
   createdAt: number;
   createdByName?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Sécurité Passkeys FIDO2 / WebAuthn & CinetPay Ready
+// ---------------------------------------------------------------------------
+
+export interface PasskeyCredential {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  label: string;
+  createdAt: number;
+  lastUsedAt?: number;
+}

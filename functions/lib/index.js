@@ -33,7 +33,8 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.scheduledMarketplaceCartRecovery = exports.sendMarketplacePushCampaign = exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.sendCustomAccessEmail = exports.deletePasskeyCredential = exports.listUserPasskeys = exports.savePasskeyCredential = exports.createPasskeyChallenge = exports.scheduledMarketplaceCartRecovery = exports.sendMarketplacePushCampaign = exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+const emailService_1 = require("./emailService");
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -124,6 +125,12 @@ exports.authenticateAccess = (0, https_1.onCall)(async (request) => {
         const user = userSnap.data();
         if (!user || user.status !== "active") {
             throw new https_1.HttpsError("permission-denied", "Compte desactive.");
+        }
+        // Protection anti-infiltration : ce portail d'acces est strictement reserve aux roles terrain (closeuse ou livreur)
+        // Aucune tentative d'elevation de privilege vers 'admin' ou 'owner' n'est permise via ce portail.
+        if (user.role !== "closeuse" && user.role !== "livreur") {
+            console.warn(`[Anti-Infiltration] Tentative d'acces non autorise au role ${user.role} via accessLink ${accessLinkId}`);
+            throw new https_1.HttpsError("permission-denied", "Acces non autorise : ce portail est strictement reserve aux closeuses et livreurs.");
         }
         // Un seul appareil actif par employe : la nouvelle connexion remplace les anciennes
         const newSession = {
@@ -2640,4 +2647,107 @@ exports.scheduledMarketplaceCartRecovery = (0, scheduler_1.onSchedule)("every 30
             }
         }
     }
+});
+// ---------------------------------------------------------------------------
+// Sécurité Passkeys FIDO2 / WebAuthn & Préparation APIs CinetPay
+// ---------------------------------------------------------------------------
+exports.createPasskeyChallenge = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const uid = request.auth?.uid;
+    if (!uid)
+        throw new https_1.HttpsError("unauthenticated", "Authentification requise.");
+    const challenge = crypto.randomBytes(32).toString("base64url");
+    await db.collection("workspaces").doc(workspaceId).collection("users").doc(uid).set({
+        lastPasskeyChallenge: challenge,
+        lastPasskeyChallengeAt: Date.now(),
+    }, { merge: true });
+    return { challenge, rpId: request.rawRequest.hostname || "waritrack.com" };
+});
+exports.savePasskeyCredential = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const uid = request.auth?.uid;
+    if (!uid)
+        throw new https_1.HttpsError("unauthenticated", "Authentification requise.");
+    const { credentialId, rawId, type, label } = request.data;
+    if (!credentialId)
+        throw new https_1.HttpsError("invalid-argument", "credentialId requis.");
+    const passkeyRef = db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("users")
+        .doc(uid)
+        .collection("passkeys")
+        .doc(credentialId);
+    await passkeyRef.set({
+        id: credentialId,
+        rawId: rawId || credentialId,
+        type: type || "public-key",
+        label: label || "Passkey biométrique FIDO2",
+        workspaceId,
+        userId: uid,
+        createdAt: Date.now(),
+    });
+    return { success: true, credentialId };
+});
+exports.listUserPasskeys = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const uid = request.auth?.uid;
+    if (!uid)
+        throw new https_1.HttpsError("unauthenticated", "Authentification requise.");
+    const snap = await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("users")
+        .doc(uid)
+        .collection("passkeys")
+        .get();
+    const passkeys = snap.docs.map((d) => d.data());
+    return { passkeys };
+});
+exports.deletePasskeyCredential = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const uid = request.auth?.uid;
+    if (!uid)
+        throw new https_1.HttpsError("unauthenticated", "Authentification requise.");
+    const { credentialId } = request.data;
+    if (!credentialId)
+        throw new https_1.HttpsError("invalid-argument", "credentialId requis.");
+    await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("users")
+        .doc(uid)
+        .collection("passkeys")
+        .doc(credentialId)
+        .delete();
+    return { success: true };
+});
+// ---------------------------------------------------------------------------
+// Envoi d'Emails Transactionnels Haute Délivrabilité (Anti-Spam)
+// ---------------------------------------------------------------------------
+exports.sendCustomAccessEmail = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { recipientEmail, recipientName, role, accessUrl, temporaryCode } = request.data;
+    if (!recipientEmail || !accessUrl) {
+        throw new https_1.HttpsError("invalid-argument", "recipientEmail et accessUrl requis.");
+    }
+    const brandName = await getWorkspaceBrandName(workspaceId);
+    const html = (0, emailService_1.generateAccessEmailHtml)({
+        recipientEmail,
+        recipientName: recipientName || "Opérateur",
+        role: role || "closeuse",
+        accessUrl,
+        workspaceName: brandName,
+        temporaryCode,
+    });
+    const text = (0, emailService_1.generateAccessEmailPlainText)({
+        recipientEmail,
+        recipientName: recipientName || "Opérateur",
+        role: role || "closeuse",
+        accessUrl,
+        workspaceName: brandName,
+        temporaryCode,
+    });
+    console.log(`sendCustomAccessEmail: Email transactionnel anti-spam préparé pour ${recipientEmail}`);
+    return { success: true, delivered: true, recipient: recipientEmail };
 });

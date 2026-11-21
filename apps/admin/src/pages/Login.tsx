@@ -1,4 +1,5 @@
 import { useState } from "react";
+import AdminAntiBotGuard from "../components/AdminAntiBotGuard";
 
 interface LoginProps {
   sendLoginLink: (email: string) => Promise<void>;
@@ -25,6 +26,7 @@ export default function Login({
 }: LoginProps) {
   const [email, setEmail] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [botVerified, setBotVerified] = useState(false);
 
   if (needsWorkspaceName) {
     return (
@@ -95,11 +97,13 @@ export default function Login({
           />
         </div>
 
+        <AdminAntiBotGuard onVerified={setBotVerified} />
+
         {error && <p className="text-sm text-red-400">{error}</p>}
 
         <button
           type="submit"
-          disabled={busy || !email.trim()}
+          disabled={busy || !email.trim() || !botVerified}
           className="w-full rounded-xl bg-brand py-3 text-base font-medium text-white disabled:opacity-50"
         >
           {busy ? "Envoi..." : "Recevoir mon lien de connexion"}

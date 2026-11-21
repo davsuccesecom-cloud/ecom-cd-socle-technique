@@ -49,6 +49,7 @@ interface PeriodSelectorProps {
 export default function PeriodSelector({ period, onChange }: PeriodSelectorProps) {
   const [open, setOpen] = useState(false);
   const [range, setRange] = useState<DateRange | undefined>(undefined);
+  const [month, setMonth] = useState<Date>(() => new Date());
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const isCustom = period.type === "custom";
@@ -66,18 +67,25 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
   }, [open]);
 
   const openCustomPanel = () => {
-    if (isCustom && period.start > 0) {
-      setRange({ from: new Date(period.start), to: new Date(period.end) });
+    const now = new Date();
+    if (isCustom && period.start > 0 && new Date(period.start).getFullYear() >= 2020) {
+      const from = new Date(period.start);
+      const to = new Date(period.end);
+      setRange({ from, to });
+      setMonth(from);
     } else {
-      const now = new Date();
       if (period.type === "preset" && period.value === "tout") {
         // En mode "Tout" (start: 0), ne pas sauter à l'époque Unix 1970 : initialiser sur les 30 derniers jours
         const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         setRange({ from: start, to: now });
+        setMonth(now);
       } else {
         const { start, end } = periodRangeMs(period);
-        const safeStart = start > 0 ? start : now.getTime() - 30 * 24 * 60 * 60 * 1000;
-        setRange({ from: new Date(safeStart), to: new Date(end) });
+        const safeStart = start > 0 && new Date(start).getFullYear() >= 2020 ? start : now.getTime() - 30 * 24 * 60 * 60 * 1000;
+        const from = new Date(safeStart);
+        const to = new Date(end);
+        setRange({ from, to });
+        setMonth(from);
       }
     }
     setOpen((v) => !v);
@@ -135,8 +143,12 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
             mode="range"
             selected={range}
             onSelect={setRange}
+            month={month}
+            onMonthChange={setMonth}
+            startMonth={new Date(2020, 0, 1)}
+            endMonth={new Date(new Date().getFullYear() + 2, 11, 31)}
+            disabled={{ before: new Date(2020, 0, 1) }}
             numberOfMonths={isMobile ? 1 : 2}
-            defaultMonth={range?.from && range.from.getFullYear() >= 2020 ? range.from : new Date()}
             showOutsideDays
             locale={fr}
           />

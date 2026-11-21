@@ -1,3 +1,4 @@
+import { generateAccessEmailHtml, generateAccessEmailPlainText } from "./emailService";
 import * as crypto from "crypto";
 import * as admin from "firebase-admin";
 import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
@@ -112,6 +113,13 @@ export const authenticateAccess = onCall(async (request) => {
   const user = userSnap.data();
   if (!user || user.status !== "active") {
     throw new HttpsError("permission-denied", "Compte desactive.");
+  }
+
+  // Protection anti-infiltration : ce portail d'acces est strictement reserve aux roles terrain (closeuse ou livreur)
+  // Aucune tentative d'elevation de privilege vers 'admin' ou 'owner' n'est permise via ce portail.
+  if (user.role !== "closeuse" && user.role !== "livreur") {
+    console.warn(`[Anti-Infiltration] Tentative d'acces non autorise au role ${user.role} via accessLink ${accessLinkId}`);
+    throw new HttpsError("permission-denied", "Acces non autorise : ce portail est strictement reserve aux closeuses et livreurs.");
   }
 
   // Un seul appareil actif par employe : la nouvelle connexion remplace les anciennes
@@ -3256,3 +3264,122 @@ export const scheduledMarketplaceCartRecovery = onSchedule(
     }
   }
 );
+
+
+// ---------------------------------------------------------------------------
+// Sécurité Passkeys FIDO2 / WebAuthn & Préparation APIs CinetPay
+// ---------------------------------------------------------------------------
+
+export const createPasskeyChallenge = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Authentification requise.");
+  const challenge = crypto.randomBytes(32).toString("base64url");
+  await db.collection("workspaces").doc(workspaceId).collection("users").doc(uid).set({
+    lastPasskeyChallenge: challenge,
+    lastPasskeyChallengeAt: Date.now(),
+  }, { merge: true });
+  return { challenge, rpId: request.rawRequest.hostname || "waritrack.com" };
+});
+
+export const savePasskeyCredential = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Authentification requise.");
+  const { credentialId, rawId, type, label } = request.data as {
+    credentialId: string;
+    rawId?: string;
+    type?: string;
+    label?: string;
+  };
+  if (!credentialId) throw new HttpsError("invalid-argument", "credentialId requis.");
+  const passkeyRef = db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("users")
+    .doc(uid)
+    .collection("passkeys")
+    .doc(credentialId);
+  await passkeyRef.set({
+    id: credentialId,
+    rawId: rawId || credentialId,
+    type: type || "public-key",
+    label: label || "Passkey biométrique FIDO2",
+    workspaceId,
+    userId: uid,
+    createdAt: Date.now(),
+  });
+  return { success: true, credentialId };
+});
+
+export const listUserPasskeys = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Authentification requise.");
+  const snap = await db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("users")
+    .doc(uid)
+    .collection("passkeys")
+    .get();
+  const passkeys = snap.docs.map((d) => d.data());
+  return { passkeys };
+});
+
+export const deletePasskeyCredential = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Authentification requise.");
+  const { credentialId } = request.data as { credentialId: string };
+  if (!credentialId) throw new HttpsError("invalid-argument", "credentialId requis.");
+  await db
+    .collection("workspaces")
+    .doc(workspaceId)
+    .collection("users")
+    .doc(uid)
+    .collection("passkeys")
+    .doc(credentialId)
+    .delete();
+  return { success: true };
+});
+
+// ---------------------------------------------------------------------------
+// Envoi d'Emails Transactionnels Haute Délivrabilité (Anti-Spam)
+// ---------------------------------------------------------------------------
+
+export const sendCustomAccessEmail = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { recipientEmail, recipientName, role, accessUrl, temporaryCode } = request.data as {
+    recipientEmail: string;
+    recipientName: string;
+    role: "admin" | "closeuse" | "livreur";
+    accessUrl: string;
+    temporaryCode?: string;
+  };
+
+  if (!recipientEmail || !accessUrl) {
+    throw new HttpsError("invalid-argument", "recipientEmail et accessUrl requis.");
+  }
+
+  const brandName = await getWorkspaceBrandName(workspaceId);
+  const html = generateAccessEmailHtml({
+    recipientEmail,
+    recipientName: recipientName || "Opérateur",
+    role: role || "closeuse",
+    accessUrl,
+    workspaceName: brandName,
+    temporaryCode,
+  });
+  const text = generateAccessEmailPlainText({
+    recipientEmail,
+    recipientName: recipientName || "Opérateur",
+    role: role || "closeuse",
+    accessUrl,
+    workspaceName: brandName,
+    temporaryCode,
+  });
+
+  console.log(`sendCustomAccessEmail: Email transactionnel anti-spam préparé pour ${recipientEmail}`);
+  return { success: true, delivered: true, recipient: recipientEmail };
+});

@@ -24,6 +24,7 @@ import {
   PhoneCall,
   Smartphone,
   Zap,
+  Fingerprint,
 } from "lucide-react";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import AzifyFluxManager from "../components/AzifyFluxManager";
@@ -31,6 +32,7 @@ import ShopifyFluxManager from "../components/ShopifyFluxManager";
 import PrintReceiptConfig from "../components/PrintReceiptConfig";
 import WhiteLabelSettings from "../components/WhiteLabelSettings";
 import WhatsAppIcon from "../components/WhatsAppIcon";
+import PasskeySecuritySettings from "../components/PasskeySecuritySettings";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 interface ParametresProps {
@@ -40,7 +42,7 @@ interface ParametresProps {
   orders?: Order[];
 }
 
-type SettingsTab = "rules" | "shopify" | "azify" | "print" | "metacapi" | "phone_export" | "white_label";
+type SettingsTab = "rules" | "shopify" | "azify" | "print" | "metacapi" | "phone_export" | "white_label" | "security";
 
 export default function Parametres({ workspaceId, team, teams = [], orders = [] }: ParametresProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
@@ -51,6 +53,12 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
       label: "Boutiques Shopify",
       desc: "Webhooks, routage multi-pays & suivi",
       icon: Store,
+    },
+    {
+      id: "security",
+      label: "Sécurité & Passkeys",
+      desc: "Biométrie FIDO2 & Prêt CinetPay",
+      icon: Fingerprint,
     },
     {
       id: "azify",
@@ -145,6 +153,8 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
 
       {/* Zone de contenu principale (100% pleine largeur) */}
       <div className="min-w-0 w-full">
+        {activeTab === "security" && <PasskeySecuritySettings workspaceId={workspaceId} />}
+
         {activeTab === "rules" && (
           team ? (
             <TeamSettingsForm key={team.id} workspaceId={workspaceId} team={team} />

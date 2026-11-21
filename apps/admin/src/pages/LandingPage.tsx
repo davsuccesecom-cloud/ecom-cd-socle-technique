@@ -30,6 +30,7 @@ import LegalPrivacyModal, { type LegalTab } from "../components/LegalPrivacyModa
 import WhatsAppIcon from "../components/WhatsAppIcon";
 import WariTrackLogo from "../components/WariTrackLogo";
 import WhatsNewModal from "../components/WhatsNewModal";
+import AdminAntiBotGuard from "../components/AdminAntiBotGuard";
 
 interface LandingPageProps {
   sendLoginLink?: (email: string) => Promise<void>;
@@ -212,6 +213,7 @@ export default function LandingPage({
 }: LandingPageProps) {
   const [email, setEmail] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [botVerified, setBotVerified] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(() => {
     if (typeof window !== "undefined") {
       return new URLSearchParams(window.location.search).get("auth") === "1";
@@ -1104,9 +1106,10 @@ export default function LandingPage({
                       className="w-full rounded-xl border border-white/15 bg-[#050814] pl-10 pr-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
                     />
                   </div>
+                  <AdminAntiBotGuard onVerified={setBotVerified} />
                   <button
                     type="submit"
-                    disabled={busy || !email.trim()}
+                    disabled={busy || !email.trim() || !botVerified}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-95 py-3 text-xs sm:text-sm font-bold text-white shadow-lg shadow-indigo-500/25 disabled:opacity-50 transition-all"
                   >
                     <span>{busy ? "Envoi du lien..." : "Recevoir mon lien d'accès"}</span>
