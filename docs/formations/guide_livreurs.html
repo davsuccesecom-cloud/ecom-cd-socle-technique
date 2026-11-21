@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Guide de Formation Livreurs — WariTrack COD</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    :root {
+      --primary: #0f172a;
+      --primary-light: #1e293b;
+      --accent: #0284c7;
+      --accent-light: #e0f2fe;
+      --amber: #d97706;
+      --amber-light: #fef3c7;
+      --emerald: #059669;
+      --emerald-light: #d1fae5;
+      --red: #dc2626;
+      --red-light: #fee2e2;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #ffffff;
+      --card-bg: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      background-color: var(--bg);
+      line-height: 1.5;
+      font-size: 13px;
+      padding: 30px;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 15mm 15mm;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .no-break {
+      page-break-inside: avoid;
+    }
+
+    /* Header & Branding */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -1px;
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .meta-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      background: var(--accent-light);
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Hero Banner */
+    .hero {
+      background: linear-gradient(135deg, #091e3a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 28px;
+      border-radius: 16px;
+      margin-bottom: 28px;
+      border: 1px solid #1e3a8a;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(2, 132, 199, 0.25);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    .hero-title {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .hero-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      max-width: 650px;
+      line-height: 1.5;
+    }
+
+    /* Program Table */
+    .table-container {
+      margin-bottom: 30px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--card-bg);
+      color: var(--primary);
+      font-weight: 700;
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .module-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+
+    /* Module Section */
+    .module-card {
+      margin-bottom: 30px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .module-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .module-badge-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .module-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.3px;
+    }
+
+    .spec-pills {
+      display: flex;
+      gap: 6px;
+    }
+
+    .pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--card-bg);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .pill-accent {
+      background: var(--accent-light);
+      color: #0369a1;
+      border-color: #bae6fd;
+    }
+
+    /* Scene Card */
+    .scene-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .scene-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      page-break-inside: avoid;
+    }
+
+    .scene-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .scene-chrono {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 11px;
+      color: var(--primary);
+      background: #e2e8f0;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .scene-name {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--primary);
+      flex: 1;
+      margin-left: 10px;
+    }
+
+    .visual-prompt-box {
+      background: #0f172a;
+      color: #cbd5e1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.45;
+      margin-bottom: 10px;
+      border-left: 3px solid #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .visual-prompt-title {
+      color: #38bdf8;
+      font-weight: 700;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .voiceover-box {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-left: 3px solid var(--emerald);
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .voiceover-title {
+      color: var(--emerald);
+      font-weight: 800;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .voiceover-text {
+      font-size: 12px;
+      font-style: italic;
+      color: #1e293b;
+      line-height: 1.5;
+    }
+
+    .onscreen-text-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f1f5f9;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #475569;
+    }
+
+    .onscreen-badge {
+      font-weight: 700;
+      background: #334155;
+      color: #ffffff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+
+    /* Golden Rules Card */
+    .golden-rule-card {
+      background: linear-gradient(135deg, #064e3b 0%, #022c22 100%);
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      border: 1px solid #059669;
+    }
+
+    .golden-rule-tag {
+      background: #10b981;
+      color: #ffffff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+
+    .rule-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #a7f3d0;
+      margin-bottom: 6px;
+    }
+
+    .rule-body {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #ecfdf5;
+    }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .rule-item {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .rule-item-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #34d399;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .rule-item-desc {
+      font-size: 11px;
+      color: #d1fae5;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-top: 24px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="brand">
+      <div class="brand-logo">W</div>
+      <div>
+        <div class="brand-title">WariTrack COD Academy</div>
+        <div class="brand-subtitle">Programme d'Excellence Commerciale & Logistique</div>
+      </div>
+    </div>
+    <div class="meta-badge">Volet 2 • 4 Modules Livreurs</div>
+  </div>
+
+  <!-- HERO BANNER -->
+  <div class="hero">
+    <div class="hero-tag">Playbook de Production Vidéo 9:16 (Google Flow / Reels)</div>
+    <div class="hero-title">Logistique Terrain & Caisse Livreur d'Élite</div>
+    <div class="hero-desc">
+      Ce guide fournit les scénarios détaillés, les prompts visuels pour générateurs vidéo AI, les scripts d'appel terrain et les protocoles stricts de gestion financière pour éliminer les trajets à blanc et assurer zéro écart de caisse chaque soir à 18h.
+    </div>
+  </div>
+
+  <!-- PROGRAM OVERVIEW -->
+  <div class="table-container no-break">
+    <table>
+      <thead>
+        <tr>
+          <th>Module</th>
+          <th>Titre de la Capsule</th>
+          <th>Objectif Pédagogique</th>
+          <th>Indicateur Clé (KPI)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="module-num">LIV-01</span></td>
+          <td><strong>Prise en main de l'App Livreur WariTrack</strong></td>
+          <td>Maîtrise de la feuille de route, statuts & Maps 1-clic</td>
+          <td>100% courses tracées en direct</td>
+        </tr>
+        <tr>
+          <td><span class="module-num">LIV-02</span></td>
+          <td><strong>Le Pré-Appel Téléphonique Systématique</strong></td>
+          <td>Zéro trajet à blanc & vérification présence/espèces</td>
+          <td>Réduction des échecs de 90%</td>
+        </tr>
+        <tr>
+          <td><span class="module-num">LIV-03</span></td>
+          <td><strong>La Caisse Livreur & Le Versement de 18h</strong></td>
+          <td>Sécurisation du cash, carburant justifié & dépôt</td>
+          <td>Zéro écart de caisse à 18h</td>
+        </tr>
+        <tr>
+          <td><span class="module-num">LIV-04</span></td>
+          <td><strong>Sauvetage au Pas de Porte & Situations Délicates</strong></td>
+          <td>Gérer le marchandage, hésitation & relai closeuse</td>
+          <td>Taux de sauvetage refus > 35%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODULE 1 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">LIV-01</span>
+        <div class="module-title">Prise en main de l'App Livreur WariTrack & Organisation Terrain</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">65 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:15</span>
+          <span class="scene-name">Scène 1 • Le Cockpit Mobile sur Deux Roues</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 dynamic shot. Clean smartphone interface attached to a motorcycle handlebar. The WariTrack Livreur application opens with high contrast cards. Top navigation tabs: "À livrer", "En cours", "Terminées". Vibrant, tactile, ultra-fast.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off (Ton ferme, dynamique, professionnel)</div>
+          <div class="voiceover-text">"Sur le terrain en Afrique, chaque minute perdue est de l'argent et du carburant qui part en fumée. Ton application WariTrack Livreur est ton copilote de mission. Dès que tu l'ouvres, tu as trois onglets clairs : 'À livrer', 'En cours' et 'Terminées'. Tout est conçu pour être manipulé au pouce, rapidement et sans friction."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>WariTrack Livreur • 3 Onglets Tactiles : À livrer • En cours • Terminées</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:15 - 00:35</span>
+          <span class="scene-name">Scène 2 • Fiche Commande & Itinéraire Google Maps 1-Clic</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 screen zoom. Order card showing client name in bold, phone button, location pin with note: "Agoè Assiyéyé, face pharmacie portail bleu". The finger taps "Itinéraire Maps" - Google Maps opens with the optimal route.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Sur chaque fiche de colis, tu as le montant en gros caractères, le nom du client et les notes de repérage écrites par la closeuse. En un clic sur 'Itinéraire', l'application ouvre Google Maps avec les coordonnées exactes pour te guider sans jamais t'arrêter pour demander la route."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Montant en gros caractères • Repère closeuse • GPS Maps instantané</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:35 - 00:52</span>
+          <span class="scene-name">Scène 3 • Le Passage en Statut "En route" Obligatoire</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 animation. Finger taps the amber button "En route". The card moves smoothly to the "En cours" tab. A notification ping triggers on the admin cockpit showing courier moving.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Règle capitale : avant de démarrer ta moto vers le client, clique sur 'En route'. Pourquoi ? Parce que le système prévient automatiquement le client par notification et permet au superviseur de savoir exactement où en est chaque colis en temps réel."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Clic "En route" avant démarrage • Client alerté • Suivi temps réel</span>
+        </div>
+      </div>
+
+      <!-- Scene 4 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:52 - 01:05</span>
+          <span class="scene-name">Scène 4 • Validation "Livré" & Reçu Digital WhatsApp</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 split screen. Finger taps the green "Livré" button. A modal confirms cash received. The green WhatsApp icon triggers an instant digital receipt sent to the customer with order code and thank-you message.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Une fois le cash en main, clique sur 'Livré'. En un clic sur l'icône WhatsApp, l'application envoie un reçu officiel avec numéro de bordereau sur le téléphone du client. Zéro contestation possible. Direction le module 2 : la règle de fer du pré-appel."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Validation Livré • Reçu WhatsApp immédiat • Zéro contestation</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- MODULE 2 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">LIV-02</span>
+        <div class="module-title">Le Protocole du Pré-Appel Téléphonique Systématique</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">65 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <!-- GOLDEN RULE HIGHLIGHT CARD -->
+    <div class="golden-rule-card no-break">
+      <div class="golden-rule-tag">La Loi d'Airain du Livreur WariTrack</div>
+      <div class="rule-title">"AUCUN DÉMARRAGE DE MOTO SANS PRÉ-APPEL CONFIRMÉ"</div>
+      <div class="rule-body">
+        Partir à l'aveugle sans confirmation téléphonique est la première cause de faillite logistique en Afrique. Un client peut avoir quitté son domicile, être en réunion ou ne pas avoir son argent disponible.
+      </div>
+      <div class="rule-grid">
+        <div class="rule-item">
+          <div class="rule-item-title">Question 1 • Identité</div>
+          <div class="rule-item-desc">"Bonjour M. Koffi, je suis Moussa votre coursier express WariTrack."</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-item-title">Question 2 • Présence 30 min</div>
+          <div class="rule-item-desc">"Êtes-vous bien sur place à [Quartier] d'ici les 30 à 45 prochaines minutes ?"</div>
+        </div>
+        <div class="rule-item">
+          <div class="rule-item-title">Question 3 • Cash prêt</div>
+          <div class="rule-item-desc">"Le total est de [22 500 XOF], avez-vous préparé le montant en espèces ?"</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:20</span>
+          <span class="scene-name">Scène 1 • Le Piège du Trajet à Blanc</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 cinematic visual. Motorcycle fuel gauge dropping to empty with red blinking icon. Burning cash metaphor. Giant white text: "INTERDICTION DE DÉMARRER À L'AVEUGLE".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Voici la règle la plus importante de ta journée : tu n'allumes JAMAIS le moteur de ta moto sans avoir passé le pré-appel téléphonique. Partir sans appeler en espérant trouver le client est le moyen le plus rapide de brûler ton essence, de t'épuiser sous le soleil et de revenir avec un colis annulé."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Zéro trajet à blanc • L'essence coûte cher • L'appel est obligatoire</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:20 - 00:45</span>
+          <span class="scene-name">Scène 2 • Que Faire si le Téléphone Sonne dans le Vide ?</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 screen capture of WariTrack Livreur app. Phone rings with no answer. The courier taps the WhatsApp icon. A pre-filled template appears: "Bonjour, je suis votre livreur WariTrack devant partir pour votre colis...". Courier moves to the next order without moving.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Si le téléphone sonne dans le vide : ne pars pas ! Envoie immédiatement le message WhatsApp automatique depuis l'application : 'Bonjour M. Koffi, votre livreur a tenté de vous joindre avant le départ. Merci de me confirmer votre présence.' Tu mets son colis de côté et tu pars livrer le client suivant qui t'attend avec l'argent en main."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Pas de réponse = Pas de départ • WhatsApp de relance • Livrer le client suivant</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:45 - 01:05</span>
+          <span class="scene-name">Scène 3 • Moins de Kilomètres, 100% de Réussite</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 visual. Speedometer reaching high efficiency. Courier smiling, delivery bag full of delivered orders, clean cash envelope bulging. Text: "100% Courses Utiles = Revenus Maximaux".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"En appliquant ce pré-appel, tu élimines 90% des échecs de livraison. Tu deviens le livreur le plus rapide et le plus rentable de ton équipe. Passe au module 3 : la gestion de ta caisse et l'heure sacrée de 18h."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Efficacité terrain maximale • Trajets utiles uniquement</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- MODULE 3 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">LIV-03</span>
+        <div class="module-title">La Règle d'Or de la Caisse : Encaissements & Versement de 18h</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">75 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:20</span>
+          <span class="scene-name">Scène 1 • Le Statut Sacré des Espèces Encaissées</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 motion design. Close-up on crisp CFA banknotes neatly slid into a heavy-duty waterproof leather courier pouch. Security padlock snaps shut with golden sparks. Text: "L'ARGENT ENCAISSÉ N'EST PAS LE TIEN".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Écoute très attentivement ce module, car il touche à l'honneur et à la sécurité de ton travail. Dès qu'un client te remet des espèces, cet argent est sous ta responsabilité légale. Il ne t'appartient pas. Il va immédiatement dans ta pochette de caisse fermée. Ne mélange JAMAIS tes billets personnels avec l'argent des livraisons."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Argent encaissé sous responsabilité • Séparation stricte de l'argent personnel</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:20 - 00:45</span>
+          <span class="scene-name">Scène 2 • Frais de Carburant & Justificatifs Obligatoires</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 UI demonstration. The WariTrack Caisse screen. The modal 'Retenue / Dépense' opens. Amount: 3 000 XOF, Motifs: Carburant urgent. A photo of the gas station receipt is snapped. Red alert box: "AUCUNE DÉDUCTION SANS ACCORD PRÉALABLE".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Si tu dois mettre du carburant en urgence : INTERDICTION formelle de prendre de l'argent dans la caisse sans prévenir ! Appelle d'abord ton superviseur pour validation. Demande toujours le reçu à la station. Le montant est enregistré dans l'application avec la note. Sans accord préalable, toute somme manquante sera déduite de ta rémunération."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Carburant : Accord superviseur préalable + Reçu station obligatoire</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:45 - 01:15</span>
+          <span class="scene-name">Scène 3 • 18h00 Tapantes : Le Pointage du Soir & Zéro Écart</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 dramatic lighting. An executive clock turning to 18:00. The courier arrives at the hub / cash collection point. The manager compares the app total with physical cash. Green verification badge: "CAISSE POINTÉE — ZÉRO ÉCART".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"18h00 est l'heure sacrée. Tous les soirs à 18h, ta tournée de distribution s'arrête pour le versement de la caisse. Tu te présentes au point de dépôt ou tu effectues ton dépôt Wave ou Mobile Money au comptable. Le calcul est mathématique : l'application additionne tous tes colis marqués 'Livré'. Le cash physique doit correspondre au centime près. Zéro écart."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>18H00 : Versement obligatoire • Total Livré = Cash physique • Zéro écart</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- MODULE 4 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">LIV-04</span>
+        <div class="module-title">Sauvetage au Pas de Porte & Gestion des Situations Délicates</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">80 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:25</span>
+          <span class="scene-name">Scène 1 • Le Client Veut Marchander au Pas de Porte</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 realistic scene. Customer standing at his gate holding a 20 000 bill instead of 25 000, saying "Mon frère, fais-moi ça à 20 mille". Courier stands straight, calm, smiling, pointing politely to the official sealed printed delivery slip.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Scénario classique : le client prend le colis et te dit : 'Mon frère, fais-moi ça à 20 000 au lieu de 25 000, on est ensemble non ?' Ne t'énerve jamais. Réponds avec calme et fermeté : 'Chef, je suis le coursier officiel assermenté. Le montant est scellé par la direction dans le bon informatique. Si je modifie le prix, le colis est bloqué et c'est déduit de mon salaire. Si vous ne pouvez pas régler les 25 000, je dois remballer le colis immédiatement.' 9 fois sur 10, il règle la totalité."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Coursier Assermenté • Prix scellé sur bordereau • Fermeté polie</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:25 - 00:50</span>
+          <span class="scene-name">Scène 2 • Client Injoignable sur Place : L'Appel Relais Closeuse</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 screen animation. Courier waits at gate, client line unreachable. Courier opens WariTrack, taps "Appeler Closeuse". The closeuse at her desk calls the client on the alternative line and relays the location.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Tu es devant chez le client, son téléphone sonne occupé ou il ne décroche plus. Ne reste jamais planté une demi-heure devant sa maison ! Tu attends cinq minutes maximum. Puis, tu utilises le bouton d'appel à la closeuse dans ton application : 'Allo Sarah, je suis devant le portail de M. Koffi, il ne répond pas à mon numéro, appelle-le d'urgence sur ta ligne !' La closeuse a souvent un contact alternatif et sauve la course."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Attente 5 min max • Appel relai closeuse direct • Sauvetage de course</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:50 - 01:20</span>
+          <span class="scene-name">Scène 3 • Enregistrer le Motif Exact en Cas d'Échec</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 UI modal. Livreur taps "Échec". 5 options appear clearly: "Client ne répond plus sur place", "Budget indisponible", "Refus au contrôle". He selects "Budget indisponible" and confirms.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Si malgré tout, la livraison est impossible, clique sur 'Échec' et choisis le motif réel parmi les cinq choix : budget indisponible, report demandé ou refus. Sois précis : ces informations permettent à la closeuse de reprogrammer la course pour ton collègue ou pour toi le lendemain. Tu es le dernier maillon d'une chaîne de champions. Fais la différence chaque jour !"</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Qualification précise de l'échec • Colis ramené intact • Replanification</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>WariTrack COD OS • Module de Formation Interne — Usage Strictement Réservé</div>
+    <div>Document officiel généré pour l'équipe WariTrack • Page 1/1</div>
+  </div>
+
+</body>
+</html>

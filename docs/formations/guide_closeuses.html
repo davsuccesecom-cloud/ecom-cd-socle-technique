@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Guide de Formation Closeuses — WariTrack COD</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    :root {
+      --primary: #0f172a;
+      --primary-light: #1e293b;
+      --accent: #d97706;
+      --accent-light: #fef3c7;
+      --emerald: #059669;
+      --emerald-light: #d1fae5;
+      --sky: #0284c7;
+      --sky-light: #e0f2fe;
+      --red: #dc2626;
+      --red-light: #fee2e2;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #ffffff;
+      --card-bg: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text);
+      background-color: var(--bg);
+      line-height: 1.5;
+      font-size: 13px;
+      padding: 30px;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 15mm 15mm;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .no-break {
+      page-break-inside: avoid;
+    }
+
+    /* Header & Branding */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      background: var(--primary);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -1px;
+    }
+
+    .brand-title {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .meta-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      background: var(--accent-light);
+      color: #92400e;
+      border: 1px solid #fde68a;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Hero Banner */
+    .hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      padding: 28px;
+      border-radius: 16px;
+      margin-bottom: 28px;
+      border: 1px solid #334155;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      background: rgba(217, 119, 6, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+
+    .hero-title {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.25;
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .hero-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      max-width: 650px;
+      line-height: 1.5;
+    }
+
+    /* Program Table */
+    .table-container {
+      margin-bottom: 30px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--card-bg);
+      color: var(--primary);
+      font-weight: 700;
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .module-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+
+    /* Module Section */
+    .module-card {
+      margin-bottom: 30px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .module-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .module-badge-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .module-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: -0.3px;
+    }
+
+    .spec-pills {
+      display: flex;
+      gap: 6px;
+    }
+
+    .pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: var(--card-bg);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .pill-accent {
+      background: var(--accent-light);
+      color: #92400e;
+      border-color: #fde68a;
+    }
+
+    /* Scene Card */
+    .scene-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .scene-item {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      page-break-inside: avoid;
+    }
+
+    .scene-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .scene-chrono {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 11px;
+      color: var(--primary);
+      background: #e2e8f0;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .scene-name {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--primary);
+      flex: 1;
+      margin-left: 10px;
+    }
+
+    .visual-prompt-box {
+      background: #0f172a;
+      color: #cbd5e1;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      line-height: 1.45;
+      margin-bottom: 10px;
+      border-left: 3px solid #38bdf8;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .visual-prompt-title {
+      color: #38bdf8;
+      font-weight: 700;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .voiceover-box {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-left: 3px solid var(--accent);
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .voiceover-title {
+      color: var(--accent);
+      font-weight: 800;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .voiceover-text {
+      font-size: 12px;
+      font-style: italic;
+      color: #1e293b;
+      line-height: 1.5;
+    }
+
+    .onscreen-text-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #f1f5f9;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #475569;
+    }
+
+    .onscreen-badge {
+      font-weight: 700;
+      background: #334155;
+      color: #ffffff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+
+    /* Highlight Card for Master Closing Technique */
+    .master-script-card {
+      background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+      color: #ffffff;
+      border-radius: 12px;
+      padding: 20px;
+      margin: 16px 0;
+      border: 1px solid #4338ca;
+    }
+
+    .master-script-tag {
+      background: #4f46e5;
+      color: #ffffff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      display: inline-block;
+      margin-bottom: 8px;
+    }
+
+    .script-quote {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.5;
+      color: #f8fafc;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border-left: 4px solid #fbbf24;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+
+    .script-breakdown {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .breakdown-item {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .breakdown-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #fbbf24;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .breakdown-desc {
+      font-size: 11px;
+      color: #cbd5e1;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-top: 24px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="brand">
+      <div class="brand-logo">W</div>
+      <div>
+        <div class="brand-title">WariTrack COD Academy</div>
+        <div class="brand-subtitle">Programme d'Excellence Commerciale & Logistique</div>
+      </div>
+    </div>
+    <div class="meta-badge">Volet 1 • 4 Modules Closeuses</div>
+  </div>
+
+  <!-- HERO BANNER -->
+  <div class="hero">
+    <div class="hero-tag">Playbook de Production Vidéo 9:16 (Google Flow / Reels)</div>
+    <div class="hero-title">L'Art du Closing Téléphonique & Outils Intelligents</div>
+    <div class="hero-desc">
+      Ce guide fournit les scripts mot-à-mot, les prompts visuels optimisés pour générateurs vidéo AI (Google Flow / Runway) et les protocoles psychologiques indispensables pour transformer chaque lead entrant en commande confirmée et livrée.
+    </div>
+  </div>
+
+  <!-- PROGRAM OVERVIEW -->
+  <div class="table-container no-break">
+    <table>
+      <thead>
+        <tr>
+          <th>Module</th>
+          <th>Titre de la Capsule</th>
+          <th>Objectif Pédagogique</th>
+          <th>Indicateur Clé (KPI)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="module-num">VID-01</span></td>
+          <td><strong>L'Art & la Psychologie du Closing COD</strong></td>
+          <td>Posture d'autorité bienveillante & règle des 15 minutes</td>
+          <td>Taux de contact > 85%</td>
+        </tr>
+        <tr>
+          <td><span class="module-num">VID-02</span></td>
+          <td><strong>Maîtrise de l'App WariTrack Closeuse</strong></td>
+          <td>Routage sans faille, statuts, qualification rejets & notes</td>
+          <td>Zéro commande orpheline</td>
+        </tr>
+        <tr>
+          <td><span class="module-num">VID-03</span></td>
+          <td><strong>Traitement d'Objections & Technique de l'Ego Boss</strong></td>
+          <td>Renverser "C'est trop cher" avec le prix officiel barré</td>
+          <td>Taux de sauvetage > 40%</td>
+        </tr>
+        <tr>
+          <td><span class="module-num">VID-04</span></td>
+          <td><strong>Qualification Logistique & Verrouillage Livraison</strong></td>
+          <td>Règle du Repère Triple & anticipation de l'appoint cash</td>
+          <td>Taux de livraison > 82%</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODULE 1 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">VID-01</span>
+        <div class="module-title">L'Art & la Psychologie du Closing Téléphonique COD</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">65 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:15</span>
+          <span class="scene-name">Scène 1 • Le Hook : La Règle des 15 Minutes</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 cinematic motion graphics. Dark luxury slate background (#0B0F19). A luminous futuristic hourglass with glowing golden sand draining rapidly. Bold sans-serif typography in crisp white: "15 MINUTES CHRONO". Subtext in neon emerald: "Après, le prospect refroidit de 50%". Sharp, minimal, zero-slop.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off (Ton posé, percutant, sûr)</div>
+          <div class="voiceover-text">"Dans le e-commerce COD en Afrique, une commande passée sur Facebook ou TikTok est une flamme qui brûle pendant quinze minutes. Si tu appelles dans ce quart d'heure, le client a encore son téléphone en main, son envie est à 100%. Si tu attends deux heures, le doute s'installe. Ta première victoire de closeuse, c'est la réactivité."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>15 MINUTES CHRONO • Réactivité = 85% de conversion validée</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:15 - 00:38</span>
+          <span class="scene-name">Scène 2 • La Posture Vocale d'Autorité & d'Écoute</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 motion graphics. Clean stylized soundwave vibrating with golden energy. Split screen showing a red 'X' over an aggressive salesperson vs a glowing green checkmark over a calm, smiling executive consultant holding a headset. Minimal text: "Le sourire au téléphone s'entend".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Tu n'es pas une télévendeuse qui supplie d'acheter. Tu es une gestionnaire de livraison officielle. Ton ton doit être posé, net, rassurant. Quand tu décroches, tu souris : le sourire s'entend instantanément à travers le combiné. Salue avec respect : 'Bonjour Monsieur Koffi, je suis Amina du service de confirmation WariTrack pour votre colis.'"</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Posture Conseillère Officielle • Politesse & Sourire au combiné</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:38 - 00:55</span>
+          <span class="scene-name">Scène 3 • La Réassurance du Paiement après Contrôle</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 3D animation. A sleek cardboard parcel with a holographic security seal. The box opens smoothly, revealing a verified item. A hand exchanges cash with a delivery courier. Text badge in clean emerald: "Paiement à la livraison après vérification".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"En Afrique de l'Ouest, la peur des arnaques en ligne est le premier frein. Ta formule magique doit être systématique : 'Monsieur Koffi, vous ne payez rien maintenant. Le coursier arrive chez vous, vous ouvrez le colis avec lui, vous contrôlez votre produit, et vous réglez en espèces en toute sécurité.' En une phrase, tu élimines 90% des doutes."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>ZÉRO ARNAQUE • Colis ouvert et vérifié avant tout paiement cash</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- MODULE 2 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">VID-02</span>
+        <div class="module-title">Maîtrise de l'App Closeuse & Outils Intelligents</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">70 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:20</span>
+          <span class="scene-name">Scène 1 • Le Cockpit Mobile de la Closeuse</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 UI mobile showcase. Clean smartphone screen displaying the WariTrack Closeuse dashboard. Top tabs: "Nouveau", "En cours", "Programmé", "Injoignable". A finger taps the green call icon. CallBar timer starts ticking smoothly with audio wave.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Voici ton outil de travail : l'application WariTrack Closeuse. Sur ton tableau de bord, chaque commande est une fiche complète. En haut, tu as le bouton vert d'appel téléphonique et le bouton WhatsApp direct. Quand tu lances un appel, la barre CallBar calcule automatiquement la durée de ton échange pour suivre ta performance."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>WariTrack Closeuse • Appel 1-Clic • WhatsApp direct • Chrono d'appel</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:20 - 00:45</span>
+          <span class="scene-name">Scène 2 • Le Cycle des Statuts : En cours, Programmé & Injoignable</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 animation showing UI status cards morphing dynamically. From blue badge "Nouveau" to emerald badge "Confirmé (En cours)", amber badge "Programmé" with date picker, and red badge "Injoignable" with counter (1/3).
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Chaque commande doit avoir un statut exact. Si le client valide : clique sur 'Confirmer' pour passer la commande en cours. S'il demande à être livré vendredi après son salaire : clique sur 'Programmer' et choisis la date et l'heure exactes. Si le numéro ne décroche pas : clique sur 'Injoignable'. Règle d'or : on rappelle un injoignable trois fois avant tout abandon."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Statuts Clairs • Programmé avec créneau • Protocole 3 appels injoignable</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:45 - 01:10</span>
+          <span class="scene-name">Scène 3 • Qualification des Rejets, Notes & Assignation Livreur</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 screen capture. Close-up on rejection modal with dropdown: "Prix jugé trop élevé", "Doublon", "Hors zone". Finger types a clear note: "Client attend salaire le 28". Then finger scrolls down and assigns 'Moussa (Zone Agoè)' with green success toast.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Si un client annule, qualifie toujours le motif précis dans le menu : prix trop élevé, doublon ou hors zone, et ajoute une note. Enfin, dès confirmation, sélectionne le livreur de la zone du client. En une seconde, sa feuille de route vibre sur sa moto. Tu viens de transformer un lead en argent réel."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Qualification obligatoire des motifs • Notes terrain • Routage livreur immédiat</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- MODULE 3 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">VID-03</span>
+        <div class="module-title">Traitement d'Objections & Technique de l'Ego Boss</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">85 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <!-- MASTER SCRIPT HIGHLIGHT CARD -->
+    <div class="master-script-card no-break">
+      <div class="master-script-tag">Le Script Secret d'Élite • Objection Prix</div>
+      <div style="font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #fbbf24;">
+        Quand le client dit : "Madame, votre produit là est trop cher !"
+      </div>
+      <div class="script-quote">
+        "Oui, je comprends tout à fait Monsieur [Nom]. Ce produit-là n'est effectivement pas pour tout le monde.<br><br>
+        Sa qualité premium et son utilité en font un produit de très forte valeur.<br><br>
+        En réalité, nous sommes en promotion exclusive aujourd'hui : le vrai prix officiel est de <span style="text-decoration: line-through; color: #f87171;">[35 000 XOF]</span>, mais nous vous l'accordons exceptionnellement aujourd'hui à <strong>[22 000 XOF]</strong>."
+      </div>
+      <div class="script-breakdown">
+        <div class="breakdown-item">
+          <div class="breakdown-title">1. Empathie Totale</div>
+          <div class="breakdown-desc">"Oui je comprends tout à fait..." — Ne jamais s'opposer, désarmer le client.</div>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-title">2. L'Aiguillon de l'Ego</div>
+          <div class="breakdown-desc">"Ce n'est pas pour tout le monde" — Pique sa fierté d'homme/femme de standing.</div>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-title">3. Justification de Valeur</div>
+          <div class="breakdown-desc">"Qualité premium et utilité durable" — Déplace le débat du coût vers le bénéfice.</div>
+        </div>
+        <div class="breakdown-item">
+          <div class="breakdown-title">4. Contraste de Prix Barré</div>
+          <div class="breakdown-desc">Prix normal élevé vs Promo limitée — Crée une urgence d'achat d'opportunité.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:20</span>
+          <span class="scene-name">Scène 1 • Le Piège de la Panique vs La Réponse Royale</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 cinematic graphic. An iconic dialogue bubble with bold red letters: "C'EST TROP CHER !". A novice seller panics and lowers the price with a falling graph. Big red stamp: "ERREUR FATALE : Ne brade JAMAIS ton produit".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Quand un client te dit : 'Madame, votre produit est trop cher', 90% des débutantes commettent l'erreur fatale : elles s'excusent ou cassent le prix. Erreur ! En faisant ça, tu prouves que ton produit ne vaut rien. Aujourd'hui, je te donne le script qui retourne la vente en touchant son ego d'homme ou de femme de valeur."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Interdiction de brader • Ne jamais baisser le prix sans raison</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:20 - 00:55</span>
+          <span class="scene-name">Scène 2 • Pourquoi la Méthode Fait Mouche</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 luxury motion design. A 3D chess King in polished obsidian and gold. Large, elegant serif typography scrolling smoothly with highlighting on each spoken word: "Ce produit n'est pas pour tout le monde." The regular price appears in bold gold, then the limited promo price.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Pourquoi cette méthode est irrésistible ? Parce qu'aucun responsable, aucun chef de famille ne veut admettre qu'un produit de qualité est au-dessus de ses moyens. En disant que ce n'est pas pour tout le monde, tu touches sa fierté. Il se voit comme un boss qui mérite l'excellence. Et avec le prix officiel supérieur barré, il comprend qu'il fait une affaire d'or."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Piquer l'ego sans blesser • Le client veut se prouver qu'il est un boss</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:55 - 01:25</span>
+          <span class="scene-name">Scène 3 • Le Dosage Parfait (Zéro Arrogance)</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 card. Golden scales of justice balancing 'Respect Chaleureux' and 'Fermeté Inébranlable'. Text: "Fermeté Royale • Zéro Arrogance".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Attention au dosage : ce n'est pas du mépris, c'est du respect de la valeur. Dis-le avec un sourire chaleureux et une voix calme et ferme. Le client doit sentir que tu l'élèves vers le haut. Répète cette phrase cinq fois devant ton miroir ce matin avant de démarrer tes appels."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Voix calme et respectueuse • Élévation du client • Silence d'or après le prix</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- MODULE 4 -->
+  <div class="module-card">
+    <div class="module-header">
+      <div class="module-badge-title">
+        <span class="module-num">VID-04</span>
+        <div class="module-title">Qualification Logistique & Verrouillage de la Livraison</div>
+      </div>
+      <div class="spec-pills">
+        <span class="pill pill-accent">70 Secondes</span>
+        <span class="pill">Format 9:16</span>
+      </div>
+    </div>
+
+    <div class="scene-grid">
+      <!-- Scene 1 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:00 - 00:20</span>
+          <span class="scene-name">Scène 1 • Le Piège de l'Adresse Vague en Afrique</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 motion graphics. A courier lost at a busy African crossroads looking at his phone in frustration. Red warning sign: "JE SUIS VERS LA PHARMACIE". Graphic morphs into an exact 3-point GPS pinned map.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"En Afrique de l'Ouest, un client qui te dit 'Je suis à Yopougon vers la pharmacie' ou 'À Lomé non loin du carrefour' est un colis qui a 70% de chance d'échouer. Le livreur tourne en rond, le carburant brûle, le client s'énerve et éteint son téléphone. Ton rôle de closeuse est de verrouiller l'adresse au mètre près."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Adresses vagues = Échec assuré • Exiger la précision géographique</span>
+        </div>
+      </div>
+
+      <!-- Scene 2 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:20 - 00:45</span>
+          <span class="scene-name">Scène 2 • La Règle du Repère Triple & Position WhatsApp</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 3D animated diagram showing three golden pillars connecting: 1. Commune/Quartier, 2. Bâtiment indéboulonnable, 3. Détail du portail. Smartphone pops up with WhatsApp live location pin.
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Exige toujours la Règle du Repère Triple : Un, la ville et le quartier exact. Deux, un repère officiel indéboulonnable : une école, une station Total, une pharmacie connue. Trois, le repère visuel : 'Deuxième ruelle à droite, portail vert'. Et envoie immédiatement le message WhatsApp depuis l'app pour récupérer son point GPS."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Repère Triple : Quartier + Lieu public connu + Portail visuel + GPS WhatsApp</span>
+        </div>
+      </div>
+
+      <!-- Scene 3 -->
+      <div class="scene-item">
+        <div class="scene-top">
+          <span class="scene-chrono">00:45 - 01:10</span>
+          <span class="scene-name">Scène 3 • L'Appoint Cash & L'Engagement d'Honneur</span>
+        </div>
+        <div class="visual-prompt-box">
+          <div class="visual-prompt-title">Google Flow / Motion Prompt (9:16)</div>
+          Vertical 9:16 high-contrast shot. Clean crisp CFA banknotes neatly placed next to a receipt. Two hands sealing a golden handshake contract. Clock showing 14:00 - 16:00. Text: "Engagement d'honneur validé".
+        </div>
+        <div class="voiceover-box">
+          <div class="voiceover-title">Voix-off</div>
+          <div class="voiceover-text">"Annonce toujours le montant exact : 'Monsieur Koffi, le montant est de 24 500 Francs, préparez s'il vous plaît le compte juste pour éviter le problème de monnaie avec le coursier.' Et termine par l'engagement : 'Le coursier part spécialement pour vous. Puis-je compter sur votre présence ferme cet après-midi ?' Sa parole est engagée, la vente est verrouillée."</div>
+        </div>
+        <div class="onscreen-text-box">
+          <span class="onscreen-badge">Texte Écran</span>
+          <span>Annonce de l'appoint cash • Question d'honneur • Vente verrouillée</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div>WariTrack COD OS • Module de Formation Interne — Usage Strictement Réservé</div>
+    <div>Document officiel généré pour l'équipe WariTrack • Page 1/1</div>
+  </div>
+
+</body>
+</html>
