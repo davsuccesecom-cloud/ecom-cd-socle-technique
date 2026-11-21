@@ -40,6 +40,7 @@ import {
   type AiChatMessage,
   type LivreurCashAiSummary,
   type LogisticsAlertsContext,
+  type ProductFinancialDetail,
 } from "../services/aiService";
 import { splitMessage, type ChartSpec } from "../lib/aiChart";
 import ProChart from "../components/ProChart";
@@ -400,17 +401,28 @@ export default function AiAssistant({
   }, [workspaceId]);
 
   useEffect(() => {
-    if (!workspaceId || !team?.id) {
+    if (!workspaceId) {
       setStocks([]);
       return;
     }
     const db = getDb();
-    const stockCol = collection(db, `workspaces/${workspaceId}/teams/${team.id}/stocks`);
-    const unsub = onSnapshot(stockCol, (snap) => {
-      setStocks(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<ProductStock, "id">) })));
-    });
+    const stockCol = collection(db, "workspaces", workspaceId, "stocks");
+    const unsub = onSnapshot(
+      stockCol,
+      (snap) => {
+        const list: ProductStock[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as any;
+          if (!data.isLedgerEntry) {
+            list.push({ id: d.id, ...data });
+          }
+        });
+        setStocks(list);
+      },
+      (err) => console.warn("Écoute stocks dans AiAssistant :", err)
+    );
     return () => unsub();
-  }, [workspaceId, team?.id]);
+  }, [workspaceId]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -766,6 +778,105 @@ export default function AiAssistant({
           threshold: s.lowStockThreshold || 5,
           totalSold: s.totalSold || 0,
         })),
+      productsFinancial: (() => {
+        const productStatsMap = new Map<
+          string,
+          {
+            name: string;
+            totalCount: number;
+            deliveredUnits: number;
+            revenue: number;
+          }
+        >();
+
+        orders.forEach((o) => {
+          const rawName = (o.product || "Produit standard").trim();
+          const key = rawName.toLowerCase();
+          const cur = productStatsMap.get(key) || { name: rawName, totalCount: 0, deliveredUnits: 0, revenue: 0 };
+          cur.totalCount += 1;
+          const isDelivered = o.statutLivreur === "livre" || o.statutCloseuse === "livre";
+          if (isDelivered) {
+            const q = Number(o.quantity) || 1;
+            cur.deliveredUnits += q;
+            cur.revenue += Number(o.amount ?? (o as any).price ?? 0);
+          }
+          productStatsMap.set(key, cur);
+        });
+
+        // Inclure également les stocks configurés même sans commande active
+        stocks.forEach((s) => {
+          const rawName = s.productName || s.id;
+          const key = rawName.toLowerCase();
+          if (!productStatsMap.has(key)) {
+            productStatsMap.set(key, { name: rawName, totalCount: 0, deliveredUnits: 0, revenue: 0 });
+          }
+        });
+
+        const list: ProductFinancialDetail[] = [];
+        productStatsMap.forEach((stat, key) => {
+          const stockDoc = stocks.find(
+            (s) =>
+              (s.productName || s.id).toLowerCase() === key ||
+              s.id.toLowerCase().replace(/[^a-z0-9]/gi, "_") === key.replace(/[^a-z0-9]/gi, "_") ||
+              (s.productName && key.includes(s.productName.toLowerCase())) ||
+              (s.productName && s.productName.toLowerCase().includes(key))
+          );
+
+          const cogsUnitPrice = stockDoc?.cogsUnitPrice || 2500;
+          const transitTotalCost = (stockDoc as any)?.transitTotalCost || 120000;
+          const transitQuantity = (stockDoc as any)?.transitQuantity || 50;
+          const transitUnitCost =
+            stockDoc?.transitUnitCost || Math.round(transitTotalCost / Math.max(1, transitQuantity));
+          const landedCost = cogsUnitPrice + transitUnitCost;
+
+          const commCloseuse = team?.remunerationCloseusePerOrder ?? 350;
+          const commLivreur = team?.remunerationLivreurPerOrder ?? 700;
+          const commTotal = commCloseuse + commLivreur;
+
+          const sellingPriceAvg =
+            stat.deliveredUnits > 0
+              ? Math.round(stat.revenue / stat.deliveredUnits)
+              : (stockDoc?.sellingPriceAvg || 10000);
+          const netMarginPerUnit = sellingPriceAvg - landedCost - commTotal;
+          const totalNetMargin = stat.deliveredUnits * netMarginPerUnit;
+
+          // Règle de trésorerie : 65% réinjecté / 35% extrait
+          const totalCashCollected = stat.revenue;
+          const reinvestment65 = Math.round(totalCashCollected * 0.65);
+          const extraction35 = Math.round(totalCashCollected * 0.35);
+
+          const currentStock = stockDoc?.quantityOnHand ?? Math.max(0, 50 - stat.deliveredUnits);
+          const dailyVelocity = stat.deliveredUnits > 0 ? Number((stat.deliveredUnits / 7).toFixed(2)) : 0;
+          const daysCovered =
+            dailyVelocity > 0 ? Math.round(currentStock / dailyVelocity) : currentStock > 0 ? 999 : 0;
+          const recommendedOrderFor30Days = Math.max(0, Math.ceil(dailyVelocity * 30 - currentStock));
+
+          list.push({
+            productName: stat.name,
+            source: (stockDoc as any)?.source || (stockDoc?.azifySyncedAt || (stockDoc as any)?.shopifyProductId ? "Azify / Shopify" : "Manuel"),
+            currentStock,
+            totalSold: stat.totalCount,
+            deliveredUnits: stat.deliveredUnits,
+            revenue: stat.revenue,
+            cogsUnitPrice,
+            transitUnitCost,
+            landedCost,
+            sellingPriceAvg,
+            commissionsPerUnit: commTotal,
+            netMarginPerUnit,
+            totalNetMargin,
+            reinvestment65,
+            extraction35,
+            dailyVelocity,
+            daysCovered,
+            recommendedOrderFor30Days,
+            metaCampaign: (stockDoc as any)?.metaCampaign,
+            metaAdSpend: (stockDoc as any)?.metaAdSpend,
+          });
+        });
+
+        return list;
+      })(),
       languageCoverage: (() => {
         const demandedLangsSet = new Set<string>();
         orders.forEach((o) => {

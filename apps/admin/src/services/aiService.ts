@@ -122,11 +122,35 @@ export interface BusinessMetricsContext {
     threshold: number;
     totalSold: number;
   }[];
+  productsFinancial?: ProductFinancialDetail[];
   languageCoverage?: {
     availableLanguages: string[];
     demandedLanguages: string[];
     gapAlerts: string[];
   };
+}
+
+export interface ProductFinancialDetail {
+  productName: string;
+  source: string;
+  currentStock: number;
+  totalSold: number;
+  deliveredUnits: number;
+  revenue: number;
+  cogsUnitPrice: number;
+  transitUnitCost: number;
+  landedCost: number;
+  sellingPriceAvg: number;
+  commissionsPerUnit: number;
+  netMarginPerUnit: number;
+  totalNetMargin: number;
+  reinvestment65: number;
+  extraction35: number;
+  dailyVelocity: number;
+  daysCovered: number;
+  recommendedOrderFor30Days: number;
+  metaCampaign?: string;
+  metaAdSpend?: number;
 }
 
 export interface AiChatMessage {
@@ -281,6 +305,32 @@ ${
     : "- Aucun produit en rupture ou en zone d'alerte critique sur ce marché."
 }
 
+INVENTAIRE DES PRODUITS, STOCKS RÉELS & COMPTABILITÉ FINANCIÈRE PAR PRODUIT :
+${
+  context.productsFinancial?.length
+    ? context.productsFinancial
+        .map(
+          (p) => `📦 PRODUIT : "${p.productName}" (Source: ${p.source})
+  • Stock restant physique : ${p.currentStock} pcs disponibles en réserve
+  • Ventes livrées & encaissées (période) : ${p.deliveredUnits} pcs (sur ${p.totalSold} commandes reçues)
+  • Chiffre d'Affaires Encaissé : ${p.revenue.toLocaleString()} ${context.currency} (Prix unitaire moyen : ${p.sellingPriceAvg.toLocaleString()} ${context.currency})
+  • Coût Achat Usine : ${p.cogsUnitPrice.toLocaleString()} ${context.currency}/pc
+  • Fret & Douane unitaire : ${p.transitUnitCost.toLocaleString()} ${context.currency}/pc
+  • Coût de Revient Total (Landed Cost) : ${p.landedCost.toLocaleString()} ${context.currency}/pc
+  • Commissions COD (Closeuse + Livreur) : ${p.commissionsPerUnit.toLocaleString()} ${context.currency}/pc
+  • Marge Nette Réelle par pièce : ${p.netMarginPerUnit >= 0 ? "+" : ""}${p.netMarginPerUnit.toLocaleString()} ${context.currency}
+  • Marge Nette Totale dégagée : ${p.totalNetMargin.toLocaleString()} ${context.currency}
+  • Ventilation du Cash (Trésorerie 65% / 35%) :
+    - 65 % à Réinjecter (fonds de roulement, réachat stock, pubs) : ${p.reinvestment65.toLocaleString()} ${context.currency}
+    - 35 % à Extraire (bénéfice net propriétaire / dividendes) : ${p.extraction35.toLocaleString()} ${context.currency}
+  • Rythme de vente quotidien : ${p.dailyVelocity} pcs/jour
+  • Couverture de stock restante : ${p.daysCovered} jours avant rupture
+  • Réapprovisionnement suggéré pour tenir 30 jours : ${p.recommendedOrderFor30Days} pièces à commander`
+        )
+        .join("\n\n")
+    : "- Données financières détaillées par produit en cours de synchronisation."
+}
+
 COMPÉTENCES LINGUISTIQUES & COUVERTURE DES DIALECTES :
 ${
   context.languageCoverage?.gapAlerts?.length
@@ -294,6 +344,18 @@ RÈGLES D'ANALYSE, SUPERVISION & CONTRÔLE :
 3. Dès qu'une analyse porte sur une évolution temporelle ou une comparaison de volumes, insère un bloc graphique interactif (\`\`\`chart ... \`\`\`).
 4. Pour toute demande de FORMATION (closeuses ou livreurs) : structure un programme concret en 4 volets basé sur les vraies objections et notes terrain du pays (${context.country}) : (a) Diagnostic des pertes actuelles chiffrées, (b) Scripts vocaux & WhatsApp mot-à-mot adaptés au marché local, (c) Procédure terrain / SLA horaire optimal selon les courbes de refroidissement, (d) Jeux de rôle et grille d'évaluation hebdomadaire.
 5. Pour toute demande de BILAN STRATÉGIQUE PAYS ou HACKS COD : quantifie l'écart de réussite entre livraisons <6h vs >24h, identifie les créneaux gagnants et les quartiers à risque, et propose un plan d'exécution immédiat à fort ROI.
+6. POUR TOUTE DEMANDE DE COMPTABILITÉ, RENTABILITÉ OU BILAN D'UN PRODUIT (ex: Civière d'Orcale, Dentifrice, etc.) :
+   Tu DOIS t'appuyer OBLIGATOIREMENT sur les données de la section "INVENTAIRE DES PRODUITS, STOCKS RÉELS & COMPTABILITÉ FINANCIÈRE PAR PRODUIT".
+   Fournis une synthèse nette, rigoureuse et structurée contenant :
+   a) Stock physique restant exact en réserve (en nombre de pièces).
+   b) Ventes et livraisons de la période (pièces livrées et CA encaissé).
+   c) Dépenses et Coûts unitaires : Prix d'achat usine, Fret/Douane unitaire (Landed Cost), et Commissions COD (closeuse + livreur).
+   d) Rentabilité Réelle : Marge nette par pièce et Bénéfice Net total dégagé.
+   e) Ventilation du Cash (Trésorerie) :
+      - 65 % à Réinjecter (fonds de roulement, réapprovisionnement de stock, budget pub).
+      - 35 % à Extraire (bénéfice net retirable pour le propriétaire / dividende).
+   f) Rythme de vente (vélocité/jour), Jours de couverture de stock restants et Réapprovisionnement suggéré pour tenir 30 jours.
+   Ne dis JAMAIS que tu n'as pas accès aux stocks quand le produit est présent dans l'inventaire ci-dessus.
 
 INTELLIGENCE COD AFRIQUE MULTI-PAYS (BASE COLLECTÉE EN CONTINU) :
 ${formatCodInsightsSection(context.codInsights, context.country)}
