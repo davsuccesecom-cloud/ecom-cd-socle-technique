@@ -1227,6 +1227,10 @@ export const onOrderCreated = onDocumentCreated(
               statutCloseuse: order.statutCloseuse || 'nouveau',
               orderNumber: order.orderNumber,
               orderId: snap.id,
+              notes: order.notes || order.addressNote || '',
+              addressNote: order.addressNote || '',
+              mapUrl: order.mapUrl || order.googleMapsUrl || '',
+              promoCode: order.promoCode || '',
             });
             if (appendRes) {
               await snap.ref.update({
@@ -1365,6 +1369,10 @@ export const onOrderCreated = onDocumentCreated(
             statutCloseuse: order.statutCloseuse || 'nouveau',
             orderNumber: order.orderNumber,
             orderId: snap.id,
+            notes: order.notes || order.addressNote || '',
+            addressNote: order.addressNote || '',
+            mapUrl: order.mapUrl || order.googleMapsUrl || '',
+            promoCode: order.promoCode || '',
           });
           if (appendRes) {
             await snap.ref.update({

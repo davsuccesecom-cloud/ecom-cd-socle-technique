@@ -397,6 +397,29 @@ export default function OrderCard({
           </p>
         )}
 
+        {(order.mapUrl || (order as any).googleMapsUrl || (order as any).gpsCoordinates) && (
+          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-600/50">
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+              <MapPin className="h-3 w-3 text-emerald-500 shrink-0" />
+              <span>Position GPS réelle</span>
+            </span>
+            <a
+              href={order.mapUrl || (order as any).googleMapsUrl || `https://www.google.com/maps?q=${(order as any).gpsCoordinates}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-[10px] font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900 transition shrink-0"
+            >
+              <span>Voir sur Maps ↗</span>
+            </a>
+          </div>
+        )}
+
+        {order.notes && (
+          <div className="rounded-lg bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/50 p-2 text-[11px] text-amber-900 dark:text-amber-200">
+            <span className="font-semibold">Note / Instruction client :</span> « {order.notes} »
+          </div>
+        )}
+
         {order.reminderAt && (
           <p className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
             <Clock className="h-3.5 w-3.5 shrink-0" />
@@ -430,11 +453,25 @@ export default function OrderCard({
         </div>
       )}
 
-      {/* Prix net en tabular-nums */}
+      {/* Prix net en tabular-nums avec prise en compte immédiate code promo */}
       <div className="mb-2 flex items-baseline justify-between">
-        <p className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
-          {formattedAmount}
-        </p>
+        <div>
+          <div className="flex items-baseline gap-2">
+            <p className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
+              {formattedAmount}
+            </p>
+            {order.originalAmount && order.originalAmount > order.amount && (
+              <span className="text-xs line-through text-slate-400 tabular-nums">
+                {formatCurrency(order.originalAmount, currency)}
+              </span>
+            )}
+          </div>
+          {order.promoCode && (
+            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+              🏷️ Code promo {order.promoCode} {order.discountAmount ? `(-${formatCurrency(order.discountAmount, currency)})` : "appliqué"}
+            </p>
+          )}
+        </div>
         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
           Cash à la livraison
         </span>

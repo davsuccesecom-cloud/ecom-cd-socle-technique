@@ -89,13 +89,28 @@ export interface Order {
   clientPhoneRaw: string; // tel que reçu du Sheet
   clientPhoneFormatted: string; // formaté via libphonenumber-js
   city?: string;
+  address?: string; // Rue, quartier, commune
   addressNote?: string;
+  notes?: string; // Remarques & instructions de livraison client
   product: string;
   productImageUrl?: string;
   quantity?: number;
   amount: number;
+  originalAmount?: number; // Montant initial avant code promo / réduction
+  promoCode?: string; // Code promo / réduction appliqué (ex: PROMO10, RAMADAN)
+  discountAmount?: number; // Valeur nette de la remise déduite du montant
+  discountPercent?: number | null; // Pourcentage éventuel de la réduction
   orderNumber?: string;
   deliverySlipNumber?: string;
+  items?: Array<{ product: string; quantity: number; price?: number }>; // Liste détaillée des articles / packs
+
+  // Localisation Map & GPS Réelle (Azify / Google Maps)
+  mapUrl?: string; // URL directe Google Maps ou lien pin
+  googleMapsUrl?: string; // Alias pour compatibilité
+  gpsCoordinates?: string; // Coordonnées formatées "lat,lng"
+  latitude?: number;
+  longitude?: number;
+  mapAddress?: string; // Adresse textuelle précise issue de la carte;
 
   closeuseId: string | null;
   livreurId: string | null;

@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 exports.detectAfricanCountry = detectAfricanCountry;
 exports.syncOrderUpdateToAzify = syncOrderUpdateToAzify;
+const azifyGateway_1 = require("./azifyGateway");
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -1129,6 +1130,16 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             capiIsolated = true;
             attributionDetail = "Organique / Hors campagne (Trafic naturel direct sans clic publicitaire)";
         }
+        // Extraction enrichie : Carte Maps réelle, Remarques & Notes, Quantités & Code Promo
+        const mapInfo = (0, azifyGateway_1.extractMapAndLocation)(root);
+        const notesInfo = (0, azifyGateway_1.extractNotesAndAddress)(root);
+        const pricingInfo = (0, azifyGateway_1.calculateOrderPricing)(root);
+        const qtyInfo = (0, azifyGateway_1.extractQuantityAndItems)(root);
+        const effectiveFinalAmount = pricingInfo.amount > 0 ? pricingInfo.amount : (Number(amount) || 0);
+        const effectiveOriginalAmount = pricingInfo.originalAmount > 0 ? pricingInfo.originalAmount : effectiveFinalAmount;
+        const effectiveQty = qtyInfo.quantity > 0 ? qtyInfo.quantity : (Number(quantity) || 1);
+        const effectiveMapUrl = mapInfo.mapUrl || googleMapsUrl || (positionGps ? `https://www.google.com/maps?q=${positionGps}` : null);
+        const effectiveGps = mapInfo.gpsCoordinates || positionGps || null;
         // =====================================================================
         // ENREGISTREMENT DE LA COMMANDE DANS FIRESTORE
         // =====================================================================
@@ -1151,11 +1162,17 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             clientPhoneRaw: rawPhone || "",
             clientPhoneFormatted: phoneNormalized || rawPhone || "Non renseigné",
             city: city || "",
-            addressNote: shipping.address1 || root.address || root.note || "",
+            address: notesInfo.address || shipping.address1 || undefined,
+            notes: notesInfo.notes || undefined,
+            addressNote: notesInfo.addressNote || shipping.address1 || root.address || root.note || "",
             product: product || "Produit COD",
             productImageUrl,
-            quantity: Number(quantity) || 1,
-            amount: Number(amount) || 0,
+            quantity: effectiveQty,
+            amount: effectiveFinalAmount,
+            originalAmount: effectiveOriginalAmount,
+            promoCode: pricingInfo.promoCode,
+            discountAmount: pricingInfo.discountAmount,
+            discountPercent: pricingInfo.discountPercent,
             orderNumber: orderNumber || `#${shopifyOrderId}`,
             clientLanguage: root.clientLanguage ||
                 noteMap["clientlanguage"] ||
@@ -1176,8 +1193,12 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             callInProgress: null,
             reminderAt: null,
             temperature: "hot",
-            googleMapsUrl: googleMapsUrl || (positionGps ? `https://www.google.com/maps?q=${positionGps}` : null),
-            gpsCoordinates: positionGps || null,
+            mapUrl: effectiveMapUrl,
+            googleMapsUrl: effectiveMapUrl,
+            gpsCoordinates: effectiveGps,
+            latitude: mapInfo.latitude,
+            longitude: mapInfo.longitude,
+            mapAddress: mapInfo.mapAddress,
             gpsAccuracy: precisionGps || null,
             isDuplicatePhone,
             previousOrdersCount,

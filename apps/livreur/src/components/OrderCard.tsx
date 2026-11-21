@@ -87,7 +87,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
   const mapsQuery = displayLocation
     ? encodeURIComponent(`${displayLocation} ${distinctAddressNote}`.trim())
     : null;
-  const directMapsUrl = (order as any).googleMapsUrl || (order.shopifyData as any)?.googleMapsUrl;
+  const directMapsUrl = (order as any).mapUrl || (order as any).googleMapsUrl || (order.shopifyData as any)?.googleMapsUrl;
   const directGpsCoords = (order as any).gpsCoordinates || (order.shopifyData as any)?.gpsCoordinates;
   const mapsHref = directMapsUrl
     ? directMapsUrl
@@ -219,6 +219,12 @@ const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack
             </p>
           )}
 
+          {order.notes && (
+            <div className="ml-5 mt-1 rounded-lg bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/50 p-2 text-[11px] text-amber-900 dark:text-amber-200">
+              <span className="font-semibold">Note / Instruction client :</span> « {order.notes} »
+            </div>
+          )}
+
           {order.quantity && order.quantity > 1 && (
             <p className="pl-5 text-slate-600 dark:text-slate-300">
               Quantité à remettre :{" "}
@@ -247,9 +253,23 @@ const whatsAppMessage = `Bonjour ${displayName}, je suis votre livreur WariTrack
       )}
 
       <div className="mb-2 flex items-baseline justify-between">
-        <p className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
-          {formattedAmount}
-        </p>
+        <div>
+          <div className="flex items-baseline gap-2">
+            <p className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">
+              {formattedAmount}
+            </p>
+            {order.originalAmount && order.originalAmount > order.amount && (
+              <span className="text-xs line-through text-slate-400 tabular-nums">
+                {formatCurrency(order.originalAmount, currency)}
+              </span>
+            )}
+          </div>
+          {order.promoCode && (
+            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+              🏷️ Code promo {order.promoCode} {order.discountAmount ? `(-${formatCurrency(order.discountAmount, currency)})` : "appliqué"}
+            </p>
+          )}
+        </div>
         <span
           className={`text-[11px] font-medium ${
             status === "livre"

@@ -60,6 +60,337 @@ function parseJsonBody(req: any): any {
  * 3. GET  /status  : Contrôle de santé et télémétrie en temps réel
  * 4. POST /webhook : Ingestion directe de commandes COD depuis Azify
  */
+
+/**
+ * Extrait et valide les données de géolocalisation et carte réelle (Google Maps / GPS)
+ */
+export function extractMapAndLocation(root: any): {
+  mapUrl: string | null;
+  googleMapsUrl: string | null;
+  gpsCoordinates: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  mapAddress: string | null;
+} {
+  let mapUrl = String(
+    root.mapUrl ||
+    root.mapsUrl ||
+    root.googleMapsUrl ||
+    root.mapLink ||
+    root.locationUrl ||
+    root.gpsLink ||
+    root.map_url ||
+    root.location_url ||
+    (root.geo && (root.geo.mapUrl || root.geo.url)) ||
+    ""
+  ).trim() || null;
+
+  let latRaw =
+    root.latitude ??
+    root.lat ??
+    (root.geo && (root.geo.latitude ?? root.geo.lat)) ??
+    (root.coordinates && typeof root.coordinates === "object" && !Array.isArray(root.coordinates)
+      ? (root.coordinates.lat ?? root.coordinates.latitude)
+      : null);
+
+  let lngRaw =
+    root.longitude ??
+    root.lng ??
+    root.lon ??
+    (root.geo && (root.geo.longitude ?? root.geo.lng ?? root.geo.lon)) ??
+    (root.coordinates && typeof root.coordinates === "object" && !Array.isArray(root.coordinates)
+      ? (root.coordinates.lng ?? root.coordinates.longitude)
+      : null);
+
+  if (root.coordinates && typeof root.coordinates === "string") {
+    const parts = root.coordinates.split(",").map((s: string) => parseFloat(s.trim()));
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      latRaw = parts[0];
+      lngRaw = parts[1];
+    }
+  } else if (Array.isArray(root.coordinates) && root.coordinates.length >= 2) {
+    const p0 = parseFloat(root.coordinates[0]);
+    const p1 = parseFloat(root.coordinates[1]);
+    if (!isNaN(p0) && !isNaN(p1)) {
+      latRaw = p0;
+      lngRaw = p1;
+    }
+  }
+
+  const latitude = typeof latRaw === "number" && !isNaN(latRaw) ? latRaw : (latRaw ? parseFloat(latRaw) : null);
+  const longitude = typeof lngRaw === "number" && !isNaN(lngRaw) ? lngRaw : (lngRaw ? parseFloat(lngRaw) : null);
+
+  let gpsCoordinates: string | null = null;
+  if (latitude !== null && !isNaN(latitude) && longitude !== null && !isNaN(longitude)) {
+    gpsCoordinates = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+    if (!mapUrl) {
+      mapUrl = `https://www.google.com/maps?q=${gpsCoordinates}`;
+    }
+  }
+
+  const mapAddress = String(
+    root.mapAddress ||
+    root.addressMap ||
+    root.locationName ||
+    root.geoAddress ||
+    (root.geo && root.geo.address) ||
+    ""
+  ).trim() || null;
+
+  return {
+    mapUrl,
+    googleMapsUrl: mapUrl,
+    gpsCoordinates,
+    latitude: latitude !== null && !isNaN(latitude) ? latitude : null,
+    longitude: longitude !== null && !isNaN(longitude) ? longitude : null,
+    mapAddress,
+  };
+}
+
+/**
+ * Extrait distinctement l'adresse physique et les remarques/instructions de livraison
+ */
+export function extractNotesAndAddress(root: any): {
+  address: string;
+  notes: string;
+  addressNote: string;
+} {
+  const address = String(
+    root.address ||
+    root.adresse ||
+    root.street ||
+    root.quartier ||
+    root.commune ||
+    root.rue ||
+    root.location ||
+    ""
+  ).trim();
+
+  const notes = String(
+    root.note ||
+    root.notes ||
+    root.clientNote ||
+    root.orderNote ||
+    root.instructions ||
+    root.instruction ||
+    root.remarques ||
+    root.remarque ||
+    root.message ||
+    root.livraisonInstructions ||
+    ""
+  ).trim();
+
+  let addressNote = "";
+  if (address && notes) {
+    addressNote = `${address} — (${notes})`;
+  } else if (address) {
+    addressNote = address;
+  } else if (notes) {
+    addressNote = notes;
+  } else {
+    addressNote = String(root.addressNote || root.deliveryNote || "").trim();
+  }
+
+  return {
+    address,
+    notes,
+    addressNote,
+  };
+}
+
+/**
+ * Calcule immédiatement et rigoureusement le montant COD net avec prise en compte des codes promos
+ */
+export function calculateOrderPricing(root: any): {
+  amount: number;
+  originalAmount: number;
+  promoCode: string | null;
+  discountAmount: number;
+  discountPercent: number | null;
+} {
+  const promoCodeRaw = String(
+    root.promoCode ||
+    root.couponCode ||
+    root.codePromo ||
+    root.discountCode ||
+    root.coupon ||
+    ""
+  ).trim().toUpperCase();
+  const promoCode = promoCodeRaw || null;
+
+  let discountAmount = Number(
+    root.discountAmount ||
+    root.discount ||
+    root.reduction ||
+    root.couponAmount ||
+    0
+  );
+  if (isNaN(discountAmount) || discountAmount < 0) discountAmount = 0;
+
+  let discountPercent = Number(
+    root.discountPercent ||
+    root.discountPercentage ||
+    root.discountRate ||
+    root.reductionPourcentage ||
+    0
+  ) || null;
+
+  let originalAmount = Number(
+    root.originalAmount ||
+    root.subtotal ||
+    root.prixInitial ||
+    root.totalBeforeDiscount ||
+    root.subtotalPrice ||
+    root.subtotal_price ||
+    0
+  );
+  if (isNaN(originalAmount) || originalAmount < 0) originalAmount = 0;
+
+  let rawAmount = Number(
+    root.amount ||
+    root.totalPrice ||
+    root.total_price ||
+    root.total ||
+    0
+  );
+  if (isNaN(rawAmount) || rawAmount < 0) rawAmount = 0;
+
+  // Calcul immédiat si code promo présent
+  if (promoCode) {
+    // Si pourcentage fourni
+    if (discountPercent && discountPercent > 0 && discountPercent <= 100) {
+      if (originalAmount <= 0 && rawAmount > 0) {
+        originalAmount = rawAmount;
+      }
+      if (originalAmount > 0) {
+        discountAmount = Math.round((originalAmount * discountPercent) / 100);
+        const netAmount = Math.max(0, originalAmount - discountAmount);
+        return {
+          amount: netAmount,
+          originalAmount,
+          promoCode,
+          discountAmount,
+          discountPercent,
+        };
+      }
+    }
+
+    // Si remise forfaitaire en valeur monétaire
+    if (discountAmount > 0) {
+      if (originalAmount > 0) {
+        const netAmount = Math.max(0, originalAmount - discountAmount);
+        return {
+          amount: netAmount,
+          originalAmount,
+          promoCode,
+          discountAmount,
+          discountPercent: null,
+        };
+      } else if (rawAmount > 0) {
+        if (root.alreadyDiscounted || root.isDiscountApplied === true) {
+          return {
+            amount: rawAmount,
+            originalAmount: rawAmount + discountAmount,
+            promoCode,
+            discountAmount,
+            discountPercent: null,
+          };
+        } else {
+          // Calcul immédiat exigé par l'utilisateur
+          const netAmount = Math.max(0, rawAmount - discountAmount);
+          return {
+            amount: netAmount,
+            originalAmount: rawAmount,
+            promoCode,
+            discountAmount,
+            discountPercent: null,
+          };
+        }
+      }
+    }
+
+    // Si Azify a fourni originalAmount et un rawAmount déjà réduit
+    if (originalAmount > 0 && rawAmount > 0 && originalAmount > rawAmount) {
+      discountAmount = originalAmount - rawAmount;
+      return {
+        amount: rawAmount,
+        originalAmount,
+        promoCode,
+        discountAmount,
+        discountPercent: null,
+      };
+    }
+  }
+
+  // Aucun code promo ou aucun rabais applicable
+  const finalAmount = rawAmount > 0 ? rawAmount : originalAmount;
+  return {
+    amount: finalAmount,
+    originalAmount: finalAmount,
+    promoCode,
+    discountAmount: 0,
+    discountPercent: null,
+  };
+}
+
+/**
+ * Extrait les quantités, packs et détail des articles
+ */
+export function extractQuantityAndItems(root: any): {
+  quantity: number;
+  items: Array<{ product: string; quantity: number; price?: number }>;
+} {
+  const itemsList: Array<{ product: string; quantity: number; price?: number }> = [];
+
+  const rawItems = Array.isArray(root.items)
+    ? root.items
+    : Array.isArray(root.line_items)
+      ? root.line_items
+      : Array.isArray(root.products)
+        ? root.products
+        : [];
+
+  let itemsQtySum = 0;
+  for (const it of rawItems) {
+    const q = Math.max(1, Number(it.quantity || it.qty || 1));
+    itemsQtySum += q;
+    itemsList.push({
+      product: String(it.title || it.name || it.product || it.productTitle || "Produit").trim(),
+      quantity: q,
+      price: Number(it.price || it.unitPrice || 0) || undefined,
+    });
+  }
+
+  let qty = Number(root.quantity || root.qty || 0);
+
+  // Détection des packs dans les libellés (ex: "Pack 2 pièces", "Lot de 3")
+  if (!qty && root.pack) {
+    if (typeof root.pack === "number" && root.pack > 0) {
+      qty = root.pack;
+    } else {
+      const match = String(root.pack).match(/(\d+)/);
+      if (match) qty = parseInt(match[1], 10);
+    }
+  }
+
+  if (!qty && itemsQtySum > 0) {
+    qty = itemsQtySum;
+  }
+
+  if (!qty) {
+    const prodStr = String(root.product || root.productTitle || "");
+    const match = prodStr.match(/(?:pack|lot|pack\s*de)\s*(\d+)/i);
+    if (match) {
+      qty = parseInt(match[1], 10);
+    }
+  }
+
+  return {
+    quantity: Math.max(1, qty || 1),
+    items: itemsList,
+  };
+}
+
 export const azifyGateway = onRequest(
   {
     region: "us-central1",
@@ -486,8 +817,13 @@ export const azifyGateway = onRequest(
             assignedTeamName = (first as any).name || "";
           }
 
+          const mapInfo = extractMapAndLocation(item);
+          const notesInfo = extractNotesAndAddress(item);
+          const pricingInfo = calculateOrderPricing(item);
+          const qtyInfo = extractQuantityAndItems(item);
+
           const orderRef = db.collection("workspaces").doc(targetWorkspaceId).collection("orders").doc(orderId);
-          const orderDoc = {
+          const orderDoc: Record<string, any> = {
             id: orderId,
             workspaceId: targetWorkspaceId,
             teamId: assignedTeamId,
@@ -501,10 +837,22 @@ export const azifyGateway = onRequest(
             clientPhoneRaw: rawPhone,
             clientPhoneFormatted: rawPhone || "Non renseigné",
             city,
-            addressNote: String(item.address || item.addressNote || item.note || ""),
+            address: notesInfo.address || undefined,
+            notes: notesInfo.notes || undefined,
+            addressNote: notesInfo.addressNote,
             product: String(item.product || item.productTitle || "Produit Azify COD"),
-            quantity: Number(item.quantity || 1),
-            amount: Number(item.amount || item.totalPrice || 0),
+            quantity: qtyInfo.quantity,
+            amount: pricingInfo.amount,
+            originalAmount: pricingInfo.originalAmount,
+            promoCode: pricingInfo.promoCode,
+            discountAmount: pricingInfo.discountAmount,
+            discountPercent: pricingInfo.discountPercent,
+            mapUrl: mapInfo.mapUrl,
+            googleMapsUrl: mapInfo.googleMapsUrl,
+            gpsCoordinates: mapInfo.gpsCoordinates,
+            latitude: mapInfo.latitude,
+            longitude: mapInfo.longitude,
+            mapAddress: mapInfo.mapAddress,
             orderNumber: item.orderNumber ? `#${String(item.orderNumber).replace(/^#/, "")}` : `#${orderId}`,
             sourcePlatform: "azify",
             azifyStoreId: connData.azifyStoreId || null,
@@ -519,6 +867,9 @@ export const azifyGateway = onRequest(
             capiSent: false,
             purgeAt: null,
           };
+          if (qtyInfo.items.length > 0) {
+            orderDoc.items = qtyInfo.items;
+          }
 
           batch.set(orderRef, orderDoc, { merge: true });
           results.push({ orderId, teamId: assignedTeamId, teamName: assignedTeamName, countryCode });
@@ -688,8 +1039,13 @@ export const azifyGateway = onRequest(
           }
         }
 
+        const mapInfo = extractMapAndLocation(root);
+        const notesInfo = extractNotesAndAddress(root);
+        const pricingInfo = calculateOrderPricing(root);
+        const qtyInfo = extractQuantityAndItems(root);
+
         const now = Date.now();
-        const orderDoc = {
+        const orderDoc: Record<string, any> = {
           id: orderId,
           workspaceId: targetWorkspaceId,
           teamId: assignedTeamId || "",
@@ -703,11 +1059,23 @@ export const azifyGateway = onRequest(
           clientPhoneRaw: rawPhone,
           clientPhoneFormatted: rawPhone || "Non renseigné",
           city,
-          addressNote: String(root.address || root.addressNote || root.note || ""),
+          address: notesInfo.address || undefined,
+          notes: notesInfo.notes || undefined,
+          addressNote: notesInfo.addressNote,
           product: String(root.product || root.productTitle || "Produit Azify COD"),
           productImageUrl: root.productImageUrl || root.image || null,
-          quantity: Number(root.quantity || 1),
-          amount: Number(root.amount || root.totalPrice || root.total_price || 0),
+          quantity: qtyInfo.quantity,
+          amount: pricingInfo.amount,
+          originalAmount: pricingInfo.originalAmount,
+          promoCode: pricingInfo.promoCode,
+          discountAmount: pricingInfo.discountAmount,
+          discountPercent: pricingInfo.discountPercent,
+          mapUrl: mapInfo.mapUrl,
+          googleMapsUrl: mapInfo.googleMapsUrl,
+          gpsCoordinates: mapInfo.gpsCoordinates,
+          latitude: mapInfo.latitude,
+          longitude: mapInfo.longitude,
+          mapAddress: mapInfo.mapAddress,
           orderNumber,
           sourcePlatform: "azify",
           azifyStoreId: connData.azifyStoreId || root.storeId || null,
@@ -735,6 +1103,9 @@ export const azifyGateway = onRequest(
           purgeAt: null,
           isUnrouted: Boolean(isUnrouted),
         };
+        if (qtyInfo.items.length > 0) {
+          orderDoc.items = qtyInfo.items;
+        }
 
         await existingOrderRef.set(orderDoc);
 
@@ -749,7 +1120,7 @@ export const azifyGateway = onRequest(
         }
 
         const executionTimeMs = Date.now() - startTime;
-        console.log(`azifyGateway [Direct API]: Commande ${orderId} reçue en ${executionTimeMs}ms et routée vers ${assignedTeamName} (${assignedTeamId}) - Pays: ${countryCode}`);
+        console.log(`azifyGateway [Direct API]: Commande ${orderId} reçue en ${executionTimeMs}ms et routée vers ${assignedTeamName} (${assignedTeamId}) - Pays: ${countryCode} - Montant Net: ${pricingInfo.amount} (Code: ${pricingInfo.promoCode || 'aucun'}, -${pricingInfo.discountAmount})`);
 
         res.status(200).json({
           success: true,
@@ -758,6 +1129,12 @@ export const azifyGateway = onRequest(
           assignedTeamId,
           assignedTeamName,
           countryCode,
+          amount: pricingInfo.amount,
+          originalAmount: pricingInfo.originalAmount,
+          promoCode: pricingInfo.promoCode,
+          discountAmount: pricingInfo.discountAmount,
+          quantity: qtyInfo.quantity,
+          mapUrl: mapInfo.mapUrl,
           isUnrouted,
           executionTimeMs,
           message: "Commande Azify reçue et routée avec succès via l'API Directe.",

@@ -1081,6 +1081,10 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
                         statutCloseuse: order.statutCloseuse || 'nouveau',
                         orderNumber: order.orderNumber,
                         orderId: snap.id,
+                        notes: order.notes || order.addressNote || '',
+                        addressNote: order.addressNote || '',
+                        mapUrl: order.mapUrl || order.googleMapsUrl || '',
+                        promoCode: order.promoCode || '',
                     });
                     if (appendRes) {
                         await snap.ref.update({
@@ -1182,6 +1186,10 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
                     statutCloseuse: order.statutCloseuse || 'nouveau',
                     orderNumber: order.orderNumber,
                     orderId: snap.id,
+                    notes: order.notes || order.addressNote || '',
+                    addressNote: order.addressNote || '',
+                    mapUrl: order.mapUrl || order.googleMapsUrl || '',
+                    promoCode: order.promoCode || '',
                 });
                 if (appendRes) {
                     await snap.ref.update({

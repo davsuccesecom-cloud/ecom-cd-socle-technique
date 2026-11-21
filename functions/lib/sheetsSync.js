@@ -119,6 +119,9 @@ async function detectAndEnsureSheetColumns(sheets, spreadsheetId, forceRefresh =
     let updatedAtCol = null;
     let reminderCol = null;
     let uidCol = null;
+    let noteCol = null;
+    let mapCol = null;
+    let promoCol = null;
     for (let i = 0; i < headers.length; i++) {
         const c = cleanHeader(headers[i]);
         if (!c)
@@ -234,8 +237,37 @@ async function detectAndEnsureSheetColumns(sheets, spreadsheetId, forceRefresh =
             (c.includes("uid") ||
                 (c.includes("id") && !c.includes("ville")) ||
                 c.includes("reference") ||
-                c.includes("code"))) {
+                (c.includes("code") && !c.includes("promo")))) {
             uidCol = i;
+            continue;
+        }
+        // Remarques & Notes de livraison
+        if (noteCol === null &&
+            (c.includes("remarque") ||
+                c.includes("note") ||
+                c.includes("instruction") ||
+                c.includes("commentaire") ||
+                c.includes("precision"))) {
+            noteCol = i;
+            continue;
+        }
+        // Localisation / Carte Google Maps / GPS
+        if (mapCol === null &&
+            (c.includes("map") ||
+                c.includes("gps") ||
+                c.includes("localisation") ||
+                c.includes("position") ||
+                c.includes("itineraire"))) {
+            mapCol = i;
+            continue;
+        }
+        // Code promo & réductions
+        if (promoCol === null &&
+            (c.includes("promo") ||
+                c.includes("coupon") ||
+                c.includes("remise") ||
+                c.includes("reduction"))) {
+            promoCol = i;
             continue;
         }
     }
@@ -283,6 +315,9 @@ async function detectAndEnsureSheetColumns(sheets, spreadsheetId, forceRefresh =
         updatedAtColIndex: updatedAtCol,
         reminderColIndex: reminderCol,
         uidColIndex: uidCol,
+        noteColIndex: noteCol,
+        mapColIndex: mapCol,
+        promoColIndex: promoCol,
         statusColumnCreated,
         statusColLetter: colIndexToLetter(statusCol),
         headers,
@@ -514,6 +549,15 @@ async function appendOrderToSheet(sheets, spreadsheetId, orderData) {
         }
         if (structure.uidColIndex !== null) {
             rowValues[structure.uidColIndex] = orderData.orderNumber || orderData.orderId || '';
+        }
+        if (structure.noteColIndex !== null && (orderData.notes || orderData.addressNote)) {
+            rowValues[structure.noteColIndex] = orderData.notes || orderData.addressNote || '';
+        }
+        if (structure.mapColIndex !== null && orderData.mapUrl) {
+            rowValues[structure.mapColIndex] = orderData.mapUrl;
+        }
+        if (structure.promoColIndex !== null && orderData.promoCode) {
+            rowValues[structure.promoColIndex] = orderData.promoCode;
         }
         const appendRange = "'" + structure.sheetName + "'!A1";
         const res = await sheets.spreadsheets.values.append({

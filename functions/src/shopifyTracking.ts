@@ -1,3 +1,4 @@
+import { extractMapAndLocation, extractNotesAndAddress, calculateOrderPricing, extractQuantityAndItems } from "./azifyGateway";
 import * as crypto from "crypto";
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
@@ -1172,6 +1173,18 @@ export const shopifyWebhook = onRequest(
         attributionDetail = "Organique / Hors campagne (Trafic naturel direct sans clic publicitaire)";
       }
 
+      // Extraction enrichie : Carte Maps réelle, Remarques & Notes, Quantités & Code Promo
+      const mapInfo = extractMapAndLocation(root);
+      const notesInfo = extractNotesAndAddress(root);
+      const pricingInfo = calculateOrderPricing(root);
+      const qtyInfo = extractQuantityAndItems(root);
+
+      const effectiveFinalAmount = pricingInfo.amount > 0 ? pricingInfo.amount : (Number(amount) || 0);
+      const effectiveOriginalAmount = pricingInfo.originalAmount > 0 ? pricingInfo.originalAmount : effectiveFinalAmount;
+      const effectiveQty = qtyInfo.quantity > 0 ? qtyInfo.quantity : (Number(quantity) || 1);
+      const effectiveMapUrl = mapInfo.mapUrl || googleMapsUrl || (positionGps ? `https://www.google.com/maps?q=${positionGps}` : null);
+      const effectiveGps = mapInfo.gpsCoordinates || positionGps || null;
+
       // =====================================================================
       // ENREGISTREMENT DE LA COMMANDE DANS FIRESTORE
       // =====================================================================
@@ -1181,7 +1194,7 @@ export const shopifyWebhook = onRequest(
         .collection("orders")
         .doc(shopifyOrderId);
 
-      const orderDoc = {
+      const orderDoc: Record<string, any> = {
         id: shopifyOrderId,
         workspaceId,
         teamId: assignedTeamId || "",
@@ -1196,11 +1209,17 @@ export const shopifyWebhook = onRequest(
         clientPhoneRaw: rawPhone || "",
         clientPhoneFormatted: phoneNormalized || rawPhone || "Non renseigné",
         city: city || "",
-        addressNote: shipping.address1 || root.address || root.note || "",
+        address: notesInfo.address || shipping.address1 || undefined,
+        notes: notesInfo.notes || undefined,
+        addressNote: notesInfo.addressNote || shipping.address1 || root.address || root.note || "",
         product: product || "Produit COD",
         productImageUrl,
-        quantity: Number(quantity) || 1,
-        amount: Number(amount) || 0,
+        quantity: effectiveQty,
+        amount: effectiveFinalAmount,
+        originalAmount: effectiveOriginalAmount,
+        promoCode: pricingInfo.promoCode,
+        discountAmount: pricingInfo.discountAmount,
+        discountPercent: pricingInfo.discountPercent,
         orderNumber: orderNumber || `#${shopifyOrderId}`,
         clientLanguage:
           root.clientLanguage ||
@@ -1225,8 +1244,12 @@ export const shopifyWebhook = onRequest(
         reminderAt: null,
         temperature: "hot",
 
-        googleMapsUrl: googleMapsUrl || (positionGps ? `https://www.google.com/maps?q=${positionGps}` : null),
-        gpsCoordinates: positionGps || null,
+        mapUrl: effectiveMapUrl,
+        googleMapsUrl: effectiveMapUrl,
+        gpsCoordinates: effectiveGps,
+        latitude: mapInfo.latitude,
+        longitude: mapInfo.longitude,
+        mapAddress: mapInfo.mapAddress,
         gpsAccuracy: precisionGps || null,
 
         isDuplicatePhone,
