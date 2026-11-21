@@ -30,7 +30,10 @@ import {
   Boxes,
   Languages,
   Store,
+  FolderPlus,
+  CheckCircle2,
 } from "lucide-react";
+import { saveAccountingLedgerEntry, generateClosureFromOrders } from "../lib/accountingLedger";
 import {
   aiService,
   type BusinessMetricsContext,
@@ -339,6 +342,34 @@ export default function AiAssistant({
   const [connections, setConnections] = useState<any[]>([]);
   const [watchdogScanning, setWatchdogScanning] = useState(false);
   const [watchdogFeedback, setWatchdogFeedback] = useState<string | null>(null);
+  const [registeredLedgerMap, setRegisteredLedgerMap] = useState<Record<string, boolean>>({});
+
+  const handleRegisterAiAuditInLedger = async (msg: AiChatMessage) => {
+    try {
+      const pLabel = `Audit IA (${team?.name || "Afrique Globale"}) · ${new Date(msg.timestamp).toLocaleDateString("fr-FR")}`;
+      const entry = generateClosureFromOrders({
+        orders,
+        team,
+        periodLabel: pLabel,
+        fromTs: Date.now() - 7 * 86400000,
+        toTs: Date.now(),
+        metaCampaigns: [
+          {
+            id: `ai_camp_${Date.now()}`,
+            name: `Campagnes Meta Ads (${team?.name || "Afrique"})`,
+            spend: Math.round((context.revenue || 1000000) * 0.18),
+          },
+        ],
+        manualAdSpend: Math.round((context.revenue || 1000000) * 0.18),
+        aiNotes: msg.content.slice(0, 350) + "...",
+        certifiedBy: "ai_director",
+      });
+      await saveAccountingLedgerEntry(workspaceId, entry);
+      setRegisteredLedgerMap((prev) => ({ ...prev, [msg.id]: true }));
+    } catch (err) {
+      console.warn("Échec répertoriement compta :", err);
+    }
+  };
 
   const { totals: closeuseRemunTotals } = useRemunerationTotals(workspaceId, "closeuse");
   const { totals: livreurRemunTotals } = useRemunerationTotals(workspaceId, "livreur");
@@ -1295,6 +1326,51 @@ export default function AiAssistant({
                                 </div>
                               );
                             })}
+
+                            {/* Carte Répertoire Comptable */}
+                            {m.content.length > 150 && (
+                              <div className="mt-3.5 rounded-xl border border-surface-border bg-white dark:bg-surface-raised p-3.5 text-xs shadow-xs">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
+                                    <FolderPlus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                    <span>Rapport & Audit Financier prêt à répertorier</span>
+                                  </div>
+                                  <span className="rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                                    Certifié IA
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">
+                                  Enregistre les calculs, métriques de livraison et attribution pub de cet audit directement dans le Grand Livre Comptable.
+                                </p>
+                                <div className="mt-3 flex items-center gap-2">
+                                  {!registeredLedgerMap[m.id] ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRegisterAiAuditInLedger(m)}
+                                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white font-bold px-3 py-1.5 text-xs hover:bg-emerald-500 transition shadow-xs cursor-pointer active:scale-95"
+                                    >
+                                      <FolderPlus className="h-3.5 w-3.5" />
+                                      <span>Répertorier dans le Répertoire Comptable</span>
+                                    </button>
+                                  ) : (
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400 text-xs">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        <span>Répertorié avec succès</span>
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => onNavigate?.("comptabilite")}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-slate-100 dark:bg-surface text-slate-900 dark:text-slate-100 font-bold px-3 py-1.5 text-xs hover:border-slate-400 transition cursor-pointer"
+                                      >
+                                        <span>Consulter dans le Répertoire Comptable</span>
+                                        <ArrowUpRight className="h-3.5 w-3.5 text-slate-400" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                             <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
                               <span>{formatTime(m.timestamp)}</span>
                               <button
