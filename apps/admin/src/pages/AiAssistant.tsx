@@ -306,6 +306,49 @@ const formatTime = (ts: unknown) => {
   return isNaN(d.getTime()) ? "" : d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 };
 
+function isFinancialAuditReport(content: string): boolean {
+  if (!content || content.length < 120) return false;
+  const lower = content.toLowerCase();
+
+  // Exclusion absolue si le contenu traite de formation, scripts, coaching, objections ou SLA
+  const isTrainingOrScript =
+    lower.includes("programme de formation") ||
+    lower.includes("formation des équipes") ||
+    lower.includes("formation closeuse") ||
+    lower.includes("formation livreur") ||
+    lower.includes("script vocal") ||
+    lower.includes("jeu de rôle") ||
+    lower.includes("grille d'évaluation") ||
+    lower.includes("gestion des objections") ||
+    lower.includes("vigie logistique") ||
+    lower.includes("relance des commandes");
+
+  if (isTrainingOrScript && !lower.includes("clôture comptable") && !lower.includes("grand livre comptable")) {
+    return false;
+  }
+
+  // Mots-clés rigoureux pour qualifier un rapport comptable prêt à être consigné
+  const hasAuditKeyword =
+    lower.includes("audit financier") ||
+    lower.includes("bilan financier") ||
+    lower.includes("comptabilité") ||
+    lower.includes("grand livre") ||
+    lower.includes("rentabilité") ||
+    lower.includes("clôture comptable");
+
+  const hasFinancialMetrics =
+    lower.includes("landed cost") ||
+    lower.includes("ca encaissé") ||
+    lower.includes("marge nette") ||
+    lower.includes("bénéfice net") ||
+    lower.includes("ventilation du cash") ||
+    lower.includes("65 %") ||
+    lower.includes("fret unit") ||
+    lower.includes("coût de revient");
+
+  return Boolean(hasAuditKeyword && hasFinancialMetrics);
+}
+
 interface AiAssistantProps {
   workspaceId: string;
   team: Team | null;
@@ -1439,7 +1482,7 @@ export default function AiAssistant({
                             })}
 
                             {/* Carte Répertoire Comptable */}
-                            {m.content.length > 150 && (
+                            {isFinancialAuditReport(m.content) && (
                               <div className="mt-3.5 rounded-xl border border-surface-border bg-white dark:bg-surface-raised p-3.5 text-xs shadow-xs">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
