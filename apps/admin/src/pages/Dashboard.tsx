@@ -130,6 +130,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
       : null;
   const brandTitle = whiteLabel?.brandName;
   const [page, setPage] = useState<string>("overview");
+  const [aiInitialPrompt, setAiInitialPrompt] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { teams, loading: teamsLoading } = useTeams(workspaceId);
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -417,7 +418,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             workspaceId={workspaceId}
             onNotificationClick={(notif) => {
               const t = `${notif.title} ${notif.body}`.toLowerCase();
-              if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
+              if (t.includes("stock") || (notif as any).type === "stock_alert") {
+                setPage("comptabilite");
+              } else if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
                 setPage("ai_assistant");
               } else if (t.includes("caisse") || t.includes("versement")) {
                 setPage("caisse");
@@ -479,7 +482,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                   workspaceId={workspaceId}
                   onNotificationClick={(notif) => {
                     const t = `${notif.title} ${notif.body}`.toLowerCase();
-                    if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
+                    if (t.includes("stock") || (notif as any).type === "stock_alert") {
+                      setPage("comptabilite");
+                    } else if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
                       setPage("ai_assistant");
                     } else if (t.includes("caisse") || t.includes("versement")) {
                       setPage("caisse");
@@ -559,6 +564,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               livreurs={livreurs}
               codInsights={codInsights}
               onNavigate={setPage}
+              initialPrompt={aiInitialPrompt}
+              onClearInitialPrompt={() => setAiInitialPrompt(null)}
             />
           ) : page === "comptabilite" ? (
             <ComptabiliteStock
@@ -620,6 +627,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 tauxConfirmation={stats.tauxConfirmation}
                 tauxLivraisonReelle={stats.tauxLivraisonReelle}
                 onNavigateToOrders={() => setPage("orders")}
+                onNavigateToAi={(prompt) => {
+                  if (prompt) setAiInitialPrompt(prompt);
+                  setPage("ai_assistant");
+                }}
               />
 
               {/* 2. Operational Companion Grid (immediately visible alongside the chart) */}

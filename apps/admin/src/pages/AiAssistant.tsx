@@ -387,6 +387,8 @@ interface AiAssistantProps {
   livreurs: { id: string; name: string }[];
   codInsights?: CodCountryInsight[];
   onNavigate?: (page: string) => void;
+  initialPrompt?: string | null;
+  onClearInitialPrompt?: () => void;
 }
 
 export default function AiAssistant({
@@ -398,6 +400,8 @@ export default function AiAssistant({
   livreurs,
   codInsights = [],
   onNavigate,
+  initialPrompt,
+  onClearInitialPrompt,
 }: AiAssistantProps) {
   const [messages, setMessages] = useState<AiChatMessage[]>([]);
   const [inputPrompt, setInputPrompt] = useState("");
@@ -1126,6 +1130,14 @@ export default function AiAssistant({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (initialPrompt && initialPrompt.trim() && historyLoaded && !loading) {
+      const p = initialPrompt;
+      onClearInitialPrompt?.();
+      void handleSendMessage(p);
+    }
+  }, [initialPrompt, historyLoaded, loading]);
 
   const handleClearHistory = async () => {
     setClearingBusy(true);

@@ -599,13 +599,13 @@ export default function ComptabiliteStock({
       const db = getDb();
       const notifCol = collection(db, "workspaces", workspaceId, "notifications");
       await addDoc(notifCol, {
-        title: `⚠️ Alerte Stock : ${p.productName}`,
+        title: `🤖 Vigie IA · Alerte Stock : ${p.productName}`,
         body: `Stock critique : seulement ${p.currentStock} unité(s) restante(s) (${p.coverageLabel}). Réapprovisionnement requis d'urgence pour éviter une rupture de ventes.`,
         type: "stock_alert",
         read: false,
         createdAt: Date.now(),
       });
-      showToast(`Alerte stock déclenchée et routée pour ${p.productName}`);
+      showToast(`Alerte transmise à la Vigie IA pour ${p.productName}`);
     } catch (err) {
       console.warn("Alerte stock :", err);
       showToast("Alerte enregistrée en local");
