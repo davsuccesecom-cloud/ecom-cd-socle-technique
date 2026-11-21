@@ -552,8 +552,19 @@ export const azifyGateway = onRequest(
       }
     }
 
-    // C. POST /orders ou /order : Ingestion directe haute performance d'une commande COD
-    if (req.method === "POST" && (path === "/orders" || path === "/order" || path === "/webhook" || path.endsWith("/orders") || path.endsWith("/webhook"))) {
+    // C. POST /orders, /order, /webhook ou root : Ingestion directe haute performance d'une commande COD
+    if (
+      req.method === "POST" &&
+      (path === "" ||
+        path === "/" ||
+        path === "/orders" ||
+        path === "/order" ||
+        path === "/webhook" ||
+        path.endsWith("/orders") ||
+        path.endsWith("/order") ||
+        path.endsWith("/webhook") ||
+        (!path.startsWith("/push") && !path.startsWith("/cart")))
+    ) {
       const startTime = Date.now();
       try {
         const body = parseJsonBody(req);
