@@ -1829,13 +1829,16 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId, 
             notification: {
                 title,
                 body,
-                icon: "https://waritrack-admin.vercel.app/icons/icon-192.png",
-                badge: "https://waritrack-admin.vercel.app/icons/badge-96.png",
+                icon: "/icons/icon-192.png",
+                badge: "/icons/badge-96.png",
                 tag,
                 renotify: true,
                 requireInteraction: true,
                 data: dataPayload,
                 ...(hasImage ? { image: imageUrl } : {}),
+            },
+            fcmOptions: {
+                link: clickUrl,
             },
         },
     };
@@ -1873,6 +1876,8 @@ async function sendMulticastAndPruneTokens(opts) {
     if (invalidTokens.length > 0) {
         await userRef.update({
             fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+            fcmPrunedAt: Date.now(),
+            fcmPrunedCount: invalidTokens.length,
         });
         console.log(`sendPush: ${invalidTokens.length} token(s) invalide(s) supprime(s) pour user ${userId}`);
     }
@@ -2360,6 +2365,8 @@ exports.testAdminPushNotification = (0, https_1.onCall)(async (request) => {
     if (invalidTokens.length > 0) {
         await userRef.update({
             fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+            fcmPrunedAt: Date.now(),
+            fcmPrunedCount: invalidTokens.length,
         });
     }
     return {

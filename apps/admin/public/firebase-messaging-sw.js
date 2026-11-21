@@ -1,4 +1,4 @@
-// 1. Enregistrement PRIORITAIRE du listener de clic pour focaliser instantanment la PWA installe
+// 1. Enregistrement PRIORITAIRE du listener de clic pour focaliser instantanément la PWA installée
 function toAbsolute(path) {
   if (!path) return self.location.origin + "/";
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
@@ -27,7 +27,7 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      // 1. Chercher immdiatement une fentre active de l'application
+      // 1. Chercher immédiatement une fenêtre active de l'application
       let targetClient = windowClients.find(
         (c) => c.url && (c.url.startsWith(self.location.origin) || c.url.includes("waritrack"))
       );
@@ -36,7 +36,7 @@ self.addEventListener("notificationclick", (event) => {
         targetClient = windowClients[0];
       }
 
-      // 2. Si trouve, la focaliser IMMDIATEMENT pour conserver le geste utilisateur natif
+      // 2. Si trouvée, la focaliser IMMÉDIATEMENT pour conserver le geste utilisateur natif
       if (targetClient && "focus" in targetClient) {
         if (orderId) {
           targetClient.postMessage({ type: "NAVIGATE_ORDER", orderId, url: targetUrl });
@@ -44,28 +44,13 @@ self.addEventListener("notificationclick", (event) => {
         return await targetClient.focus();
       }
 
-      // 3. Si aucune fentre n'est ouverte : ouvrir la PWA installe
+      // 3. Si aucune fenêtre n'est ouverte : ouvrir la PWA installée
       if (clients.openWindow) {
         return await clients.openWindow(targetUrl);
       }
     })()
   );
 });
-
-// 2. Import et initialisation du SDK Firebase Cloud Messaging
-importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
-
-if (!firebase.apps.length) {
-  firebase.initializeApp({
-    apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
-    authDomain: "meta-capi-app.firebaseapp.com",
-    projectId: "meta-capi-app",
-    storageBucket: "meta-capi-app.firebasestorage.app",
-    messagingSenderId: "972779076968",
-    appId: "1:972779076968:web:7a41da103d1be9a9a82add",
-  });
-}
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -90,47 +75,66 @@ async function getWhiteLabelBranding() {
   }
 }
 
-const messaging = firebase.messaging();
+// 2. Import et initialisation du SDK Firebase Cloud Messaging
+try {
+  importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js");
+  importScripts("https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js");
 
-messaging.onBackgroundMessage(async (payload) => {
-  const wl = await getWhiteLabelBranding();
-  const title =
-    payload?.notification?.title ||
-    payload?.data?.title ||
-    (wl?.brandName ? `${wl.brandName} — Admin` : "WariTrack — Cockpit Admin");
-  const body = payload?.notification?.body || payload?.data?.body || "";
-  const orderId = payload?.data?.orderId || "";
-  const targetUrl = toAbsolute(payload?.data?.url || (orderId ? `/?orderId=${orderId}` : "/"));
-  const icon = resolveSafeIcon(wl?.logoUrl, toAbsolute("/icons/waritrack-3d-192.png"));
-  const badge = toAbsolute("/icons/badge-96.png");
-
-  // N'afficher de grande image / bannire QUE s'il s'agit d'une vraie image produit en HTTP/HTTPS
-  const rawImage = payload?.notification?.image || payload?.data?.image || payload?.data?.productImageUrl;
-  const hasProductImage =
-    typeof rawImage === "string" &&
-    rawImage.startsWith("http") &&
-    !rawImage.includes("waritrack-brand-banner");
-  const image = hasProductImage ? rawImage : undefined;
-
-  const tag = payload?.data?.tag || (orderId ? `waritrack-order-${orderId}` : `waritrack-admin-${Date.now()}`);
-
-  const notificationOptions = {
-    body,
-    icon,
-    badge,
-    tag,
-    renotify: true,
-    requireInteraction: true,
-    data: { orderId, url: targetUrl },
-    ...(image ? { image } : {}),
-  };
-
-  try {
-    await self.registration.showNotification(title, notificationOptions);
-  } catch {
-    await self.registration.showNotification(title, {
-      ...notificationOptions,
-      icon: toAbsolute("/icons/icon-192.png"),
+  if (!firebase.apps.length) {
+    firebase.initializeApp({
+      apiKey: "AIzaSyBaH9nab7GenUzF_tHuDwQOPhAUGQH-oWU",
+      authDomain: "meta-capi-app.firebaseapp.com",
+      projectId: "meta-capi-app",
+      storageBucket: "meta-capi-app.firebasestorage.app",
+      messagingSenderId: "972779076968",
+      appId: "1:972779076968:web:0b3273a01644985aa82add",
     });
   }
-});
+
+  const messaging = firebase.messaging();
+
+  messaging.onBackgroundMessage(async (payload) => {
+    const wl = await getWhiteLabelBranding();
+    const title =
+      payload?.notification?.title ||
+      payload?.data?.title ||
+      (wl?.brandName ? `${wl.brandName} — Cockpit Admin` : "WariTrack — Cockpit Admin");
+    const body = payload?.notification?.body || payload?.data?.body || "";
+    const orderId = payload?.data?.orderId || "";
+    const targetUrl = toAbsolute(payload?.data?.url || (orderId ? `/?orderId=${orderId}` : "/"));
+    const icon = resolveSafeIcon(wl?.logoUrl, toAbsolute("/icons/waritrack-3d-192.png"));
+    const badge = toAbsolute("/icons/badge-96.png");
+
+    // N'afficher de grande image que s'il s'agit d'une vraie image produit en HTTP/HTTPS
+    const rawImage = payload?.notification?.image || payload?.data?.image || payload?.data?.productImageUrl;
+    const hasProductImage =
+      typeof rawImage === "string" &&
+      rawImage.startsWith("http") &&
+      !rawImage.includes("waritrack-brand-banner");
+    const image = hasProductImage ? rawImage : undefined;
+
+    const tag = payload?.data?.tag || (orderId ? `waritrack-order-${orderId}` : `waritrack-admin-${Date.now()}`);
+
+    const notificationOptions = {
+      body,
+      icon,
+      badge,
+      tag,
+      renotify: true,
+      requireInteraction: true,
+      data: { orderId, url: targetUrl },
+      ...(image ? { image } : {}),
+    };
+
+    try {
+      await self.registration.showNotification(title, notificationOptions);
+    } catch {
+      await self.registration.showNotification(title, {
+        ...notificationOptions,
+        icon: toAbsolute("/icons/icon-192.png"),
+      });
+    }
+  });
+} catch (err) {
+  console.warn("[WariTrack SW Admin] Initialisation Firebase SW:", err);
+}

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { arrayRemove, arrayUnion, doc, setDoc, updateDoc } from "firebase/firestore";
-import { getToken, onMessage } from "firebase/messaging";
+import { arrayRemove, arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { deleteToken, getToken, onMessage } from "firebase/messaging";
 import { getDb, getFirebaseMessaging } from "../firebase";
 import type { IncomingPushDetail } from "./useNotifications";
 import { triggerSystemNotification } from "../utils/systemNotification";
 
 const LAST_TOKEN_KEY_PREFIX = "ecomcod_last_fcm_token_";
-const RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000];
+const RETRY_DELAYS_MS = [4_000, 10_000, 25_000, 60_000];
 const PUSH_SW_PATH = "/firebase-messaging-sw.js";
 const LEGACY_PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
 
@@ -35,12 +35,70 @@ async function readCachedWhiteLabelForSw(): Promise<{ logoUrl?: string | null; a
   }
 }
 
+/**
+ * Obtient l'enregistrement Service Worker actif sans JAMAIS écraser sw.js (Workbox).
+ * Dans une PWA Vite, /sw.js inclut déjà importScripts("/firebase-messaging-sw.js").
+ * Écraser /sw.js avec /firebase-messaging-sw.js briserait la souscription WebPush et révoquerait le token FCM.
+ */
+async function getActiveSwRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return undefined;
+
+  // 1. Tenter d'abord de récupérer le SW root actif (scope '/')
+  try {
+    const rootReg = await navigator.serviceWorker.getRegistration("/");
+    if (rootReg && (rootReg.active || rootReg.installing || rootReg.waiting)) {
+      return rootReg;
+    }
+  } catch {}
+
+  // 2. Attendre navigator.serviceWorker.ready (délai tolérant jusqu'à 3.5s)
+  try {
+    const readyReg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+    ]);
+    if (readyReg) {
+      return readyReg;
+    }
+  } catch {}
+
+  // 3. Tenter de récupérer parmi toutes les registrations actives
+  try {
+    const allRegs = await navigator.serviceWorker.getRegistrations();
+    if (allRegs.length > 0) {
+      const active = allRegs.find((r) => r.active) || allRegs[0];
+      return active;
+    }
+  } catch {}
+
+  // 4. Repli si aucun service worker n'est enregistré (ex: dev mode ou premier lancement)
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    return reg;
+  } catch {
+    try {
+      const fbReg = await navigator.serviceWorker.register(PUSH_SW_PATH, { scope: "/" });
+      return fbReg;
+    } catch (err) {
+      console.warn("useRegisterPushNotifications: impossible d'enregistrer un SW:", err);
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Enregistrement, vérification et rotation résiliente du token FCM.
+ * Comprend un mécanisme anti-zombie : si le token local a été élagué de Firestore (suite à un rejet FCM
+ * ou nettoyage serveur), l'ancien token en IndexedDB est purgé et un nouveau token tout frais est demandé.
+ */
 async function registerToken(
   workspaceId: string,
   userId: string,
   vapidKey: string,
   cancelledRef: { current: boolean },
-  askIfDefault: boolean
+  askIfDefault: boolean,
+  forceRefresh: boolean = false
 ): Promise<{ ok: boolean; permission: NotificationPermission | "unsupported"; swRegistration?: ServiceWorkerRegistration }> {
   const messaging = await getFirebaseMessaging();
   if (!messaging || cancelledRef.current) {
@@ -68,79 +126,93 @@ async function registerToken(
     }
   } catch {}
 
-  // 2. Récupérer en priorité absolue l'enregistrement root PWA (scope: '/')
-  let swRegistration: ServiceWorkerRegistration | undefined;
-  try {
-    const rootReg = await navigator.serviceWorker.getRegistration("/");
-    if (rootReg && (rootReg.active || rootReg.installing || rootReg.waiting)) {
-      swRegistration = rootReg;
-    }
-  } catch {}
-
-  if (!swRegistration) {
-    try {
-      const readyReg = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
-      ]);
-      if (readyReg) {
-        swRegistration = readyReg;
-      }
-    } catch {}
-  }
-
-  // 3. Repli si aucune registration root n'est encore active
-  if (!swRegistration) {
-    try {
-      swRegistration = await navigator.serviceWorker.register(PUSH_SW_PATH, {
-        scope: "/",
-        updateViaCache: "none",
-      });
-    } catch (err) {
-      console.warn("useRegisterPushNotifications: enregistrement SW root repli:", err);
-    }
-  }
+  // 2. Obtenir l'enregistrement Service Worker actif sans collision
+  const swRegistration = await getActiveSwRegistration();
+  if (cancelledRef.current) return { ok: false, permission, swRegistration };
 
   if (swRegistration) {
     void swRegistration.update().catch(() => {});
   }
 
-  if (cancelledRef.current) return { ok: false, permission };
-
-  const token = await getToken(messaging, {
-    vapidKey,
-    serviceWorkerRegistration: swRegistration,
-  });
-  if (!token || cancelledRef.current) return { ok: false, permission, swRegistration };
-
   const storageKey = `${LAST_TOKEN_KEY_PREFIX}${userId}`;
   const previousToken = localStorage.getItem(storageKey);
 
+  // 3. Vérifier l'état réel des tokens dans Firestore
   const userRef = doc(getDb(), "workspaces", workspaceId, "users", userId);
-  localStorage.setItem(storageKey, token);
-
-  if (token === previousToken) {
-    await setDoc(
-      userRef,
-      { fcmTokens: arrayUnion(token), fcmUpdatedAt: Date.now() },
-      { merge: true }
-    );
-  } else {
-    if (previousToken) {
-      try {
-        await updateDoc(userRef, { fcmTokens: arrayRemove(previousToken) });
-      } catch {
-        // Ancien token ou document absent
-      }
+  let firestoreTokens: string[] = [];
+  try {
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      firestoreTokens = userSnap.data()?.fcmTokens ?? [];
     }
-    await setDoc(
-      userRef,
-      { fcmTokens: arrayUnion(token), fcmUpdatedAt: Date.now() },
-      { merge: true }
-    );
+  } catch (readErr) {
+    console.warn("useRegisterPushNotifications: lecture Firestore:", readErr);
   }
 
-  console.log("useRegisterPushNotifications: token FCM enregistré avec succès.");
+  // 4. Détection anti-zombie : si le token local n'est plus présent dans Firestore
+  // (pruné par Cloud Functions car déclaré mort par Google FCM), forcer une purge IndexedDB
+  const isPrunedByBackend = Boolean(previousToken && !firestoreTokens.includes(previousToken));
+  if (forceRefresh || isPrunedByBackend) {
+    console.warn("[WariTrack Push] Token local pruné ou refresh forcé. Purge IndexedDB et renouvellement FCM...");
+    try {
+      await deleteToken(messaging);
+    } catch (delErr) {
+      console.warn("[WariTrack Push] deleteToken:", delErr);
+    }
+  }
+
+  // 5. Récupération du token FCM (existant ou renouvelé)
+  let token: string | null = null;
+  try {
+    token = await getToken(messaging, {
+      vapidKey,
+      serviceWorkerRegistration: swRegistration,
+    });
+  } catch (err: any) {
+    console.error("useRegisterPushNotifications: erreur getToken:", err);
+    // Si l'erreur indique une désynchronisation ou un token corrompu, purger et retenter immédiatement
+    const errMsg = String(err?.message || "").toLowerCase();
+    if (errMsg.includes("registration") || errMsg.includes("not-registered") || errMsg.includes("invalid")) {
+      try {
+        await deleteToken(messaging);
+        token = await getToken(messaging, {
+          vapidKey,
+          serviceWorkerRegistration: swRegistration,
+        });
+      } catch (retryErr) {
+        console.error("useRegisterPushNotifications: nouvelle tentative getToken échouée:", retryErr);
+      }
+    }
+  }
+
+  if (!token || cancelledRef.current) {
+    return { ok: false, permission, swRegistration };
+  }
+
+  // 6. Sauvegarde et mise à jour Firestore & localStorage
+  localStorage.setItem(storageKey, token);
+  localStorage.setItem(`${storageKey}_synced_at`, String(Date.now()));
+
+  // Si le token a changé sur cet appareil, retirer l'ancien token
+  if (previousToken && previousToken !== token) {
+    try {
+      await updateDoc(userRef, { fcmTokens: arrayRemove(previousToken) });
+    } catch {}
+  }
+
+  // Enregistrer le token valide dans Firestore avec métadonnées de fraîcheur
+  await setDoc(
+    userRef,
+    {
+      fcmTokens: arrayUnion(token),
+      fcmUpdatedAt: Date.now(),
+      fcmPlatform: "web_pwa",
+      fcmLastSeen: Date.now(),
+    },
+    { merge: true }
+  );
+
+  console.log("useRegisterPushNotifications: token FCM opérationnel et synchronisé avec Firestore.");
   return { ok: true, permission, swRegistration };
 }
 
@@ -162,7 +234,7 @@ export function useRegisterPushNotifications(
       const result = await Notification.requestPermission();
       setPermission(result);
       if (result === "granted") {
-        const res = await registerToken(workspaceId, userId, vapidKey, { current: false }, false);
+        const res = await registerToken(workspaceId, userId, vapidKey, { current: false }, false, true);
         if (res.swRegistration) swRegRef.current = res.swRegistration;
         if (res.ok) succeededRef.current = true;
       }
@@ -265,7 +337,7 @@ export function useRegisterPushNotifications(
           })
         );
 
-        // 2. Extraction stricte de l'image réelle du produit (aucun wallpaper générique)
+        // 2. Extraction stricte de l'image réelle du produit
         const rawImage = payload.data?.image || payload.notification?.image || payload.data?.productImageUrl;
         const validProductImage =
           typeof rawImage === "string" &&
@@ -304,15 +376,16 @@ export function useRegisterPushNotifications(
       retryTimeoutId = setTimeout(attempt, delay);
     };
 
-    const attempt = async (): Promise<void> => {
-      if (cancelledRef.current || succeededRef.current) return;
+    const attempt = async (force: boolean = false): Promise<void> => {
+      if (cancelledRef.current) return;
       try {
         const res = await registerToken(
           workspaceId,
           userId,
           vapidKey,
           cancelledRef,
-          !isAppleWebKitBrowser()
+          !isAppleWebKitBrowser(),
+          force
         );
         if (cancelledRef.current) return;
         setPermission(res.permission);
@@ -334,31 +407,49 @@ export function useRegisterPushNotifications(
     };
 
     void attachForegroundListener();
-    void attempt();
+    void attempt(false);
 
     const handleOnline = () => {
-      if (!succeededRef.current) {
-        if (retryTimeoutId) {
-          clearTimeout(retryTimeoutId);
-          retryTimeoutId = null;
-        }
-        void attempt();
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
+        retryTimeoutId = null;
       }
+      void attempt(false);
     };
     window.addEventListener("online", handleOnline);
 
+    // Vérification proactive au retour d'arrière-plan ou focus de l'app
     const handleResumeCheck = () => {
       if ("Notification" in window) {
         const currentPerm = Notification.permission;
         setPermission(currentPerm);
-        if (currentPerm === "granted" && !succeededRef.current && document.visibilityState === "visible") {
-          void attempt();
+        if (currentPerm === "granted" && document.visibilityState === "visible") {
+          const storageKey = `${LAST_TOKEN_KEY_PREFIX}${userId}`;
+          const lastSynced = parseInt(localStorage.getItem(`${storageKey}_synced_at`) || "0", 10);
+          const elapsed = Date.now() - lastSynced;
+          // Vérifier si premier enregistrement non terminé OU si plus de 20 minutes depuis la dernière synchronisation
+          if (!succeededRef.current || elapsed > 20 * 60 * 1000) {
+            void attempt(false);
+          }
         }
       }
       announceIdentity();
     };
     window.addEventListener("focus", handleResumeCheck);
     document.addEventListener("visibilitychange", handleResumeCheck);
+
+    // Heartbeat périodique (toutes les 15 minutes) tant que l'application est ouverte
+    const heartbeatTimer = setInterval(() => {
+      if (document.visibilityState === "visible" && Notification.permission === "granted") {
+        void attempt(false);
+      }
+    }, 15 * 60 * 1000);
+
+    const handleForceReregister = () => {
+      console.log("[WariTrack Push] Événement de renouvellement forcé reçu.");
+      void attempt(true);
+    };
+    window.addEventListener("waritrack-push-reregister", handleForceReregister);
 
     const handleControllerChange = () => {
       succeededRef.current = false;
@@ -367,16 +458,18 @@ export function useRegisterPushNotifications(
         retryTimeoutId = null;
       }
       retryIndex = 0;
-      void attempt();
+      void attempt(false);
     };
     navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
     return () => {
       cancelledRef.current = true;
       clearInterval(announceTimer);
+      clearInterval(heartbeatTimer);
       navigator.serviceWorker.removeEventListener("message", handleSwMessage);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("focus", handleResumeCheck);
+      window.removeEventListener("waritrack-push-reregister", handleForceReregister);
       document.removeEventListener("visibilitychange", handleResumeCheck);
       navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
       if (retryTimeoutId) clearTimeout(retryTimeoutId);

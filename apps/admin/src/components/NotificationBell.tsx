@@ -179,13 +179,9 @@ export default function NotificationBell({
                         const callTestPush = httpsCallable(functions, "testAdminPushNotification");
                         const res: any = await callTestPush({ workspaceId });
                         if (res?.data?.tokensCount === 0 || !res?.data?.success) {
-                          // Si le token en base est vide ou mort, forcer une réinscription immédiate
+                          // Si le token en base est vide ou mort, forcer un renouvellement FCM immédiat
                           localStorage.removeItem(`ecomcod_last_fcm_token_${userId}`);
-                          const PUSH_SW_SCOPE = "/firebase-cloud-messaging-push-scope";
-                          const reg = await navigator.serviceWorker.getRegistration(PUSH_SW_SCOPE);
-                          if (reg) {
-                            await reg.update().catch(() => {});
-                          }
+                          window.dispatchEvent(new CustomEvent("waritrack-push-reregister"));
                         }
                       } catch (serverErr) {
                         console.warn("[WariTrack] Notification push serveur:", serverErr);
