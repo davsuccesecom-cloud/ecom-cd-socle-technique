@@ -1,3 +1,4 @@
+import { detectAfricanCountry } from "./shopifyTracking";
 import { generateAccessEmailHtml, generateAccessEmailPlainText } from "./emailService";
 import * as crypto from "crypto";
 import * as admin from "firebase-admin";
@@ -746,11 +747,51 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
       ? `uid:${String(body.orderUid).trim()}`
       : `row:${String(body.rowNumber)}`;
 
-    const teamsSnap = await db
+    const rawSheetId = String(body.sheetId || "").trim();
+    const cleanSheetId = (rawSheetId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)?.[1] || rawSheetId).trim();
+
+    let teamsSnap = await db
       .collectionGroup("teams")
-      .where("sheetIds", "array-contains", body.sheetId)
+      .where("sheetIds", "array-contains", cleanSheetId)
       .limit(1)
       .get();
+
+    if (teamsSnap.empty && rawSheetId !== cleanSheetId) {
+      teamsSnap = await db
+        .collectionGroup("teams")
+        .where("sheetIds", "array-contains", rawSheetId)
+        .limit(1)
+        .get();
+    }
+
+    if (teamsSnap.empty) {
+      teamsSnap = await db
+        .collectionGroup("teams")
+        .where("sheetId", "==", cleanSheetId)
+        .limit(1)
+        .get();
+    }
+
+    if (teamsSnap.empty) {
+      // Fallback : recherche directe dans les équipes des workspaces
+      try {
+        const wsList = await db.collection("workspaces").get();
+        for (const wsDoc of wsList.docs) {
+          const tSnap = await wsDoc.ref.collection("teams").get();
+          for (const tDoc of tSnap.docs) {
+            const td = tDoc.data();
+            const sIds: string[] = Array.isArray(td.sheetIds) ? td.sheetIds : td.sheetId ? [td.sheetId] : [];
+            if (sIds.some(s => s === cleanSheetId || s === rawSheetId)) {
+              teamsSnap = { empty: false, docs: [tDoc] } as any;
+              break;
+            }
+          }
+          if (!teamsSnap.empty) break;
+        }
+      } catch (wsScanErr) {
+        console.warn("receiveSheetOrder: scan de secours des équipes échoué:", wsScanErr);
+      }
+    }
 
     if (teamsSnap.empty) {
       console.error(`receiveSheetOrder: aucune equipe trouvee pour sheetId=${body.sheetId}`);
@@ -781,11 +822,15 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
     const phoneParsed = parsePhoneNumberFromString(body.phone, team.defaultCountry as never);
     const clientPhoneFormatted = phoneParsed?.formatInternational() ?? body.phone;
 
-    // Routage intelligent multi-pays : si un tableur partagé contient des commandes
-    // destinées à différents pays (ex: +229 Bénin, +225 Côte d'Ivoire, +228 Togo),
-    // WariTrack réoriente automatiquement la commande vers l'équipe locale correspondante.
+    // Routage intelligent multi-pays haute précision (Inspiré COD Afrique)
     let assignedTeamId = teamId;
-    const detectedCountry = phoneParsed?.country;
+    const detectedCountry = detectAfricanCountry({
+      phone: body.phone,
+      city: body.city,
+      country: (body as any).country || (body as any).pays,
+      defaultCountry: team.defaultCountry || "TG",
+    });
+
     if (detectedCountry && detectedCountry !== team.defaultCountry) {
       try {
         const altTeamSnap = await db
@@ -1143,7 +1188,59 @@ export const onOrderCreated = onDocumentCreated(
     homeCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
     allocatedCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
 
-    if (closeuseMap.size === 0) return;
+    if (closeuseMap.size === 0) {
+      console.warn(`onOrderCreated: Aucune closeuse active pour l'équipe ${order.teamId}. Notification admin envoyée.`);
+      const orderProductImg = await resolveOrderProductImage(workspaceId, order);
+      if (orderProductImg && !order.productImageUrl) {
+        await snap.ref.update({ productImageUrl: orderProductImg }).catch(() => {});
+      }
+      const orderQty = order.quantity && order.quantity > 1 ? `${order.quantity}x ` : "";
+      await notifyAdmins(
+        workspaceId,
+        `🛍️ Nouvelle commande : ${orderQty}${order.product || "Produit"}`,
+        `⚠️ [À attribuer] ${order.clientName} · ${order.city || "Ville non précisée"} · Équipe ${order.teamName || order.teamId} (Aucune closeuse active)`,
+        orderProductImg,
+        snap.id
+      );
+      if (order.product && order.teamId) {
+        await recordOrderStockCreation(workspaceId, order.teamId, order.product, Number(order.quantity || 1));
+      }
+      if (!order.sheetId && order.teamId) {
+        try {
+          const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
+          const teamData = teamSnap.data();
+          const sheetIds: string[] = Array.isArray(teamData?.sheetIds)
+            ? teamData.sheetIds
+            : teamData?.sheetId
+              ? [teamData.sheetId]
+              : [];
+          const targetSheetId = sheetIds.find((s) => Boolean(s));
+          if (targetSheetId) {
+            const sheets = getSheetsClient();
+            const appendRes = await appendOrderToSheet(sheets, targetSheetId, {
+              clientName: order.clientName || '',
+              phone: order.clientPhoneFormatted || order.phone || '',
+              city: order.city || '',
+              product: order.product || '',
+              amount: order.amount,
+              quantity: order.quantity || 1,
+              statutCloseuse: order.statutCloseuse || 'nouveau',
+              orderNumber: order.orderNumber,
+              orderId: snap.id,
+            });
+            if (appendRes) {
+              await snap.ref.update({
+                sheetId: targetSheetId,
+                sourceRowId: appendRes.sourceRowId,
+              });
+            }
+          }
+        } catch (sheetErr: any) {
+          console.warn('onOrderCreated: échec sync Google Sheet pour order ' + snap.id + ':', sheetErr?.message || sheetErr);
+        }
+      }
+      return;
+    }
 
     const allCloseuseDocs = Array.from(closeuseMap.values());
 

@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendCustomAccessEmail = exports.deletePasskeyCredential = exports.listUserPasskeys = exports.savePasskeyCredential = exports.createPasskeyChallenge = exports.scheduledMarketplaceCartRecovery = exports.sendMarketplacePushCampaign = exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+const shopifyTracking_1 = require("./shopifyTracking");
 const emailService_1 = require("./emailService");
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
@@ -47,14 +48,14 @@ const sheetsSync_1 = require("./sheetsSync");
 const codInsights_1 = require("./codInsights");
 const metaCapi_1 = require("./metaCapi");
 const metaAuth_1 = require("./metaAuth");
-var shopifyTracking_1 = require("./shopifyTracking");
-Object.defineProperty(exports, "trackSession", { enumerable: true, get: function () { return shopifyTracking_1.trackSession; } });
-Object.defineProperty(exports, "shopifyWebhook", { enumerable: true, get: function () { return shopifyTracking_1.shopifyWebhook; } });
-Object.defineProperty(exports, "getStorefrontTrackerScript", { enumerable: true, get: function () { return shopifyTracking_1.getStorefrontTrackerScript; } });
-Object.defineProperty(exports, "syncOrderUpdateToAzify", { enumerable: true, get: function () { return shopifyTracking_1.syncOrderUpdateToAzify; } });
+var shopifyTracking_2 = require("./shopifyTracking");
+Object.defineProperty(exports, "trackSession", { enumerable: true, get: function () { return shopifyTracking_2.trackSession; } });
+Object.defineProperty(exports, "shopifyWebhook", { enumerable: true, get: function () { return shopifyTracking_2.shopifyWebhook; } });
+Object.defineProperty(exports, "getStorefrontTrackerScript", { enumerable: true, get: function () { return shopifyTracking_2.getStorefrontTrackerScript; } });
+Object.defineProperty(exports, "syncOrderUpdateToAzify", { enumerable: true, get: function () { return shopifyTracking_2.syncOrderUpdateToAzify; } });
 var azifyGateway_1 = require("./azifyGateway");
 Object.defineProperty(exports, "azifyGateway", { enumerable: true, get: function () { return azifyGateway_1.azifyGateway; } });
-const shopifyTracking_2 = require("./shopifyTracking");
+const shopifyTracking_3 = require("./shopifyTracking");
 var aiProxy_1 = require("./aiProxy");
 Object.defineProperty(exports, "aiChatProxy", { enumerable: true, get: function () { return aiProxy_1.aiChatProxy; } });
 Object.defineProperty(exports, "aiProviders", { enumerable: true, get: function () { return aiProxy_1.aiProviders; } });
@@ -636,11 +637,49 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
         const uniqueSourceId = body.orderUid && String(body.orderUid).trim() !== ""
             ? `uid:${String(body.orderUid).trim()}`
             : `row:${String(body.rowNumber)}`;
-        const teamsSnap = await db
+        const rawSheetId = String(body.sheetId || "").trim();
+        const cleanSheetId = (rawSheetId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/)?.[1] || rawSheetId).trim();
+        let teamsSnap = await db
             .collectionGroup("teams")
-            .where("sheetIds", "array-contains", body.sheetId)
+            .where("sheetIds", "array-contains", cleanSheetId)
             .limit(1)
             .get();
+        if (teamsSnap.empty && rawSheetId !== cleanSheetId) {
+            teamsSnap = await db
+                .collectionGroup("teams")
+                .where("sheetIds", "array-contains", rawSheetId)
+                .limit(1)
+                .get();
+        }
+        if (teamsSnap.empty) {
+            teamsSnap = await db
+                .collectionGroup("teams")
+                .where("sheetId", "==", cleanSheetId)
+                .limit(1)
+                .get();
+        }
+        if (teamsSnap.empty) {
+            // Fallback : recherche directe dans les équipes des workspaces
+            try {
+                const wsList = await db.collection("workspaces").get();
+                for (const wsDoc of wsList.docs) {
+                    const tSnap = await wsDoc.ref.collection("teams").get();
+                    for (const tDoc of tSnap.docs) {
+                        const td = tDoc.data();
+                        const sIds = Array.isArray(td.sheetIds) ? td.sheetIds : td.sheetId ? [td.sheetId] : [];
+                        if (sIds.some(s => s === cleanSheetId || s === rawSheetId)) {
+                            teamsSnap = { empty: false, docs: [tDoc] };
+                            break;
+                        }
+                    }
+                    if (!teamsSnap.empty)
+                        break;
+                }
+            }
+            catch (wsScanErr) {
+                console.warn("receiveSheetOrder: scan de secours des équipes échoué:", wsScanErr);
+            }
+        }
         if (teamsSnap.empty) {
             console.error(`receiveSheetOrder: aucune equipe trouvee pour sheetId=${body.sheetId}`);
             res.status(404).send("Aucune equipe connectee a ce Sheet.");
@@ -666,11 +705,14 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
         }
         const phoneParsed = (0, libphonenumber_js_1.parsePhoneNumberFromString)(body.phone, team.defaultCountry);
         const clientPhoneFormatted = phoneParsed?.formatInternational() ?? body.phone;
-        // Routage intelligent multi-pays : si un tableur partagé contient des commandes
-        // destinées à différents pays (ex: +229 Bénin, +225 Côte d'Ivoire, +228 Togo),
-        // WariTrack réoriente automatiquement la commande vers l'équipe locale correspondante.
+        // Routage intelligent multi-pays haute précision (Inspiré COD Afrique)
         let assignedTeamId = teamId;
-        const detectedCountry = phoneParsed?.country;
+        const detectedCountry = (0, shopifyTracking_1.detectAfricanCountry)({
+            phone: body.phone,
+            city: body.city,
+            country: body.country || body.pays,
+            defaultCountry: team.defaultCountry || "TG",
+        });
         if (detectedCountry && detectedCountry !== team.defaultCountry) {
             try {
                 const altTeamSnap = await db
@@ -1006,8 +1048,54 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
     const closeuseMap = new Map();
     homeCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
     allocatedCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
-    if (closeuseMap.size === 0)
+    if (closeuseMap.size === 0) {
+        console.warn(`onOrderCreated: Aucune closeuse active pour l'équipe ${order.teamId}. Notification admin envoyée.`);
+        const orderProductImg = await resolveOrderProductImage(workspaceId, order);
+        if (orderProductImg && !order.productImageUrl) {
+            await snap.ref.update({ productImageUrl: orderProductImg }).catch(() => { });
+        }
+        const orderQty = order.quantity && order.quantity > 1 ? `${order.quantity}x ` : "";
+        await notifyAdmins(workspaceId, `🛍️ Nouvelle commande : ${orderQty}${order.product || "Produit"}`, `⚠️ [À attribuer] ${order.clientName} · ${order.city || "Ville non précisée"} · Équipe ${order.teamName || order.teamId} (Aucune closeuse active)`, orderProductImg, snap.id);
+        if (order.product && order.teamId) {
+            await recordOrderStockCreation(workspaceId, order.teamId, order.product, Number(order.quantity || 1));
+        }
+        if (!order.sheetId && order.teamId) {
+            try {
+                const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
+                const teamData = teamSnap.data();
+                const sheetIds = Array.isArray(teamData?.sheetIds)
+                    ? teamData.sheetIds
+                    : teamData?.sheetId
+                        ? [teamData.sheetId]
+                        : [];
+                const targetSheetId = sheetIds.find((s) => Boolean(s));
+                if (targetSheetId) {
+                    const sheets = (0, sheetsSync_1.getSheetsClient)();
+                    const appendRes = await (0, sheetsSync_1.appendOrderToSheet)(sheets, targetSheetId, {
+                        clientName: order.clientName || '',
+                        phone: order.clientPhoneFormatted || order.phone || '',
+                        city: order.city || '',
+                        product: order.product || '',
+                        amount: order.amount,
+                        quantity: order.quantity || 1,
+                        statutCloseuse: order.statutCloseuse || 'nouveau',
+                        orderNumber: order.orderNumber,
+                        orderId: snap.id,
+                    });
+                    if (appendRes) {
+                        await snap.ref.update({
+                            sheetId: targetSheetId,
+                            sourceRowId: appendRes.sourceRowId,
+                        });
+                    }
+                }
+            }
+            catch (sheetErr) {
+                console.warn('onOrderCreated: échec sync Google Sheet pour order ' + snap.id + ':', sheetErr?.message || sheetErr);
+            }
+        }
         return;
+    }
     const allCloseuseDocs = Array.from(closeuseMap.values());
     const loads = await Promise.all(allCloseuseDocs.map(async (userDoc) => {
         const activeSnap = await db
@@ -1181,7 +1269,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             await sendPushToUser(workspaceId, after.closeuseId, `🛵 Livraison en route (${cName})`, `${livName} a démarré la livraison chez ${cName}${cityStr}${prodStr}`, orderId, orderProductImg);
         }
         // Synchronisation retour vers la vitrine Azify (Statut: Expédiée)
-        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "shipped");
+        await (0, shopifyTracking_3.syncOrderUpdateToAzify)(workspaceId, after, "shipped");
     }
     if (statutLivreurChanged && after.statutLivreur === "livre" && !before.timestamps?.delivered) {
         await ref.update({
@@ -1222,7 +1310,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             await sendPushToUser(workspaceId, after.closeuseId, `🎉 Commande livrée & encaissée (${cName})`, `${livName} a livré et encaissé le colis de ${cName}${cityStr}${amountStr} en espèces ! Félicitations pour votre closing.`, orderId, orderProductImg);
         }
         // Synchronisation retour vers la vitrine Azify (Statut: Livrée & Encaissée)
-        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "delivered");
+        await (0, shopifyTracking_3.syncOrderUpdateToAzify)(workspaceId, after, "delivered");
         // Isolation Meta CAPI pour les numéros doublons ("acces_libre_site") :
         // Si ce numéro a déjà fait l'objet d'un tracking CAPI ou est qualifié en doublon,
         // on l'isole du Pixel Meta et on le considère comme paiement accès libre site.
@@ -1329,7 +1417,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
     if (statutCloseuseChanged &&
         (after.statutCloseuse === "en_cours" || after.statutCloseuse === "programme" || after.statutCloseuse === "confirme")) {
         // Synchronisation retour vers la vitrine Azify (Statut: Confirmée)
-        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "confirmed");
+        await (0, shopifyTracking_3.syncOrderUpdateToAzify)(workspaceId, after, "confirmed");
     }
     // Événement CommandeConfirmee vers Meta CAPI lors de la validation closeuse (réservé Meta Ads)
     if (statutCloseuseChanged &&
@@ -1413,7 +1501,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             await sendPushToUser(workspaceId, after.closeuseId, `⚠️ Client injoignable sur le terrain (${cName})`, `${livName} signale que ${cName}${cityStr} ne répond pas${noteDetail}. Relancez le client sur WhatsApp ou appel immédiatement !`, orderId, orderProductImg);
         }
         // Synchronisation retour vers la vitrine Azify (Statut: Client Injoignable terrain)
-        await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "unreachable");
+        await (0, shopifyTracking_3.syncOrderUpdateToAzify)(workspaceId, after, "unreachable");
         // Alerte Administrateurs : Colis en échec de livraison
         const clientName = after.clientName || "Client";
         const livreurName = after.assignedLivreurName || after.livreurName || "Livreur";
@@ -1431,7 +1519,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         if (after.statutCloseuse === "rejete") {
             await incrementDailyStat(workspaceId, after.teamId, "rejetees", 1);
             // Synchronisation retour vers la vitrine Azify (Statut: Annulée)
-            await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "cancelled");
+            await (0, shopifyTracking_3.syncOrderUpdateToAzify)(workspaceId, after, "cancelled");
             const clientName = after.clientName || "Client";
             const reasonStr = after.rejectionReason ? ` (${after.rejectionReason})` : "";
             await notifyAdmins(workspaceId, `❌ Commande Annulée : ${clientName}`, `Motif : ${reasonStr || "Refus client"} · Produit : ${after.product || "Article"}`);
@@ -1439,7 +1527,7 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
         else if (after.statutCloseuse === "injoignable") {
             await incrementDailyStat(workspaceId, after.teamId, "injoignables", 1);
             // Synchronisation retour vers la vitrine Azify (Statut: Injoignable)
-            await (0, shopifyTracking_2.syncOrderUpdateToAzify)(workspaceId, after, "unreachable");
+            await (0, shopifyTracking_3.syncOrderUpdateToAzify)(workspaceId, after, "unreachable");
         }
     }
     // Sync retour Firestore -> Sheet pour tous les AUTRES changements de

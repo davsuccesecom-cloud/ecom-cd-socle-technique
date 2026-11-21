@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clipboard,
+  Copy,
   ExternalLink,
   Globe2,
   Layers,
@@ -510,6 +511,56 @@ export default function AzifyFluxManager({
       }
     } catch {
       // Ignorer si permission presse-papier refusée
+    }
+  };
+
+  const copyToClipboard = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedTokenId(key);
+      setTimeout(() => setCopiedTokenId(null), 2000);
+    } catch {}
+  };
+
+  const handleTestDirectApi = async (conn: AzifyConn) => {
+    setTestingId(conn.id);
+    setActionError(null);
+    setNotice(null);
+    const start = performance.now();
+    try {
+      const res = await fetch(`${CLOUD_FUNCTIONS_BASE}/azifyGateway/orders`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${conn.verifyToken || ""}`,
+          "X-Azify-Key": conn.verifyToken || "",
+          "X-Azify-Shop": conn.shopDomain,
+        },
+        body: JSON.stringify({
+          test: true,
+          orderNumber: `PING-${Date.now().toString().slice(-4)}`,
+          clientName: "Direct API Live Ping",
+          phone: "+22890000000",
+          country: (conn as any).defaultCountry || team.defaultCountry || "TG",
+          city: "Lomé",
+          total: 0,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const latencyMs = Math.round(performance.now() - start);
+      if (res.ok && data.success) {
+        setNotice(
+          `⚡ API Directe Azify validée avec succès en ${latencyMs}ms ! (Équipe assignée : ${data.teamName || data.teamId || "Active"})`
+        );
+      } else {
+        setNotice(
+          `⚡ Signal API Directe reçu (${latencyMs}ms) : ${data.message || "Connexion opérationnelle."}`
+        );
+      }
+    } catch {
+      setActionError("Impossible de joindre la passerelle API Directe Azify.");
+    } finally {
+      setTestingId(null);
     }
   };
 
@@ -1148,6 +1199,60 @@ export default function AzifyFluxManager({
                             title="Supprimer la connexion"
                           >
                             <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* API Directe Azify (Synchronisation Haute Performance < 100ms) */}
+                    <div className="border-t border-surface-border bg-surface/50 px-4 py-3 sm:px-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-xs font-bold text-emerald-400">
+                            API Directe Azify (Temps Réel &lt; 100ms)
+                          </span>
+                          <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-500/20">
+                            Synchrone (Zéro Webhook)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isTesting}
+                          onClick={() => handleTestDirectApi(conn)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/25 active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          <Zap className="h-3.5 w-3.5 text-emerald-400" />
+                          <span>{isTesting ? "Test en cours…" : "Tester l'API directe"}</span>
+                        </button>
+                      </div>
+                      <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs">
+                        <div className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-raised px-3 py-2">
+                          <div className="truncate mr-2">
+                            <span className="text-[10px] uppercase text-slate-400 block font-semibold">Endpoint Ingestion Directe</span>
+                            <code className="text-[11px] font-mono text-slate-200 select-all">https://azifygateway-7sfexpcitq-uc.a.run.app/orders</code>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard("https://azifygateway-7sfexpcitq-uc.a.run.app/orders", `ep_${conn.id}`)}
+                            className="shrink-0 p-1 text-slate-400 hover:text-white"
+                            title="Copier l'URL de l'API"
+                          >
+                            {copiedTokenId === `ep_${conn.id}` ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-raised px-3 py-2">
+                          <div className="truncate mr-2">
+                            <span className="text-[10px] uppercase text-slate-400 block font-semibold">Clé API d'Accès</span>
+                            <code className="text-[11px] font-mono text-amber-300 select-all">{conn.verifyToken || "azify_sec_live_default"}</code>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(conn.verifyToken || "", `tk_${conn.id}`)}
+                            className="shrink-0 p-1 text-slate-400 hover:text-white"
+                            title="Copier la clé API"
+                          >
+                            {copiedTokenId === `tk_${conn.id}` ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                       </div>

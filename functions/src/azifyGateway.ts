@@ -1,3 +1,4 @@
+import { detectAfricanCountry } from "./shopifyTracking";
 import * as crypto from "crypto";
 import * as admin from "firebase-admin";
 import { onRequest } from "firebase-functions/v2/https";
@@ -224,7 +225,25 @@ export const azifyGateway = onRequest(
           verifyToken: verifyToken,
           ownerTeamId: ownerTeamId || existing.data()?.ownerTeamId || null,
           defaultCountry: defaultCountry || "TG",
-          countryRoutes: Array.isArray(countryRoutes) ? countryRoutes : (existing.data()?.countryRoutes || []),
+          countryRoutes: (function() {
+            let finalRoutes: Record<string, any> = {};
+            const existingRoutes = existing.data()?.countryRoutes;
+            if (existingRoutes && typeof existingRoutes === "object" && !Array.isArray(existingRoutes)) {
+              finalRoutes = { ...existingRoutes };
+            } else if (Array.isArray(existingRoutes)) {
+              existingRoutes.forEach((r: any) => {
+                if (r?.countryCode) finalRoutes[r.countryCode.toUpperCase()] = r;
+              });
+            }
+            if (countryRoutes && typeof countryRoutes === "object" && !Array.isArray(countryRoutes)) {
+              finalRoutes = { ...finalRoutes, ...countryRoutes };
+            } else if (Array.isArray(countryRoutes)) {
+              countryRoutes.forEach((r: any) => {
+                if (r?.countryCode) finalRoutes[r.countryCode.toUpperCase()] = r;
+              });
+            }
+            return finalRoutes;
+          })(),
           status: "active",
           workspaceId: targetWorkspaceId,
           webhookVerifiedAt: Date.now(),
@@ -234,15 +253,28 @@ export const azifyGateway = onRequest(
 
         await connRef.set(connData, { merge: true });
 
+        const apiKey = connData.verifyToken || `az_sec_${crypto.randomBytes(16).toString("hex")}`;
+        try {
+          await connRef.update({ apiKey });
+        } catch {}
+
         res.status(200).json({
           success: true,
           paired: true,
           workspaceId: targetWorkspaceId,
           storeDomain: cleanDomain,
           ownerTeamId: connData.ownerTeamId,
-          webhookUrl: "https://shopifywebhook-7sfexpcitq-uc.a.run.app",
+          // API DIRECTE AZIFY HAUTE PERFORMANCE (INGESTION SYNCHRONE TEMPS RÉEL)
+          apiUrl: "https://azifygateway-7sfexpcitq-uc.a.run.app/orders",
+          apiKey,
+          endpoints: {
+            createOrder: "https://azifygateway-7sfexpcitq-uc.a.run.app/orders",
+            batchOrders: "https://azifygateway-7sfexpcitq-uc.a.run.app/orders/batch",
+            getOrderStatus: "https://azifygateway-7sfexpcitq-uc.a.run.app/orders",
+            teams: "https://azifygateway-7sfexpcitq-uc.a.run.app/teams",
+          },
           trackerUrl: "https://tracksession-7sfexpcitq-uc.a.run.app",
-          message: "Appairage Azify <-> WariTrack réussi. Synchronisation bidirectionnelle active.",
+          message: "Appairage API Directe Azify <-> WariTrack réussi. Ingestion synchrone temps réel active.",
         });
         return;
       } catch (err: any) {
@@ -298,7 +330,437 @@ export const azifyGateway = onRequest(
       }
     }
 
-    // 5. POST /push/subscribe : Inscription Push des visiteurs / acheteurs Marketplace
+    // =========================================================================
+    // 4bis. API DIRECTE HAUTE PERFORMANCE AZIFY (INGESTION COD SYNCHRONE & STATUTS)
+    // =========================================================================
+
+    // A. GET /orders ou /orders/:id : Consultation temps réel du statut d'une commande
+    if (req.method === "GET" && (path === "/orders" || path.startsWith("/orders/") || path.startsWith("/order/"))) {
+      try {
+        const orderIdParam = path.replace(/^\/orders?\/?/, "").trim() || String(req.query.id || req.query.orderId || "").trim();
+        const verifyToken = String(req.headers["x-azify-verify-token"] || req.headers["x-azify-api-key"] || req.query.verifyToken || req.query.apiKey || "").trim();
+        const shopDomain = String(req.headers["x-azify-shop-domain"] || req.query.shopDomain || "").trim().toLowerCase();
+
+        let targetWorkspaceId = String(req.query.workspaceId || "").trim();
+        if (!targetWorkspaceId && (verifyToken || shopDomain)) {
+          let cDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+          if (verifyToken) {
+            const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
+            if (!snap.empty) cDoc = snap.docs[0];
+          }
+          if (!cDoc && shopDomain) {
+            const clean = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+            const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", clean).limit(1).get();
+            if (!snap.empty) cDoc = snap.docs[0];
+          }
+          if (cDoc) targetWorkspaceId = cDoc.data()?.workspaceId || "";
+        }
+
+        if (!targetWorkspaceId) {
+          const wsSnap = await db.collection("workspaces").limit(1).get();
+          if (!wsSnap.empty) targetWorkspaceId = wsSnap.docs[0].id;
+        }
+
+        if (!targetWorkspaceId || !orderIdParam) {
+          res.status(400).json({ error: "orderId et workspaceId requis." });
+          return;
+        }
+
+        const cleanId = orderIdParam.replace(/^#/, "");
+        const orderSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("orders").doc(cleanId).get();
+        if (!orderSnap.exists) {
+          res.status(404).json({ error: "Commande introuvable", orderId: cleanId });
+          return;
+        }
+
+        const o = orderSnap.data() || {};
+        res.status(200).json({
+          success: true,
+          orderId: cleanId,
+          orderNumber: o.orderNumber || `#${cleanId}`,
+          teamId: o.teamId,
+          teamName: o.teamName,
+          clientName: o.clientName,
+          amount: o.amount,
+          product: o.product,
+          statutCloseuse: o.statutCloseuse,
+          statutLivreur: o.statutLivreur,
+          delivered: Boolean(o.statutLivreur === "livre" || o.statutCloseuse === "livre"),
+          timestamps: o.timestamps || {},
+        });
+        return;
+      } catch (err: any) {
+        console.error("azifyGateway getOrder error:", err);
+        res.status(500).json({ error: "Internal Server Error", message: err.message });
+        return;
+      }
+    }
+
+    // B. POST /orders/batch : Ingestion en masse ultra-rapide (bulk orders)
+    if (req.method === "POST" && (path === "/orders/batch" || path.endsWith("/orders/batch"))) {
+      const startTime = Date.now();
+      try {
+        const body = parseJsonBody(req);
+        const ordersList: any[] = Array.isArray(body.orders) ? body.orders : Array.isArray(body.items) ? body.items : [];
+
+        if (ordersList.length === 0) {
+          res.status(400).json({ error: "Tableau 'orders' vide ou manquant." });
+          return;
+        }
+
+        const authHeader = String(req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
+        const verifyToken = String(req.headers["x-azify-verify-token"] || req.headers["x-azify-api-key"] || authHeader || body.apiKey || body.verifyToken || "").trim();
+        const shopDomain = String(req.headers["x-azify-shop-domain"] || body.shopDomain || body.storeDomain || "").trim().toLowerCase();
+
+        let targetWorkspaceId = String(body.workspaceId || "").trim();
+        let connDoc: admin.firestore.QueryDocumentSnapshot | admin.firestore.DocumentSnapshot | null = null;
+
+        if (verifyToken) {
+          const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
+          if (!snap.empty) connDoc = snap.docs[0];
+        }
+        if (!connDoc && shopDomain) {
+          const clean = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+          const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", clean).limit(1).get();
+          if (!snap.empty) connDoc = snap.docs[0];
+        }
+        if (connDoc) targetWorkspaceId = connDoc.data()?.workspaceId || targetWorkspaceId;
+
+        if (!targetWorkspaceId) {
+          const wsSnap = await db.collection("workspaces").limit(1).get();
+          if (!wsSnap.empty) targetWorkspaceId = wsSnap.docs[0].id;
+        }
+
+        if (!targetWorkspaceId) {
+          res.status(404).json({ error: "Workspace introuvable." });
+          return;
+        }
+
+        const connData = connDoc?.data() || {};
+        const teamsSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").get();
+        const teamsList = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        const batch = db.batch();
+        const results: any[] = [];
+        const now = Date.now();
+
+        for (const item of ordersList.slice(0, 100)) {
+          const rawOrderId = String(item.id ?? item.orderId ?? item.order_id ?? item._id ?? item.orderNumber ?? `az_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`);
+          const orderId = rawOrderId.replace(/^#/, "");
+          const rawPhone = String(item.clientPhone || item.phone || item.tel || "");
+          const city = String(item.city || item.ville || "");
+          const countryCode = detectAfricanCountry({
+            phone: rawPhone,
+            countryCode: item.countryCode || item.country,
+            city,
+            defaultCountry: connData.defaultCountry || "TG",
+          });
+
+          let assignedTeamId = "";
+          let assignedTeamName = "";
+
+          // Routage par countryRoutes
+          if (connData.countryRoutes && typeof connData.countryRoutes === "object" && !Array.isArray(connData.countryRoutes)) {
+            const r = connData.countryRoutes[countryCode];
+            if (r && r.status === "active" && r.assignedTeamId) {
+              assignedTeamId = r.assignedTeamId;
+              assignedTeamName = r.assignedTeamName || "";
+            }
+          }
+
+          if (!assignedTeamId) {
+            const matched = teamsList.find(t => (t as any).defaultCountry === countryCode);
+            if (matched) {
+              assignedTeamId = matched.id;
+              assignedTeamName = (matched as any).name || `Équipe ${countryCode}`;
+            }
+          }
+
+          if (!assignedTeamId && connData.ownerTeamId) {
+            assignedTeamId = connData.ownerTeamId;
+            assignedTeamName = connData.ownerTeamName || "";
+          }
+
+          if (!assignedTeamId && teamsList.length > 0) {
+            const first = teamsList[0];
+            assignedTeamId = first.id;
+            assignedTeamName = (first as any).name || "";
+          }
+
+          const orderRef = db.collection("workspaces").doc(targetWorkspaceId).collection("orders").doc(orderId);
+          const orderDoc = {
+            id: orderId,
+            workspaceId: targetWorkspaceId,
+            teamId: assignedTeamId,
+            teamName: assignedTeamName,
+            sheetId: "",
+            sourceRowId: `azify_${orderId}`,
+            sourceType: "azify_api",
+            protocol: "direct_rest_api",
+            shopifyOrderId: orderId,
+            clientName: String(item.clientName || item.name || "Client Azify").trim(),
+            clientPhoneRaw: rawPhone,
+            clientPhoneFormatted: rawPhone || "Non renseigné",
+            city,
+            addressNote: String(item.address || item.addressNote || item.note || ""),
+            product: String(item.product || item.productTitle || "Produit Azify COD"),
+            quantity: Number(item.quantity || 1),
+            amount: Number(item.amount || item.totalPrice || 0),
+            orderNumber: item.orderNumber ? `#${String(item.orderNumber).replace(/^#/, "")}` : `#${orderId}`,
+            sourcePlatform: "azify",
+            azifyStoreId: connData.azifyStoreId || null,
+            closeuseId: null,
+            livreurId: null,
+            statutCloseuse: "nouveau",
+            statutLivreur: null,
+            temperature: "hot",
+            trafficSource: "organique",
+            capiIsolated: true,
+            timestamps: { received: now },
+            capiSent: false,
+            purgeAt: null,
+          };
+
+          batch.set(orderRef, orderDoc, { merge: true });
+          results.push({ orderId, teamId: assignedTeamId, teamName: assignedTeamName, countryCode });
+        }
+
+        await batch.commit();
+
+        if (connDoc) {
+          try {
+            await connDoc.ref.update({
+              status: "active",
+              lastOrderAt: now,
+              ordersCount: admin.firestore.FieldValue.increment(results.length),
+            });
+          } catch {}
+        }
+
+        res.status(200).json({
+          success: true,
+          batchCount: results.length,
+          orders: results,
+          executionTimeMs: Date.now() - startTime,
+          message: `${results.length} commande(s) Azify ingérée(s) et routée(s) avec succès via l'API Directe.`,
+        });
+        return;
+      } catch (err: any) {
+        console.error("azifyGateway batch orders error:", err);
+        res.status(500).json({ error: "Internal Server Error", message: err.message });
+        return;
+      }
+    }
+
+    // C. POST /orders ou /order : Ingestion directe haute performance d'une commande COD
+    if (req.method === "POST" && (path === "/orders" || path === "/order" || path === "/webhook" || path.endsWith("/orders") || path.endsWith("/webhook"))) {
+      const startTime = Date.now();
+      try {
+        const body = parseJsonBody(req);
+        const root = (body.order && typeof body.order === "object")
+          ? body.order
+          : (body.data && typeof body.data === "object")
+            ? body.data
+            : body;
+
+        const authHeader = String(req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
+        const verifyToken = String(req.headers["x-azify-verify-token"] || req.headers["x-azify-api-key"] || authHeader || root.verifyToken || root.apiKey || body.verifyToken || body.apiKey || "").trim();
+        const shopDomain = String(req.headers["x-azify-shop-domain"] || req.query.shopDomain || root.shopDomain || root.storeDomain || body.shopDomain || "").trim().toLowerCase();
+
+        let targetWorkspaceId = String(body.workspaceId || root.workspaceId || "").trim();
+        let connDoc: admin.firestore.QueryDocumentSnapshot | admin.firestore.DocumentSnapshot | null = null;
+
+        if (verifyToken) {
+          const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
+          if (!snap.empty) connDoc = snap.docs[0];
+        }
+        if (!connDoc && shopDomain) {
+          const clean = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+          const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", clean).limit(1).get();
+          if (!snap.empty) connDoc = snap.docs[0];
+        }
+
+        if (connDoc) {
+          targetWorkspaceId = connDoc.data()?.workspaceId || targetWorkspaceId;
+        }
+
+        if (!targetWorkspaceId) {
+          const wsSnap = await db.collection("workspaces").limit(1).get();
+          if (!wsSnap.empty) targetWorkspaceId = wsSnap.docs[0].id;
+        }
+
+        if (!targetWorkspaceId) {
+          res.status(404).json({ error: "Workspace introuvable pour cette boutique." });
+          return;
+        }
+
+        const rawOrderId = String(
+          root.id ??
+          root.orderId ??
+          root.order_id ??
+          root._id ??
+          root.orderNumber ??
+          root.order_number ??
+          root.reference ??
+          `az_${Date.now()}`
+        );
+        const orderId = rawOrderId.replace(/^#/, "");
+        const orderNumber = root.orderNumber ? (String(root.orderNumber).startsWith("#") ? String(root.orderNumber) : `#${root.orderNumber}`) : `#${orderId}`;
+
+        // Idempotence : si la commande existe déjà, renvoyer immédiatement confirmation sans doublonner
+        const existingOrderRef = db.collection("workspaces").doc(targetWorkspaceId).collection("orders").doc(orderId);
+        const existingSnap = await existingOrderRef.get();
+        if (existingSnap.exists) {
+          const existingData = existingSnap.data() || {};
+          res.status(200).json({
+            success: true,
+            orderId,
+            status: "already_exists",
+            idempotent: true,
+            assignedTeamId: existingData.teamId,
+            assignedTeamName: existingData.teamName,
+            executionTimeMs: Date.now() - startTime,
+            message: "Commande déjà enregistrée (idempotence validée).",
+          });
+          return;
+        }
+
+        const connData = connDoc?.data() || {};
+        const rawPhone = String(root.clientPhone || root.phone || root.tel || root.telephone || root.whatsapp || "");
+        const city = String(root.city || root.ville || root.commune || "");
+        const countryCandidate = String(root.countryCode || root.country || root.pays || connData.defaultCountry || "TG");
+        const countryCode = detectAfricanCountry({
+          phone: rawPhone,
+          countryCode: countryCandidate,
+          country: countryCandidate,
+          city,
+          defaultCountry: connData.defaultCountry || "TG",
+        });
+
+        // Routage multi-pays haute précision vers l'équipe locale
+        let targetRoute: any = null;
+        if (connData.countryRoutes && typeof connData.countryRoutes === "object" && !Array.isArray(connData.countryRoutes)) {
+          targetRoute = connData.countryRoutes[countryCode];
+        } else if (Array.isArray(connData.countryRoutes)) {
+          targetRoute = connData.countryRoutes.find((r: any) => String(r?.countryCode || r?.country || "").toUpperCase() === countryCode);
+        }
+
+        let assignedTeamId = (targetRoute && targetRoute.status === "active" && targetRoute.assignedTeamId)
+          ? targetRoute.assignedTeamId
+          : "";
+        let assignedTeamName = targetRoute?.assignedTeamName || "";
+        let isUnrouted = false;
+
+        // 1. Chercher automatiquement l'équipe du même pays dans le workspace
+        if (!assignedTeamId) {
+          const cTeamSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").where("defaultCountry", "==", countryCode).limit(1).get();
+          if (!cTeamSnap.empty) {
+            assignedTeamId = cTeamSnap.docs[0].id;
+            assignedTeamName = cTeamSnap.docs[0].data()?.name || `Équipe ${countryCode}`;
+          }
+        }
+
+        // 2. Équipe propriétaire
+        if (!assignedTeamId && connData.ownerTeamId) {
+          assignedTeamId = connData.ownerTeamId;
+          assignedTeamName = connData.ownerTeamName || "";
+          isUnrouted = true;
+        }
+
+        // 3. Première équipe active du workspace
+        if (!assignedTeamId) {
+          const allTeamsSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").limit(5).get();
+          if (!allTeamsSnap.empty) {
+            const activeTeam = allTeamsSnap.docs.find((d) => d.data()?.active !== false) || allTeamsSnap.docs[0];
+            assignedTeamId = activeTeam.id;
+            assignedTeamName = activeTeam.data()?.name || "";
+            isUnrouted = true;
+          }
+        }
+
+        const now = Date.now();
+        const orderDoc = {
+          id: orderId,
+          workspaceId: targetWorkspaceId,
+          teamId: assignedTeamId || "",
+          teamName: assignedTeamName || connData.ownerTeamName || "",
+          sheetId: "",
+          sourceRowId: `azify_${orderId}`,
+          sourceType: "azify_api",
+          protocol: "direct_rest_api",
+          shopifyOrderId: orderId,
+          clientName: String(root.clientName || root.name || root.customerName || "Client Azify").trim(),
+          clientPhoneRaw: rawPhone,
+          clientPhoneFormatted: rawPhone || "Non renseigné",
+          city,
+          addressNote: String(root.address || root.addressNote || root.note || ""),
+          product: String(root.product || root.productTitle || "Produit Azify COD"),
+          productImageUrl: root.productImageUrl || root.image || null,
+          quantity: Number(root.quantity || 1),
+          amount: Number(root.amount || root.totalPrice || root.total_price || 0),
+          orderNumber,
+          sourcePlatform: "azify",
+          azifyStoreId: connData.azifyStoreId || root.storeId || null,
+          azifyStoreName: connData.shopName || root.storeName || "Azify Studio",
+          clientLanguage: root.clientLanguage || root.language || root.langue || null,
+          closeuseId: null,
+          livreurId: null,
+          statutCloseuse: "nouveau",
+          statutLivreur: null,
+          statutAdminOverride: null,
+          callInProgress: null,
+          reminderAt: null,
+          temperature: "hot",
+          trafficSource: "organique",
+          capiIsolated: true,
+          timestamps: {
+            received: now,
+            assignedToCloseuse: null,
+            assignedToLivreur: null,
+            closeuseDecidedAt: null,
+            livreurRespondedAt: null,
+            delivered: null,
+          },
+          capiSent: false,
+          purgeAt: null,
+          isUnrouted: Boolean(isUnrouted),
+        };
+
+        await existingOrderRef.set(orderDoc);
+
+        if (connDoc) {
+          try {
+            await connDoc.ref.update({
+              status: "active",
+              lastOrderAt: now,
+              ordersCount: admin.firestore.FieldValue.increment(1),
+            });
+          } catch {}
+        }
+
+        const executionTimeMs = Date.now() - startTime;
+        console.log(`azifyGateway [Direct API]: Commande ${orderId} reçue en ${executionTimeMs}ms et routée vers ${assignedTeamName} (${assignedTeamId}) - Pays: ${countryCode}`);
+
+        res.status(200).json({
+          success: true,
+          orderId,
+          status: "routed",
+          assignedTeamId,
+          assignedTeamName,
+          countryCode,
+          isUnrouted,
+          executionTimeMs,
+          message: "Commande Azify reçue et routée avec succès via l'API Directe.",
+        });
+        return;
+      } catch (err: any) {
+        console.error("azifyGateway direct order error:", err);
+        res.status(500).json({ error: "Internal Server Error", message: err.message });
+        return;
+      }
+    }
+
+        // 5. POST /push/subscribe : Inscription Push des visiteurs / acheteurs Marketplace
     if (req.method === "POST" && (path === "/push/subscribe" || path.endsWith("/push/subscribe"))) {
       try {
         const body = parseJsonBody(req);
