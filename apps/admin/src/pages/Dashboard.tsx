@@ -84,8 +84,8 @@ const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = {
     subtitle: "Diagnostic opérationnel, rentabilité et bilans stratégiques par marché",
   },
   comptabilite: {
-    title: "Comptabilité & Stock par Pays",
-    subtitle: "Prix de revient unitaire, fret transitaire, marge nette réelle et ventilation du cash",
+    title: "Comptabilité & Stock",
+    subtitle: "Marge nette réelle, fret & arbitrage de trésorerie",
   },
   performance: {
     title: "Performance des Opérateurs",

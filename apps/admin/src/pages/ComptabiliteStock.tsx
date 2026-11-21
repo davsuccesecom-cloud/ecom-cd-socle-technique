@@ -22,6 +22,7 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
+  Coins,
   Download,
   Edit3,
   ExternalLink,
@@ -29,6 +30,7 @@ import {
   FileSpreadsheet,
   FileText,
   Filter,
+  Globe,
   Layers,
   MessageCircle,
   Package,
@@ -107,8 +109,101 @@ export interface ProductFinancialStats {
   currentStock: number;
   dailyVelocity: number;
   daysOfStockRemaining: number;
+  coverageLabel: string;
+  coverageBadgeCls: string;
   lowStockThreshold: number;
   stockDoc?: ProductStock;
+}
+
+export function computeStockVelocityAndCoverage(
+  currentStock: number,
+  unitsDeliveredInPeriod: number,
+  numberOfDaysInPeriod: number
+): { dailyVelocity: number; daysOfStockRemaining: number; coverageLabel: string; coverageBadgeCls: string } {
+  // Fenêtre d'évaluation de vélocité réaliste (1 à 30 jours) pour éviter la dilution sur 365 jours
+  const windowDays = Math.max(1, Math.min(numberOfDaysInPeriod, 30));
+  const dailyVelocity = unitsDeliveredInPeriod > 0 ? Number((unitsDeliveredInPeriod / windowDays).toFixed(2)) : 0;
+
+  if (currentStock <= 0) {
+    return {
+      dailyVelocity,
+      daysOfStockRemaining: 0,
+      coverageLabel: "Rupture de stock",
+      coverageBadgeCls: "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30",
+    };
+  }
+
+  if (unitsDeliveredInPeriod === 0 || dailyVelocity <= 0.01) {
+    return {
+      dailyVelocity: 0,
+      daysOfStockRemaining: 999,
+      coverageLabel: "Stock dormant (0 vte)",
+      coverageBadgeCls: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border border-slate-500/30",
+    };
+  }
+
+  const daysOfStockRemaining = Math.round(currentStock / dailyVelocity);
+
+  if (daysOfStockRemaining < 7) {
+    return {
+      dailyVelocity,
+      daysOfStockRemaining,
+      coverageLabel: `${daysOfStockRemaining} j · Rupture proche`,
+      coverageBadgeCls: "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30",
+    };
+  }
+  if (daysOfStockRemaining <= 14) {
+    return {
+      dailyVelocity,
+      daysOfStockRemaining,
+      coverageLabel: `${daysOfStockRemaining} j · Réappro urgente`,
+      coverageBadgeCls: "bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30",
+    };
+  }
+  if (daysOfStockRemaining <= 60) {
+    return {
+      dailyVelocity,
+      daysOfStockRemaining,
+      coverageLabel: `${daysOfStockRemaining} j · Optimal`,
+      coverageBadgeCls: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30",
+    };
+  }
+  if (daysOfStockRemaining <= 90) {
+    return {
+      dailyVelocity,
+      daysOfStockRemaining,
+      coverageLabel: `${daysOfStockRemaining} j · Confortable`,
+      coverageBadgeCls: "bg-sky-500/15 text-sky-800 dark:text-sky-400 border border-sky-500/30",
+    };
+  }
+  return {
+    dailyVelocity,
+    daysOfStockRemaining,
+    coverageLabel: `> 90 j · Surstock`,
+    coverageBadgeCls: "bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30",
+  };
+}
+
+export function renderSignedMargin(margin: number, currency: string) {
+  if (margin > 0) {
+    return (
+      <span className="font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+        +{margin.toLocaleString("fr-FR")} {currency}
+      </span>
+    );
+  }
+  if (margin < 0) {
+    return (
+      <span className="font-mono font-bold tabular-nums text-rose-600 dark:text-rose-400">
+        {margin.toLocaleString("fr-FR")} {currency}
+      </span>
+    );
+  }
+  return (
+    <span className="font-mono font-semibold tabular-nums text-slate-500">
+      0 {currency}
+    </span>
+  );
 }
 
 function safeOrderTs(o: any): number {
@@ -340,8 +435,8 @@ export default function ComptabiliteStock({
       const lifetimeDelivered = lifetimeDeliveredUnitsByProduct.get(key) || agg.unitsDelivered;
       const currentStock = Math.max(0, initialStock - lifetimeDelivered);
 
-      const dailyVelocity = agg.unitsDelivered / numberOfDaysInPeriod;
-      const daysOfStockRemaining = dailyVelocity > 0 ? Math.round(currentStock / dailyVelocity) : 999;
+      const { dailyVelocity, daysOfStockRemaining, coverageLabel, coverageBadgeCls } =
+        computeStockVelocityAndCoverage(currentStock, agg.unitsDelivered, numberOfDaysInPeriod);
 
       list.push({
         id: stockDoc?.id || key.replace(/[^a-z0-9]/gi, "_"),
@@ -361,6 +456,8 @@ export default function ComptabiliteStock({
         currentStock,
         dailyVelocity,
         daysOfStockRemaining,
+        coverageLabel,
+        coverageBadgeCls,
         lowStockThreshold: stockDoc?.lowStockThreshold || 10,
         stockDoc,
       });
@@ -376,8 +473,8 @@ export default function ComptabiliteStock({
         const landed = p.u + f;
         const comms = 1050;
         const margin = p.v - landed - comms;
-        const dailyVelocity = 8;
-        const days = Math.round(p.s / dailyVelocity);
+        const { dailyVelocity, daysOfStockRemaining, coverageLabel, coverageBadgeCls } =
+          computeStockVelocityAndCoverage(p.s, 4 * Math.min(numberOfDaysInPeriod, 30), numberOfDaysInPeriod);
 
         list.push({
           id: p.name.toLowerCase().replace(/[^a-z0-9]/gi, "_"),
@@ -395,7 +492,9 @@ export default function ComptabiliteStock({
           netProfitInPeriod: dailyVelocity * numberOfDaysInPeriod * margin,
           currentStock: p.s,
           dailyVelocity,
-          daysOfStockRemaining: days,
+          daysOfStockRemaining,
+          coverageLabel,
+          coverageBadgeCls,
           lowStockThreshold: 15,
         });
       });
@@ -757,22 +856,40 @@ export default function ComptabiliteStock({
   };
 
   // Helper badge couverture
-  const getCoverageBadge = (days: number) => {
+  const getCoverageBadge = (days: number, item?: ProductFinancialStats) => {
+    if (item?.coverageLabel && item?.coverageBadgeCls) {
+      return {
+        label: item.coverageLabel,
+        cls: item.coverageBadgeCls,
+      };
+    }
+    if (days >= 999) {
+      return {
+        cls: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border border-slate-500/30",
+        label: "Stock dormant (0 vte)",
+      };
+    }
+    if (days > 90) {
+      return {
+        cls: "bg-purple-500/15 text-purple-800 dark:text-purple-300 border border-purple-500/30",
+        label: "> 90 j · Surstock",
+      };
+    }
     if (days >= 15) {
       return {
-        cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800/60",
-        label: `${days} j · OK`,
+        cls: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-500/30",
+        label: `${days} j · Optimal`,
       };
     }
     if (days >= 7) {
       return {
-        cls: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-300 dark:border-amber-800/60",
-        label: `${days} j · à surveiller`,
+        cls: "bg-amber-500/15 text-amber-800 dark:text-amber-400 border border-amber-500/30",
+        label: `${days} j · Réappro urgente`,
       };
     }
     return {
-      cls: "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-300 dark:border-rose-800/60",
-      label: `${days} j · rupture proche`,
+      cls: "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30",
+      label: `${days} j · Rupture proche`,
     };
   };
 
@@ -790,15 +907,21 @@ export default function ComptabiliteStock({
 
   return (
     <div className="space-y-4">
-      {/* 1. Header Titre & Actions principales (Pas d'onglets pays ici : le pays est en haut) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 md:text-2xl">
-            Comptabilité & Stock
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {dateRangeSub} · Marché : <span className="font-semibold text-slate-800 dark:text-slate-200">{activeTeam?.name || "Afrique globale"}</span> · Devise : <span className="font-semibold text-slate-800 dark:text-slate-200">{currency}</span>
-          </p>
+      {/* 1. Barre Métadonnées Contextuelle & Actions (Pas de doublon H1 — déjà affiché en haut) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-white dark:bg-[#1E2024] px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
+            <Calendar className="h-3.5 w-3.5 text-slate-400" />
+            <span>{dateRangeSub}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-white dark:bg-[#1E2024] px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
+            <Globe className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Marché : <strong className="text-slate-900 dark:text-white">{activeTeam?.name || "Afrique globale"}</strong></span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-white dark:bg-[#1E2024] px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 shadow-2xs">
+            <Coins className="h-3.5 w-3.5 text-amber-500" />
+            <span>Devise : <strong className="font-mono text-slate-900 dark:text-white">{currency}</strong></span>
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -806,59 +929,59 @@ export default function ComptabiliteStock({
             type="button"
             onClick={handleSyncWithAzify}
             disabled={azifySyncing}
-            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-surface-border bg-white dark:bg-[#1B1D21] px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-all hover:border-slate-400 dark:hover:border-slate-500 active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs"
+            className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border border-surface-border bg-white dark:bg-[#1B1D21] px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-all hover:border-slate-400 dark:hover:border-slate-500 active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs"
           >
-            <RefreshCw className={`h-4 w-4 text-emerald-600 dark:text-emerald-400 ${azifySyncing ? "animate-spin" : ""}`} />
-            <span>Synchroniser Azify</span>
+            <RefreshCw className={`h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 ${azifySyncing ? "animate-spin" : ""}`} />
+            <span>{azifySyncing ? "Synchronisation..." : "Synchroniser Azify"}</span>
           </button>
 
           <button
             type="button"
             onClick={() => showToast("Export comptable prêt (démo)")}
-            className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-surface-border bg-white dark:bg-[#1B1D21] px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-all hover:border-slate-400 dark:hover:border-slate-500 active:scale-95 cursor-pointer shadow-xs"
+            className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border border-surface-border bg-white dark:bg-[#1B1D21] px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 transition-all hover:border-slate-400 dark:hover:border-slate-500 active:scale-95 cursor-pointer shadow-xs"
           >
-            <Download className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            <Download className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
             <span>Exporter</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Les 5 Cartes KPI ("Glaces Hautes") avec cadrage impeccable */}
+      {/* 2. Les 5 Cartes KPI ("Glaces Hautes") avec cadrage impeccable & adaptées Thème Clair / Sombre */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {/* Tuile 1 : Encaissé Cash */}
-        <div className="rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 transition-all">
+        <div className="rounded-2xl border border-slate-200/90 dark:border-[#2A2C31] bg-white dark:bg-[#16181D] p-4 transition-all shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+            <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Encaissé cash
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono tabular-nums sm:text-2xl">
             {totals.ca.toLocaleString("fr-FR")} {currency}
           </div>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">sur {totals.pieces} pièces livrées</p>
         </div>
 
         {/* Tuile 2 : Coût de Revient */}
-        <div className="rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 transition-all">
+        <div className="rounded-2xl border border-slate-200/90 dark:border-[#2A2C31] bg-white dark:bg-[#16181D] p-4 transition-all shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+            <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Coût de revient
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono tabular-nums sm:text-2xl">
             {totals.landed.toLocaleString("fr-FR")} {currency}
           </div>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">landed cost (usine + fret)</p>
         </div>
 
         {/* Tuile 3 : Commissions */}
-        <div className="rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 transition-all">
+        <div className="rounded-2xl border border-slate-200/90 dark:border-[#2A2C31] bg-white dark:bg-[#16181D] p-4 transition-all shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+            <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Commissions
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 font-mono tabular-nums sm:text-2xl">
             {totals.commissions.toLocaleString("fr-FR")} {currency}
           </div>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -866,35 +989,35 @@ export default function ComptabiliteStock({
           </p>
         </div>
 
-        {/* Tuile 4 : Marge Nette Réelle (Hero Tile - Sombre solide avec badge lime et texte vert) */}
-        <div className="rounded-2xl border border-transparent bg-[#16181D] text-white p-4 shadow-xl dark:border-[#2A2C31]">
+        {/* Tuile 4 : Marge Nette Réelle (Hero Tile - Parfaitement contrastée en mode clair ET sombre) */}
+        <div className="rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/70 dark:bg-emerald-950/20 text-slate-900 dark:text-slate-100 p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-[#D6F55C] px-2 py-0.5 text-[11px] font-extrabold text-[#16181D]">
+            <span className="rounded-md bg-emerald-600 text-white dark:bg-emerald-500/25 dark:text-emerald-300 dark:border dark:border-emerald-500/30 px-2 py-0.5 text-[11px] font-bold">
               Marge nette réelle
             </span>
           </div>
-          <div className="mt-2 text-xl font-bold tracking-tight text-[#4FC98A] tabular-nums sm:text-2xl">
+          <div className="mt-2 text-xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 font-mono tabular-nums sm:text-2xl">
             {totals.netProfit.toLocaleString("fr-FR")} {currency}
           </div>
-          <p className="mt-1 text-xs font-semibold text-slate-300">
+          <p className="mt-1 text-xs font-semibold text-emerald-800 dark:text-slate-300">
             {totals.netProfitMargin} % du CA encaissé
           </p>
         </div>
 
         {/* Tuile 5 : Ventilation du Cash */}
-        <div className="col-span-2 rounded-2xl border border-[#E7E7E2] dark:border-[#2A2C31] bg-[#F6F6F3] dark:bg-[#1E2024] p-4 sm:col-span-1">
+        <div className="col-span-2 rounded-2xl border border-slate-200/90 dark:border-[#2A2C31] bg-white dark:bg-[#16181D] p-4 sm:col-span-1 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="rounded-md bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+            <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
               Ventilation du cash
             </span>
           </div>
           <div className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
-            <div style={{ width: "65%" }} className="bg-[#16181D] dark:bg-slate-200" title="65% réinjection" />
+            <div style={{ width: "65%" }} className="bg-slate-900 dark:bg-slate-200" title="65% réinjection" />
             <div style={{ width: "35%" }} className="bg-emerald-600 dark:bg-emerald-400" title="35% bénéfice sécurisé" />
           </div>
           <div className="mt-2 space-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-            <p>65 % réinjecté : <b className="text-slate-900 dark:text-slate-100 tabular-nums">{totals.reinvestAmount.toLocaleString("fr-FR")} {currency}</b></p>
-            <p>35 % extrait : <b className="text-emerald-700 dark:text-emerald-400 tabular-nums">{totals.securedAmount.toLocaleString("fr-FR")} {currency}</b></p>
+            <p>65 % réinjecté : <b className="text-slate-900 dark:text-slate-100 font-mono tabular-nums">{totals.reinvestAmount.toLocaleString("fr-FR")} {currency}</b></p>
+            <p>35 % extrait : <b className="text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">{totals.securedAmount.toLocaleString("fr-FR")} {currency}</b></p>
           </div>
         </div>
       </div>
@@ -960,7 +1083,7 @@ export default function ComptabiliteStock({
               </thead>
               <tbody className="divide-y divide-surface-border">
                 {productsFinancialList.map((p) => {
-                  const b = getCoverageBadge(p.daysOfStockRemaining);
+                  const b = getCoverageBadge(p.daysOfStockRemaining, p);
                   return (
                     <tr
                       key={p.id}
@@ -995,8 +1118,8 @@ export default function ComptabiliteStock({
                       <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
                         {p.sellingPriceAvg.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                        +{p.netMarginPerUnit.toLocaleString("fr-FR")} {currency}
+                      <td className="px-4 py-3.5 text-right">
+                        {renderSignedMargin(p.netMarginPerUnit, currency)}
                       </td>
                       <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">
                         {p.currentStock.toLocaleString("fr-FR")}
@@ -1079,8 +1202,8 @@ export default function ComptabiliteStock({
                       <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                         {interval.totalCostsAndCommissions.toLocaleString("fr-FR")} {currency}
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                        +{interval.netProfit.toLocaleString("fr-FR")} {currency}
+                      <td className="px-4 py-3.5 text-right">
+                        {renderSignedMargin(interval.netProfit, currency)}
                       </td>
                       <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
                         {interval.netMarginPercent} %
@@ -1140,8 +1263,8 @@ export default function ComptabiliteStock({
                   <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
                     {d.commissions.toLocaleString("fr-FR")} {currency}
                   </td>
-                  <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                    +{d.netProfit.toLocaleString("fr-FR")} {currency}
+                  <td className="px-4 py-3.5 text-right">
+                    {renderSignedMargin(d.netProfit, currency)}
                   </td>
                   <td className="px-4 py-3.5 text-right text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200">
                     <ChevronRight className="h-4 w-4 ml-auto" />
@@ -1241,9 +1364,9 @@ export default function ComptabiliteStock({
                 </div>
                 <div className="flex justify-between p-3 bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 font-bold">
                   <span>= Marge nette</span>
-                  <span className="font-mono tabular-nums text-sm">
-                    +{selectedReport.netProfit.toLocaleString("fr-FR")} {currency}
-                  </span>
+                  <div className="text-right">
+                    {renderSignedMargin(selectedReport.netProfit, currency)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1254,17 +1377,17 @@ export default function ComptabiliteStock({
                 Ventilation stratégique du cash
               </h3>
               <div className="h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800 flex">
-                <div style={{ width: "65%" }} className="bg-[#16181D] dark:bg-slate-200" />
+                <div style={{ width: "65%" }} className="bg-slate-900 dark:bg-slate-200" />
                 <div style={{ width: "35%" }} className="bg-emerald-600 dark:bg-emerald-400" />
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400 mt-2">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-[#16181D] dark:bg-slate-200" />
-                  65 % stock + pub Meta : <b className="text-slate-900 dark:text-slate-100 tabular-nums">{Math.round(selectedReport.netProfit * 0.65).toLocaleString("fr-FR")} {currency}</b>
+                  <span className="h-2.5 w-2.5 rounded-sm bg-slate-900 dark:bg-slate-200" />
+                  65 % stock + pub Meta : <b className="text-slate-900 dark:text-slate-100 font-mono tabular-nums">{Math.round(selectedReport.netProfit * 0.65).toLocaleString("fr-FR")} {currency}</b>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-sm bg-emerald-600 dark:bg-emerald-400" />
-                  35 % bénéfice extrait : <b className="text-emerald-700 dark:text-emerald-400 tabular-nums">{Math.round(selectedReport.netProfit * 0.35).toLocaleString("fr-FR")} {currency}</b>
+                  35 % bénéfice extrait : <b className="text-emerald-700 dark:text-emerald-400 font-mono tabular-nums">{Math.round(selectedReport.netProfit * 0.35).toLocaleString("fr-FR")} {currency}</b>
                 </span>
               </div>
             </div>
@@ -1299,8 +1422,8 @@ export default function ComptabiliteStock({
                         >
                           <td className="px-3.5 py-2.5 font-bold text-slate-900 dark:text-slate-100">{p.productName}</td>
                           <td className="px-3.5 py-2.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">{countInfo.qty}</td>
-                          <td className="px-3.5 py-2.5 text-right font-mono font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
-                            +{prodMargin.toLocaleString("fr-FR")} {currency}
+                          <td className="px-3.5 py-2.5 text-right">
+                            {renderSignedMargin(prodMargin, currency)}
                           </td>
                           <td className="px-3.5 py-2.5 text-right">
                             <span className="text-emerald-700 dark:text-emerald-400 font-bold hover:underline">Fiche ›</span>
@@ -1392,14 +1515,14 @@ export default function ComptabiliteStock({
               </div>
               <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
                 <span className="text-xs text-slate-500 dark:text-slate-400">Marge nette produit</span>
-                <div className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                  +{selectedProductSheet.netProfitInPeriod.toLocaleString("fr-FR")} {currency}
+                <div className="mt-1 text-lg font-bold tabular-nums">
+                  {renderSignedMargin(selectedProductSheet.netProfitInPeriod, currency)}
                 </div>
               </div>
               <div className="rounded-xl border border-surface-border bg-[#F6F6F3] dark:bg-[#222429] p-3.5">
                 <span className="text-xs text-slate-500 dark:text-slate-400">Marge nette / pièce</span>
-                <div className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-                  +{selectedProductSheet.netMarginPerUnit.toLocaleString("fr-FR")} {currency}
+                <div className="mt-1 text-lg font-bold tabular-nums">
+                  {renderSignedMargin(selectedProductSheet.netMarginPerUnit, currency)}
                 </div>
               </div>
             </div>
@@ -1459,9 +1582,14 @@ export default function ComptabiliteStock({
                 </div>
                 <div className="flex justify-between p-3 text-slate-800 dark:text-slate-200">
                   <span>Couverture</span>
-                  <span className={`rounded-lg px-2 py-0.5 font-bold ${getCoverageBadge(selectedProductSheet.daysOfStockRemaining).cls}`}>
-                    {selectedProductSheet.daysOfStockRemaining} jours
-                  </span>
+                  {(() => {
+                    const badge = getCoverageBadge(selectedProductSheet.daysOfStockRemaining, selectedProductSheet);
+                    return (
+                      <span className={`rounded-lg px-2.5 py-0.5 font-bold ${badge.cls}`}>
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div className="flex justify-between p-3 bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 font-bold">
                   <span>À commander pour tenir 30 jours</span>
@@ -1477,7 +1605,7 @@ export default function ComptabiliteStock({
               <button
                 type="button"
                 onClick={() => showToast("Fiche produit exportée")}
-                className="flex-1 min-h-[44px] rounded-xl bg-[#16181D] font-bold text-white text-xs hover:bg-black transition-all cursor-pointer shadow-xs"
+                className="flex-1 min-h-[44px] rounded-xl bg-slate-900 font-bold text-white text-xs hover:bg-black dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 transition-all cursor-pointer shadow-xs"
               >
                 Exporter la fiche
               </button>
@@ -1624,7 +1752,7 @@ export default function ComptabiliteStock({
                 type="button"
                 disabled={formSaving}
                 onClick={handleSaveCosts}
-                className="flex-1 min-h-[42px] rounded-xl bg-[#16181D] font-bold text-white text-xs hover:bg-black transition-all cursor-pointer disabled:opacity-50"
+                className="flex-1 min-h-[42px] rounded-xl bg-slate-900 font-bold text-white text-xs hover:bg-black dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-50"
               >
                 {formSaving ? "Enregistrement..." : "Enregistrer"}
               </button>
