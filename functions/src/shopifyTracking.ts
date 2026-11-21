@@ -1094,6 +1094,28 @@ export const shopifyWebhook = onRequest(
 
       await newOrderRef.set(orderDoc);
 
+      // Conversion automatique du panier Marketplace si un abonné Push a le même téléphone
+      const searchPhone = phoneNormalized || rawPhone;
+      if (searchPhone) {
+        db.collection("workspaces")
+          .doc(workspaceId)
+          .collection("marketplaceSubscribers")
+          .where("clientPhone", "==", searchPhone)
+          .limit(5)
+          .get()
+          .then((subSnap) => {
+            subSnap.forEach((d) => {
+              d.ref.update({
+                "cart.status": "converted",
+                cartRecoverySent: true,
+                cartConvertedAt: Date.now(),
+                lastConvertedOrderId: shopifyOrderId,
+              }).catch(() => {});
+            });
+          })
+          .catch(() => {});
+      }
+
       // Preuve de fonctionnement continue : sert au badge « En direct » de l'interface
       try {
         await connDoc.ref.update({

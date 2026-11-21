@@ -407,3 +407,55 @@ export interface ProductStock {
   azifySyncedAt?: number;
   updatedAt: number;
 }
+
+// ---------------------------------------------------------------------------
+// Marketplace Push Marketing & Paniers Abandonnés (Azify / EasySell)
+// ---------------------------------------------------------------------------
+
+export interface MarketplaceCart {
+  product: string;
+  amount: number;
+  quantity: number;
+  productImageUrl?: string;
+  checkoutUrl?: string;
+  updatedAt: number;
+  status: "active" | "abandoned" | "converted";
+}
+
+export interface MarketplaceSubscriber {
+  id: string;
+  token: string;
+  workspaceId: string;
+  shopDomain?: string;
+  azifyStoreId?: string;
+  teamId?: string;
+  country?: string;
+  clientName?: string;
+  clientPhone?: string;
+  clientEmail?: string;
+  cart?: MarketplaceCart;
+  cartRecoverySent?: boolean;
+  cartRecoverySentAt?: number;
+  tags?: string[];
+  createdAt: number;
+  lastSeenAt: number;
+  userAgent?: string;
+  deviceType?: "mobile" | "desktop" | "tablet";
+}
+
+export interface MarketplaceCampaign {
+  id: string;
+  workspaceId: string;
+  title: string;
+  body: string;
+  clickUrl?: string;
+  imageUrl?: string;
+  targetCountry?: string;
+  targetStoreId?: string;
+  targetAudience: "all" | "abandoned_carts" | "vip";
+  sentCount: number;
+  successCount: number;
+  failureCount: number;
+  createdAt: number;
+  createdByName?: string;
+}

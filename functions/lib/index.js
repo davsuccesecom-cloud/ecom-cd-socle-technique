@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.scheduledMarketplaceCartRecovery = exports.sendMarketplacePushCampaign = exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -2487,4 +2487,157 @@ exports.saveProductStock = (0, https_1.onCall)(async (request) => {
         updatedAt: Date.now(),
     }, { merge: true });
     return { success: true, id: cleanId };
+});
+// ---------------------------------------------------------------------------
+// Marketplace Push Marketing & Relance Paniers Abandonnés (Azify / EasySell)
+// ---------------------------------------------------------------------------
+exports.sendMarketplacePushCampaign = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { title, body, clickUrl, imageUrl, targetCountry, targetAudience, } = request.data;
+    if (!title || !body) {
+        throw new https_1.HttpsError("invalid-argument", "Titre et message de la notification requis.");
+    }
+    let q = db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("marketplaceSubscribers");
+    if (targetCountry && targetCountry !== "all") {
+        q = q.where("country", "==", targetCountry.toUpperCase());
+    }
+    const subsSnap = await q.get();
+    if (subsSnap.empty) {
+        return { ok: true, sentCount: 0, failureCount: 0, message: "Aucun abonné correspondant aux critères." };
+    }
+    const targetDocs = subsSnap.docs.filter((doc) => {
+        const data = doc.data();
+        if (targetAudience === "abandoned_carts") {
+            return data.cart?.status === "abandoned";
+        }
+        return true;
+    });
+    const tokens = Array.from(new Set(targetDocs
+        .map((d) => d.data().token)
+        .filter((t) => typeof t === "string" && t.length > 10)));
+    if (tokens.length === 0) {
+        return { ok: true, sentCount: 0, failureCount: 0, message: "Aucun token FCM valide trouvé." };
+    }
+    const brandName = await getWorkspaceBrandName(workspaceId);
+    const displayTitle = formatPushTitle(brandName, title);
+    const effectiveClickUrl = clickUrl || "https://azify-pwa-studio.vercel.app";
+    const tag = `marketplace-campaign-${Date.now()}`;
+    let totalSuccess = 0;
+    let totalFailure = 0;
+    const invalidTokens = [];
+    for (let offset = 0; offset < tokens.length; offset += 500) {
+        const chunk = tokens.slice(offset, offset + 500);
+        const pushMsg = buildPushMulticastMessage(chunk, displayTitle, body, effectiveClickUrl, tag, undefined, imageUrl || undefined);
+        const response = await messaging.sendEachForMulticast(pushMsg);
+        totalSuccess += response.successCount;
+        totalFailure += response.failureCount;
+        response.responses.forEach((r, i) => {
+            if (!r.success) {
+                const code = r.error?.code;
+                if (code === "messaging/registration-token-not-registered" ||
+                    code === "messaging/invalid-registration-token") {
+                    invalidTokens.push(chunk[i]);
+                }
+            }
+        });
+    }
+    // Nettoyage automatique des tokens expirés
+    if (invalidTokens.length > 0) {
+        const batch = db.batch();
+        for (const d of targetDocs) {
+            if (invalidTokens.includes(d.data().token)) {
+                batch.delete(d.ref);
+            }
+        }
+        try {
+            await batch.commit();
+        }
+        catch (err) {
+            console.warn("Nettoyage tokens expirés Marketplace ignoré :", err);
+        }
+    }
+    // Enregistrer la campagne dans l'historique
+    await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("marketplaceCampaigns")
+        .add({
+        title,
+        body,
+        clickUrl: effectiveClickUrl,
+        imageUrl: imageUrl || null,
+        targetCountry: targetCountry || "all",
+        targetAudience: targetAudience || "all",
+        sentCount: totalSuccess,
+        failureCount: totalFailure,
+        createdAt: Date.now(),
+    });
+    return {
+        ok: true,
+        sentCount: totalSuccess,
+        failureCount: totalFailure,
+        message: `${totalSuccess} abonnés notifiés avec succès.`,
+    };
+});
+exports.scheduledMarketplaceCartRecovery = (0, scheduler_1.onSchedule)("every 30 minutes", async () => {
+    console.log("scheduledMarketplaceCartRecovery: vérification des paniers abandonnés...");
+    const workspacesSnap = await db.collection("workspaces").get();
+    for (const wsDoc of workspacesSnap.docs) {
+        const wsId = wsDoc.id;
+        const twentyMinutesAgo = Date.now() - 20 * 60 * 1000;
+        const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const abandonedSnap = await db
+            .collection("workspaces")
+            .doc(wsId)
+            .collection("marketplaceSubscribers")
+            .where("cart.status", "==", "abandoned")
+            .where("cartRecoverySent", "==", false)
+            .limit(100)
+            .get();
+        if (abandonedSnap.empty)
+            continue;
+        const candidates = abandonedSnap.docs.filter((doc) => {
+            const d = doc.data();
+            const updatedAt = d.cart?.updatedAt || d.cartAbandonedAt || 0;
+            return updatedAt <= twentyMinutesAgo && updatedAt >= twentyFourHoursAgo && d.token;
+        });
+        if (candidates.length === 0)
+            continue;
+        const brandName = await getWorkspaceBrandName(wsId);
+        for (const candidateDoc of candidates) {
+            const data = candidateDoc.data();
+            const cart = data.cart;
+            const token = data.token;
+            if (!token)
+                continue;
+            const title = formatPushTitle(brandName, "🛒 Votre panier est réservé !");
+            const body = `Finalisez votre commande de ${cart.product || "votre sélection"} et bénéficiez de la livraison rapide COD + 1 cadeau exclusif inclus 🎁`;
+            const clickUrl = cart.checkoutUrl || (data.shopDomain ? `https://${data.shopDomain}` : "/");
+            const tag = `cart-recovery-${candidateDoc.id}`;
+            try {
+                const pushMsg = buildPushMulticastMessage([token], title, body, clickUrl, tag, undefined, cart.productImageUrl || undefined);
+                const res = await messaging.sendEachForMulticast(pushMsg);
+                if (res.successCount > 0) {
+                    await candidateDoc.ref.update({
+                        cartRecoverySent: true,
+                        cartRecoverySentAt: Date.now(),
+                    });
+                    console.log(`Relance panier envoyée avec succès à subscriber ${candidateDoc.id}`);
+                }
+                else {
+                    const code = res.responses[0]?.error?.code;
+                    if (code === "messaging/registration-token-not-registered" ||
+                        code === "messaging/invalid-registration-token") {
+                        await candidateDoc.ref.delete();
+                    }
+                }
+            }
+            catch (err) {
+                console.warn(`Erreur envoi relance panier subscriber ${candidateDoc.id}:`, err);
+            }
+        }
+    }
 });

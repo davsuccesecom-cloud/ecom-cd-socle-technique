@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.azifyGateway = void 0;
+const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 function getDb() {
@@ -296,6 +297,213 @@ exports.azifyGateway = (0, https_1.onRequest)({
         }
         catch (err) {
             console.error("azifyGateway status error:", err);
+            res.status(500).json({ error: "Internal Server Error", message: err.message });
+            return;
+        }
+    }
+    // 5. POST /push/subscribe : Inscription Push des visiteurs / acheteurs Marketplace
+    if (req.method === "POST" && (path === "/push/subscribe" || path.endsWith("/push/subscribe"))) {
+        try {
+            const body = parseJsonBody(req);
+            const { token, shopDomain, azifyStoreId, country, clientName, clientPhone, clientEmail, cart, tags, userAgent, } = body;
+            if (!token || typeof token !== "string" || token.trim().length < 10) {
+                res.status(400).json({ error: "FCM registration token valide requis." });
+                return;
+            }
+            const verifyToken = String(req.headers["x-azify-verify-token"] || body.verifyToken || "").trim();
+            let targetWorkspaceId = String(body.workspaceId || "").trim();
+            // Resolution du workspaceId
+            if (!targetWorkspaceId && (verifyToken || shopDomain)) {
+                let connDoc = null;
+                if (verifyToken) {
+                    const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
+                    if (!snap.empty)
+                        connDoc = snap.docs[0];
+                }
+                if (!connDoc && shopDomain) {
+                    const cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+                    const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cleanDomain).limit(1).get();
+                    if (!snap.empty)
+                        connDoc = snap.docs[0];
+                }
+                if (connDoc) {
+                    targetWorkspaceId = connDoc.data().workspaceId || "";
+                }
+            }
+            if (!targetWorkspaceId) {
+                const wsSnap = await db.collection("workspaces").limit(1).get();
+                if (!wsSnap.empty) {
+                    targetWorkspaceId = wsSnap.docs[0].id;
+                }
+            }
+            if (!targetWorkspaceId) {
+                res.status(404).json({ error: "Workspace introuvable pour cette boutique." });
+                return;
+            }
+            const subscriberId = crypto.createHash("sha256").update(token).digest("hex").slice(0, 32);
+            const subRef = db.collection("workspaces").doc(targetWorkspaceId).collection("marketplaceSubscribers").doc(subscriberId);
+            const existing = await subRef.get();
+            const cleanCountry = (country || "TG").trim().toUpperCase();
+            const now = Date.now();
+            const subscriberData = {
+                id: subscriberId,
+                token: token.trim(),
+                workspaceId: targetWorkspaceId,
+                shopDomain: shopDomain ? String(shopDomain).toLowerCase().trim() : (existing.data()?.shopDomain || null),
+                azifyStoreId: azifyStoreId || existing.data()?.azifyStoreId || null,
+                country: cleanCountry,
+                clientName: clientName || existing.data()?.clientName || null,
+                clientPhone: clientPhone || existing.data()?.clientPhone || null,
+                clientEmail: clientEmail || existing.data()?.clientEmail || null,
+                userAgent: userAgent || req.headers["user-agent"] || null,
+                tags: Array.isArray(tags) ? tags : (existing.data()?.tags || ["marketplace_optin"]),
+                lastSeenAt: now,
+                updatedAt: now,
+                createdAt: existing.exists ? (existing.data()?.createdAt || now) : now,
+            };
+            if (cart && typeof cart === "object") {
+                subscriberData.cart = {
+                    product: String(cart.product || "Panier en cours"),
+                    amount: Number(cart.amount || 0),
+                    quantity: Number(cart.quantity || 1),
+                    productImageUrl: cart.productImageUrl || null,
+                    checkoutUrl: cart.checkoutUrl || null,
+                    status: cart.status || "active",
+                    updatedAt: now,
+                };
+                if (cart.status === "abandoned") {
+                    subscriberData.cartAbandonedAt = now;
+                    subscriberData.cartRecoverySent = false;
+                }
+            }
+            await subRef.set(subscriberData, { merge: true });
+            res.status(200).json({
+                success: true,
+                subscriberId,
+                country: cleanCountry,
+                message: "Abonne Push Marketplace enregistre avec succes.",
+            });
+            return;
+        }
+        catch (err) {
+            console.error("azifyGateway push subscribe error:", err);
+            res.status(500).json({ error: "Internal Server Error", message: err.message });
+            return;
+        }
+    }
+    // 6. POST /cart/activity : Suivi temps reel des ajouts au panier & detection d'abandon
+    if (req.method === "POST" && (path === "/cart/activity" || path.endsWith("/cart/activity"))) {
+        try {
+            const body = parseJsonBody(req);
+            const { token, subscriberId: incomingSubId, shopDomain, product, amount, quantity, productImageUrl, checkoutUrl, status, clientPhone, clientName, } = body;
+            const subId = incomingSubId || (token ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 32) : null);
+            const verifyToken = String(req.headers["x-azify-verify-token"] || body.verifyToken || "").trim();
+            let targetWorkspaceId = String(body.workspaceId || "").trim();
+            if (!targetWorkspaceId && (verifyToken || shopDomain)) {
+                let connDoc = null;
+                if (verifyToken) {
+                    const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
+                    if (!snap.empty)
+                        connDoc = snap.docs[0];
+                }
+                if (!connDoc && shopDomain) {
+                    const cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+                    const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cleanDomain).limit(1).get();
+                    if (!snap.empty)
+                        connDoc = snap.docs[0];
+                }
+                if (connDoc) {
+                    targetWorkspaceId = connDoc.data().workspaceId || "";
+                }
+            }
+            if (!targetWorkspaceId) {
+                const wsSnap = await db.collection("workspaces").limit(1).get();
+                if (!wsSnap.empty)
+                    targetWorkspaceId = wsSnap.docs[0].id;
+            }
+            if (!targetWorkspaceId || !subId) {
+                res.status(400).json({ error: "workspaceId et (token ou subscriberId) requis." });
+                return;
+            }
+            const subRef = db.collection("workspaces").doc(targetWorkspaceId).collection("marketplaceSubscribers").doc(subId);
+            const now = Date.now();
+            const effectiveStatus = status === "converted" ? "converted" : status === "abandoned" ? "abandoned" : "active";
+            const updateData = {
+                "cart.product": product || "Produit Marketplace",
+                "cart.amount": Number(amount || 0),
+                "cart.quantity": Number(quantity || 1),
+                "cart.productImageUrl": productImageUrl || null,
+                "cart.checkoutUrl": checkoutUrl || null,
+                "cart.status": effectiveStatus,
+                "cart.updatedAt": now,
+                lastSeenAt: now,
+            };
+            if (clientPhone)
+                updateData.clientPhone = clientPhone;
+            if (clientName)
+                updateData.clientName = clientName;
+            if (effectiveStatus === "abandoned") {
+                updateData.cartAbandonedAt = now;
+                updateData.cartRecoverySent = false;
+            }
+            else if (effectiveStatus === "converted") {
+                updateData.cartConvertedAt = now;
+                updateData.cartRecoverySent = true;
+            }
+            await subRef.set(updateData, { merge: true });
+            res.status(200).json({
+                success: true,
+                subscriberId: subId,
+                cartStatus: effectiveStatus,
+                message: "Activite panier enregistree.",
+            });
+            return;
+        }
+        catch (err) {
+            console.error("azifyGateway cart activity error:", err);
+            res.status(500).json({ error: "Internal Server Error", message: err.message });
+            return;
+        }
+    }
+    // 7. GET /marketplace/stats : Statistiques des abonnes et paniers
+    if (req.method === "GET" && (path === "/marketplace/stats" || path.endsWith("/marketplace/stats"))) {
+        try {
+            const workspaceIdParam = String(req.query.workspaceId || "").trim();
+            let targetWorkspaceId = workspaceIdParam;
+            if (!targetWorkspaceId) {
+                const wsSnap = await db.collection("workspaces").limit(1).get();
+                if (!wsSnap.empty)
+                    targetWorkspaceId = wsSnap.docs[0].id;
+            }
+            if (!targetWorkspaceId) {
+                res.status(404).json({ error: "Workspace introuvable." });
+                return;
+            }
+            const subsSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("marketplaceSubscribers").get();
+            const totalSubscribers = subsSnap.size;
+            let abandonedCartsCount = 0;
+            let recoveredCount = 0;
+            subsSnap.docs.forEach((doc) => {
+                const d = doc.data();
+                if (d.cart?.status === "abandoned" && !d.cartRecoverySent) {
+                    abandonedCartsCount++;
+                }
+                if (d.cart?.status === "converted" && d.cartRecoverySent) {
+                    recoveredCount++;
+                }
+            });
+            res.status(200).json({
+                success: true,
+                workspaceId: targetWorkspaceId,
+                totalSubscribers,
+                abandonedCartsCount,
+                recoveredCount,
+                timestamp: Date.now(),
+            });
+            return;
+        }
+        catch (err) {
+            console.error("azifyGateway stats error:", err);
             res.status(500).json({ error: "Internal Server Error", message: err.message });
             return;
         }
