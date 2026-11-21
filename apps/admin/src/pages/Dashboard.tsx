@@ -263,11 +263,28 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
     return 0;
   };
 
+  const getDeliveredTs = (o: any): number => {
+    if (!o) return 0;
+    const d = o.timestamps?.delivered ?? o.deliveredAt ?? o.updatedAt ?? o.timestamps?.received ?? o.received ?? o.createdAt;
+    if (typeof d === "number") return d;
+    if (d && typeof d.toMillis === "function") return d.toMillis();
+    if (d && typeof d.seconds === "number") return d.seconds * 1000;
+    if (typeof d === "string") {
+      const parsed = Date.parse(d);
+      if (!Number.isNaN(parsed)) return parsed;
+    }
+    return getReceivedTs(o);
+  };
+
   const orders = useMemo(() => {
     const { start, end } = periodRangeMs(period);
     return allOrders.filter((o) => {
-      const ts = getReceivedTs(o);
-      return ts >= start && ts <= end;
+      const recvTs = getReceivedTs(o);
+      const delivTs = getDeliveredTs(o);
+      const isDelivered = o.statutLivreur === "livre" || o.statutCloseuse === "livre";
+      const inReceived = recvTs >= start && recvTs <= end;
+      const inDelivered = isDelivered && delivTs >= start && delivTs <= end;
+      return inReceived || inDelivered;
     });
   }, [allOrders, period]);
 
@@ -422,85 +439,98 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             <PushPermissionPrompt permission={pushPermission} onRequest={requestPushPermission} />
           </div>
         )}
-        {/* Global Top Header Bar : 1 seule ligne compacte sur ordinateur, inchangé sur mobile */}
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3">
-          <div className="min-w-0 max-w-md shrink-0">
-            <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-xl">
-              {headerMeta.title}
-            </h1>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{headerMeta.subtitle}</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">
-            {/* Global Search / Command Palette Trigger */}
-            <CommandPalette
-              orders={allOrders}
-              teams={teams}
-              activeTeamId={activeTeamId}
-              onNavigate={setPage}
-              onSelectTeam={setTeamId}
-              onInspectOrder={(order) => setReceiptOrder(order)}
-              isOpenExternal={commandPaletteOpen}
-              onOpenExternal={() => setCommandPaletteOpen(true)}
-              onCloseExternal={() => setCommandPaletteOpen(false)}
-              onOpenShortcuts={() => setShowShortcutsModal(true)}
-            />
-
-            {/* Bouton d'aide Raccourcis Clavier (?) style grand SaaS */}
-            <button
-              type="button"
-              onClick={() => setShowShortcutsModal(true)}
-              title="Raccourcis clavier (? ou ⌘/)"
-              className="inline-flex min-h-[44px] md:h-9 items-center gap-1.5 rounded-lg border border-surface-border bg-surface-raised px-2.5 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100"
-            >
-              <Keyboard className="h-3.5 w-3.5 text-slate-400" />
-              <span className="hidden xl:inline">Raccourcis</span>
-              <kbd className="rounded border border-surface-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
-                ?
-              </kbd>
-            </button>
-
-            {teams.length > 0 && page !== "teams" && (
-              <MarketSelector
-                teams={teams}
-                activeTeamId={activeTeamId}
-                onSelectTeam={setTeamId}
-                onAddMarket={() => setShowAddMarket(true)}
-              />
-            )}
-
-            {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
-
-            {/* Contrôleur de thème & Palette */}
-            <div className="hidden md:flex md:items-center">
-              <ThemeQuickPicker />
+        {/* Global Top Header Bar : Équilibré et structuré, fin de l'effondrement sur 2 lignes désordonnées */}
+        <header className="mb-4 border-b border-surface-border pb-3.5 space-y-3">
+          {/* Ligne 1 : Titre de la page à gauche, Utilitaires et Thème à droite */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-xl">
+                {headerMeta.title}
+              </h1>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                {headerMeta.subtitle}
+              </p>
             </div>
 
-            {/* Notification Bell anchored at top-right corner on desktop */}
-            <div className="hidden md:flex md:items-center">
-              <NotificationBell
-                workspaceId={workspaceId}
-                onNotificationClick={(notif) => {
-                  const t = `${notif.title} ${notif.body}`.toLowerCase();
-                  if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
-                    setPage("ai_assistant");
-                  } else if (t.includes("caisse") || t.includes("versement")) {
-                    setPage("caisse");
-                  } else if (t.includes("rémunération") || t.includes("prime") || t.includes("paie")) {
-                    setPage("remuneration");
-                  } else if (
-                    notif.orderId ||
-                    t.includes("commande") ||
-                    t.includes("colis") ||
-                    t.includes("rappel") ||
-                    t.includes("doublon") ||
-                    t.includes("closeuse")
-                  ) {
-                    setPage("orders");
-                  } else if (t.includes("connexion")) {
-                    setPage("users");
-                  }
-                }}
+            {/* Utilitaires rapides alignés à droite */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Bouton d'aide Raccourcis Clavier */}
+              <button
+                type="button"
+                onClick={() => setShowShortcutsModal(true)}
+                title="Raccourcis clavier (? ou ⌘/)"
+                className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-xl border border-surface-border bg-surface-raised px-2.5 text-xs text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100 cursor-pointer"
+              >
+                <Keyboard className="h-3.5 w-3.5 text-slate-400" />
+                <span className="hidden xl:inline">Raccourcis</span>
+                <kbd className="rounded border border-surface-border bg-surface px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+                  ?
+                </kbd>
+              </button>
+
+              {/* Contrôleur de thème & Palette */}
+              <div className="flex items-center">
+                <ThemeQuickPicker />
+              </div>
+
+              {/* Notification Bell */}
+              <div className="flex items-center">
+                <NotificationBell
+                  workspaceId={workspaceId}
+                  onNotificationClick={(notif) => {
+                    const t = `${notif.title} ${notif.body}`.toLowerCase();
+                    if (notif.title.startsWith("🤖") || t.includes("rappel ia") || t.includes("vigie ia")) {
+                      setPage("ai_assistant");
+                    } else if (t.includes("caisse") || t.includes("versement")) {
+                      setPage("caisse");
+                    } else if (t.includes("rémunération") || t.includes("prime") || t.includes("paie")) {
+                      setPage("remuneration");
+                    } else if (
+                      notif.orderId ||
+                      t.includes("commande") ||
+                      t.includes("colis") ||
+                      t.includes("rappel") ||
+                      t.includes("doublon") ||
+                      t.includes("closeuse")
+                    ) {
+                      setPage("orders");
+                    } else if (t.includes("connexion")) {
+                      setPage("users");
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Ligne 2 : Filtres opérationnels & Recherche (Marché + Période à gauche, Recherche à droite) */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              {teams.length > 0 && page !== "teams" && (
+                <MarketSelector
+                  teams={teams}
+                  activeTeamId={activeTeamId}
+                  onSelectTeam={setTeamId}
+                  onAddMarket={() => setShowAddMarket(true)}
+                />
+              )}
+
+              {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+            </div>
+
+            {/* Global Search / Command Palette Trigger */}
+            <div className="flex items-center">
+              <CommandPalette
+                orders={allOrders}
+                teams={teams}
+                activeTeamId={activeTeamId}
+                onNavigate={setPage}
+                onSelectTeam={setTeamId}
+                onInspectOrder={(order) => setReceiptOrder(order)}
+                isOpenExternal={commandPaletteOpen}
+                onOpenExternal={() => setCommandPaletteOpen(true)}
+                onCloseExternal={() => setCommandPaletteOpen(false)}
+                onOpenShortcuts={() => setShowShortcutsModal(true)}
               />
             </div>
           </div>
@@ -583,6 +613,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               <LiveShopifyAnalytics
                 dailyStats={dailyStatsInPeriod}
                 orders={orders}
+                allOrders={allOrders}
                 currency={currency}
                 periodLabel={periodLabel(period)}
                 displayTotals={displayTotals}

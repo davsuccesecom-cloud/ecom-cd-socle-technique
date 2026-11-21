@@ -15,6 +15,7 @@ import type { DailyStatRow, Order } from "@ecomcod/shared";
 interface LiveShopifyAnalyticsProps {
   dailyStats: DailyStatRow[];
   orders: Order[];
+  allOrders?: Order[];
   currency: string;
   periodLabel: string;
   displayTotals: {
@@ -65,6 +66,7 @@ function getOrderDayKey(o: Order): string {
 export default function LiveShopifyAnalytics({
   dailyStats,
   orders,
+  allOrders,
   currency,
   periodLabel,
   displayTotals,
@@ -73,6 +75,10 @@ export default function LiveShopifyAnalytics({
   onNavigateToOrders,
 }: LiveShopifyAnalyticsProps) {
   const [metric, setMetric] = useState<ActiveMetric>("ca");
+
+  const baseLiveOrders = useMemo(() => {
+    return allOrders && allOrders.length > 0 ? allOrders : orders;
+  }, [allOrders, orders]);
 
   const series = useMemo<DayPoint[]>(() => {
     const map = new Map<string, DayPoint>();
@@ -186,14 +192,14 @@ export default function LiveShopifyAnalytics({
   }, [dailyStats, orders, displayTotals]);
 
   const urgentCount = useMemo(
-    () => orders.filter((o) => o.statutCloseuse === "nouveau").length,
-    [orders]
+    () => baseLiveOrders.filter((o) => o.statutCloseuse === "nouveau").length,
+    [baseLiveOrders]
   );
 
   // Commandes confirmées en attente d'expédition ou sur le terrain (Prise de conscience livraisons)
   const pendingDeliveryCount = useMemo(
     () =>
-      orders.filter(
+      baseLiveOrders.filter(
         (o) =>
           (o.statutCloseuse === "en_cours" ||
             o.statutCloseuse === "programme" ||
@@ -202,13 +208,13 @@ export default function LiveShopifyAnalytics({
           o.statutLivreur !== "livre" &&
           o.statutLivreur !== "injoignable"
       ).length,
-    [orders]
+    [baseLiveOrders]
   );
 
   // Cash en circulation sur le terrain (colis sortis avec les coursiers)
   const cashEnRoute = useMemo(
     () =>
-      orders
+      baseLiveOrders
         .filter(
           (o) =>
             (o.statutCloseuse === "en_cours" ||
@@ -219,7 +225,7 @@ export default function LiveShopifyAnalytics({
             o.statutLivreur !== "injoignable"
         )
         .reduce((sum, o) => sum + (o.amount || 0), 0),
-    [orders]
+    [baseLiveOrders]
   );
 
   return (
