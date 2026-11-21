@@ -928,6 +928,7 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             id: shopifyOrderId,
             workspaceId,
             teamId: assignedTeamId || "",
+            teamName: targetRoute?.assignedTeamName || connection.ownerTeamName || "",
             sheetId: "", // Origine Shopify
             sourceRowId: `shopify_${shopifyOrderId}`,
             sourceType: "shopify",

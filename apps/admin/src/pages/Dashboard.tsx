@@ -608,6 +608,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             <Utilisateurs
               workspaceId={workspaceId}
               team={activeTeam}
+              teams={teams}
               closeuses={closeuses}
               livreurs={livreurs}
             />

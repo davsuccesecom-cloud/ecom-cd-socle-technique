@@ -281,6 +281,21 @@ export default function OrderCard({
     >
       {isCallActive && <CallBar onEndCall={onEndCall} />}
 
+      {((team && order.teamId && order.teamId !== team.id) || order.teamName || order.shopifyData?.shopDomain) && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
+          {team && order.teamId && order.teamId !== team.id && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-300">
+              🤝 Prêt d'équipe{order.teamName ? ` · ${order.teamName}` : ""}
+            </span>
+          )}
+          {order.shopifyData?.shopDomain && (
+            <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-700/60 px-2 py-0.5 font-medium text-slate-600 dark:text-slate-300">
+              🏪 {order.shopifyData.shopDomain.replace('.myshopify.com', '')}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5">
         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${STATUS_BADGE_CLASS[order.statutCloseuse]}`}>
           {CLOSEUSE_STATUS_LABELS[order.statutCloseuse]}
@@ -534,7 +549,14 @@ export default function OrderCard({
                   }`}
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">{livreur.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-sm font-semibold">{livreur.name}</p>
+                      {team && livreur.teamId && livreur.teamId !== team.id && (
+                        <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                          Prêté
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
                       {load} colis en cours{livreur.phone ? ` · ${livreur.phone}` : ""}
                     </p>

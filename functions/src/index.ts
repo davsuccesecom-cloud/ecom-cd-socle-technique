@@ -630,6 +630,60 @@ export const updateEmployeeLanguages = onCall(async (request) => {
   return { ok: true, languages };
 });
 
+// Prêt d'employés inter-équipes de même pays (Cross-team employee allocation)
+export const updateEmployeeAllocatedTeams = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { userId, allocatedTeamIds } = request.data as { userId: string; allocatedTeamIds: string[] };
+  if (!userId || !Array.isArray(allocatedTeamIds)) {
+    throw new HttpsError("invalid-argument", "userId et liste allocatedTeamIds requis.");
+  }
+
+  const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new HttpsError("not-found", "Employé introuvable.");
+  }
+
+  const userData = userSnap.data() || {};
+  const homeTeamId = userData.teamId;
+  if (!homeTeamId) {
+    throw new HttpsError("failed-precondition", "L'employé n'a pas d'équipe d'origine assignée.");
+  }
+
+  const homeTeamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(homeTeamId).get();
+  if (!homeTeamSnap.exists) {
+    throw new HttpsError("not-found", "Équipe d'origine introuvable.");
+  }
+  const homeCountry = (homeTeamSnap.data()?.defaultCountry || "").trim().toUpperCase();
+
+  // Valider que TOUTES les équipes cibles sont strictement dans le même pays que l'équipe d'origine
+  const cleanAllocatedIds: string[] = [];
+  for (const targetId of allocatedTeamIds) {
+    if (!targetId || targetId === homeTeamId) continue;
+    const targetSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(targetId).get();
+    if (!targetSnap.exists) {
+      throw new HttpsError("not-found", `Équipe emprunteuse ${targetId} introuvable.`);
+    }
+    const targetCountry = (targetSnap.data()?.defaultCountry || "").trim().toUpperCase();
+    if (targetCountry !== homeCountry) {
+      throw new HttpsError(
+        "invalid-argument",
+        `Prêt refusé : L'équipe ${targetSnap.data()?.name || targetId} est basée en ${targetCountry}, alors que cet employé opère en ${homeCountry}. Le prêt d'employés est strictement réservé aux équipes du même pays.`
+      );
+    }
+    cleanAllocatedIds.push(targetId);
+  }
+
+  const uniqueAllocated = Array.from(new Set(cleanAllocatedIds));
+
+  await userRef.update({
+    allocatedTeamIds: uniqueAllocated,
+    allocatedUpdatedAt: Date.now(),
+  });
+
+  return { ok: true, allocatedTeamIds: uniqueAllocated };
+});
+
 // ---------------------------------------------------------------------------
 // 1quater. Reception des nouvelles commandes depuis Google Sheets
 // ---------------------------------------------------------------------------
@@ -800,6 +854,7 @@ export const receiveSheetOrder = onRequest({ secrets: [sheetWebhookSecret] }, as
     await orderRef.set({
       workspaceId,
       teamId: assignedTeamId,
+      teamName: team.name || "",
       sheetId: body.sheetId,
       sourceRowId: uniqueSourceId,
       clientName: body.clientName,
@@ -1056,19 +1111,36 @@ export const onOrderCreated = onDocumentCreated(
     const order = snap.data();
     const { workspaceId } = event.params as { workspaceId: string };
 
-    const closeusesSnap = await db
-      .collection("workspaces")
-      .doc(workspaceId)
-      .collection("users")
-      .where("teamId", "==", order.teamId)
-      .where("role", "==", "closeuse")
-      .where("status", "==", "active")
-      .get();
+    // Récupérer à la fois les closeuses d'origine ET les closeuses allouées/prêtées à cette équipe (même pays)
+    const [homeCloseusesSnap, allocatedCloseusesSnap] = await Promise.all([
+      db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("users")
+        .where("teamId", "==", order.teamId)
+        .where("role", "==", "closeuse")
+        .where("status", "==", "active")
+        .get(),
+      db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("users")
+        .where("allocatedTeamIds", "array-contains", order.teamId)
+        .where("role", "==", "closeuse")
+        .where("status", "==", "active")
+        .get(),
+    ]);
 
-    if (closeusesSnap.empty) return;
+    const closeuseMap = new Map<string, admin.firestore.QueryDocumentSnapshot>();
+    homeCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
+    allocatedCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
+
+    if (closeuseMap.size === 0) return;
+
+    const allCloseuseDocs = Array.from(closeuseMap.values());
 
     const loads = await Promise.all(
-      closeusesSnap.docs.map(async (userDoc) => {
+      allCloseuseDocs.map(async (userDoc) => {
         const activeSnap = await db
           .collection("workspaces")
           .doc(workspaceId)

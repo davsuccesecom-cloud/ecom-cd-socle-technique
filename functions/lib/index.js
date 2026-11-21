@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -559,6 +559,50 @@ exports.updateEmployeeLanguages = (0, https_1.onCall)(async (request) => {
     });
     return { ok: true, languages };
 });
+// Prêt d'employés inter-équipes de même pays (Cross-team employee allocation)
+exports.updateEmployeeAllocatedTeams = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { userId, allocatedTeamIds } = request.data;
+    if (!userId || !Array.isArray(allocatedTeamIds)) {
+        throw new https_1.HttpsError("invalid-argument", "userId et liste allocatedTeamIds requis.");
+    }
+    const userRef = db.collection("workspaces").doc(workspaceId).collection("users").doc(userId);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+        throw new https_1.HttpsError("not-found", "Employé introuvable.");
+    }
+    const userData = userSnap.data() || {};
+    const homeTeamId = userData.teamId;
+    if (!homeTeamId) {
+        throw new https_1.HttpsError("failed-precondition", "L'employé n'a pas d'équipe d'origine assignée.");
+    }
+    const homeTeamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(homeTeamId).get();
+    if (!homeTeamSnap.exists) {
+        throw new https_1.HttpsError("not-found", "Équipe d'origine introuvable.");
+    }
+    const homeCountry = (homeTeamSnap.data()?.defaultCountry || "").trim().toUpperCase();
+    // Valider que TOUTES les équipes cibles sont strictement dans le même pays que l'équipe d'origine
+    const cleanAllocatedIds = [];
+    for (const targetId of allocatedTeamIds) {
+        if (!targetId || targetId === homeTeamId)
+            continue;
+        const targetSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(targetId).get();
+        if (!targetSnap.exists) {
+            throw new https_1.HttpsError("not-found", `Équipe emprunteuse ${targetId} introuvable.`);
+        }
+        const targetCountry = (targetSnap.data()?.defaultCountry || "").trim().toUpperCase();
+        if (targetCountry !== homeCountry) {
+            throw new https_1.HttpsError("invalid-argument", `Prêt refusé : L'équipe ${targetSnap.data()?.name || targetId} est basée en ${targetCountry}, alors que cet employé opère en ${homeCountry}. Le prêt d'employés est strictement réservé aux équipes du même pays.`);
+        }
+        cleanAllocatedIds.push(targetId);
+    }
+    const uniqueAllocated = Array.from(new Set(cleanAllocatedIds));
+    await userRef.update({
+        allocatedTeamIds: uniqueAllocated,
+        allocatedUpdatedAt: Date.now(),
+    });
+    return { ok: true, allocatedTeamIds: uniqueAllocated };
+});
 exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecret] }, async (req, res) => {
     try {
         if (req.method !== "POST") {
@@ -694,6 +738,7 @@ exports.receiveSheetOrder = (0, https_1.onRequest)({ secrets: [sheetWebhookSecre
         await orderRef.set({
             workspaceId,
             teamId: assignedTeamId,
+            teamName: team.name || "",
             sheetId: body.sheetId,
             sourceRowId: uniqueSourceId,
             clientName: body.clientName,
@@ -932,17 +977,32 @@ exports.onOrderCreated = (0, firestore_1.onDocumentCreated)("workspaces/{workspa
         return;
     const order = snap.data();
     const { workspaceId } = event.params;
-    const closeusesSnap = await db
-        .collection("workspaces")
-        .doc(workspaceId)
-        .collection("users")
-        .where("teamId", "==", order.teamId)
-        .where("role", "==", "closeuse")
-        .where("status", "==", "active")
-        .get();
-    if (closeusesSnap.empty)
+    // Récupérer à la fois les closeuses d'origine ET les closeuses allouées/prêtées à cette équipe (même pays)
+    const [homeCloseusesSnap, allocatedCloseusesSnap] = await Promise.all([
+        db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("users")
+            .where("teamId", "==", order.teamId)
+            .where("role", "==", "closeuse")
+            .where("status", "==", "active")
+            .get(),
+        db
+            .collection("workspaces")
+            .doc(workspaceId)
+            .collection("users")
+            .where("allocatedTeamIds", "array-contains", order.teamId)
+            .where("role", "==", "closeuse")
+            .where("status", "==", "active")
+            .get(),
+    ]);
+    const closeuseMap = new Map();
+    homeCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
+    allocatedCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
+    if (closeuseMap.size === 0)
         return;
-    const loads = await Promise.all(closeusesSnap.docs.map(async (userDoc) => {
+    const allCloseuseDocs = Array.from(closeuseMap.values());
+    const loads = await Promise.all(allCloseuseDocs.map(async (userDoc) => {
         const activeSnap = await db
             .collection("workspaces")
             .doc(workspaceId)

@@ -4,10 +4,12 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { ConfirmDialog, AFRICAN_LOCAL_LANGUAGES, type Team, type AppUser } from "@ecomcod/shared";
 import { Globe2 } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
+import AllocateEmployeeModal from "../components/AllocateEmployeeModal";
 
 interface UtilisateursProps {
   workspaceId: string;
   team: Team | null;
+  teams?: Team[];
   closeuses: AppUser[];
   livreurs: AppUser[];
 }
@@ -35,12 +37,15 @@ const LIVREUR_URL = import.meta.env.VITE_LIVREUR_URL as string | undefined;
 export default function Utilisateurs({
   workspaceId,
   team,
+  teams = [],
   closeuses,
   livreurs,
 }: UtilisateursProps) {
   const [tab, setTab] = useState<Role>("closeuse");
   const [selectedDialectFilter, setSelectedDialectFilter] = useState<string | null>(null);
   const [languageOverrides, setLanguageOverrides] = useState<Record<string, string[]>>({});
+  const [allocatedOverrides, setAllocatedOverrides] = useState<Record<string, string[]>>({});
+  const [allocatingUser, setAllocatingUser] = useState<AppUser | null>(null);
   const [links, setLinks] = useState<AccessLink[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -252,6 +257,9 @@ export default function Utilisateurs({
                   const link = linkFor(user.id);
                   const url = accessUrl(user.id);
                   const disabled = !!link?.disabledAt;
+                  const isBorrowed = !!(user.teamId && team && user.teamId !== team.id);
+                  const homeTeamObj = isBorrowed ? teams.find((t) => t.id === user.teamId) : null;
+                  const allocatedIds = allocatedOverrides[user.id] ?? user.allocatedTeamIds ?? [];
                   return (
                     <tr key={user.id} className="border-b border-surface-border last:border-0">
                       <td className="px-4 py-3">
@@ -279,6 +287,29 @@ export default function Utilisateurs({
                             </div>
                           );
                         })()}
+                        {isBorrowed && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                              🤝 Emprunté à l'équipe {homeTeamObj?.name || "partenaire"}
+                            </span>
+                          </div>
+                        )}
+                        {!isBorrowed && allocatedIds.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {allocatedIds.map((tid) => {
+                              const t = teams.find((item) => item.id === tid);
+                              return (
+                                <span
+                                  key={tid}
+                                  className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                                  title={`Prêté à l'équipe ${t?.name || tid}`}
+                                >
+                                  🤝 Prêté à {t?.name || tid}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-400">{user.phone || "—"}</td>
                       <td className="px-4 py-3">
@@ -293,6 +324,7 @@ export default function Utilisateurs({
                           onRegenerate={() => setConfirmRegenerate(user)}
                           onToggle={() => (disabled ? handleToggleStatus(user) : setConfirmToggle(user))}
                           onDelete={() => setConfirmDelete(user)}
+                          onAllocate={() => setAllocatingUser(user)}
                         />
                       </td>
                     </tr>
@@ -308,6 +340,9 @@ export default function Utilisateurs({
               const link = linkFor(user.id);
               const url = accessUrl(user.id);
               const disabled = !!link?.disabledAt;
+              const isBorrowed = !!(user.teamId && team && user.teamId !== team.id);
+              const homeTeamObj = isBorrowed ? teams.find((t) => t.id === user.teamId) : null;
+              const allocatedIds = allocatedOverrides[user.id] ?? user.allocatedTeamIds ?? [];
               return (
                 <div key={user.id} className="rounded-2xl border border-surface-border bg-surface-raised p-4">
                   <div className="mb-2 flex items-start justify-between gap-2">
@@ -336,7 +371,30 @@ export default function Utilisateurs({
                           </div>
                         );
                       })()}
-                      <p className="truncate text-xs text-slate-500">{user.phone || "Pas de téléphone"}</p>
+                      {isBorrowed && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
+                            🤝 Emprunté à l'équipe {homeTeamObj?.name || "partenaire"}
+                          </span>
+                        </div>
+                      )}
+                      {!isBorrowed && allocatedIds.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          {allocatedIds.map((tid) => {
+                            const t = teams.find((item) => item.id === tid);
+                            return (
+                              <span
+                                key={tid}
+                                className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                                title={`Prêté à l'équipe ${t?.name || tid}`}
+                              >
+                                🤝 Prêté à {t?.name || tid}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <p className="truncate text-xs text-slate-500 mt-1">{user.phone || "Pas de téléphone"}</p>
                     </div>
                     <StatusBadge disabled={disabled} />
                   </div>
@@ -348,6 +406,7 @@ export default function Utilisateurs({
                     onRegenerate={() => setConfirmRegenerate(user)}
                     onToggle={() => (disabled ? handleToggleStatus(user) : setConfirmToggle(user))}
                     onDelete={() => setConfirmDelete(user)}
+                    onAllocate={() => setAllocatingUser(user)}
                   />
                 </div>
               );
@@ -424,6 +483,23 @@ export default function Utilisateurs({
           }}
         />
       )}
+
+      {allocatingUser && (
+        <AllocateEmployeeModal
+          workspaceId={workspaceId}
+          user={allocatingUser}
+          homeTeam={teams.find((t) => t.id === (allocatingUser.teamId || team?.id)) || team}
+          teams={teams}
+          onClose={() => setAllocatingUser(null)}
+          onSuccess={(newAllocations) => {
+            setAllocatedOverrides((prev) => ({
+              ...prev,
+              [allocatingUser.id]: newAllocations,
+            }));
+            setAllocatingUser(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -447,6 +523,7 @@ function UserActions({
   onRegenerate,
   onToggle,
   onDelete,
+  onAllocate,
 }: {
   url: string | null;
   busy: boolean;
@@ -454,6 +531,7 @@ function UserActions({
   onRegenerate: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  onAllocate?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -497,6 +575,18 @@ function UserActions({
       >
         {disabled ? "Activer" : "Désactiver"}
       </button>
+      {onAllocate && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onAllocate}
+          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors cursor-pointer flex items-center gap-1"
+          title="Prêter ou allouer cet employé à une autre équipe du même pays"
+        >
+          <span>🤝</span>
+          <span>Prêt équipe</span>
+        </button>
+      )}
       {disabled && (
         <button
           disabled={busy}

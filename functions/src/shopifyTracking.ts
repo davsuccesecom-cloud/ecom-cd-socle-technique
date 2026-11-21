@@ -992,6 +992,7 @@ export const shopifyWebhook = onRequest(
         id: shopifyOrderId,
         workspaceId,
         teamId: assignedTeamId || "",
+        teamName: targetRoute?.assignedTeamName || connection.ownerTeamName || "",
         sheetId: "", // Origine Shopify
         sourceRowId: `shopify_${shopifyOrderId}`,
         sourceType: "shopify",

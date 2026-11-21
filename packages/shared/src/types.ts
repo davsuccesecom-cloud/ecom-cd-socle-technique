@@ -81,6 +81,7 @@ export interface Order {
   id: string;
   workspaceId: string;
   teamId: string;
+  teamName?: string; // Nom de l'équipe/boutique d'origine pour affichage clair en multi-équipes
   sheetId: string; // lequel des sheetIds de l'équipe est la source
   sourceRowId: string; // référence à la ligne du Sheet, pour la sync retour
 
@@ -277,6 +278,7 @@ export interface AppUser {
   reminderWindowStart?: string; // personnalisation closeuse, bornée par l'équipe
   reminderWindowEnd?: string;
   languages?: string[]; // Langues et dialectes locaux parlés par l'employé
+  allocatedTeamIds?: string[]; // IDs des équipes emprunteuses (strictement du même pays defaultCountry)
 }
 
 export interface AccessLink {

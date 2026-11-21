@@ -42,7 +42,10 @@ export function useOrders({ workspaceId, teamId, closeuseId, livreurId }: UseOrd
     const ordersRef = collection(db, "workspaces", workspaceId, "orders");
 
     const clauses: any[] = [];
-    if (teamId && teamId !== "all" && teamId.trim() !== "") {
+    // Si closeuseId ou livreurId est fourni, ne pas restreindre par teamId pour permettre
+    // à l'employé de recevoir et traiter les commandes de son équipe d'origine ET des équipes allouées (même pays).
+    const isEmployeePersonalView = Boolean(closeuseId || livreurId);
+    if (teamId && teamId !== "all" && teamId.trim() !== "" && !isEmployeePersonalView) {
       clauses.push(where("teamId", "==", teamId));
     }
     if (closeuseId) clauses.push(where("closeuseId", "==", closeuseId));
