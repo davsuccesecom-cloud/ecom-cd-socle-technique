@@ -979,42 +979,40 @@ export default function ComptabiliteStock({
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
-                    <tr className="border-b border-surface-border bg-surface/30 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                      <th className="px-3.5 py-3 w-8">
-                        <input
-                          type="checkbox"
-                          checked={selectedEntryIds.size === paginatedEntries.length && paginatedEntries.length > 0}
-                          onChange={toggleSelectAll}
-                          className="h-4 w-4 rounded border-surface-border text-brand focus:ring-brand cursor-pointer"
-                        />
+                    <tr className="border-b border-surface-border bg-surface/40 text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                      <th className="px-3.5 py-3 w-12 text-center">
+                        <div className="flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedEntryIds.size === paginatedEntries.length && paginatedEntries.length > 0}
+                            onChange={toggleSelectAll}
+                            className="h-4 w-4 rounded border-surface-border text-brand focus:ring-brand cursor-pointer"
+                          />
+                        </div>
                       </th>
-                      <th className="px-2 py-3 w-8 text-center">
-                        <Star className="h-3.5 w-3.5 text-slate-400 mx-auto" />
-                      </th>
-                      <th className="px-3.5 py-3">
-                        <div className="flex items-center gap-1 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption(sortOption === "date_desc" ? "date_asc" : "date_desc")}>
+                      <th className="px-4 py-3 min-w-[230px]">
+                        <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption(sortOption === "date_desc" ? "date_asc" : "date_desc")}>
                           <span>Période & Clôture</span>
                           <ArrowUpDown className="h-3 w-3 text-slate-400" />
                         </div>
                       </th>
-                      <th className="px-3 py-3">Marché</th>
-                      <th className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption("revenue_desc")}>
+                      <th className="px-4 py-3 min-w-[130px]">Marché</th>
+                      <th className="px-4 py-3 min-w-[160px] text-right">
+                        <div className="flex items-center justify-end gap-1.5 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption("revenue_desc")}>
                           <span>CA Encaissé</span>
                           <ArrowUpDown className="h-3 w-3 text-slate-400" />
                         </div>
                       </th>
-                      <th className="px-3 py-3">Livraisons</th>
-                      <th className="px-3 py-3">Taux Succès</th>
-                      <th className="px-3 py-3">Analyse & Trafic</th>
-                      <th className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption("profit_desc")}>
+                      <th className="px-4 py-3 min-w-[180px]">Délivrabilité COD</th>
+                      <th className="px-4 py-3 min-w-[170px]">Pub Meta & ROAS</th>
+                      <th className="px-4 py-3 min-w-[160px] text-right">
+                        <div className="flex items-center justify-end gap-1.5 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption("profit_desc")}>
                           <span>Bénéfice Net</span>
                           <ArrowUpDown className="h-3 w-3 text-slate-400" />
                         </div>
                       </th>
-                      <th className="px-3.5 py-3">Statut</th>
-                      <th className="px-4 py-3 text-right">Action</th>
+                      <th className="px-4 py-3 min-w-[130px]">Statut</th>
+                      <th className="px-4 py-3 min-w-[110px] text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-border">
@@ -1032,66 +1030,66 @@ export default function ComptabiliteStock({
                         <tr
                           key={entry.id}
                           onClick={() => setActiveDetailEntry(entry)}
-                          className={`group cursor-pointer transition-colors duration-150 ${
+                          className={`group cursor-pointer transition-all duration-150 ${
                             isSelected
-                              ? "bg-brand/10 dark:bg-brand/15"
-                              : "hover:bg-slate-50/70 dark:hover:bg-surface/50"
+                              ? "bg-brand/5 dark:bg-brand/10 border-l-4 border-l-brand shadow-2xs"
+                              : "hover:bg-slate-50/80 dark:hover:bg-surface/50 border-l-4 border-l-transparent"
                           }`}
                         >
-                          {/* 1. Checkbox */}
-                          <td className="px-3.5 py-4" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleSelectEntry(entry.id)}
-                              className="h-4 w-4 rounded border-surface-border text-brand focus:ring-brand cursor-pointer"
-                            />
+                          {/* 1. Checkbox & Star Compactés */}
+                          <td className="px-3.5 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectEntry(entry.id)}
+                                className="h-4 w-4 rounded border-surface-border text-brand focus:ring-brand cursor-pointer"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => toggleStarEntry(entry.id, e)}
+                                className="text-slate-400 hover:text-amber-400 transition cursor-pointer"
+                              >
+                                {isStarred ? (
+                                  <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                                ) : (
+                                  <Star className="h-3.5 w-3.5 text-slate-400 hover:text-slate-300" />
+                                )}
+                              </button>
+                            </div>
                           </td>
 
-                          {/* 2. Star Icon */}
-                          <td className="px-2 py-4 text-center" onClick={(e) => toggleStarEntry(entry.id, e)}>
-                            <button type="button" className="text-slate-400 hover:text-amber-400 transition cursor-pointer">
-                              {isStarred ? (
-                                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                              ) : (
-                                <Star className="h-3.5 w-3.5 text-slate-400 hover:text-slate-300" />
-                              )}
-                            </button>
-                          </td>
-
-                          {/* 3. Avatar + Période & Clôture (Style 2-Lignes propre) */}
-                          <td className="px-3.5 py-4">
+                          {/* 2. Avatar + Période & Clôture (2 Lignes nettes sans chevauchement) */}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-surface border border-surface-border text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-surface border border-surface-border text-xs font-bold text-slate-700 dark:text-slate-200 shrink-0 shadow-2xs">
                                 {initials}
                               </div>
                               <div className="min-w-0">
-                                <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-[13px] group-hover:text-brand transition-colors block truncate max-w-[210px]">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-[13px] group-hover:text-brand transition-colors block truncate max-w-[220px]">
                                   {entry.periodLabel}
                                 </span>
                                 <span className="text-[11px] text-slate-500 block truncate mt-0.5">
-                                  Clôturé le {new Date(entry.createdAt).toLocaleDateString("fr-FR")}
+                                  Clôturé le {new Date(entry.createdAt).toLocaleDateString("fr-FR")} · Certifié
                                 </span>
                               </div>
                             </div>
                           </td>
 
-                          {/* 4. Marché / Équipe */}
-                          <td className="px-3 py-4">
-                            <div>
-                              <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-800 dark:text-slate-200">
-                                <Globe className="h-3 w-3 text-emerald-500 shrink-0" />
-                                <span>{entry.countryName}</span>
-                              </div>
-                              <span className="text-[11px] text-slate-500 block mt-0.5">
-                                Devise {entry.currency}
-                              </span>
+                          {/* 3. Marché / Équipe */}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-800 dark:text-slate-200">
+                              <Globe className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                              <span>{entry.countryName}</span>
                             </div>
+                            <span className="text-[11px] text-slate-500 block mt-0.5 font-mono">
+                              Marché {entry.currency}
+                            </span>
                           </td>
 
-                          {/* 5. CA Encaissé (Gros chiffre tabular-nums + Landed Cost) */}
-                          <td className="px-3 py-4 text-right">
-                            <div className="text-xs sm:text-[13px] font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                          {/* 4. CA Encaissé (Gros chiffre tabular-nums + Landed Cost) */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            <div className="text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
                               {entry.revenue.toLocaleString("fr-FR")} {entry.currency}
                             </div>
                             <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
@@ -1099,71 +1097,67 @@ export default function ComptabiliteStock({
                             </span>
                           </td>
 
-                          {/* 6. Livraisons (Quantité + Taux coloré comme la photo) */}
-                          <td className="px-3 py-4">
-                            <div className="flex items-center gap-1.5">
-                              <b className="font-mono tabular-nums text-slate-900 dark:text-slate-100 text-xs">
-                                {entry.ordersDelivered} livrées
-                              </b>
+                          {/* 5. Délivrabilité COD (Chiffres + Pourcentage + Slim Micro-Gauge intégrée) */}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="font-mono tabular-nums text-xs font-bold text-slate-900 dark:text-slate-100">
+                                {entry.ordersDelivered} / {entry.ordersReceived} livrées
+                              </span>
                               <span
-                                className={`text-[11px] font-semibold font-mono ${
+                                className={`text-[11px] font-bold font-mono px-1.5 py-0.2 rounded ${
                                   entry.deliveryRatePercent >= 75
-                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                                     : entry.deliveryRatePercent >= 60
-                                    ? "text-amber-600 dark:text-amber-400"
-                                    : "text-rose-600 dark:text-rose-400"
+                                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                    : "bg-rose-500/15 text-rose-600 dark:text-rose-400"
                                 }`}
                               >
                                 {entry.deliveryRatePercent}%
                               </span>
                             </div>
-                            <span className="text-[11px] text-slate-500 font-mono block mt-0.5">
-                              {entry.ordersReceived} commandes reçues
+                            <div className="w-full max-w-[160px] h-1.5 rounded-full bg-slate-200 dark:bg-surface border border-surface-border/60 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  entry.deliveryRatePercent >= 75
+                                    ? "bg-emerald-500"
+                                    : entry.deliveryRatePercent >= 60
+                                    ? "bg-amber-500"
+                                    : "bg-rose-500"
+                                }`}
+                                style={{ width: `${Math.min(100, Math.max(8, entry.deliveryRatePercent))}%` }}
+                              />
+                            </div>
+                          </td>
+
+                          {/* 6. Pub Meta & ROAS */}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-semibold tabular-nums text-xs text-slate-900 dark:text-slate-100">
+                                {entry.adSpendTotal > 0
+                                  ? `${entry.adSpendTotal.toLocaleString("fr-FR")} ${entry.currency}`
+                                  : `0 ${entry.currency}`}
+                              </span>
+                              <span className="inline-flex items-center rounded-md border border-indigo-500/20 bg-indigo-500/10 px-1.5 py-0.2 text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                                ROAS {entry.roasReal}x
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-500 block truncate mt-0.5 max-w-[170px]">
+                              {entry.adSpendTotal > 0 ? "Campagne Meta Ads CBO" : "Organique / Direct"}
                             </span>
                           </td>
 
-                          {/* 7. Slim Visual Progress Bar (Inspirée exactement de la photo) */}
-                          <td className="px-3 py-4">
-                            <div className="flex items-center gap-2">
-                              <div className="w-14 h-1.5 rounded-full bg-slate-200 dark:bg-surface border border-surface-border/50 overflow-hidden shrink-0">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-300 ${
-                                    entry.deliveryRatePercent >= 75
-                                      ? "bg-emerald-500"
-                                      : entry.deliveryRatePercent >= 60
-                                      ? "bg-amber-500"
-                                      : "bg-rose-500"
-                                  }`}
-                                  style={{ width: `${Math.min(100, Math.max(6, entry.deliveryRatePercent))}%` }}
-                                />
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* 8. Analyse & Commentaire texte (Style 'Wants a 6 month term' / 'No reply') */}
-                          <td className="px-3 py-4">
-                            <div className="max-w-[200px] truncate">
-                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block truncate">
-                                {entry.adSpendTotal > 0 ? `ROAS ${entry.roasReal}x · Pub Meta` : "100% Organique / Direct"}
-                              </span>
-                              <span className="text-[11px] text-slate-500 block truncate mt-0.5">
-                                {entry.auditAlertMessage.replace(/^[⚠️🚀\s]+/, "")}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* 9. Bénéfice Net Réel */}
-                          <td className="px-3 py-4 text-right">
-                            <div className="text-xs sm:text-[13px] font-bold font-mono tabular-nums">
+                          {/* 7. Bénéfice Net Réel */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            <div className="text-sm font-bold font-mono tabular-nums">
                               {renderSignedCurrency(entry.netProfit, entry.currency)}
                             </div>
-                            <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
-                              {entry.netMarginPercent}% de marge
+                            <span className="text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                              {entry.netMarginPercent}% de marge nette
                             </span>
                           </td>
 
-                          {/* 10. Statut Pill (Copie fidèle de la photo de référence) */}
-                          <td className="px-3.5 py-4">
+                          {/* 8. Statut Pill (Copie fidèle référence photo) */}
+                          <td className="px-4 py-3.5 whitespace-nowrap">
                             <span
                               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
                                 entry.auditStatus === "optimal"
@@ -1192,18 +1186,18 @@ export default function ComptabiliteStock({
                             </span>
                           </td>
 
-                          {/* 11. Action Consulter */}
-                          <td className="px-4 py-4 text-right">
+                          {/* 9. Action Consulter */}
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setActiveDetailEntry(entry);
                               }}
-                              className="inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline transition cursor-pointer"
+                              className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:border-brand hover:text-brand hover:bg-brand/5 transition-all shadow-2xs cursor-pointer active:scale-95"
                             >
                               <span>Consulter</span>
-                              <ChevronRight className="h-3.5 w-3.5" />
+                              <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
                             </button>
                           </td>
                         </tr>
@@ -1358,9 +1352,9 @@ export default function ComptabiliteStock({
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-surface/50 transition-colors duration-150">
                         {/* 1. Avatar + Produit */}
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-surface-border bg-slate-100 dark:bg-surface text-slate-700 dark:text-slate-300 font-bold text-xs">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-surface-border bg-slate-100 dark:bg-surface text-slate-700 dark:text-slate-300 font-bold text-xs shadow-2xs">
                               {pInitials}
                             </div>
                             <div className="min-w-0">
@@ -1382,7 +1376,7 @@ export default function ComptabiliteStock({
                         </td>
 
                         {/* 2. Landed Cost (Achat Usine + Fret unitaire en sous-texte) */}
-                        <td className="px-4 py-4 text-right">
+                        <td className="px-4 py-4 text-right whitespace-nowrap">
                           <div className="font-mono font-bold tabular-nums text-xs sm:text-[13px] text-slate-900 dark:text-slate-100">
                             {p.landedCost.toLocaleString("fr-FR")} {currency}
                           </div>
@@ -1392,7 +1386,7 @@ export default function ComptabiliteStock({
                         </td>
 
                         {/* 3. Prix de Vente Moyen & Marge nette par pièce */}
-                        <td className="px-4 py-4 text-right">
+                        <td className="px-4 py-4 text-right whitespace-nowrap">
                           <div className="font-mono font-semibold tabular-nums text-xs text-slate-800 dark:text-slate-200">
                             {p.sellingPriceAvg.toLocaleString("fr-FR")} {currency}
                           </div>
@@ -1402,7 +1396,7 @@ export default function ComptabiliteStock({
                         </td>
 
                         {/* 4. Stock Actuel */}
-                        <td className="px-4 py-4 text-right">
+                        <td className="px-4 py-4 text-right whitespace-nowrap">
                           <span className="font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100 text-xs sm:text-[13px]">
                             {p.currentStock}
                           </span>
@@ -1413,9 +1407,9 @@ export default function ComptabiliteStock({
                         </td>
 
                         {/* 5. Couverture Logistique avec Slim Progress Bar */}
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-14 h-1.5 rounded-full bg-slate-200 dark:bg-surface border border-surface-border/50 overflow-hidden shrink-0">
+                            <div className="w-16 h-1.5 rounded-full bg-slate-200 dark:bg-surface border border-surface-border/50 overflow-hidden shrink-0">
                               <div
                                 className={`h-full rounded-full transition-all duration-300 ${
                                   p.daysOfStockRemaining >= 15
@@ -1429,14 +1423,14 @@ export default function ComptabiliteStock({
                                 }}
                               />
                             </div>
-                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 font-mono">
                               {p.daysOfStockRemaining === 999 ? "Dormant" : `${p.daysOfStockRemaining} j`}
                             </span>
                           </div>
                         </td>
 
                         {/* 6. Campagne Meta Ads Liée */}
-                        <td className="px-4 py-4">
+                        <td className="px-4 py-4 whitespace-nowrap">
                           {p.metaCampaignName ? (
                             <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 max-w-[180px] truncate">
                               <Radio className="h-3 w-3 text-indigo-500 shrink-0" />
@@ -1462,8 +1456,8 @@ export default function ComptabiliteStock({
                           )}
                         </td>
 
-                        {/* 7. Statut Rupture Pill (Même style que référence photo) */}
-                        <td className="px-4 py-4">
+                        {/* 7. Statut Rupture Pill */}
+                        <td className="px-4 py-4 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
                               p.daysOfStockRemaining >= 15
@@ -1487,7 +1481,7 @@ export default function ComptabiliteStock({
                         </td>
 
                         {/* 8. Actions */}
-                        <td className="px-4 py-4 text-right">
+                        <td className="px-4 py-4 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
