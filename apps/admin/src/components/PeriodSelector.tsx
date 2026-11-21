@@ -66,11 +66,19 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
   }, [open]);
 
   const openCustomPanel = () => {
-    if (isCustom) {
+    if (isCustom && period.start > 0) {
       setRange({ from: new Date(period.start), to: new Date(period.end) });
     } else {
-      const { start, end } = periodRangeMs(period);
-      setRange({ from: new Date(start), to: new Date(end) });
+      const now = new Date();
+      if (period.type === "preset" && period.value === "tout") {
+        // En mode "Tout" (start: 0), ne pas sauter à l'époque Unix 1970 : initialiser sur les 30 derniers jours
+        const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        setRange({ from: start, to: now });
+      } else {
+        const { start, end } = periodRangeMs(period);
+        const safeStart = start > 0 ? start : now.getTime() - 30 * 24 * 60 * 60 * 1000;
+        setRange({ from: new Date(safeStart), to: new Date(end) });
+      }
     }
     setOpen((v) => !v);
   };
@@ -112,10 +120,13 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
 
       {open && (
         <>
-          <div className="fixed inset-0 z-10 bg-black/50" />
+          <div
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs"
+            onClick={() => setOpen(false)}
+          />
           <div
             ref={popoverRef}
-            className="ecomcod-daypicker fixed inset-x-4 top-24 z-20 mx-auto max-w-sm rounded-xl border border-surface-border bg-surface-raised p-4 shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:max-w-none sm:mx-0"
+            className="ecomcod-daypicker fixed inset-x-4 top-24 z-50 mx-auto max-w-[calc(100vw-2rem)] overflow-x-auto rounded-xl border border-surface-border bg-surface-raised p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:max-w-none sm:mx-0"
           >
           <p className="mb-2 text-sm font-medium text-slate-200">
             Choisis une date de début, puis une date de fin
@@ -125,7 +136,7 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
             selected={range}
             onSelect={setRange}
             numberOfMonths={isMobile ? 1 : 2}
-            defaultMonth={range?.from}
+            defaultMonth={range?.from && range.from.getFullYear() >= 2020 ? range.from : new Date()}
             showOutsideDays
             locale={fr}
           />

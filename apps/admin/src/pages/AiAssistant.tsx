@@ -46,6 +46,7 @@ import { splitMessage, type ChartSpec } from "../lib/aiChart";
 import ProChart from "../components/ProChart";
 import { fetchDailyStats } from "../lib/dailyStatsSeries";
 import ExportMenu from "../components/ExportMenu";
+import MarketSelector from "../components/MarketSelector";
 import { makeKpis, type BilanReport, type BilanEmployee, type BilanProduct, type BilanDay } from "../lib/bilan/types";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
@@ -382,6 +383,9 @@ interface AiAssistantProps {
   workspaceId: string;
   team: Team | null;
   allTeams?: Team[];
+  activeTeamId?: string | null;
+  onSelectTeam?: (teamId: string) => void;
+  onAddMarket?: () => void;
   orders: Order[];
   closeuses: { id: string; name: string; languages?: string[] }[];
   livreurs: { id: string; name: string }[];
@@ -395,6 +399,9 @@ export default function AiAssistant({
   workspaceId,
   team,
   allTeams = [],
+  activeTeamId,
+  onSelectTeam,
+  onAddMarket,
   orders,
   closeuses,
   livreurs,
@@ -1663,11 +1670,11 @@ export default function AiAssistant({
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      <div className="flex h-[calc(100dvh-9.5rem)] min-h-[520px] overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-sm">
+      <div className="flex h-[calc(100dvh-6.25rem)] min-h-[560px] overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-sm">
         {/* Left / Main Chat Column */}
         <div className="flex min-w-0 flex-1 flex-col">
           {/* Top Workspace Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border bg-surface/40 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border bg-surface/40 px-4 py-2.5">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-brand/30 bg-brand/15 text-brand">
                 <Sparkles className="h-4 w-4" />
@@ -1690,6 +1697,14 @@ export default function AiAssistant({
             </div>
 
             <div className="flex items-center gap-2">
+              {allTeams.length > 0 && onSelectTeam && (
+                <MarketSelector
+                  teams={allTeams}
+                  activeTeamId={activeTeamId ?? team?.id ?? null}
+                  onSelectTeam={onSelectTeam}
+                  onAddMarket={onAddMarket || (() => {})}
+                />
+              )}
               <ExportMenu getReport={buildBilanReport} />
               {!isEmpty && (
                 <button

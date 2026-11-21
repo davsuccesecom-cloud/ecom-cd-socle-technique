@@ -442,9 +442,13 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             <PushPermissionPrompt permission={pushPermission} onRequest={requestPushPermission} />
           </div>
         )}
-        {/* Global Top Header Bar : Équilibré et structuré, fin de l'effondrement sur 2 lignes désordonnées */}
-        <header className="mb-4 border-b border-surface-border pb-3.5 space-y-3">
-          {/* Ligne 1 : Titre de la page à gauche, Utilitaires et Thème à droite */}
+        {/* Global Top Header Bar : Équilibré et structuré, recherche en haut avant raccourcis */}
+        <header
+          className={`border-b border-surface-border ${
+            page === "ai_assistant" ? "mb-2 pb-2.5" : "mb-4 pb-3.5 space-y-3"
+          }`}
+        >
+          {/* Ligne 1 : Titre de la page à gauche, Recherche, Utilitaires et Thème à droite */}
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-xl">
@@ -455,8 +459,22 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               </p>
             </div>
 
-            {/* Utilitaires rapides alignés à droite */}
+            {/* Utilitaires rapides alignés à droite : Recherche avant Raccourcis */}
             <div className="flex items-center gap-2 shrink-0">
+              {/* Global Search / Command Palette Trigger - DIRECTEMENT EN HAUT AVANT RACCOURCIS */}
+              <CommandPalette
+                orders={allOrders}
+                teams={teams}
+                activeTeamId={activeTeamId}
+                onNavigate={setPage}
+                onSelectTeam={setTeamId}
+                onInspectOrder={(order) => setReceiptOrder(order)}
+                isOpenExternal={commandPaletteOpen}
+                onOpenExternal={() => setCommandPaletteOpen(true)}
+                onCloseExternal={() => setCommandPaletteOpen(false)}
+                onOpenShortcuts={() => setShowShortcutsModal(true)}
+              />
+
               {/* Bouton d'aide Raccourcis Clavier */}
               <button
                 type="button"
@@ -508,37 +526,23 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             </div>
           </div>
 
-          {/* Ligne 2 : Filtres opérationnels & Recherche (Marché + Période à gauche, Recherche à droite) */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex flex-wrap items-center gap-2">
-              {teams.length > 0 && page !== "teams" && (
-                <MarketSelector
-                  teams={teams}
-                  activeTeamId={activeTeamId}
-                  onSelectTeam={setTeamId}
-                  onAddMarket={() => setShowAddMarket(true)}
-                />
-              )}
+          {/* Ligne 2 : Filtres opérationnels (Marché + Période) - Masquée sur page IA car le pays est intégré dans la barre de l'IA */}
+          {page !== "ai_assistant" && (teams.length > 0 && page !== "teams" || showPeriodFilter) && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                {teams.length > 0 && page !== "teams" && (
+                  <MarketSelector
+                    teams={teams}
+                    activeTeamId={activeTeamId}
+                    onSelectTeam={setTeamId}
+                    onAddMarket={() => setShowAddMarket(true)}
+                  />
+                )}
 
-              {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+                {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+              </div>
             </div>
-
-            {/* Global Search / Command Palette Trigger */}
-            <div className="flex items-center">
-              <CommandPalette
-                orders={allOrders}
-                teams={teams}
-                activeTeamId={activeTeamId}
-                onNavigate={setPage}
-                onSelectTeam={setTeamId}
-                onInspectOrder={(order) => setReceiptOrder(order)}
-                isOpenExternal={commandPaletteOpen}
-                onOpenExternal={() => setCommandPaletteOpen(true)}
-                onCloseExternal={() => setCommandPaletteOpen(false)}
-                onOpenShortcuts={() => setShowShortcutsModal(true)}
-              />
-            </div>
-          </div>
+          )}
         </header>
 
         {/* WIZARD ONBOARDING OBLIGATOIRE TANT QU'AUCUNE ÉQUIPE N'EST CRÉÉE (PAS DE SKIP VERS UN COCKPIT VIDE) */}
@@ -559,6 +563,9 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               workspaceId={workspaceId}
               team={activeTeam}
               allTeams={teams}
+              activeTeamId={teamId}
+              onSelectTeam={setTeamId}
+              onAddMarket={() => setShowAddMarket(true)}
               orders={allOrders}
               closeuses={closeuses}
               livreurs={livreurs}
