@@ -61,6 +61,8 @@ import {
   Zap,
 } from "lucide-react";
 import { type Period, periodLabel, periodRangeMs } from "../components/PeriodSelector";
+import ExportMenu from "../components/ExportMenu";
+import { makeKpis, type BilanReport, type BilanProduct } from "../lib/bilan/types";
 import {
   type AccountingLedgerEntry,
   type MetaCampaignSpend,
@@ -554,7 +556,12 @@ export default function ComptabiliteStock({
     const totalRev = filteredLedgerEntries.reduce((s, e) => s + e.revenue, 0);
     const totalAds = filteredLedgerEntries.reduce((s, e) => s + e.adSpendTotal, 0);
     const totalProfit = filteredLedgerEntries.reduce((s, e) => s + e.netProfit, 0);
-    return { totalRev, totalAds, totalProfit };
+    const totalOrdersRec = filteredLedgerEntries.reduce((s, e) => s + e.ordersReceived, 0);
+    const totalOrdersDeliv = filteredLedgerEntries.reduce((s, e) => s + e.ordersDelivered, 0);
+    const totalUnits = filteredLedgerEntries.reduce((s, e) => s + e.unitsDelivered, 0);
+    const totalLanded = filteredLedgerEntries.reduce((s, e) => s + e.landedCost, 0);
+    const totalComm = filteredLedgerEntries.reduce((s, e) => s + e.totalCommissions, 0);
+    return { totalRev, totalAds, totalProfit, totalOrdersRec, totalOrdersDeliv, totalUnits, totalLanded, totalComm };
   }, [filteredLedgerEntries]);
 
   // Mois disponibles pour filtre
@@ -768,6 +775,150 @@ export default function ComptabiliteStock({
     showToast("Clôture consolidée enregistrée dans le Grand Livre !");
   };
 
+  const buildLedgerEntryReport = (entry: AccountingLedgerEntry): BilanReport => {
+    const kpis = makeKpis({
+      ca: entry.revenue,
+      recues: entry.ordersReceived,
+      confirmees: entry.ordersReceived,
+      livrees: entry.ordersDelivered,
+      injoignables: 0,
+      rejetees: Math.max(0, entry.ordersReceived - entry.ordersDelivered),
+      currency: entry.currency,
+    });
+
+    const products: BilanProduct[] = productsFinancialList.map((p) => ({
+      name: p.productName,
+      sales: p.unitsDeliveredInPeriod,
+      sellingPriceAvg: p.sellingPriceAvg,
+      cogsUnitPrice: p.cogsUnitPrice,
+      transitUnitCost: p.transitUnitCost,
+      landedCost: p.landedCost,
+      revenue: p.revenueInPeriod,
+      commissionsPerUnit: Math.round(entry.totalCommissions / Math.max(1, entry.unitsDelivered)),
+      totalCost: p.landedCost * p.unitsDeliveredInPeriod,
+      netMargin: p.netProfitInPeriod,
+      netMarginUnit: p.netMarginPerUnit,
+      marginRate: p.revenueInPeriod > 0 ? Math.round((p.netProfitInPeriod / p.revenueInPeriod) * 100) : 0,
+      currentStock: p.currentStock,
+      dailyVelocity: p.dailyVelocity,
+      daysOfStock: p.daysOfStockRemaining,
+      stockStatus: p.currentStock <= 0 ? "rupture" : p.daysOfStockRemaining < 7 ? "urgent" : "optimal",
+      reorderQuantity30d: Math.max(0, Math.ceil(p.dailyVelocity * 30 - p.currentStock)),
+    }));
+
+    const stockAlerts = productsFinancialList.map((p) => ({
+      productName: p.productName,
+      currentStock: p.currentStock,
+      dailyVelocity: p.dailyVelocity,
+      daysOfStock: p.daysOfStockRemaining,
+      status: (p.currentStock <= 0 ? "rupture" : p.daysOfStockRemaining < 7 ? "urgent" : p.daysOfStockRemaining <= 14 ? "warning" : "optimal") as any,
+      reorderQuantity30d: Math.max(0, Math.ceil(p.dailyVelocity * 30 - p.currentStock)),
+      recommendation: p.currentStock <= 0 ? "Rupture immédiate" : p.daysOfStockRemaining < 7 ? "Commander d'urgence" : p.daysOfStockRemaining <= 14 ? "Surveillance active" : "Stock optimal",
+    }));
+
+    const treasurySplit = {
+      totalRevenue: entry.revenue,
+      totalExpenses: entry.landedCost + entry.totalCommissions + entry.adSpendTotal,
+      netMargin: entry.netProfit,
+      reinvestmentRate: 65,
+      reinvestmentAmount: Math.round(entry.revenue * 0.65),
+      reinvestmentLabel: "Fonds de roulement, réassort usine et campagnes Ads Meta / TikTok",
+      dividendRate: 35,
+      dividendAmount: Math.round(entry.revenue * 0.35),
+      dividendLabel: "Bénéfice net distribuable en dividendes sécurisés",
+    };
+
+    return {
+      title: `Bilan Comptable Certifié - ${entry.periodLabel || entry.monthLabel}`,
+      team: entry.countryName,
+      periodLabel: entry.periodLabel || entry.monthLabel,
+      generatedAt: new Date(entry.toTs || Date.now()).toISOString(),
+      currency: entry.currency,
+      kpis,
+      funnel: [
+        { label: "Commandes reçues", value: entry.ordersReceived },
+        { label: "Livrées et encaissées", value: entry.ordersDelivered },
+      ],
+      employees: [],
+      products,
+      stockAlerts,
+      treasurySplit,
+      analysisMarkdown: entry.aiNotes ? `### Notes comptables\n\n${entry.aiNotes}` : `Clôture officielle enregistrée dans le Grand Livre. CA : ${entry.revenue.toLocaleString('fr-FR')} ${entry.currency}. Marge Nette : ${entry.netProfit.toLocaleString('fr-FR')} ${entry.currency}.`,
+    };
+  };
+
+  const buildCurrentLedgerBilanReport = (): BilanReport => {
+    const kpis = makeKpis({
+      ca: summaryTotals.totalRev,
+      recues: summaryTotals.totalOrdersRec,
+      confirmees: summaryTotals.totalOrdersRec,
+      livrees: summaryTotals.totalOrdersDeliv,
+      injoignables: 0,
+      rejetees: Math.max(0, summaryTotals.totalOrdersRec - summaryTotals.totalOrdersDeliv),
+      currency,
+    });
+
+    const products: BilanProduct[] = productsFinancialList.map((p) => ({
+      name: p.productName,
+      sales: p.unitsDeliveredInPeriod,
+      sellingPriceAvg: p.sellingPriceAvg,
+      cogsUnitPrice: p.cogsUnitPrice,
+      transitUnitCost: p.transitUnitCost,
+      landedCost: p.landedCost,
+      revenue: p.revenueInPeriod,
+      commissionsPerUnit: Math.round(summaryTotals.totalComm / Math.max(1, summaryTotals.totalUnits)),
+      totalCost: p.landedCost * p.unitsDeliveredInPeriod,
+      netMargin: p.netProfitInPeriod,
+      netMarginUnit: p.netMarginPerUnit,
+      marginRate: p.revenueInPeriod > 0 ? Math.round((p.netProfitInPeriod / p.revenueInPeriod) * 100) : 0,
+      currentStock: p.currentStock,
+      dailyVelocity: p.dailyVelocity,
+      daysOfStock: p.daysOfStockRemaining,
+      stockStatus: p.currentStock <= 0 ? "rupture" : p.daysOfStockRemaining < 7 ? "urgent" : "optimal",
+      reorderQuantity30d: Math.max(0, Math.ceil(p.dailyVelocity * 30 - p.currentStock)),
+    }));
+
+    const stockAlerts = productsFinancialList.map((p) => ({
+      productName: p.productName,
+      currentStock: p.currentStock,
+      dailyVelocity: p.dailyVelocity,
+      daysOfStock: p.daysOfStockRemaining,
+      status: (p.currentStock <= 0 ? "rupture" : p.daysOfStockRemaining < 7 ? "urgent" : p.daysOfStockRemaining <= 14 ? "warning" : "optimal") as any,
+      reorderQuantity30d: Math.max(0, Math.ceil(p.dailyVelocity * 30 - p.currentStock)),
+      recommendation: p.currentStock <= 0 ? "Rupture immédiate" : p.daysOfStockRemaining < 7 ? "Commander d'urgence" : p.daysOfStockRemaining <= 14 ? "Surveillance active" : "Stock optimal",
+    }));
+
+    const treasurySplit = {
+      totalRevenue: summaryTotals.totalRev,
+      totalExpenses: summaryTotals.totalLanded + summaryTotals.totalComm + summaryTotals.totalAds,
+      netMargin: summaryTotals.totalProfit,
+      reinvestmentRate: 65,
+      reinvestmentAmount: Math.round(summaryTotals.totalRev * 0.65),
+      reinvestmentLabel: "Fonds de roulement, réassort usine et campagnes Ads Meta / TikTok",
+      dividendRate: 35,
+      dividendAmount: Math.round(summaryTotals.totalRev * 0.35),
+      dividendLabel: "Bénéfice net distribuable en dividendes sécurisés",
+    };
+
+    return {
+      title: `Bilan Comptable & Stocks - ${activeTeam?.name || "Afrique Globale"}`,
+      team: activeTeam?.name || "Afrique Globale",
+      periodLabel: period ? periodLabel(period) : "Période en cours",
+      generatedAt: new Date().toISOString(),
+      currency,
+      kpis,
+      funnel: [
+        { label: "Commandes reçues", value: summaryTotals.totalOrdersRec },
+        { label: "Livrées et payées", value: summaryTotals.totalOrdersDeliv },
+      ],
+      employees: [],
+      products,
+      stockAlerts,
+      treasurySplit,
+      analysisMarkdown: `### Bilan comptable consolidé - ${activeTeam?.name || "Afrique Globale"}\n\nChiffre d'affaires livré : ${summaryTotals.totalRev.toLocaleString('fr-FR')} ${currency}.\nMarge nette dégagée : ${summaryTotals.totalProfit.toLocaleString('fr-FR')} ${currency}.\nTotal des dépenses publicitaires : ${summaryTotals.totalAds.toLocaleString('fr-FR')} ${currency}.`,
+    };
+  };
+
   const handleSendToAiAudit = () => {
     if (onNavigate) {
       onNavigate("ai_assistant");
@@ -874,6 +1025,8 @@ export default function ComptabiliteStock({
                 <RefreshCw className={`h-3.5 w-3.5 text-emerald-500 ${azifySyncing ? "animate-spin" : ""}`} />
                 <span className="hidden sm:inline">{azifySyncing ? "Synchro..." : "Synchro Azify"}</span>
               </button>
+
+              <ExportMenu getReport={buildCurrentLedgerBilanReport} buttonLabel="Exporter le bilan" />
 
               <button
                 type="button"
@@ -1759,13 +1912,11 @@ export default function ComptabiliteStock({
                 Supprimer
               </button>
 
-              <button
-                type="button"
-                onClick={() => showToast("Export PDF certifié téléchargé")}
-                className="flex-1 rounded-xl bg-brand text-white font-bold text-xs py-2 hover:bg-brand-hover transition cursor-pointer shadow-xs"
-              >
-                Télécharger le Bilan Certifié (PDF)
-              </button>
+              <ExportMenu
+                getReport={() => buildLedgerEntryReport(activeDetailEntry)}
+                buttonLabel="Télécharger le Bilan Certifié"
+                className="flex-1"
+              />
             </div>
           </div>
         </div>

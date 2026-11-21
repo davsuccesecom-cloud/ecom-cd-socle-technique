@@ -24,11 +24,72 @@ export interface BilanEmployee {
 export interface BilanProduct {
   name: string;
   sales: number;
+  totalOrders?: number;
+  sellingPriceAvg?: number;
+  cogsUnitPrice?: number;
+  transitUnitCost?: number;
+  landedCost?: number;
+  revenue?: number;
+  commissionsPerUnit?: number;
+  totalCost?: number;
+  netMargin?: number;
+  netMarginUnit?: number;
+  marginRate?: number;
+  currentStock?: number;
+  dailyVelocity?: number;
+  daysOfStock?: number;
+  stockStatus?: 'rupture' | 'urgent' | 'optimal' | 'dormant' | 'surstock';
+  reorderQuantity30d?: number;
 }
+
+export interface BilanStockAlert {
+  productName: string;
+  currentStock: number;
+  dailyVelocity: number;
+  daysOfStock: number;
+  status: 'rupture' | 'urgent' | 'warning' | 'optimal';
+  reorderQuantity30d: number;
+  recommendation: string;
+}
+
+export interface BilanTreasurySplit {
+  totalRevenue: number;
+  totalExpenses: number;
+  netMargin: number;
+  reinvestmentRate: number; // ex: 65 (%)
+  reinvestmentAmount: number;
+  reinvestmentLabel: string;
+  dividendRate: number; // ex: 35 (%)
+  dividendAmount: number;
+  dividendLabel: string;
+}
+
+export interface BilanSectionsConfig {
+  showKpis: boolean;
+  showProductProfitability: boolean;
+  showStockAlerts: boolean;
+  showTreasurySplit: boolean;
+  showEmployees: boolean;
+  showCharts: boolean;
+  showDailyTrends: boolean;
+  showAiAnalysis: boolean;
+}
+
+export const DEFAULT_BILAN_SECTIONS: BilanSectionsConfig = {
+  showKpis: true,
+  showProductProfitability: true,
+  showStockAlerts: true,
+  showTreasurySplit: true,
+  showEmployees: true,
+  showCharts: true,
+  showDailyTrends: true,
+  showAiAnalysis: true,
+};
 
 export interface BilanDay {
   /** YYYY-MM-DD */
   date: string;
+  dayLabel?: string;
   ca: number;
   livraisons: number;
   rejetees: number;
@@ -49,8 +110,11 @@ export interface BilanReport {
   funnel: { label: string; value: number }[];
   employees: BilanEmployee[];
   products: BilanProduct[];
+  stockAlerts?: BilanStockAlert[];
+  treasurySplit?: BilanTreasurySplit;
   days?: BilanDay[];
   analysisMarkdown: string;
+  sectionsConfig?: BilanSectionsConfig;
 }
 
 export interface ChartImage {

@@ -1653,13 +1653,96 @@ export default function AiAssistant({
       })),
     ];
 
-    const products: BilanProduct[] = context.topProducts.map((p) => ({
-      name: p.name,
-      sales: p.count,
-    }));
+    // Bilan financier détaillé par produit (Unit Economics, Landed Cost, Marge Nette)
+    const products: BilanProduct[] = (context.productsFinancial && context.productsFinancial.length > 0)
+      ? context.productsFinancial.map((p: any) => ({
+          name: p.productName,
+          sales: p.deliveredUnits,
+          totalOrders: p.totalSold,
+          sellingPriceAvg: p.sellingPriceAvg,
+          cogsUnitPrice: p.cogsUnitPrice,
+          transitUnitCost: p.transitUnitCost,
+          landedCost: p.landedCost,
+          revenue: p.revenue,
+          commissionsPerUnit: p.commissionsPerUnit,
+          totalCost: (p.landedCost + p.commissionsPerUnit) * p.deliveredUnits,
+          netMargin: p.totalNetMargin,
+          netMarginUnit: p.netMarginPerUnit,
+          marginRate: p.revenue > 0 ? Math.round((p.totalNetMargin / p.revenue) * 100) : 0,
+          currentStock: p.currentStock,
+          dailyVelocity: p.dailyVelocity,
+          daysOfStock: p.daysCovered,
+          stockStatus:
+            p.currentStock <= 0
+              ? "rupture"
+              : p.daysCovered < 7
+              ? "urgent"
+              : p.daysCovered <= 14
+              ? "optimal"
+              : "optimal",
+          reorderQuantity30d: p.recommendedOrderFor30Days,
+        }))
+      : context.topProducts.map((p) => ({
+          name: p.name,
+          sales: p.count,
+        }));
+
+    // Stocks à prévenir & alertes de réapprovisionnement à 30 jours
+    const stockAlerts = (context.productsFinancial || [])
+      .map((p: any) => {
+        const stock = p.currentStock;
+        const days = p.daysCovered;
+        const status =
+          stock <= 0
+            ? ("rupture" as const)
+            : days < 7
+            ? ("urgent" as const)
+            : days <= 14
+            ? ("warning" as const)
+            : ("optimal" as const);
+        const recommendation =
+          stock <= 0
+            ? "Rupture immédiate : arrêter les campagnes ou réapprovisionner d'urgence."
+            : days < 7
+            ? "Autonomie critique (< 7 jours) : lancer une commande fournisseur express."
+            : days <= 14
+            ? "Surveillance active (< 14 jours) : prévoir le réassort sous 5 jours."
+            : "Niveau de stock optimal.";
+        return {
+          productName: p.productName,
+          currentStock: stock,
+          dailyVelocity: p.dailyVelocity,
+          daysOfStock: days,
+          status,
+          reorderQuantity30d: p.recommendedOrderFor30Days,
+          recommendation,
+        };
+      })
+      .sort((a: any, b: any) => a.daysOfStock - b.daysOfStock);
+
+    // Règle de trésorerie stratégique COD (65% réinvestissement / 35% extraction nette)
+    const totalRev = context.revenue;
+    const totalExp = (context.productsFinancial || []).reduce(
+      (s: number, p: any) => s + (p.landedCost + p.commissionsPerUnit) * p.deliveredUnits,
+      0
+    );
+    const netMarginCalc = (context.productsFinancial || []).reduce((s: number, p: any) => s + p.totalNetMargin, 0);
+
+    const treasurySplit = {
+      totalRevenue: totalRev,
+      totalExpenses: totalExp,
+      netMargin: netMarginCalc,
+      reinvestmentRate: 65,
+      reinvestmentAmount: Math.round(totalRev * 0.65),
+      reinvestmentLabel: "Fonds de roulement, réapprovisionnement stocks usine et budget Ads Meta / TikTok",
+      dividendRate: 35,
+      dividendAmount: Math.round(totalRev * 0.35),
+      dividendLabel: "Bénéfice net distribuable en dividendes sans assécher la trésorerie opérationnelle",
+    };
 
     const days: BilanDay[] = (context.dailyTrends || []).map((d) => ({
       date: d.date,
+      dayLabel: d.dayLabel,
       ca: d.revenue,
       livraisons: d.delivered,
       rejetees: d.rejected,
@@ -1676,6 +1759,8 @@ export default function AiAssistant({
       funnel,
       employees,
       products,
+      stockAlerts,
+      treasurySplit,
       days,
       analysisMarkdown,
     };

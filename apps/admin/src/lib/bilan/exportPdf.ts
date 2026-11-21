@@ -80,6 +80,16 @@ const section = (text: string) => ({ text, style: 'h2', margin: [0, 14, 0, 6] })
 
 export function buildPdfDefinition(report: BilanReport, charts: ChartImage[]) {
   const content: unknown[] = [];
+  const cfg = report.sectionsConfig ?? {
+    showKpis: true,
+    showProductProfitability: true,
+    showStockAlerts: true,
+    showTreasurySplit: true,
+    showEmployees: true,
+    showCharts: true,
+    showDailyTrends: true,
+    showAiAnalysis: true,
+  };
 
   content.push({
     table: {
@@ -88,18 +98,18 @@ export function buildPdfDefinition(report: BilanReport, charts: ChartImage[]) {
         [
           {
             stack: [
-              { text: report.title, fontSize: 20, bold: true, color: '#ffffff' },
-              { text: `${report.team}  ·  ${report.periodLabel}`, fontSize: 12, color: '#cbd5e1', margin: [0, 4, 0, 0] },
-              { text: `Généré le ${dateFr(report.generatedAt)}`, fontSize: 9, color: '#94a3b8', margin: [0, 6, 0, 0] },
+              { text: report.title, fontSize: 18, bold: true, color: '#ffffff' },
+              { text: `${report.team}  ·  ${report.periodLabel}`, fontSize: 11, color: '#cbd5e1', margin: [0, 4, 0, 0] },
+              { text: `Généré le ${dateFr(report.generatedAt)}  ·  Devise : ${report.currency}`, fontSize: 8.5, color: '#94a3b8', margin: [0, 5, 0, 0] },
             ],
             fillColor: '#0f172a',
-            margin: [18, 16, 18, 16],
+            margin: [16, 14, 16, 14],
           },
         ],
       ],
     },
     layout: 'noBorders',
-    margin: [0, 0, 0, 12],
+    margin: [0, 0, 0, 10],
   });
 
   if (report.question) {
@@ -110,28 +120,155 @@ export function buildPdfDefinition(report: BilanReport, charts: ChartImage[]) {
     });
   }
 
-  // Chiffres clés : grille de 3 colonnes
-  content.push(section('Chiffres clés'));
-  const cells: any[] = report.kpis.map((k) => ({
-    stack: [
-      { text: k.label, fontSize: 8.5, color: MUTED },
-      { text: k.value, fontSize: 15, bold: true, color: k.tone === 'bad' ? '#b91c1c' : k.tone === 'warn' ? '#b45309' : k.tone === 'good' ? '#047857' : INK, margin: [0, 3, 0, 1] },
-      { text: k.hint ?? ' ', fontSize: 8.5, color: MUTED },
-    ],
-    fillColor: '#f8fafc',
-    margin: [8, 7, 8, 7],
-  }));
-  while (cells.length % 3 !== 0) cells.push({ stack: [{ text: ' ' }], fillColor: '#ffffff', margin: [8, 7, 8, 7] });
-  const kpiRows: unknown[][] = [];
-  for (let i = 0; i < cells.length; i += 3) kpiRows.push(cells.slice(i, i + 3));
-  content.push({
-    table: { widths: ['*', '*', '*'], body: kpiRows },
-    layout: { hLineWidth: () => 4, vLineWidth: () => 4, hLineColor: () => '#ffffff', vLineColor: () => '#ffffff' },
-    margin: [-4, 0, -4, 6],
-  });
+  // 1. Chiffres clés (KPIs)
+  if (cfg.showKpis && report.kpis.length > 0) {
+    content.push(section('1. Chiffres Clés'));
+    const cells: any[] = report.kpis.map((k) => ({
+      stack: [
+        { text: k.label, fontSize: 8.5, color: MUTED },
+        { text: k.value, fontSize: 14, bold: true, color: k.tone === 'bad' ? '#b91c1c' : k.tone === 'warn' ? '#b45309' : k.tone === 'good' ? '#047857' : INK, margin: [0, 3, 0, 1] },
+        { text: k.hint ?? ' ', fontSize: 8, color: MUTED },
+      ],
+      fillColor: '#f8fafc',
+      margin: [8, 6, 8, 6],
+    }));
+    while (cells.length % 3 !== 0) cells.push({ stack: [{ text: ' ' }], fillColor: '#ffffff', margin: [8, 6, 8, 6] });
+    const kpiRows: unknown[][] = [];
+    for (let i = 0; i < cells.length; i += 3) kpiRows.push(cells.slice(i, i + 3));
+    content.push({
+      table: { widths: ['*', '*', '*'], body: kpiRows },
+      layout: { hLineWidth: () => 4, vLineWidth: () => 4, hLineColor: () => '#ffffff', vLineColor: () => '#ffffff' },
+      margin: [-4, 0, -4, 6],
+    });
+  }
 
-  if (charts.length) {
-    content.push(section('Graphiques'));
+  // 2. Ventilation de Trésorerie (Règle d'or COD 65% / 35%)
+  if (cfg.showTreasurySplit && report.treasurySplit) {
+    const ts = report.treasurySplit;
+    content.push(section('2. Trésorerie Stratégique COD (Règle 65% / 35%)'));
+    content.push({
+      table: {
+        widths: ['*', '*'],
+        body: [
+          [
+            {
+              stack: [
+                { text: `RÉINVESTISSEMENT RECOMMANDÉ (${ts.reinvestmentRate} %)`, fontSize: 8.5, bold: true, color: '#1e40af' },
+                { text: `${nf(ts.reinvestmentAmount)} ${report.currency}`, fontSize: 15, bold: true, color: '#1e3a8a', margin: [0, 4, 0, 2] },
+                { text: ts.reinvestmentLabel || 'Stock usine, budget Ads Meta/TikTok et fonds de roulement sécurité.', fontSize: 8, color: '#3b82f6' },
+              ],
+              fillColor: '#eff6ff',
+              margin: [10, 8, 10, 8],
+            },
+            {
+              stack: [
+                { text: `DIVIDENDES SÉCURISÉS (${ts.dividendRate} %)`, fontSize: 8.5, bold: true, color: '#065f46' },
+                { text: `${nf(ts.dividendAmount)} ${report.currency}`, fontSize: 15, bold: true, color: '#064e3b', margin: [0, 4, 0, 2] },
+                { text: ts.dividendLabel || 'Bénéfice net distribuable sans mettre en péril le cashflow.', fontSize: 8, color: '#10b981' },
+              ],
+              fillColor: '#f0fdf4',
+              margin: [10, 8, 10, 8],
+            },
+          ],
+        ],
+      },
+      layout: { hLineWidth: () => 2, vLineWidth: () => 2, hLineColor: () => '#ffffff', vLineColor: () => '#ffffff' },
+      margin: [0, 0, 0, 8],
+    });
+  }
+
+  // 3. Bilan Comptable & Marges Nettes par Produit
+  if (cfg.showProductProfitability && report.products.length > 0) {
+    content.push(section('3. Bilan Comptable & Marges par Produit'));
+    const hasDetailedMetrics = report.products.some((p) => p.netMargin !== undefined || p.landedCost !== undefined);
+    if (hasDetailedMetrics) {
+      content.push(
+        dataTable(
+          ['Produit', 'Ventes', 'PV Moyen', 'Coût Rendu', 'CA Total', 'Marge Nette', 'Taux Marge'],
+          report.products.map((p) => {
+            const marginStr = p.netMargin !== undefined ? `${p.netMargin > 0 ? '+' : ''}${nf(p.netMargin)} ${report.currency}` : '–';
+            const rateStr = p.marginRate !== undefined ? `${p.marginRate} %` : p.revenue && p.netMargin ? `${Math.round((p.netMargin / p.revenue) * 100)} %` : '–';
+            return [
+              p.name,
+              nf(p.sales),
+              p.sellingPriceAvg ? `${nf(p.sellingPriceAvg)} ${report.currency}` : '–',
+              p.landedCost ? `${nf(p.landedCost)} ${report.currency}` : '–',
+              p.revenue ? `${nf(p.revenue)} ${report.currency}` : '–',
+              marginStr,
+              rateStr,
+            ];
+          }),
+          ['*', 45, 60, 60, 65, 75, 45],
+          ['left', 'right', 'right', 'right', 'right', 'right', 'right']
+        )
+      );
+    } else {
+      content.push(
+        dataTable(
+          ['Produit', 'Ventes'],
+          report.products.map((p) => [p.name, nf(p.sales)]),
+          ['*', 90],
+          ['left', 'right']
+        )
+      );
+    }
+  }
+
+  // 4. Vigilance Stocks & Alertes Réapprovisionnement
+  if (cfg.showStockAlerts) {
+    const alerts = report.stockAlerts ?? report.products
+      .filter((p) => p.currentStock !== undefined)
+      .map((p) => {
+        const stock = p.currentStock ?? 0;
+        const vel = p.dailyVelocity ?? 0;
+        const days = p.daysOfStock ?? (vel > 0 ? Math.round(stock / vel) : stock > 0 ? 999 : 0);
+        const status: 'rupture' | 'urgent' | 'warning' | 'optimal' =
+          stock <= 0 ? 'rupture' : days < 7 ? 'urgent' : days <= 14 ? 'warning' : 'optimal';
+        const reorder = p.reorderQuantity30d ?? Math.max(0, Math.ceil(vel * 30 - stock));
+        return {
+          productName: p.name,
+          currentStock: stock,
+          dailyVelocity: vel,
+          daysOfStock: days,
+          status,
+          reorderQuantity30d: reorder,
+          recommendation: stock <= 0 ? 'Rupture immédiate' : days < 7 ? 'Commander d’urgence' : days <= 14 ? 'Surveiller réassort' : 'Stock optimal',
+        };
+      });
+
+    if (alerts.length > 0) {
+      content.push(section('4. Stocks à Prévenir & Alertes Rupture'));
+      content.push(
+        dataTable(
+          ['Produit', 'Stock Dispo', 'Vente/Jour', 'Autonomie', 'Statut Alerte', 'Besoin Réappro 30j'],
+          alerts.map((a) => {
+            const statusLabel =
+              a.status === 'rupture'
+                ? '🔴 RUPTURE'
+                : a.status === 'urgent'
+                ? '⚠️ Moins de 7j'
+                : a.status === 'warning'
+                ? '🟡 Réappro 14j'
+                : '🟢 Stock sain';
+            return [
+              a.productName,
+              `${nf(a.currentStock)} pcs`,
+              `${a.dailyVelocity.toFixed(1)} /j`,
+              a.daysOfStock >= 999 ? '> 90 j' : `${a.daysOfStock} j`,
+              statusLabel,
+              a.reorderQuantity30d > 0 ? `+${nf(a.reorderQuantity30d)} pcs` : '0 (couvert)',
+            ];
+          }),
+          ['*', 60, 55, 55, 75, 75],
+          ['left', 'right', 'right', 'right', 'left', 'right']
+        )
+      );
+    }
+  }
+
+  // 5. Graphiques & Courbes
+  if (cfg.showCharts && charts.length > 0) {
+    content.push(section('5. Graphiques & Courbes'));
     for (const c of charts) {
       content.push({
         unbreakable: true,
@@ -141,29 +278,66 @@ export function buildPdfDefinition(report: BilanReport, charts: ChartImage[]) {
     }
   }
 
-  const closeuses = report.employees.filter((e) => e.role === 'closeuse');
-  const livreurs = report.employees.filter((e) => e.role === 'livreur');
-  const pct = (e: (typeof report.employees)[number]) => {
-    const r = rateOf(e);
-    return r === null ? '–' : `${Math.round(r * 100)} %`;
-  };
-  if (closeuses.length) {
-    content.push(section('Closeuses'));
-    content.push(
-      dataTable(['Nom', 'Confirmées', 'Traitées', 'Taux', 'Délai moyen'], closeuses.map((e) => [e.name, e.done, e.total, pct(e), e.avgDelayMin == null ? '–' : `${Math.round(e.avgDelayMin)} min`]), ['*', 70, 70, 60, 80], ['left', 'right', 'right', 'right', 'right']),
-    );
-  }
-  if (livreurs.length) {
-    content.push(section('Livreurs'));
-    content.push(dataTable(['Nom', 'Livrées', 'Tentatives', 'Taux'], livreurs.map((e) => [e.name, e.done, e.total, pct(e)]), ['*', 80, 80, 70], ['left', 'right', 'right', 'right']));
-  }
-  if (report.products.length) {
-    content.push(section('Produits'));
-    content.push(dataTable(['Produit', 'Ventes'], report.products.map((p) => [p.name, nf(p.sales)]), ['*', 90], ['left', 'right']));
+  // 6. Performance Équipes Terrain (Closeuses & Livreurs)
+  if (cfg.showEmployees && report.employees.length > 0) {
+    const closeuses = report.employees.filter((e) => e.role === 'closeuse');
+    const livreurs = report.employees.filter((e) => e.role === 'livreur');
+    const pct = (e: (typeof report.employees)[number]) => {
+      const r = rateOf(e);
+      return r === null ? '–' : `${Math.round(r * 100)} %`;
+    };
+    if (closeuses.length || livreurs.length) {
+      content.push(section('6. Performance Équipe Terrain'));
+    }
+    if (closeuses.length) {
+      content.push({ text: 'Closeuses (Confirmation)', fontSize: 10, bold: true, color: '#334155', margin: [0, 4, 0, 2] });
+      content.push(
+        dataTable(
+          ['Nom', 'Confirmées', 'Traitées', 'Taux', 'Délai moyen'],
+          closeuses.map((e) => [e.name, e.done, e.total, pct(e), e.avgDelayMin == null ? '–' : `${Math.round(e.avgDelayMin)} min`]),
+          ['*', 70, 70, 60, 80],
+          ['left', 'right', 'right', 'right', 'right']
+        )
+      );
+    }
+    if (livreurs.length) {
+      content.push({ text: 'Livreurs (Remise & Encaissement)', fontSize: 10, bold: true, color: '#334155', margin: [0, 4, 0, 2] });
+      content.push(
+        dataTable(
+          ['Nom', 'Livrées', 'Tentatives', 'Taux'],
+          livreurs.map((e) => [e.name, e.done, e.total, pct(e)]),
+          ['*', 80, 80, 70],
+          ['left', 'right', 'right', 'right']
+        )
+      );
+    }
   }
 
-  content.push(section('Analyse de l’assistant IA'));
-  content.push(...parseMarkdown(report.analysisMarkdown).map(blockToPdf));
+  // 7. Évolution Chronologique Journalière
+  if (cfg.showDailyTrends && report.days && report.days.length > 0) {
+    content.push(section('7. Évolution Journalière'));
+    content.push(
+      dataTable(
+        ['Date', 'CA Livré', 'Livrées', 'Rejetées', 'Injoignables'],
+        report.days.map((d) => [
+          d.dayLabel || d.date,
+          `${nf(d.ca)} ${report.currency}`,
+          nf(d.livraisons),
+          nf(d.rejetees),
+          nf(d.injoignables),
+        ]),
+        ['*', 85, 55, 55, 60],
+        ['left', 'right', 'right', 'right', 'right']
+      )
+    );
+  }
+
+  // 8. Analyse Stratégique de l'Assistant IA
+  if (cfg.showAiAnalysis && report.analysisMarkdown) {
+    content.push(section('8. Audit Stratégique & Analyse de Direction'));
+    content.push(...parseMarkdown(report.analysisMarkdown).map(blockToPdf));
+  }
+
   content.push({ text: NOTE, fontSize: 8, color: MUTED, italics: true, margin: [0, 16, 0, 0] });
 
   return {

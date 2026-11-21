@@ -470,6 +470,30 @@ function TeamSettingsForm({ workspaceId, team }: { workspaceId: string; team: Te
 
 type ExportRangePreset = "today" | "7d" | "30d" | "all" | "custom";
 type ExportSegment = "all" | "livre" | "relance" | "duplicates";
+type PhoneFormatOption = "international" | "international_no_plus" | "local";
+
+function formatPhoneNumber(phoneE164: string, format: PhoneFormatOption, countryCode: string = "TG"): string {
+  if (!phoneE164) return "";
+  const cleaned = phoneE164.trim();
+  if (format === "international") {
+    return cleaned.startsWith("+") ? cleaned : "+" + cleaned;
+  }
+  if (format === "international_no_plus") {
+    return cleaned.replace(/^\+/, "");
+  }
+  if (format === "local") {
+    const noPlus = cleaned.replace(/^\+/, "");
+    if (noPlus.startsWith("228")) return noPlus.slice(3);
+    if (noPlus.startsWith("225")) return noPlus.slice(3);
+    if (noPlus.startsWith("221")) return noPlus.slice(3);
+    if (noPlus.startsWith("229")) return noPlus.slice(3);
+    if (noPlus.startsWith("226")) return noPlus.slice(3);
+    if (noPlus.startsWith("223")) return noPlus.slice(3);
+    if (noPlus.startsWith("237")) return noPlus.slice(3);
+    return noPlus;
+  }
+  return cleaned;
+}
 
 function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order[] }) {
   const [rangePreset, setRangePreset] = useState<ExportRangePreset>("30d");
@@ -480,9 +504,12 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [segment, setSegment] = useState<ExportSegment>("all");
   const [deduplicate, setDeduplicate] = useState(true);
+  const [phoneFormat, setPhoneFormat] = useState<PhoneFormatOption>("international");
   const [copied, setCopied] = useState(false);
+  const [showAdvancedExports, setShowAdvancedExports] = useState(false);
 
   const currency = team?.currency || "XOF";
+  const defaultCountry = team?.defaultCountry || "TG";
 
   const filteredEntries = useMemo(() => {
     const now = Date.now();
@@ -497,11 +524,9 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
     } else if (rangePreset === "30d") {
       startMs = now - 30 * 86400000;
     } else if (rangePreset === "custom") {
-      startMs = startDate ? new Date(`${startDate}T00:00:00`).getTime() : 0;
-      endMs = endDate ? new Date(`${endDate}T23:59:59`).getTime() : now + 86400000;
+      startMs = startDate ? new Date(startDate + "T00:00:00").getTime() : 0;
+      endMs = endDate ? new Date(endDate + "T23:59:59").getTime() : now + 86400000;
     }
-
-    const defaultCountry = team?.defaultCountry || "TG";
 
     // Comptage global des numéros normalisés pour identifier les doublons
     const phoneCounts = new Map<string, number>();
@@ -561,26 +586,93 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
       });
     }
     return unique;
-  }, [orders, rangePreset, startDate, endDate, segment, deduplicate, team]);
+  }, [orders, rangePreset, startDate, endDate, segment, deduplicate, defaultCountry]);
 
+  // 1. Export Numéros Seuls (.txt ou .csv - 1 ligne = 1 numéro)
+  const handleExportNumbersOnly = (extension: "txt" | "csv") => {
+    const numbers = filteredEntries.map((e) => formatPhoneNumber(e.phone, phoneFormat, defaultCountry));
+    const content =
+      extension === "csv"
+        ? "\uFEFF" + ["Téléphone", ...numbers].join("\r\n")
+        : numbers.join("\r\n");
+    const mime = extension === "csv" ? "text/csv;charset=utf-8;" : "text/plain;charset=utf-8;";
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "numeros-seuls-" + segment + "-" + (team?.name.toLowerCase().replace(/\s+/g, "-") || "export") + "-" + new Date().toISOString().slice(0, 10) + "." + extension;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 2. Export Contacts SAV Express (3 colonnes propres pour l'équipe SAV)
+  const handleExportSavExpress = () => {
+    const headers = ["Téléphone", "Nom Client", "Ville / Quartier", "Statut Commande", "Produit"];
+    const escapeCsv = (val: string | number) => '"' + String(val ?? "").replace(/"/g, '""') + '"';
+    const rows = filteredEntries.map(({ order: o, phone }) => {
+      const formattedP = formatPhoneNumber(phone, phoneFormat, defaultCountry);
+      return [
+        escapeCsv(formattedP),
+        escapeCsv(o.clientName),
+        escapeCsv(o.city || o.shopifyData?.locationHint || ""),
+        escapeCsv(o.statutCloseuse),
+        escapeCsv(cleanProductTitle(o.product)),
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.map(escapeCsv).join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sav-express-" + segment + "-" + (team?.name.toLowerCase().replace(/\s+/g, "-") || "export") + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 3. Copier les numéros dans le presse-papier
   const handleCopyNumbers = () => {
-    const text = filteredEntries.map((e) => e.phone).join("\n");
+    const text = filteredEntries
+      .map((e) => formatPhoneNumber(e.phone, phoneFormat, defaultCountry))
+      .join("\n");
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
+  // 4. Export Campagne WhatsApp (avec message script)
+  const handleExportBroadcastCsv = () => {
+    const headers = ["Téléphone (E.164)", "Nom Client", "Ville", "Message WhatsApp SAV"];
+    const escapeCsv = (val: string | number) => '"' + String(val ?? "").replace(/"/g, '""') + '"';
+    const rows = filteredEntries.map(({ order: o, phone }) => [
+      escapeCsv(formatPhoneNumber(phone, phoneFormat, defaultCountry)),
+      escapeCsv(o.clientName),
+      escapeCsv(o.city || o.shopifyData?.locationHint || ""),
+      escapeCsv(buildSavWhatsAppMessage(o, team)),
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.map(escapeCsv).join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "campagne-whatsapp-" + (team?.name.toLowerCase().replace(/\s+/g, "-") || "export") + "-" + new Date().toISOString().slice(0, 10) + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 5. Export Complet Technique (17 colonnes - options avancées)
   const handleExportCsv = () => {
     const headers = [
       "N° Commande",
-      "Téléphone WhatsApp (E.164)",
+      "Téléphone WhatsApp",
       "Téléphone Brut Saisi",
       "Nom Client",
       "Ville & Quartier",
       "Adresse / Repère",
       "Produit",
       "Quantité",
-      `Montant (${currency})`,
+      "Montant (" + currency + ")",
       "Statut Commande",
       "Statut Livreur",
       "Livreur Assigné",
@@ -590,17 +682,14 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
       "Message SAV Auto",
       "Date Réception",
     ];
-    const escapeCsv = (val: string | number) => {
-      const s = String(val ?? "").replace(/"/g, '""');
-      return `"${s}"`;
-    };
+    const escapeCsv = (val: string | number) => '"' + String(val ?? "").replace(/"/g, '""') + '"';
     const rows = filteredEntries.map(({ order: o, phone, ordersCount, isDuplicate }) => {
       const orderRef = cleanOrderNumber(o.shopifyData?.orderNumber || o.orderNumber);
       const savMsg = buildSavWhatsAppMessage(o, team);
       const waLink = buildWhatsAppLink(phone, savMsg);
       return [
-        escapeCsv(orderRef ? `#${orderRef}` : ""),
-        escapeCsv(phone),
+        escapeCsv(orderRef ? "#" + orderRef : ""),
+        escapeCsv(formatPhoneNumber(phone, phoneFormat, defaultCountry)),
         escapeCsv(o.clientPhoneRaw || phone),
         escapeCsv(o.clientName),
         escapeCsv(o.city || o.shopifyData?.locationHint || ""),
@@ -624,30 +713,7 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `numeros-clients-${team?.name.toLowerCase().replace(/\s+/g, "-") || "export"}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleExportBroadcastCsv = () => {
-    const headers = ["Téléphone (E.164)", "Nom Client", "Ville", "Message WhatsApp SAV"];
-    const escapeCsv = (val: string | number) => {
-      const s = String(val ?? "").replace(/"/g, '""');
-      return `"${s}"`;
-    };
-    const rows = filteredEntries.map(({ order: o, phone }) => [
-      escapeCsv(phone),
-      escapeCsv(o.clientName),
-      escapeCsv(o.city || o.shopifyData?.locationHint || ""),
-      escapeCsv(buildSavWhatsAppMessage(o, team)),
-    ]);
-
-    const csvContent = "\uFEFF" + [headers.map(escapeCsv).join(";"), ...rows.map((r) => r.join(";"))].join("\r\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `campagne-whatsapp-sms-${team?.name.toLowerCase().replace(/\s+/g, "-") || "export"}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = "numeros-clients-complet-" + (team?.name.toLowerCase().replace(/\s+/g, "-") || "export") + "-" + new Date().toISOString().slice(0, 10) + ".csv";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -657,27 +723,28 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-surface-border pb-4">
         <div>
           <h3 className="text-sm font-semibold text-slate-100">
-            Exportation Complète des Numéros Clients & SAV {team ? `— ${team.name}` : ""}
+            Exportation Numéros & Contacts SAV {team ? "— " + team.name : ""}
           </h3>
-          <p className="mt-0.5 text-xs text-slate-500">
-            Extrayez tous les numéros sur la durée de votre choix pour vos relances WhatsApp, SMS ou campagnes SAV.
+          <p className="mt-0.5 text-xs text-slate-400">
+            Exportez uniquement les numéros propres pour vos outils d'envoi WhatsApp en masse (WATI, Bulk WhatsApp, Wasapi) ou campagnes SAV.
           </p>
         </div>
         <span className="rounded-xl border border-brand/30 bg-brand/10 px-3 py-1 font-mono text-xs font-bold text-brand">
-          {filteredEntries.length} numéro{filteredEntries.length > 1 ? "s" : ""} prêt{filteredEntries.length > 1 ? "s" : ""}
+          {filteredEntries.length} numéro{filteredEntries.length > 1 ? "s" : ""} nettoyé{filteredEntries.length > 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Filtres de durée et segment */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {/* Filtres de sélection : durée, segment et format */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {/* Durée */}
         <div>
           <label className="mb-1.5 block text-xs font-medium text-slate-300">Durée d'extraction</label>
-          <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+          <div className="grid grid-cols-3 gap-1 sm:grid-cols-5">
             {(
               [
-                { id: "today", label: "Aujourd'hui" },
-                { id: "7d", label: "7 jours" },
-                { id: "30d", label: "30 jours" },
+                { id: "today", label: "Auj." },
+                { id: "7d", label: "7j" },
+                { id: "30d", label: "30j" },
                 { id: "all", label: "Tout" },
                 { id: "custom", label: "Dates" },
               ] as { id: ExportRangePreset; label: string }[]
@@ -686,11 +753,12 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
                 key={p.id}
                 type="button"
                 onClick={() => setRangePreset(p.id)}
-                className={`rounded-lg border px-2.5 py-2 text-xs font-medium transition ${
-                  rangePreset === p.id
+                className={
+                  "rounded-lg border px-2 py-1.5 text-xs font-medium transition cursor-pointer " +
+                  (rangePreset === p.id
                     ? "border-brand bg-brand text-white"
-                    : "border-surface-border bg-surface text-slate-400 hover:text-slate-200"
-                }`}
+                    : "border-surface-border bg-surface text-slate-400 hover:text-slate-200")
+                }
               >
                 {p.label}
               </button>
@@ -698,85 +766,171 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
           </div>
 
           {rangePreset === "custom" && (
-            <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2">
               <div>
-                <span className="mb-1 block text-[11px] text-slate-500">Du</span>
+                <span className="mb-1 block text-[10px] text-slate-500">Du</span>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-brand"
+                  className="w-full rounded-lg border border-surface-border bg-surface px-2 py-1 text-xs text-slate-100 outline-none focus:border-brand"
                 />
               </div>
               <div>
-                <span className="mb-1 block text-[11px] text-slate-500">Au</span>
+                <span className="mb-1 block text-[10px] text-slate-500">Au</span>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-brand"
+                  className="w-full rounded-lg border border-surface-border bg-surface px-2 py-1 text-xs text-slate-100 outline-none focus:border-brand"
                 />
               </div>
             </div>
           )}
         </div>
 
+        {/* Catégorie de clients */}
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-300">Catégorie de clients</label>
+          <label className="mb-1.5 block text-xs font-medium text-slate-300">Cible & Segment</label>
           <select
             value={segment}
             onChange={(e) => setSegment(e.target.value as ExportSegment)}
-            className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand"
+            className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand cursor-pointer"
           >
             <option value="all">Tous les numéros reçus sur la période</option>
             <option value="livre">Clients Livrés uniquement (Fidélisation & SAV)</option>
-            <option value="relance">Injoignables & Rejetés (À relancer sur WhatsApp)</option>
-            <option value="duplicates">Numéros Doublons uniquement (Accès libre site / Hors Meta)</option>
+            <option value="relance">Injoignables & Rejetés (Relance WhatsApp)</option>
+            <option value="duplicates">Numéros Doublons uniquement</option>
           </select>
 
-          <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+          <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[11px] text-slate-300">
             <input
               type="checkbox"
               checked={deduplicate}
               onChange={(e) => setDeduplicate(e.target.checked)}
               className="rounded border-surface-border text-brand focus:ring-brand"
             />
-            <span>Dédupliquer automatiquement (garder 1 seule ligne par numéro unique)</span>
+            <span>Dédupliquer (1 seule ligne par numéro unique)</span>
           </label>
+        </div>
+
+        {/* Format du numéro de téléphone */}
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-slate-300">Format d'export des numéros</label>
+          <select
+            value={phoneFormat}
+            onChange={(e) => setPhoneFormat(e.target.value as PhoneFormatOption)}
+            className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs text-slate-100 outline-none focus:border-brand cursor-pointer"
+          >
+            <option value="international">Format International avec + (ex: +22890123456)</option>
+            <option value="international_no_plus">Format WhatsApp API sans + (ex: 22890123456)</option>
+            <option value="local">Format Local National (ex: 90123456)</option>
+          </select>
+          <p className="mt-1 text-[10px] text-slate-500">
+            {phoneFormat === "international" && "Standard universel pour contacts et téléphones."}
+            {phoneFormat === "international_no_plus" && "Recommandé pour les logiciels de diffusion WhatsApp en masse."}
+            {phoneFormat === "local" && "Sans indicatif pays, utile pour les appels manuels locaux."}
+          </p>
         </div>
       </div>
 
-      {/* Boutons d'exportation */}
-      <div className="flex flex-wrap items-center gap-2.5 border-t border-surface-border pt-4">
+      {/* Cartes d'Actions Principales (Exports Épurés) */}
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h4 className="text-xs font-bold text-emerald-400">
+              ⚡ Exports Épurés pour Outils WhatsApp & SAV
+            </h4>
+            <p className="text-[11px] text-slate-400">
+              Fichiers allégés sans colonnes superflues, immédiatement compatibles avec vos logiciels de messagerie groupée.
+            </p>
+          </div>
+          <span className="font-mono text-xs font-bold text-slate-300 tabular-nums">
+            {filteredEntries.length} contact{filteredEntries.length > 1 ? "s" : ""}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Bouton Numéros Seuls (.txt) */}
+          <button
+            type="button"
+            disabled={filteredEntries.length === 0}
+            onClick={() => handleExportNumbersOnly("txt")}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition disabled:opacity-40 cursor-pointer"
+          >
+            <Download className="h-4 w-4" />
+            <span>Numéros Seuls (.txt)</span>
+          </button>
+
+          {/* Bouton Numéros Seuls (.csv) */}
+          <button
+            type="button"
+            disabled={filteredEntries.length === 0}
+            onClick={() => handleExportNumbersOnly("csv")}
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 px-4 py-2.5 text-xs font-bold text-emerald-300 transition disabled:opacity-40 cursor-pointer"
+          >
+            <Download className="h-4 w-4" />
+            <span>Numéros Seuls (.csv)</span>
+          </button>
+
+          {/* Bouton Contacts SAV Express (3 colonnes) */}
+          <button
+            type="button"
+            disabled={filteredEntries.length === 0}
+            onClick={handleExportSavExpress}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand hover:bg-brand-hover px-4 py-2.5 text-xs font-bold text-white shadow-sm transition disabled:opacity-40 cursor-pointer"
+          >
+            <Download className="h-4 w-4" />
+            <span>Contacts SAV Express (CSV)</span>
+          </button>
+
+          {/* Copier liste rapide */}
+          <button
+            type="button"
+            disabled={filteredEntries.length === 0}
+            onClick={handleCopyNumbers}
+            className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-medium text-slate-200 transition hover:border-brand/50 disabled:opacity-40 cursor-pointer"
+          >
+            {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-slate-400" />}
+            <span>{copied ? "Numéros copiés !" : "Copier la liste"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Accordéon : Options d'Exports Avancées & Techniques */}
+      <div className="border-t border-surface-border pt-2">
         <button
           type="button"
-          disabled={filteredEntries.length === 0}
-          onClick={handleExportCsv}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-40"
+          onClick={() => setShowAdvancedExports((prev) => !prev)}
+          className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-200 transition cursor-pointer py-1"
         >
-          <Download className="h-4 w-4" />
-          Exporter CSV Complet ({filteredEntries.length})
+          <Sliders className="h-3.5 w-3.5" />
+          <span>{showAdvancedExports ? "Masquer les exports techniques" : "Afficher les exports complets / avancés"}</span>
         </button>
 
-        <button
-          type="button"
-          disabled={filteredEntries.length === 0}
-          onClick={handleExportBroadcastCsv}
-          className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-40"
-        >
-          <WhatsAppIcon size={16} />
-          Format Campagne WhatsApp / SMS ({filteredEntries.length})
-        </button>
+        {showAdvancedExports && (
+          <div className="mt-3 flex flex-wrap items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface/40">
+            <button
+              type="button"
+              disabled={filteredEntries.length === 0}
+              onClick={handleExportBroadcastCsv}
+              className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs font-semibold text-slate-300 transition hover:text-white disabled:opacity-40 cursor-pointer"
+            >
+              <WhatsAppIcon size={16} />
+              <span>Format Campagne avec Scripts SAV</span>
+            </button>
 
-        <button
-          type="button"
-          disabled={filteredEntries.length === 0}
-          onClick={handleCopyNumbers}
-          className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-medium text-slate-200 transition hover:border-brand/50 disabled:opacity-40"
-        >
-          {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4 text-slate-400" />}
-          {copied ? "Numéros copiés !" : "Copier la liste des numéros"}
-        </button>
+            <button
+              type="button"
+              disabled={filteredEntries.length === 0}
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-2 rounded-xl border border-surface-border bg-surface px-3 py-2 text-xs font-semibold text-slate-300 transition hover:text-white disabled:opacity-40 cursor-pointer"
+            >
+              <Download className="h-4 w-4" />
+              <span>Export Technique Complet (17 colonnes)</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Aperçu rapide avec bouton WhatsApp SAV direct */}
@@ -787,48 +941,47 @@ function PhoneExportManager({ team, orders }: { team: Team | null; orders: Order
           <table className="w-full text-left text-xs">
             <thead className="sticky top-0 border-b border-surface-border bg-surface-raised text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               <tr>
-                <th className="px-3.5 py-2.5">Numéro & SAV</th>
+                <th className="px-3.5 py-2.5">Numéro ({phoneFormat === "international" ? "+E.164" : phoneFormat === "international_no_plus" ? "E.164 brut" : "Local"})</th>
                 <th className="px-3.5 py-2.5">Client</th>
+                <th className="px-3.5 py-2.5">Ville & Quartier</th>
                 <th className="px-3.5 py-2.5">Produit</th>
-                <th className="px-3.5 py-2.5">Attribution</th>
+                <th className="px-3.5 py-2.5">Statut</th>
                 <th className="px-3.5 py-2.5 text-right">Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-border">
-              {filteredEntries.slice(0, 60).map(({ order: o, phone, ordersCount, isDuplicate }) => (
-                <tr key={o.id} className="hover:bg-surface/80">
-                  <td className="px-3.5 py-2 text-slate-200 tabular-nums">
-                    <div className="flex items-center gap-2">
-                      <span>{phone}</span>
-                      <a
-                        href={buildWhatsAppLink(phone, buildSavWhatsAppMessage(o, team))}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Écrire sur WhatsApp (Script SAV / Suivi personnalisé)"
-                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110"
-                      >
-                        <WhatsAppIcon size={20} />
-                      </a>
-                    </div>
-                  </td>
-                  <td className="px-3.5 py-2 text-slate-300">{o.clientName}</td>
-                  <td className="max-w-[160px] truncate px-3.5 py-2 text-slate-400">{o.product}</td>
-                  <td className="px-3.5 py-2">
-                    {isDuplicate ? (
-                      <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                        Accès libre site ({ordersCount}x)
+              {filteredEntries.slice(0, 60).map(({ order: o, phone, ordersCount, isDuplicate }) => {
+                const formattedP = formatPhoneNumber(phone, phoneFormat, defaultCountry);
+                return (
+                  <tr key={o.id} className="hover:bg-surface/80">
+                    <td className="px-3.5 py-2 text-slate-200 tabular-nums">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-medium">{formattedP}</span>
+                        <a
+                          href={buildWhatsAppLink(phone, buildSavWhatsAppMessage(o, team))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Écrire sur WhatsApp (Script SAV / Suivi personnalisé)"
+                          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-110 cursor-pointer"
+                        >
+                          <WhatsAppIcon size={20} />
+                        </a>
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2 text-slate-300 font-medium">{o.clientName}</td>
+                    <td className="px-3.5 py-2 text-slate-400">{o.city || o.shopifyData?.locationHint || "–"}</td>
+                    <td className="max-w-[160px] truncate px-3.5 py-2 text-slate-400">{o.product}</td>
+                    <td className="px-3.5 py-2">
+                      <span className="rounded bg-surface px-1.5 py-0.5 text-[10px] text-slate-300 font-medium border border-surface-border">
+                        {o.statutCloseuse}
                       </span>
-                    ) : (
-                      <span className="rounded border border-surface-border bg-surface px-1.5 py-0.5 text-[10px] text-slate-400">
-                        Standard (1x)
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3.5 py-2 text-right tabular-nums text-slate-500">
-                    {new Date(o.timestamps.received).toLocaleDateString("fr-FR")}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-3.5 py-2 text-right tabular-nums text-slate-500">
+                      {new Date(o.timestamps.received).toLocaleDateString("fr-FR")}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
