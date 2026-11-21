@@ -998,25 +998,18 @@ export default function ComptabiliteStock({
                         </div>
                       </th>
                       <th className="px-3 py-3">Marché</th>
-                      <th className="px-3 py-3 text-right">Livrées</th>
                       <th className="px-3 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption("revenue_desc")}>
                           <span>CA Encaissé</span>
                           <ArrowUpDown className="h-3 w-3 text-slate-400" />
                         </div>
                       </th>
-                      <th className="px-3 py-3 text-right">Landed Cost</th>
-                      <th className="px-3 py-3 text-right">Commissions</th>
-                      <th className="px-3 py-3 text-right">Pub Meta</th>
+                      <th className="px-3 py-3">Livraisons</th>
+                      <th className="px-3 py-3">Taux Succès</th>
+                      <th className="px-3 py-3">Analyse & Trafic</th>
                       <th className="px-3 py-3 text-right">
                         <div className="flex items-center justify-end gap-1 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption("profit_desc")}>
                           <span>Bénéfice Net</span>
-                          <ArrowUpDown className="h-3 w-3 text-slate-400" />
-                        </div>
-                      </th>
-                      <th className="px-3 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1 cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setSortOption("roas_desc")}>
-                          <span>ROAS</span>
                           <ArrowUpDown className="h-3 w-3 text-slate-400" />
                         </div>
                       </th>
@@ -1028,17 +1021,25 @@ export default function ComptabiliteStock({
                     {paginatedEntries.map((entry) => {
                       const isSelected = selectedEntryIds.has(entry.id);
                       const isStarred = starredEntryIds.has(entry.id);
+                      const initials =
+                        entry.countryCode === "ALL"
+                          ? "GL"
+                          : entry.countryCode?.length <= 3
+                          ? entry.countryCode.toUpperCase()
+                          : entry.countryName.slice(0, 2).toUpperCase() || "AF";
+
                       return (
                         <tr
                           key={entry.id}
                           onClick={() => setActiveDetailEntry(entry)}
-                          className={`group cursor-pointer transition-colors ${
+                          className={`group cursor-pointer transition-colors duration-150 ${
                             isSelected
                               ? "bg-brand/10 dark:bg-brand/15"
-                              : "hover:bg-surface/60"
+                              : "hover:bg-slate-50/70 dark:hover:bg-surface/50"
                           }`}
                         >
-                          <td className="px-3.5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                          {/* 1. Checkbox */}
+                          <td className="px-3.5 py-4" onClick={(e) => e.stopPropagation()}>
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -1046,63 +1047,134 @@ export default function ComptabiliteStock({
                               className="h-4 w-4 rounded border-surface-border text-brand focus:ring-brand cursor-pointer"
                             />
                           </td>
-                          <td className="px-2 py-3.5 text-center" onClick={(e) => toggleStarEntry(entry.id, e)}>
+
+                          {/* 2. Star Icon */}
+                          <td className="px-2 py-4 text-center" onClick={(e) => toggleStarEntry(entry.id, e)}>
                             <button type="button" className="text-slate-400 hover:text-amber-400 transition cursor-pointer">
                               {isStarred ? (
                                 <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                               ) : (
-                                <Star className="h-3.5 w-3.5 text-slate-500 hover:text-slate-400" />
+                                <Star className="h-3.5 w-3.5 text-slate-400 hover:text-slate-300" />
                               )}
                             </button>
                           </td>
-                          <td className="px-3.5 py-3.5">
-                            <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-brand transition-colors block">
-                              {entry.periodLabel}
-                            </span>
-                            <span className="text-[11px] text-slate-600 dark:text-slate-400">
-                              Clôturé le {new Date(entry.createdAt).toLocaleDateString("fr-FR")}
-                            </span>
+
+                          {/* 3. Avatar + Période & Clôture (Style 2-Lignes propre) */}
+                          <td className="px-3.5 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-surface border border-surface-border text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">
+                                {initials}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-[13px] group-hover:text-brand transition-colors block truncate max-w-[210px]">
+                                  {entry.periodLabel}
+                                </span>
+                                <span className="text-[11px] text-slate-500 block truncate mt-0.5">
+                                  Clôturé le {new Date(entry.createdAt).toLocaleDateString("fr-FR")}
+                                </span>
+                              </div>
+                            </div>
                           </td>
-                          <td className="px-3 py-3.5">
-                            <span className="inline-flex items-center gap-1.5 rounded-md border border-surface-border bg-surface px-2 py-0.5 font-semibold text-slate-800 dark:text-slate-200">
-                              <Globe className="h-3 w-3 text-emerald-500" />
-                              <span>{entry.countryName}</span>
-                            </span>
+
+                          {/* 4. Marché / Équipe */}
+                          <td className="px-3 py-4">
+                            <div>
+                              <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-800 dark:text-slate-200">
+                                <Globe className="h-3 w-3 text-emerald-500 shrink-0" />
+                                <span>{entry.countryName}</span>
+                              </div>
+                              <span className="text-[11px] text-slate-500 block mt-0.5">
+                                Devise {entry.currency}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-3 py-3.5 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">
-                            <b className="text-slate-900 dark:text-slate-100">{entry.ordersDelivered}</b>
-                            <span className="rounded bg-surface px-1 py-0.5 text-[10px] font-mono text-slate-500 ml-1">
-                              {entry.deliveryRatePercent}%
-                            </span>
-                          </td>
-                          <td className="px-3 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                            {entry.revenue.toLocaleString("fr-FR")} {entry.currency}
-                          </td>
-                          <td className="px-3 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-400">
-                            {entry.landedCost.toLocaleString("fr-FR")} {entry.currency}
-                          </td>
-                          <td className="px-3 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-400">
-                            {entry.totalCommissions.toLocaleString("fr-FR")} {entry.currency}
-                          </td>
-                          <td className="px-3 py-3.5 text-right font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">
-                            {entry.adSpendTotal.toLocaleString("fr-FR")} {entry.currency}
-                          </td>
-                          <td className="px-3 py-3.5 text-right">
-                            {renderSignedCurrency(entry.netProfit, entry.currency)}
-                            <span className="block text-[10px] text-slate-600 dark:text-slate-400 font-mono">
-                              ({entry.netMarginPercent}%)
-                            </span>
-                          </td>
-                          <td className="px-3 py-3.5 text-right">
-                            <span className="inline-flex items-center rounded-md border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                              {entry.roasReal}x
+
+                          {/* 5. CA Encaissé (Gros chiffre tabular-nums + Landed Cost) */}
+                          <td className="px-3 py-4 text-right">
+                            <div className="text-xs sm:text-[13px] font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+                              {entry.revenue.toLocaleString("fr-FR")} {entry.currency}
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
+                              Landed : {entry.landedCost.toLocaleString("fr-FR")} {entry.currency}
                             </span>
                           </td>
-                          {/* Statut Style GlobalBank CRM : Dot de couleur + Libellé propre */}
-                          <td className="px-3.5 py-3.5">
-                            <div className="flex items-center gap-1.5 font-semibold text-[11px]">
+
+                          {/* 6. Livraisons (Quantité + Taux coloré comme la photo) */}
+                          <td className="px-3 py-4">
+                            <div className="flex items-center gap-1.5">
+                              <b className="font-mono tabular-nums text-slate-900 dark:text-slate-100 text-xs">
+                                {entry.ordersDelivered} livrées
+                              </b>
                               <span
-                                className={`h-2 w-2 rounded-full ${
+                                className={`text-[11px] font-semibold font-mono ${
+                                  entry.deliveryRatePercent >= 75
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : entry.deliveryRatePercent >= 60
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-rose-600 dark:text-rose-400"
+                                }`}
+                              >
+                                {entry.deliveryRatePercent}%
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-slate-500 font-mono block mt-0.5">
+                              {entry.ordersReceived} commandes reçues
+                            </span>
+                          </td>
+
+                          {/* 7. Slim Visual Progress Bar (Inspirée exactement de la photo) */}
+                          <td className="px-3 py-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-14 h-1.5 rounded-full bg-slate-200 dark:bg-surface border border-surface-border/50 overflow-hidden shrink-0">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    entry.deliveryRatePercent >= 75
+                                      ? "bg-emerald-500"
+                                      : entry.deliveryRatePercent >= 60
+                                      ? "bg-amber-500"
+                                      : "bg-rose-500"
+                                  }`}
+                                  style={{ width: `${Math.min(100, Math.max(6, entry.deliveryRatePercent))}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 8. Analyse & Commentaire texte (Style 'Wants a 6 month term' / 'No reply') */}
+                          <td className="px-3 py-4">
+                            <div className="max-w-[200px] truncate">
+                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 block truncate">
+                                {entry.adSpendTotal > 0 ? `ROAS ${entry.roasReal}x · Pub Meta` : "100% Organique / Direct"}
+                              </span>
+                              <span className="text-[11px] text-slate-500 block truncate mt-0.5">
+                                {entry.auditAlertMessage.replace(/^[⚠️🚀\s]+/, "")}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 9. Bénéfice Net Réel */}
+                          <td className="px-3 py-4 text-right">
+                            <div className="text-xs sm:text-[13px] font-bold font-mono tabular-nums">
+                              {renderSignedCurrency(entry.netProfit, entry.currency)}
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
+                              {entry.netMarginPercent}% de marge
+                            </span>
+                          </td>
+
+                          {/* 10. Statut Pill (Copie fidèle de la photo de référence) */}
+                          <td className="px-3.5 py-4">
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
+                                entry.auditStatus === "optimal"
+                                  ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                  : entry.auditStatus === "crash"
+                                  ? "border border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                  : "border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                              }`}
+                            >
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${
                                   entry.auditStatus === "optimal"
                                     ? "bg-emerald-500"
                                     : entry.auditStatus === "crash"
@@ -1110,24 +1182,18 @@ export default function ComptabiliteStock({
                                     : "bg-amber-500"
                                 }`}
                               />
-                              <span
-                                className={
-                                  entry.auditStatus === "optimal"
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : entry.auditStatus === "crash"
-                                    ? "text-rose-600 dark:text-rose-400"
-                                    : "text-amber-600 dark:text-amber-400"
-                                }
-                              >
+                              <span>
                                 {entry.auditStatus === "optimal"
                                   ? "Optimal"
                                   : entry.auditStatus === "crash"
-                                  ? "Crash"
+                                  ? "Alerte Crash"
                                   : "À surveiller"}
                               </span>
-                            </div>
+                            </span>
                           </td>
-                          <td className="px-4 py-3.5 text-right">
+
+                          {/* 11. Action Consulter */}
+                          <td className="px-4 py-4 text-right">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1269,57 +1335,112 @@ export default function ComptabiliteStock({
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-surface-border bg-surface/30 text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                    <th className="px-4 py-3">Produit</th>
-                    <th className="px-4 py-3 text-right">Achat Usine</th>
-                    <th className="px-4 py-3 text-right">Fret Unit.</th>
+                    <th className="px-4 py-3">Produit & Source</th>
                     <th className="px-4 py-3 text-right">Landed Cost</th>
-                    <th className="px-4 py-3">Campagne Meta Ads</th>
-                    <th className="px-4 py-3 text-right">Stock Disponible</th>
+                    <th className="px-4 py-3 text-right">Prix Vente / Marge</th>
+                    <th className="px-4 py-3 text-right">Stock Actuel</th>
                     <th className="px-4 py-3">Couverture Logistique</th>
+                    <th className="px-4 py-3">Campagne Meta Ads</th>
+                    <th className="px-4 py-3">Statut Rupture</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
                   {productsFinancialList.map((p) => {
                     const { title, subtitle } = parseProductTitle(p.productName);
+                    const pInitials = title
+                      .split(" ")
+                      .map((w) => w[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase() || "PR";
+
                     return (
-                      <tr key={p.id} className="hover:bg-surface/60 transition-colors">
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-surface-border bg-surface text-slate-700 dark:text-slate-300 font-bold">
-                              <Package className="h-4 w-4 text-slate-400" />
+                      <tr key={p.id} className="hover:bg-slate-50/70 dark:hover:bg-surface/50 transition-colors duration-150">
+                        {/* 1. Avatar + Produit */}
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-surface-border bg-slate-100 dark:bg-surface text-slate-700 dark:text-slate-300 font-bold text-xs">
+                              {pInitials}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate max-w-[280px]">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-[13px] truncate max-w-[260px]">
                                   {title}
                                 </span>
-                                <span className="rounded bg-surface border border-surface-border px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+                                <span className="rounded-full bg-surface border border-surface-border px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
                                   {p.isAzify ? "Azify" : "Manuel"}
                                 </span>
                               </div>
                               {subtitle && (
-                                <p className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-400 truncate max-w-[320px]">
+                                <p className="mt-0.5 text-[11px] text-slate-500 truncate max-w-[300px]">
                                   {subtitle}
                                 </p>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
-                          {p.cogsUnitPrice.toLocaleString("fr-FR")} {currency}
+
+                        {/* 2. Landed Cost (Achat Usine + Fret unitaire en sous-texte) */}
+                        <td className="px-4 py-4 text-right">
+                          <div className="font-mono font-bold tabular-nums text-xs sm:text-[13px] text-slate-900 dark:text-slate-100">
+                            {p.landedCost.toLocaleString("fr-FR")} {currency}
+                          </div>
+                          <span className="text-[11px] font-mono text-slate-500 block mt-0.5">
+                            Usine {p.cogsUnitPrice.toLocaleString("fr-FR")} + Fret {p.transitUnitCost.toLocaleString("fr-FR")}
+                          </span>
                         </td>
-                        <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-400">
-                          {p.transitUnitCost.toLocaleString("fr-FR")} {currency}
+
+                        {/* 3. Prix de Vente Moyen & Marge nette par pièce */}
+                        <td className="px-4 py-4 text-right">
+                          <div className="font-mono font-semibold tabular-nums text-xs text-slate-800 dark:text-slate-200">
+                            {p.sellingPriceAvg.toLocaleString("fr-FR")} {currency}
+                          </div>
+                          <span className="text-[11px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                            +{p.netMarginPerUnit.toLocaleString("fr-FR")} {currency} / pce
+                          </span>
                         </td>
-                        <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                          {p.landedCost.toLocaleString("fr-FR")} {currency}
+
+                        {/* 4. Stock Actuel */}
+                        <td className="px-4 py-4 text-right">
+                          <span className="font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100 text-xs sm:text-[13px]">
+                            {p.currentStock}
+                          </span>
+                          <span className="text-[11px] text-slate-500 ml-1">pcs</span>
+                          <span className="text-[10px] text-slate-400 block font-mono">
+                            {p.unitsDeliveredInPeriod} vendues
+                          </span>
                         </td>
-                        <td className="px-4 py-3.5">
+
+                        {/* 5. Couverture Logistique avec Slim Progress Bar */}
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-14 h-1.5 rounded-full bg-slate-200 dark:bg-surface border border-surface-border/50 overflow-hidden shrink-0">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  p.daysOfStockRemaining >= 15
+                                    ? "bg-emerald-500"
+                                    : p.daysOfStockRemaining >= 7
+                                    ? "bg-amber-500"
+                                    : "bg-rose-500"
+                                }`}
+                                style={{
+                                  width: `${Math.min(100, Math.max(8, Math.round((p.daysOfStockRemaining / 45) * 100)))}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                              {p.daysOfStockRemaining === 999 ? "Dormant" : `${p.daysOfStockRemaining} j`}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 6. Campagne Meta Ads Liée */}
+                        <td className="px-4 py-4">
                           {p.metaCampaignName ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400">
-                              <Radio className="h-3 w-3 text-indigo-500" />
-                              <span className="truncate max-w-[180px]">{p.metaCampaignName}</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 max-w-[180px] truncate">
+                              <Radio className="h-3 w-3 text-indigo-500 shrink-0" />
+                              <span className="truncate">{p.metaCampaignName}</span>
                             </span>
                           ) : (
                             <button
@@ -1340,19 +1461,33 @@ export default function ComptabiliteStock({
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-3.5 text-right">
-                          <span className="font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100 text-xs">
-                            {p.currentStock}
-                          </span>
-                          <span className="text-[10px] text-slate-600 dark:text-slate-400 ml-1">pcs</span>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.coverageBadgeCls}`}>
-                            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+
+                        {/* 7. Statut Rupture Pill (Même style que référence photo) */}
+                        <td className="px-4 py-4">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap ${
+                              p.daysOfStockRemaining >= 15
+                                ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                : p.daysOfStockRemaining >= 7
+                                ? "border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                : "border border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                p.daysOfStockRemaining >= 15
+                                  ? "bg-emerald-500"
+                                  : p.daysOfStockRemaining >= 7
+                                  ? "bg-amber-500"
+                                  : "bg-rose-500"
+                              }`}
+                            />
                             <span>{p.coverageLabel}</span>
                           </span>
                         </td>
-                        <td className="px-4 py-3.5 text-right">
+
+                        {/* 8. Actions */}
+                        <td className="px-4 py-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
