@@ -102,7 +102,6 @@ function parseJsonBody(req) {
 exports.azifyGateway = (0, https_1.onRequest)({
     region: "us-central1",
     cors: true,
-    invoker: "public",
 }, async (req, res) => {
     if (setCorsHeaders(req, res))
         return;

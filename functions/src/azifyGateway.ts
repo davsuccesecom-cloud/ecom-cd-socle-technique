@@ -64,7 +64,6 @@ export const azifyGateway = onRequest(
   {
     region: "us-central1",
     cors: true,
-    invoker: "public",
   },
   async (req, res) => {
     if (setCorsHeaders(req, res)) return;
