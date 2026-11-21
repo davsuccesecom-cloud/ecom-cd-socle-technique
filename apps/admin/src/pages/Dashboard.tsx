@@ -424,11 +424,11 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         )}
         {/* Global Top Header Bar : 1 seule ligne compacte sur ordinateur, inchangé sur mobile */}
         <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3">
-          <div className="shrink-0 max-w-sm">
-            <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-xl whitespace-nowrap">
+          <div className="min-w-0 max-w-md shrink-0">
+            <h1 className="text-lg font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-100 md:text-xl">
               {headerMeta.title}
             </h1>
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{headerMeta.subtitle}</p>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-1">{headerMeta.subtitle}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 md:shrink-0 md:flex-nowrap">

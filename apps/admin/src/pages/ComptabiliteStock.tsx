@@ -199,22 +199,23 @@ export function computeStockVelocityAndCoverage(
 }
 
 export function renderSignedCurrency(amount: number, currency: string) {
+  const formatted = Math.abs(amount).toLocaleString("fr-FR").replace(/\s/g, "\u00A0");
   if (amount > 0) {
     return (
-      <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-        +{amount.toLocaleString("fr-FR")} {currency}
+      <span className="font-bold tracking-tight text-emerald-700 dark:text-emerald-400">
+        +{formatted} {currency}
       </span>
     );
   }
   if (amount < 0) {
     return (
-      <span className="font-bold tabular-nums text-rose-600 dark:text-rose-400">
-        {amount.toLocaleString("fr-FR")} {currency}
+      <span className="font-bold tracking-tight text-rose-700 dark:text-rose-400">
+        -{formatted} {currency}
       </span>
     );
   }
   return (
-    <span className="font-semibold tabular-nums text-slate-500 dark:text-slate-400">
+    <span className="font-semibold tracking-tight text-slate-500 dark:text-slate-400">
       0 {currency}
     </span>
   );
@@ -446,6 +447,60 @@ export default function ComptabiliteStock({
     return list.sort((a, b) => b.revenueInPeriod - a.revenueInPeriod);
   }, [filteredOrders, stocks, activeTeam, numberOfDaysInPeriod, isGlobal]);
 
+  // 5.b Détection automatique des campagnes Meta Ads actives depuis les commandes, le catalogue et le Grand Livre
+  const detectedCampaigns = useMemo(() => {
+    const map = new Map<string, { name: string; ordersCount: number; country?: string }>();
+    const ordersList = allOrders && allOrders.length > 0 ? allOrders : orders;
+
+    // 1. Depuis les commandes (Shopify / UTM / Meta)
+    ordersList.forEach((o) => {
+      const camp = o.shopifyData?.utm?.campaign || (o as any).utmCampaign || (o as any).campaignName;
+      if (camp && typeof camp === "string" && camp.trim().length > 1) {
+        const trimmed = camp.trim();
+        const existing = map.get(trimmed) || { name: trimmed, ordersCount: 0, country: (o as any).country || activeTeam?.defaultCountry };
+        existing.ordersCount += 1;
+        map.set(trimmed, existing);
+      }
+    });
+
+    // 2. Depuis les clôtures précédentes enregistrées dans le Grand Livre
+    ledgerEntries.forEach((entry) => {
+      entry.metaCampaigns?.forEach((mc) => {
+        if (mc.name && mc.name.trim().length > 1) {
+          const trimmed = mc.name.trim();
+          const existing = map.get(trimmed) || { name: trimmed, ordersCount: mc.leads || 0, country: entry.countryCode };
+          map.set(trimmed, existing);
+        }
+      });
+    });
+
+    // 3. Depuis les stocks configurés
+    stocks.forEach((s) => {
+      const sCamp = (s as any).metaCampaignName || (s as any).metaCampaign;
+      if (sCamp && typeof sCamp === "string" && sCamp.trim().length > 1) {
+        const trimmed = sCamp.trim();
+        const existing = map.get(trimmed) || { name: trimmed, ordersCount: s.totalSold || 0, country: activeTeam?.defaultCountry };
+        map.set(trimmed, existing);
+      }
+    });
+
+    // 4. Suggestions intelligentes formatées par pays et produit
+    const cTag = activeTeam?.defaultCountry || "ALL";
+    productsFinancialList.forEach((p) => {
+      const { title } = parseProductTitle(p.productName);
+      const camp1 = `[${cTag}] ${title} — CBO Conversions`;
+      const camp2 = `[${cTag}] ${title} — Retargeting COD`;
+      if (!map.has(camp1)) {
+        map.set(camp1, { name: camp1, ordersCount: p.unitsDeliveredInPeriod, country: cTag });
+      }
+      if (!map.has(camp2)) {
+        map.set(camp2, { name: camp2, ordersCount: 0, country: cTag });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.ordersCount - a.ordersCount);
+  }, [allOrders, orders, ledgerEntries, stocks, productsFinancialList, activeTeam]);
+
   // 6. Filtrage des clôtures du Grand Livre
   const filteredLedgerEntries = useMemo(() => {
     let result = ledgerEntries;
@@ -584,6 +639,7 @@ export default function ComptabiliteStock({
           quantityOnHand: qtyOnHand,
           lowStockThreshold: lowThresh,
           metaCampaignName: formMetaCampaign.trim() || null,
+          metaCampaign: formMetaCampaign.trim() || null,
           updatedAt: Date.now(),
         },
         { merge: true }
@@ -1003,8 +1059,8 @@ export default function ComptabiliteStock({
                               : "hover:bg-slate-50/80 dark:hover:bg-[#151a2b] border-l-4 border-l-transparent"
                           }`}
                         >
-                          {/* 1. Checkbox & Star Compactés */}
-                          <td className="px-3.5 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          {/* 1. Checkbox & Favori */}
+                          <td className="px-3.5 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-2">
                               <input
                                 type="checkbox"
@@ -1026,63 +1082,63 @@ export default function ComptabiliteStock({
                             </div>
                           </td>
 
-                          {/* 2. Avatar + Période & Clôture (2 Lignes nettes sans chevauchement) */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          {/* 2. Avatar Rond 36px + Période & Clôture */}
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 dark:bg-[#1c2235] border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 shrink-0 shadow-2xs">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 shrink-0 border border-slate-300/80 dark:border-slate-700">
                                 {initials}
                               </div>
                               <div className="min-w-0">
-                                <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-[13px] group-hover:text-brand transition-colors block truncate max-w-[220px]">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm group-hover:text-brand transition-colors block truncate max-w-[240px]">
                                   {entry.periodLabel}
                                 </span>
-                                <span className="text-[11px] text-slate-500 block truncate mt-0.5">
-                                  Clôturé le {new Date(entry.createdAt).toLocaleDateString("fr-FR")} · Certifié
+                                <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate mt-0.5">
+                                  Clôturé le {new Date(entry.createdAt).toLocaleDateString("fr-FR")} · Certifié IA
                                 </span>
                               </div>
                             </div>
                           </td>
 
                           {/* 3. Marché / Équipe */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-800 dark:text-slate-200">
-                              <Globe className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold bg-slate-100 dark:bg-[#1a2035] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                              <Globe className="h-3 w-3 text-emerald-500 shrink-0" />
                               <span>{entry.countryName}</span>
-                            </div>
-                            <span className="text-[11px] text-slate-500 block mt-0.5">
+                            </span>
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-1">
                               Marché {entry.currency}
                             </span>
                           </td>
 
-                          {/* 4. CA Encaissé (Gros chiffre sans-serif tabular-nums + Landed Cost) */}
-                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                            <div className="text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                          {/* 4. CA Encaissé (Gros chiffre lisible non-robotique + Landed Cost) */}
+                          <td className="px-4 py-4 text-right whitespace-nowrap">
+                            <div className="text-sm font-bold text-slate-900 dark:text-slate-100">
                               {entry.revenue.toLocaleString("fr-FR")} {entry.currency}
                             </div>
-                            <span className="text-[11px] tabular-nums text-slate-500 block mt-0.5">
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
                               Landed : {entry.landedCost.toLocaleString("fr-FR")} {entry.currency}
                             </span>
                           </td>
 
-                          {/* 5. Délivrabilité COD (Chiffres + Pourcentage solide + Slim Micro-Gauge) */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="tabular-nums text-xs font-bold text-slate-900 dark:text-slate-100">
+                          {/* 5. Délivrabilité COD (Mini-jauge pleine sans artifice) */}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="flex items-center justify-between gap-3 mb-1.5">
+                              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                                 {entry.ordersDelivered} / {entry.ordersReceived} livrées
                               </span>
                               <span
-                                className={`text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-full border ${
+                                className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
                                   entry.deliveryRatePercent >= 75
-                                    ? "bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700/80"
+                                    ? "bg-[#e6f4ea] dark:bg-[#0c2e1f] text-[#137333] dark:text-[#34d399] border-[#ceead6] dark:border-[#166534]"
                                     : entry.deliveryRatePercent >= 60
-                                    ? "bg-amber-100 dark:bg-[#34220b] text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-700/80"
-                                    : "bg-rose-100 dark:bg-[#36131b] text-rose-800 dark:text-rose-200 border-rose-300 dark:border-rose-700/80"
+                                    ? "bg-[#fef7e0] dark:bg-[#2d1e08] text-[#b06000] dark:text-[#fbbf24] border-[#feefc3] dark:border-[#78350f]"
+                                    : "bg-[#fce8e6] dark:bg-[#2e0c0c] text-[#c5221f] dark:text-[#f87171] border-[#fad2cf] dark:border-[#991b1b]"
                                 }`}
                               >
                                 {entry.deliveryRatePercent}%
                               </span>
                             </div>
-                            <div className="w-full max-w-[160px] h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                            <div className="w-full max-w-[140px] h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                               <div
                                 className={`h-full rounded-full transition-all duration-300 ${
                                   entry.deliveryRatePercent >= 75
@@ -1097,50 +1153,50 @@ export default function ComptabiliteStock({
                           </td>
 
                           {/* 6. Pub Meta & ROAS */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold tabular-nums text-xs text-slate-900 dark:text-slate-100">
+                              <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">
                                 {entry.adSpendTotal > 0
                                   ? `${entry.adSpendTotal.toLocaleString("fr-FR")} ${entry.currency}`
                                   : `0 ${entry.currency}`}
                               </span>
-                              <span className="inline-flex items-center rounded-md border border-indigo-200 dark:border-indigo-800 bg-indigo-100 dark:bg-[#151c3d] px-2 py-0.5 text-[11px] font-bold tabular-nums text-indigo-800 dark:text-indigo-200">
+                              <span className="inline-flex items-center rounded-md border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50 dark:bg-[#151c3d] px-2 py-0.5 text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
                                 ROAS {entry.roasReal}x
                               </span>
                             </div>
-                            <span className="text-[11px] text-slate-500 block truncate mt-0.5 max-w-[170px]">
+                            <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate mt-0.5 max-w-[170px]">
                               {entry.adSpendTotal > 0 ? "Campagne Meta Ads CBO" : "Organique / Direct"}
                             </span>
                           </td>
 
                           {/* 7. Bénéfice Net Réel */}
-                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                            <div className="text-sm font-bold tabular-nums">
+                          <td className="px-4 py-4 text-right whitespace-nowrap">
+                            <div className="text-sm font-bold">
                               {renderSignedCurrency(entry.netProfit, entry.currency)}
                             </div>
-                            <span className="text-[11px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                            <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 block mt-0.5">
                               {entry.netMarginPercent}% de marge nette
                             </span>
                           </td>
 
                           {/* 8. Statut Pill (100% Solide sans transparence + point de couleur) */}
-                          <td className="px-4 py-3.5 whitespace-nowrap">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <span
                               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap border ${
                                 entry.auditStatus === "optimal"
-                                  ? "border-emerald-300 dark:border-emerald-700/80 bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-900 dark:text-emerald-200"
+                                  ? "bg-[#e6f4ea] dark:bg-[#0c2e1f] text-[#137333] dark:text-[#34d399] border-[#ceead6] dark:border-[#166534]"
                                   : entry.auditStatus === "crash"
-                                  ? "border-rose-300 dark:border-rose-700/80 bg-rose-100 dark:bg-[#381119] text-rose-900 dark:text-rose-200"
-                                  : "border-amber-300 dark:border-amber-700/80 bg-amber-100 dark:bg-[#332009] text-amber-900 dark:text-amber-200"
+                                  ? "bg-[#fce8e6] dark:bg-[#2e0c0c] text-[#c5221f] dark:text-[#f87171] border-[#fad2cf] dark:border-[#991b1b]"
+                                  : "bg-[#fef7e0] dark:bg-[#2d1e08] text-[#b06000] dark:text-[#fbbf24] border-[#feefc3] dark:border-[#78350f]"
                               }`}
                             >
                               <span
                                 className={`h-2 w-2 rounded-full ${
                                   entry.auditStatus === "optimal"
-                                    ? "bg-emerald-500"
+                                    ? "bg-[#1e8e3e] dark:bg-[#34d399]"
                                     : entry.auditStatus === "crash"
-                                    ? "bg-rose-500"
-                                    : "bg-amber-500"
+                                    ? "bg-[#d93025] dark:bg-[#f87171]"
+                                    : "bg-[#f9ab00] dark:bg-[#fbbf24]"
                                 }`}
                               />
                               <span>
@@ -1154,14 +1210,14 @@ export default function ComptabiliteStock({
                           </td>
 
                           {/* 9. Action Consulter */}
-                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                          <td className="px-4 py-4 text-right whitespace-nowrap">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setActiveDetailEntry(entry);
                               }}
-                              className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-surface px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:border-brand hover:text-brand hover:bg-brand/5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                              className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-surface px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:border-brand hover:text-brand hover:bg-brand/5 transition-all shadow-2xs cursor-pointer active:scale-95"
                             >
                               <span>Consulter</span>
                               <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
@@ -1759,16 +1815,52 @@ export default function ComptabiliteStock({
               </div>
 
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                  Nom de la Campagne Meta Ads ciblée
-                </label>
-                <input
-                  type="text"
-                  value={closureCampaignName}
-                  onChange={(e) => setClosureCampaignName(e.target.value)}
-                  placeholder={`[${activeTeam?.defaultCountry || "ALL"}] Campagne CBO Principale`}
-                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 outline-none focus:border-brand"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-700 dark:text-slate-300 font-semibold">
+                    Campagne Meta Ads Ciblée
+                  </label>
+                  {detectedCampaigns.length > 0 && (
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                      <Radio className="h-3 w-3" />
+                      <span>{detectedCampaigns.length} active(s)</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {detectedCampaigns.length > 0 && (
+                    <select
+                      value={detectedCampaigns.some((c) => c.name === closureCampaignName) ? closureCampaignName : "__custom__"}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val !== "__custom__") {
+                          setClosureCampaignName(val);
+                          const found = detectedCampaigns.find((c) => c.name === val);
+                          if (found && found.ordersCount > 0 && (!closureAdSpendInput || closureAdSpendInput === "150000")) {
+                            setClosureAdSpendInput(String(Math.round(found.ordersCount * 2500)));
+                          }
+                        }
+                      }}
+                      className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 text-xs font-semibold outline-none focus:border-brand cursor-pointer"
+                    >
+                      <option value="">Sélectionner parmi les campagnes détectées...</option>
+                      {detectedCampaigns.map((c) => (
+                        <option key={c.name} value={c.name}>
+                          {c.name} {c.ordersCount > 0 ? `(${c.ordersCount} commandes)` : ""}
+                        </option>
+                      ))}
+                      <option value="__custom__">Autre campagne (saisie manuelle)...</option>
+                    </select>
+                  )}
+
+                  <input
+                    type="text"
+                    value={closureCampaignName}
+                    onChange={(e) => setClosureCampaignName(e.target.value)}
+                    placeholder={`[${activeTeam?.defaultCountry || "ALL"}] Campagne CBO Principale`}
+                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 outline-none focus:border-brand"
+                  />
+                </div>
               </div>
 
               <div>
@@ -1889,16 +1981,48 @@ export default function ComptabiliteStock({
               </div>
 
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                  Campagne Meta Ads Liée
-                </label>
-                <input
-                  type="text"
-                  value={formMetaCampaign}
-                  onChange={(e) => setFormMetaCampaign(e.target.value)}
-                  placeholder="ex: [TG] Civière d'Orcale CBO"
-                  className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 outline-none focus:border-brand"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-700 dark:text-slate-300 font-semibold">
+                    Campagne Meta Ads Liée
+                  </label>
+                  {detectedCampaigns.length > 0 && (
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+                      <Radio className="h-3 w-3" />
+                      <span>{detectedCampaigns.length} active(s)</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {detectedCampaigns.length > 0 && (
+                    <select
+                      value={detectedCampaigns.some((c) => c.name === formMetaCampaign) ? formMetaCampaign : "__custom__"}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val !== "__custom__") {
+                          setFormMetaCampaign(val);
+                        }
+                      }}
+                      className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 text-xs font-semibold outline-none focus:border-brand cursor-pointer"
+                    >
+                      <option value="">Sélectionner une campagne détectée...</option>
+                      {detectedCampaigns.map((c) => (
+                        <option key={c.name} value={c.name}>
+                          {c.name} {c.ordersCount > 0 ? `(${c.ordersCount} commandes)` : ""}
+                        </option>
+                      ))}
+                      <option value="__custom__">Autre campagne personnalisée...</option>
+                    </select>
+                  )}
+
+                  <input
+                    type="text"
+                    value={formMetaCampaign}
+                    onChange={(e) => setFormMetaCampaign(e.target.value)}
+                    placeholder="ex: [TG] Civière d'Orcale CBO"
+                    className="w-full rounded-xl border border-surface-border bg-surface px-3 py-2 text-slate-900 dark:text-slate-100 outline-none focus:border-brand"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

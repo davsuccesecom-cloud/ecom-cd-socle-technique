@@ -116,13 +116,19 @@ const SUGGESTIONS = [
 ];
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
+  const clean = text
+    .replace(/([0-9])\uFE0F?\u20E3/g, "$1.")
+    .replace(/->|=>/g, "→")
+    .replace(/~/g, "≈")
+    .replace(/\s\*\s(\d+)/g, " × $1")
+    .replace(/\sx\s(\d+)/g, " × $1");
   const nodes: ReactNode[] = [];
   const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/g;
   let last = 0;
   let n = 0;
   let m: RegExpExecArray | null;
-  while ((m = regex.exec(text)) !== null) {
-    if (m.index > last) nodes.push(text.slice(last, m.index));
+  while ((m = regex.exec(clean)) !== null) {
+    if (m.index > last) nodes.push(clean.slice(last, m.index));
     const tok = m[0];
     const key = `${keyPrefix}-${n++}`;
     if (tok.startsWith("**")) {
@@ -133,7 +139,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       );
     } else if (tok.startsWith("`")) {
       nodes.push(
-        <code key={key} className="rounded bg-surface px-1.5 py-0.5 font-mono text-[0.85em] text-brand">
+        <code key={key} className="rounded bg-surface px-1.5 py-0.5 text-[0.85em] font-semibold text-brand border border-surface-border">
           {tok.slice(1, -1)}
         </code>
       );
@@ -142,12 +148,15 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     }
     last = m.index + tok.length;
   }
-  if (last < text.length) nodes.push(text.slice(last));
+  if (last < clean.length) nodes.push(clean.slice(last));
   return nodes;
 }
 
 function Markdown({ content }: { content: string }) {
-  const lines = content.replace(/\r/g, "").split("\n");
+  const lines = content
+    .replace(/\r/g, "")
+    .replace(/([0-9])\uFE0F?\u20E3\s*/g, "$1. ")
+    .split("\n");
   const out: ReactNode[] = [];
   const isTableSep = (l: string) =>
     /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
@@ -177,12 +186,12 @@ function Markdown({ content }: { content: string }) {
       const level = h[1].length;
       const cls =
         level === 1
-          ? "text-base font-semibold text-slate-100"
+          ? "text-base font-bold text-slate-100"
           : level === 2
-            ? "text-sm font-semibold text-slate-100"
-            : "text-xs font-semibold uppercase tracking-wider text-slate-300";
+            ? "text-sm font-bold text-slate-100"
+            : "text-xs font-bold uppercase tracking-wider text-slate-300";
       out.push(
-        <p key={k++} className={`${cls} pt-1`}>
+        <p key={k++} className={`${cls} pt-1.5`}>
           {renderInline(h[2], `h${k}`)}
         </p>
       );
@@ -191,7 +200,7 @@ function Markdown({ content }: { content: string }) {
     }
 
     if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
-      out.push(<hr key={k++} className="border-t border-surface-border" />);
+      out.push(<hr key={k++} className="border-t border-surface-border my-2" />);
       i++;
       continue;
     }
@@ -206,7 +215,7 @@ function Markdown({ content }: { content: string }) {
       }
       const tk = k++;
       out.push(
-        <div key={tk} className="overflow-x-auto rounded-xl border border-surface-border bg-surface/50">
+        <div key={tk} className="overflow-x-auto rounded-xl border border-surface-border bg-surface/50 my-2">
           <table className="min-w-full text-left text-xs">
             <thead className="border-b border-surface-border bg-surface text-slate-300">
               <tr>
@@ -242,9 +251,9 @@ function Markdown({ content }: { content: string }) {
       }
       const lk = k++;
       out.push(
-        <ul key={lk} className="list-disc space-y-1.5 pl-5 marker:text-brand">
+        <ul key={lk} className="list-disc space-y-1.5 pl-5 marker:text-brand my-1.5">
           {items.map((it, ii) => (
-            <li key={ii}>{renderInline(it, `li${lk}-${ii}`)}</li>
+            <li key={ii} className="leading-relaxed">{renderInline(it, `li${lk}-${ii}`)}</li>
           ))}
         </ul>
       );
@@ -259,11 +268,18 @@ function Markdown({ content }: { content: string }) {
       }
       const lk = k++;
       out.push(
-        <ol key={lk} className="list-decimal space-y-1.5 pl-5 marker:text-brand">
+        <div key={lk} className="my-2 space-y-2">
           {items.map((it, ii) => (
-            <li key={ii}>{renderInline(it, `ol${lk}-${ii}`)}</li>
+            <div key={ii} className="flex items-start gap-2.5 text-xs sm:text-sm">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/20 text-brand text-[11px] font-bold mt-0.5">
+                {ii + 1}
+              </span>
+              <div className="flex-1 min-w-0 leading-relaxed text-slate-200">
+                {renderInline(it, `ol${lk}-${ii}`)}
+              </div>
+            </div>
           ))}
-        </ol>
+        </div>
       );
       continue;
     }
@@ -285,10 +301,23 @@ function Markdown({ content }: { content: string }) {
       i++;
     }
     const pk = k++;
+    const fullPara = para.join("\n");
+    const isCallout =
+      fullPara.includes("Prochaine étape") ||
+      fullPara.includes("Recommandation") ||
+      fullPara.includes("Plan d'action");
+
     out.push(
-      <p key={pk} className="whitespace-pre-line">
-        {renderInline(para.join("\n"), `p${pk}`)}
-      </p>
+      <div
+        key={pk}
+        className={
+          isCallout
+            ? "rounded-xl border border-brand/40 bg-brand/10 p-3.5 text-slate-100 font-medium my-2.5"
+            : "whitespace-pre-line leading-relaxed"
+        }
+      >
+        {renderInline(fullPara, `p${pk}`)}
+      </div>
     );
   }
 
@@ -378,7 +407,7 @@ export default function AiAssistant({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [showJump, setShowJump] = useState(false);
-  const [showArtifactsPanel, setShowArtifactsPanel] = useState(true);
+  const [showArtifactsPanel, setShowArtifactsPanel] = useState(false);
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [clearingBusy, setClearingBusy] = useState(false);
   const [cashEntries, setCashEntries] = useState<CashSettlementEntry[]>([]);
@@ -913,8 +942,8 @@ export default function AiAssistant({
             dailyVelocity,
             daysCovered,
             recommendedOrderFor30Days,
-            metaCampaign: (stockDoc as any)?.metaCampaign,
-            metaAdSpend: (stockDoc as any)?.metaAdSpend,
+            metaCampaign: (stockDoc as any)?.metaCampaignName || (stockDoc as any)?.metaCampaign || undefined,
+            metaAdSpend: (stockDoc as any)?.metaAdSpend || undefined,
           });
         });
 
@@ -970,6 +999,15 @@ export default function AiAssistant({
     }
     return list.reverse();
   }, [messages]);
+
+  // Déployer automatiquement le panneau d'artefacts dès qu'une courbe est générée par l'IA
+  const prevChartsCountRef = useRef(chartArtifacts.length);
+  useEffect(() => {
+    if (chartArtifacts.length > prevChartsCountRef.current) {
+      setShowArtifactsPanel(true);
+    }
+    prevChartsCountRef.current = chartArtifacts.length;
+  }, [chartArtifacts.length]);
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -1483,42 +1521,42 @@ export default function AiAssistant({
 
                             {/* Carte Répertoire Comptable */}
                             {isFinancialAuditReport(m.content) && (
-                              <div className="mt-3.5 rounded-xl border border-surface-border bg-white dark:bg-surface-raised p-3.5 text-xs shadow-xs">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-slate-100">
-                                    <FolderPlus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                    <span>Rapport & Audit Financier prêt à répertorier</span>
+                              <div className="mt-3.5 rounded-2xl border border-surface-border bg-white dark:bg-[#141824] p-4 text-xs shadow-xs">
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-2.5 mb-2.5">
+                                  <div className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+                                    <FolderPlus className="h-4 w-4 text-emerald-500" />
+                                    <span>Bilan Financier & Clôture Certifiée prêt à consigner</span>
                                   </div>
-                                  <span className="rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                                  <span className="rounded-full bg-emerald-100 dark:bg-[#0c2e1f] text-emerald-900 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700/80 px-2.5 py-0.5 text-[10px] font-bold">
                                     Certifié IA
                                   </span>
                                 </div>
-                                <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-400">
-                                  Enregistre les calculs, métriques de livraison et attribution pub de cet audit directement dans le Grand Livre Comptable.
+                                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed mb-3">
+                                  Tous les indicateurs unitaires (CA, Landed Cost, commissions, attribution Meta et bénéfice net réel) sont calculés. Vous pouvez enregistrer cette clôture dans le Grand Livre Comptable et la consulter en 1 clic.
                                 </p>
-                                <div className="mt-3 flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2.5">
                                   {!registeredLedgerMap[m.id] ? (
                                     <button
                                       type="button"
                                       onClick={() => handleRegisterAiAuditInLedger(m)}
-                                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white font-bold px-3 py-1.5 text-xs hover:bg-emerald-500 transition shadow-xs cursor-pointer active:scale-95"
+                                      className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 text-xs transition shadow-xs cursor-pointer active:scale-95"
                                     >
-                                      <FolderPlus className="h-3.5 w-3.5" />
-                                      <span>Répertorier dans le Répertoire Comptable</span>
+                                      <FolderPlus className="h-4 w-4" />
+                                      <span>Répertorier dans le Grand Livre Comptable</span>
                                     </button>
                                   ) : (
                                     <div className="flex flex-wrap items-center gap-3">
-                                      <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                                        <CheckCircle2 className="h-4 w-4" />
-                                        <span>Répertorié avec succès</span>
+                                      <span className="inline-flex items-center gap-1.5 font-bold rounded-lg bg-emerald-100 dark:bg-[#0c2e1f] border border-emerald-300 dark:border-emerald-700/80 text-emerald-900 dark:text-emerald-200 px-3 py-1.5 text-xs">
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                        <span>Clôture consignée avec succès</span>
                                       </span>
                                       <button
                                         type="button"
                                         onClick={() => onNavigate?.("comptabilite")}
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-slate-100 dark:bg-surface text-slate-900 dark:text-slate-100 font-bold px-3 py-1.5 text-xs hover:border-slate-400 transition cursor-pointer"
+                                        className="inline-flex items-center gap-1.5 rounded-xl bg-brand hover:bg-brand-hover text-white font-bold px-3.5 py-2 text-xs transition shadow-xs cursor-pointer active:scale-95"
                                       >
-                                        <span>Consulter dans le Répertoire Comptable</span>
-                                        <ArrowUpRight className="h-3.5 w-3.5 text-slate-400" />
+                                        <span>Consulter la clôture dans Comptabilité & Stock</span>
+                                        <ArrowUpRight className="h-4 w-4" />
                                       </button>
                                     </div>
                                   )}
