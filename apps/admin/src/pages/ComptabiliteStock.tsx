@@ -21,6 +21,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BarChart3,
+  Bell,
   Bot,
   Calendar,
   Check,
@@ -42,6 +43,7 @@ import {
   Package,
   PiggyBank,
   Plus,
+  Radio,
   RefreshCw,
   Search,
   Share2,
@@ -98,6 +100,32 @@ export interface ProductFinancialStats {
   stockDoc?: ProductStock;
 }
 
+export function parseProductTitle(raw: string): { title: string; subtitle: string } {
+  let title = (raw || "Produit").trim();
+  let subtitle = "";
+
+  // Enlever le préfixe de quantité comme "1x ", "2x "
+  title = title.replace(/^[0-9]+x\s*/i, "");
+
+  // Séparer les informations d'upsell ou accessoires
+  if (title.includes("[Upsell]") || title.includes(",")) {
+    const parts = title.split(/,\s*|\s*\[Upsell\]\s*/i);
+    title = parts[0].trim();
+    if (parts.length > 1) {
+      subtitle = parts.slice(1).join(" · ").replace(/^,\s*/, "").trim();
+      if (!subtitle.toLowerCase().includes("upsell") && raw.toLowerCase().includes("upsell")) {
+        subtitle = `+ Upsell : ${subtitle}`;
+      }
+    }
+  }
+
+  if (title.length > 0) {
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+  }
+
+  return { title: title || raw, subtitle };
+}
+
 export function computeStockVelocityAndCoverage(
   currentStock: number,
   unitsDeliveredInPeriod: number,
@@ -111,7 +139,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining: 0,
       coverageLabel: "Rupture de stock",
-      coverageBadgeCls: "bg-rose-600 text-white font-bold",
+      coverageBadgeCls: "border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400",
     };
   }
 
@@ -120,7 +148,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity: 0,
       daysOfStockRemaining: 999,
       coverageLabel: "Stock dormant (0 vte)",
-      coverageBadgeCls: "bg-slate-700 text-slate-200 font-semibold",
+      coverageBadgeCls: "border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
     };
   }
 
@@ -131,7 +159,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Rupture proche`,
-      coverageBadgeCls: "bg-rose-600 text-white font-bold",
+      coverageBadgeCls: "border border-rose-200 dark:border-rose-900/40 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400",
     };
   }
   if (daysOfStockRemaining <= 14) {
@@ -139,7 +167,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Réappro urgente`,
-      coverageBadgeCls: "bg-amber-600 text-white font-bold",
+      coverageBadgeCls: "border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400",
     };
   }
   if (daysOfStockRemaining <= 60) {
@@ -147,7 +175,7 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Optimal`,
-      coverageBadgeCls: "bg-emerald-600 text-white font-bold",
+      coverageBadgeCls: "border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400",
     };
   }
   if (daysOfStockRemaining <= 90) {
@@ -155,14 +183,14 @@ export function computeStockVelocityAndCoverage(
       dailyVelocity,
       daysOfStockRemaining,
       coverageLabel: `${daysOfStockRemaining} j · Confortable`,
-      coverageBadgeCls: "bg-sky-600 text-white font-bold",
+      coverageBadgeCls: "border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400",
     };
   }
   return {
     dailyVelocity,
     daysOfStockRemaining,
     coverageLabel: `> 90 j · Surstock`,
-    coverageBadgeCls: "bg-purple-700 text-white font-bold",
+    coverageBadgeCls: "border border-purple-200 dark:border-purple-800/40 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-400",
   };
 }
 
@@ -656,33 +684,73 @@ export default function ComptabiliteStock({
   };
 
   return (
-    <div className="space-y-4">
-      {/* 1. Barre Supérieure Grand Livre (Style Acme Finances & GlobalBank) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-white dark:bg-[#16181D] px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-2xs">
-            <Globe className="h-3.5 w-3.5 text-emerald-500" />
-            <span>Marché : <strong className="text-slate-900 dark:text-white">{activeTeam?.name || "Afrique Globale"}</strong></span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-white dark:bg-[#16181D] px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-2xs">
-            <Coins className="h-3.5 w-3.5 text-amber-500" />
-            <span>Devise : <strong className="font-mono text-slate-900 dark:text-white">{currency}</strong></span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-xl border border-surface-border bg-white dark:bg-[#16181D] px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-2xs">
-            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            <span>{ledgerEntries.length} clôtures certifiées</span>
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
+    <div className="space-y-5">
+      {/* 1. Barre Principale de Navigation & Actions (Style Acme Finances & Linear) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#13151b] p-3 shadow-xs">
+        {/* Segmented Control Switcher */}
+        <div className="inline-flex items-center rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-[#181B22] p-1 text-xs">
           <button
             type="button"
-            onClick={() => setShowNewClosureModal(true)}
-            className="inline-flex min-h-[38px] items-center gap-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:bg-black dark:hover:bg-slate-200 px-3.5 py-1.5 text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
+            onClick={() => setActiveTab("ledger")}
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all cursor-pointer ${
+              activeTab === "ledger"
+                ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
           >
-            <Plus className="h-4 w-4" />
-            <span>+ Nouvelle Clôture Comptable</span>
+            <FolderPlus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Grand Livre des Clôtures</span>
+            <span className="rounded-md bg-slate-200/80 dark:bg-slate-700 px-1.5 py-0.2 text-[10px] font-mono">
+              {filteredLedgerEntries.length}
+            </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("products")}
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 font-bold transition-all cursor-pointer ${
+              activeTab === "products"
+                ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <Package className="h-4 w-4 text-indigo-500" />
+            <span>Catalogue Produits & Coûts</span>
+            <span className="rounded-md bg-slate-200/80 dark:bg-slate-700 px-1.5 py-0.2 text-[10px] font-mono">
+              {productsFinancialList.length}
+            </span>
+          </button>
+        </div>
+
+        {/* Barre d'outils droite : Recherche, Filtre mois, Synchro Azify, + Nouvelle Clôture */}
+        <div className="flex flex-wrap items-center gap-2">
+          {activeTab === "ledger" && (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher une clôture..."
+                  className="h-9 w-40 sm:w-52 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#181B22] pl-8.5 pr-3 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-600 focus:bg-white dark:focus:bg-[#13151b] transition"
+                />
+              </div>
+
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="h-9 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#181B22] px-3 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none focus:border-emerald-600 transition cursor-pointer"
+              >
+                <option value="all">Tous les mois</option>
+                {availableMonths.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
 
           <button
             type="button"
@@ -694,98 +762,48 @@ export default function ComptabiliteStock({
               }, 600);
             }}
             disabled={azifySyncing}
-            className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border border-surface-border bg-white dark:bg-[#16181D] px-3.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:border-slate-400 transition cursor-pointer"
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#181B22] px-3.5 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:border-slate-400 transition cursor-pointer"
           >
             <RefreshCw className={`h-3.5 w-3.5 text-emerald-600 ${azifySyncing ? "animate-spin" : ""}`} />
             <span>{azifySyncing ? "Synchro..." : "Synchroniser Azify"}</span>
           </button>
-        </div>
-      </div>
-
-      {/* 2. Onglets Principaux : Grand Livre vs Produits & Ad Mapping */}
-      <div className="flex items-center justify-between border-b border-surface-border pt-1">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setActiveTab("ledger")}
-            className={`whitespace-nowrap px-4 py-2.5 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer flex items-center gap-2 ${
-              activeTab === "ledger"
-                ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
-                : "border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400"
-            }`}
-          >
-            <FolderPlus className="h-4 w-4" />
-            <span>Grand Livre des Clôtures ({filteredLedgerEntries.length})</span>
-          </button>
 
           <button
             type="button"
-            onClick={() => setActiveTab("products")}
-            className={`whitespace-nowrap px-4 py-2.5 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer flex items-center gap-2 ${
-              activeTab === "products"
-                ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
-                : "border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400"
-            }`}
+            onClick={() => setShowNewClosureModal(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:bg-black dark:hover:bg-slate-200 px-3.5 text-xs font-bold transition shadow-xs cursor-pointer active:scale-95"
           >
-            <Package className="h-4 w-4" />
-            <span>Catalogue Produits, Coûts & Ad Mapping ({productsFinancialList.length})</span>
+            <Plus className="h-4 w-4" />
+            <span>Nouvelle Clôture</span>
           </button>
         </div>
-
-        {activeTab === "ledger" && (
-          <div className="flex items-center gap-2 pb-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher une clôture..."
-                className="h-8 w-44 sm:w-56 rounded-xl border border-surface-border bg-white dark:bg-[#16181D] pl-8 pr-3 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-emerald-600"
-              />
-            </div>
-
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="h-8 rounded-xl border border-surface-border bg-white dark:bg-[#16181D] px-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300 outline-none"
-            >
-              <option value="all">Tous les mois</option>
-              {availableMonths.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
-      {/* 3. VUE 1 : GRAND LIVRE DES CLÔTURES (Classé par Mois, Style Acme Finances) */}
+      {/* 2. VUE 1 : GRAND LIVRE DES CLÔTURES (Classé par Mois) */}
       {activeTab === "ledger" && (
         <div className="space-y-6">
           {groupedLedgerByMonth.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-surface-border bg-white dark:bg-[#16181D] p-12 text-center">
+            <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-[#13151b] p-12 text-center">
               <FolderPlus className="mx-auto h-10 w-10 text-slate-400 mb-3" />
-              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Aucune clôture trouvée</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">Aucune clôture enregistrée</h3>
               <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
-                Créez votre première clôture avec vos dépenses publicitaires Meta Ads ou demandez à l'Analyste IA d'en générer une.
+                Créez une clôture comptable avec vos dépenses publicitaires Meta Ads ou demandez à l'Analyste IA de la répertorier.
               </p>
               <button
                 type="button"
                 onClick={() => setShowNewClosureModal(true)}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2 text-xs font-bold"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-4 py-2 text-xs font-bold transition shadow-xs cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                <span>+ Nouvelle Clôture Comptable</span>
+                <span>Nouvelle Clôture Comptable</span>
               </button>
             </div>
           ) : (
             groupedLedgerByMonth.map(([monthKey, group]) => (
-              <div key={monthKey} className="rounded-2xl border border-surface-border bg-white dark:bg-[#16181D] overflow-hidden shadow-xs">
+              <div key={monthKey} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#13151b] overflow-hidden shadow-xs">
                 {/* Entête du Mois avec sous-totaux financiers */}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border bg-slate-50 dark:bg-[#1E2024] px-4 py-3">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#181B22] px-4 py-3">
+                  <div className="flex items-center gap-2.5">
                     <span className="rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-2.5 py-1 text-xs font-bold">
                       {group.label}
                     </span>
@@ -794,32 +812,32 @@ export default function ComptabiliteStock({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-4 text-xs">
+                  <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
                     <div>
-                      <span className="text-slate-500 mr-1.5">CA Encaissé :</span>
+                      <span className="text-slate-400 mr-1.5">CA Encaissé :</span>
                       <strong className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
                         {group.totalRevenue.toLocaleString("fr-FR")} {currency}
                       </strong>
                     </div>
                     <div>
-                      <span className="text-slate-500 mr-1.5">Pub Meta :</span>
+                      <span className="text-slate-400 mr-1.5">Pubs Meta :</span>
                       <strong className="font-mono tabular-nums text-slate-900 dark:text-slate-100">
                         {group.totalAdSpend.toLocaleString("fr-FR")} {currency}
                       </strong>
                     </div>
-                    <div>
-                      <span className="text-slate-500 mr-1.5">Bénéfice Net :</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400">Bénéfice Net :</span>
                       {renderSignedCurrency(group.totalProfit, currency)}
                     </div>
                   </div>
                 </div>
 
-                {/* Tableau Style Acme Finances & GlobalBank (Lignes solides, non transparentes) */}
+                {/* Tableau Style Acme Finances & GlobalBank */}
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-surface-border bg-white dark:bg-[#16181D] text-slate-600 dark:text-slate-400 font-semibold">
-                        <th className="px-3 py-3 w-8">
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#13151b] text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        <th className="px-3.5 py-3 w-8">
                           <input
                             type="checkbox"
                             checked={group.entries.every((e) => selectedEntryIds.has(e.id))}
@@ -841,18 +859,18 @@ export default function ComptabiliteStock({
                         </th>
                         <th className="px-4 py-3">Période & Clôture</th>
                         <th className="px-4 py-3">Marché</th>
-                        <th className="px-4 py-3 text-right">Livrées (Taux)</th>
+                        <th className="px-4 py-3 text-right">Livrées</th>
                         <th className="px-4 py-3 text-right">CA Encaissé</th>
                         <th className="px-4 py-3 text-right">Landed Cost</th>
                         <th className="px-4 py-3 text-right">Commissions</th>
-                        <th className="px-4 py-3 text-right">Dépenses Meta Ads</th>
-                        <th className="px-4 py-3 text-right">Marge Nette Réelle</th>
-                        <th className="px-4 py-3 text-right">ROAS Réel</th>
-                        <th className="px-4 py-3">Alerte & Statut</th>
-                        <th className="px-4 py-3 text-right"></th>
+                        <th className="px-4 py-3 text-right">Pub Meta</th>
+                        <th className="px-4 py-3 text-right">Bénéfice Net</th>
+                        <th className="px-4 py-3 text-right">ROAS</th>
+                        <th className="px-4 py-3">Statut</th>
+                        <th className="px-4 py-3 text-right">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-surface-border">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                       {group.entries.map((entry) => {
                         const isSelected = selectedEntryIds.has(entry.id);
                         return (
@@ -862,10 +880,10 @@ export default function ComptabiliteStock({
                             className={`group cursor-pointer transition-colors ${
                               isSelected
                                 ? "bg-emerald-50/60 dark:bg-emerald-950/20"
-                                : "hover:bg-slate-50 dark:hover:bg-[#1E2024]"
+                                : "hover:bg-slate-50/80 dark:hover:bg-[#181B22]/60"
                             }`}
                           >
-                            <td className="px-3 py-3.5" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-3.5 py-3.5" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -877,18 +895,21 @@ export default function ComptabiliteStock({
                               <span className="font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
                                 {entry.periodLabel}
                               </span>
-                              <p className="text-[11px] text-slate-500">
+                              <p className="text-[11px] text-slate-400">
                                 Clôturé le {new Date(entry.createdAt).toLocaleDateString("fr-FR")}
                               </p>
                             </td>
                             <td className="px-4 py-3.5">
-                              <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 font-bold text-slate-800 dark:text-slate-200">
-                                <span>{entry.countryCode === "ALL" ? "🌍" : "📍"}</span>
+                              <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 px-2 py-0.5 font-semibold text-slate-800 dark:text-slate-200">
+                                <Globe className="h-3 w-3 text-emerald-500" />
                                 <span>{entry.countryName}</span>
                               </span>
                             </td>
                             <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">
-                              <b>{entry.ordersDelivered}</b> ({entry.deliveryRatePercent}%)
+                              <b className="text-slate-900 dark:text-slate-100">{entry.ordersDelivered}</b>
+                              <span className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 text-[10px] font-mono text-slate-500 ml-1">
+                                {entry.deliveryRatePercent}%
+                              </span>
                             </td>
                             <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
                               {entry.revenue.toLocaleString("fr-FR")} {entry.currency}
@@ -904,34 +925,55 @@ export default function ComptabiliteStock({
                             </td>
                             <td className="px-4 py-3.5 text-right">
                               {renderSignedCurrency(entry.netProfit, entry.currency)}
-                              <span className="block text-[10px] text-slate-500 font-mono">
+                              <span className="block text-[10px] text-slate-400 font-mono">
                                 ({entry.netMarginPercent}%)
                               </span>
                             </td>
-                            <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                              {entry.roasReal}x
+                            <td className="px-4 py-3.5 text-right">
+                              <span className="inline-flex items-center rounded-md border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400">
+                                {entry.roasReal}x
+                              </span>
                             </td>
                             <td className="px-4 py-3.5">
                               <span
-                                className={`inline-block rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
                                   entry.auditStatus === "optimal"
-                                    ? "bg-emerald-600 text-white"
+                                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/30 dark:text-emerald-400"
                                     : entry.auditStatus === "crash"
-                                    ? "bg-rose-600 text-white"
-                                    : "bg-amber-600 text-white"
+                                    ? "border border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/40 dark:bg-rose-950/30 dark:text-rose-400"
+                                    : "border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-400"
                                 }`}
                               >
-                                {entry.auditStatus === "optimal"
-                                  ? "Optimal"
-                                  : entry.auditStatus === "crash"
-                                  ? "Alerte Crash"
-                                  : "À surveiller"}
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${
+                                    entry.auditStatus === "optimal"
+                                      ? "bg-emerald-500"
+                                      : entry.auditStatus === "crash"
+                                      ? "bg-rose-500"
+                                      : "bg-amber-500"
+                                  }`}
+                                />
+                                <span>
+                                  {entry.auditStatus === "optimal"
+                                    ? "Optimal"
+                                    : entry.auditStatus === "crash"
+                                    ? "Crash"
+                                    : "À surveiller"}
+                                </span>
                               </span>
                             </td>
-                            <td className="px-4 py-3.5 text-right text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white">
-                              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold hover:underline">
-                                Fiche <ChevronRight className="h-3.5 w-3.5" />
-                              </span>
+                            <td className="px-4 py-3.5 text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDetailEntry(entry);
+                                }}
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 group-hover:text-emerald-500 transition cursor-pointer"
+                              >
+                                <span>Consulter</span>
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
                             </td>
                           </tr>
                         );
@@ -945,98 +987,141 @@ export default function ComptabiliteStock({
         </div>
       )}
 
-      {/* 4. VUE 2 : CATALOGUE PRODUITS, COÛTS, STOCKS & AD MAPPING */}
+      {/* 3. VUE 2 : CATALOGUE PRODUITS, COÛTS, STOCKS & AD MAPPING */}
       {activeTab === "products" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-surface-border bg-slate-50 dark:bg-[#1E2024] px-4 py-2.5 text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
-            <span>
-              Associez vos campagnes publicitaires Meta Ads à chaque produit pour un calcul automatique de la rentabilité nette par pays.
-            </span>
-            <span className="font-semibold text-slate-800 dark:text-slate-200">
-              {productsFinancialList.length} fiches actives
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#181B22] px-4 py-3 text-xs">
+            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+              <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>
+                <strong>Unit Economics & Landed Cost :</strong> Coût Landed = Achat usine + Fret unitaire (fret lot ÷ quantité). Le Bénéfice Net déduit usine, fret, commissions closeuse/livreur et pub Meta.
+              </span>
+            </div>
+            <span className="font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+              {productsFinancialList.length} produit{productsFinancialList.length > 1 ? "s" : ""} actif{productsFinancialList.length > 1 ? "s" : ""}
             </span>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-surface-border bg-white dark:bg-[#16181D] shadow-xs">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#13151b] shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-surface-border bg-white dark:bg-[#16181D] text-slate-600 dark:text-slate-400 font-semibold">
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#13151b] text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   <th className="px-4 py-3">Produit</th>
                   <th className="px-4 py-3 text-right">Achat Usine</th>
                   <th className="px-4 py-3 text-right">Fret Unit.</th>
                   <th className="px-4 py-3 text-right">Landed Cost</th>
-                  <th className="px-4 py-3">Campagne Meta Ads Associée</th>
-                  <th className="px-4 py-3 text-right">Stock Actuel</th>
+                  <th className="px-4 py-3">Campagne Meta Ads</th>
+                  <th className="px-4 py-3 text-right">Stock Disponible</th>
                   <th className="px-4 py-3">Couverture Logistique</th>
-                  <th className="px-4 py-3 text-right">Alerte & Actions</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-border">
-                {productsFinancialList.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-[#1E2024] transition-colors">
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 dark:text-slate-100">{p.productName}</span>
-                        <span className="rounded bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-300">
-                          {p.isAzify ? "Azify" : "Manuel"}
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {productsFinancialList.map((p) => {
+                  const { title, subtitle } = parseProductTitle(p.productName);
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-[#181B22]/60 transition-colors">
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold">
+                            <Package className="h-4 w-4 text-slate-500" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 dark:text-slate-100 text-xs truncate max-w-[280px]">
+                                {title}
+                              </span>
+                              <span className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">
+                                {p.isAzify ? "Azify" : "Manuel"}
+                              </span>
+                            </div>
+                            {subtitle && (
+                              <p className="mt-0.5 text-[11px] text-slate-400 truncate max-w-[320px]">
+                                {subtitle}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
+                        {p.cogsUnitPrice.toLocaleString("fr-FR")} {currency}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500">
+                        {p.transitUnitCost.toLocaleString("fr-FR")} {currency}
+                      </td>
+                      <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                        {p.landedCost.toLocaleString("fr-FR")} {currency}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {p.metaCampaignName ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 dark:border-indigo-900/40 bg-indigo-50 dark:bg-indigo-950/30 px-2.5 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-400">
+                            <Radio className="h-3 w-3 text-indigo-500" />
+                            <span className="truncate max-w-[180px]">{p.metaCampaignName}</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingStock(p);
+                              setFormCogs(String(p.cogsUnitPrice));
+                              setFormTransitCost(String(p.transitTotalCost));
+                              setFormTransitQty(String(p.transitQuantity));
+                              setFormInitialStock(String(p.currentStock));
+                              setFormLowThreshold(String(p.lowStockThreshold));
+                              setFormMetaCampaign(p.metaCampaignName || "");
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 px-2.5 py-1 text-xs text-slate-500 hover:text-emerald-600 transition cursor-pointer"
+                          >
+                            <Plus className="h-3 w-3" />
+                            <span>Associer campagne</span>
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <span className="font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100 text-xs">
+                          {p.currentStock}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-700 dark:text-slate-300">
-                      {p.cogsUnitPrice.toLocaleString("fr-FR")} {currency}
-                    </td>
-                    <td className="px-4 py-3.5 text-right font-mono tabular-nums text-slate-500 dark:text-slate-400">
-                      {p.transitUnitCost.toLocaleString("fr-FR")} {currency}
-                    </td>
-                    <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                      {p.landedCost.toLocaleString("fr-FR")} {currency}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 dark:border-white/10 bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[11px] font-mono text-slate-800 dark:text-slate-200">
-                        <span>📢</span>
-                        <span className="truncate max-w-[200px]">{p.metaCampaignName || "Aucune campagne liée"}</span>
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-right font-mono font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                      {p.currentStock}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <span className={`inline-block rounded-md px-2.5 py-0.5 text-[11px] font-bold ${p.coverageBadgeCls}`}>
-                        {p.coverageLabel}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleTriggerStockAlert(p)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-50 dark:bg-rose-950/30 px-2.5 py-1 text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-100 transition cursor-pointer"
-                          title="Router une alerte stock vers les notifications"
-                        >
-                          <ShieldAlert className="h-3.5 w-3.5" />
-                          <span>Alerter</span>
-                        </button>
+                        <span className="text-[10px] text-slate-400 ml-1">pcs</span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${p.coverageBadgeCls}`}>
+                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+                          <span>{p.coverageLabel}</span>
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerStockAlert(p)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/30 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-100 transition cursor-pointer"
+                            title="Router une alerte stock vers les notifications"
+                          >
+                            <Bell className="h-3 w-3" />
+                            <span>Alerter</span>
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingStock(p);
-                            setFormCogs(String(p.cogsUnitPrice));
-                            setFormTransitCost(String(p.transitTotalCost));
-                            setFormTransitQty(String(p.transitQuantity));
-                            setFormInitialStock(String(p.currentStock));
-                            setFormLowThreshold(String(p.lowStockThreshold));
-                            setFormMetaCampaign(p.metaCampaignName || "");
-                          }}
-                          className="inline-flex items-center gap-1 rounded-lg border border-surface-border bg-white dark:bg-surface px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:border-slate-400 transition cursor-pointer"
-                        >
-                          <Edit3 className="h-3.5 w-3.5 text-slate-400" />
-                          <span>Modifier</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingStock(p);
+                              setFormCogs(String(p.cogsUnitPrice));
+                              setFormTransitCost(String(p.transitTotalCost));
+                              setFormTransitQty(String(p.transitQuantity));
+                              setFormInitialStock(String(p.currentStock));
+                              setFormLowThreshold(String(p.lowStockThreshold));
+                              setFormMetaCampaign(p.metaCampaignName || "");
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-2.5 py-1 text-xs font-medium transition cursor-pointer"
+                          >
+                            <Edit3 className="h-3 w-3 text-slate-400" />
+                            <span>Coûts</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
