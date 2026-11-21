@@ -459,21 +459,23 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               </p>
             </div>
 
-            {/* Utilitaires rapides alignés à droite : Recherche avant Raccourcis */}
+            {/* Utilitaires rapides alignés à droite : Recherche en haut uniquement sur Analyste Direction */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* Global Search / Command Palette Trigger - DIRECTEMENT EN HAUT AVANT RACCOURCIS */}
-              <CommandPalette
-                orders={allOrders}
-                teams={teams}
-                activeTeamId={activeTeamId}
-                onNavigate={setPage}
-                onSelectTeam={setTeamId}
-                onInspectOrder={(order) => setReceiptOrder(order)}
-                isOpenExternal={commandPaletteOpen}
-                onOpenExternal={() => setCommandPaletteOpen(true)}
-                onCloseExternal={() => setCommandPaletteOpen(false)}
-                onOpenShortcuts={() => setShowShortcutsModal(true)}
-              />
+              {/* Global Search / Command Palette Trigger - UNIQUEMENT EN HAUT SUR LA PAGE ANALYSTE */}
+              {page === "ai_assistant" && (
+                <CommandPalette
+                  orders={allOrders}
+                  teams={teams}
+                  activeTeamId={activeTeamId}
+                  onNavigate={setPage}
+                  onSelectTeam={setTeamId}
+                  onInspectOrder={(order) => setReceiptOrder(order)}
+                  isOpenExternal={commandPaletteOpen}
+                  onOpenExternal={() => setCommandPaletteOpen(true)}
+                  onCloseExternal={() => setCommandPaletteOpen(false)}
+                  onOpenShortcuts={() => setShowShortcutsModal(true)}
+                />
+              )}
 
               {/* Bouton d'aide Raccourcis Clavier */}
               <button
@@ -526,8 +528,8 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             </div>
           </div>
 
-          {/* Ligne 2 : Filtres opérationnels (Marché + Période) - Masquée sur page IA car le pays est intégré dans la barre de l'IA */}
-          {page !== "ai_assistant" && (teams.length > 0 && page !== "teams" || showPeriodFilter) && (
+          {/* Ligne 2 : Filtres opérationnels & Recherche (remise à sa place normale à droite sur toutes les autres pages) */}
+          {page !== "ai_assistant" && (
             <div className="flex flex-wrap items-center justify-between gap-2.5">
               <div className="flex flex-wrap items-center gap-2">
                 {teams.length > 0 && page !== "teams" && (
@@ -540,6 +542,22 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 )}
 
                 {showPeriodFilter && <PeriodSelector period={period} onChange={setPeriod} />}
+              </div>
+
+              {/* Global Search / Command Palette Trigger - à sa place normale à droite sur toutes les autres pages */}
+              <div className="flex items-center">
+                <CommandPalette
+                  orders={allOrders}
+                  teams={teams}
+                  activeTeamId={activeTeamId}
+                  onNavigate={setPage}
+                  onSelectTeam={setTeamId}
+                  onInspectOrder={(order) => setReceiptOrder(order)}
+                  isOpenExternal={commandPaletteOpen}
+                  onOpenExternal={() => setCommandPaletteOpen(true)}
+                  onCloseExternal={() => setCommandPaletteOpen(false)}
+                  onOpenShortcuts={() => setShowShortcutsModal(true)}
+                />
               </div>
             </div>
           )}
