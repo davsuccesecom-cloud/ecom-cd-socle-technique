@@ -45,6 +45,53 @@ export function useOrders({ workspaceId, teamId, allocatedTeamIds, closeuseId, l
     const db = getDb();
     const ordersRef = collection(db, "workspaces", workspaceId, "orders");
 
+    // CAS LIVREUR : Un livreur opère sur sa zone géographique et peut recevoir
+    // des colis de plusieurs équipes (ex: prêt d'équipe, multi-boutiques).
+    // Les règles Firestore autorisent explicitement resource.data.livreurId == auth.uid
+    // sans exiger de filtre teamId. Il ne faut JAMAIS restreindre la requête livreur par teamId.
+    if (livreurId) {
+      const clauses = [where("livreurId", "==", livreurId)];
+      let q = query(ordersRef, ...clauses, orderBy("timestamps.received", "desc"));
+      let unsubFallback: (() => void) | null = null;
+
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+          setOrders(list);
+          setLoading(false);
+        },
+        (err) => {
+          console.warn("[useOrders] Livreur query avec orderBy échouée, repli sans orderBy:", err.message);
+          try {
+            const fallbackQ = query(ordersRef, ...clauses);
+            unsubFallback = onSnapshot(
+              fallbackQ,
+              (snap) => {
+                const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+                list.sort((a, b) => safeOrderTs(b) - safeOrderTs(a));
+                setOrders(list);
+                setLoading(false);
+              },
+              (fallbackErr) => {
+                console.error("[useOrders] Erreur fallback livreur:", fallbackErr);
+                setError(fallbackErr as Error);
+                setLoading(false);
+              }
+            );
+          } catch (e) {
+            setError(err as Error);
+            setLoading(false);
+          }
+        }
+      );
+
+      return () => {
+        unsub();
+        if (unsubFallback) unsubFallback();
+      };
+    }
+
     // Construire la liste des équipes cibles :
     // - Si teamId est "all", vide ou non spécifié => écoute globale sans filtre teamId (ex: Admin)
     // - Si teamId est spécifié => écoute teamId + éventuelles allocatedTeamIds (sans duplication)

@@ -184,7 +184,36 @@ export function isTestOrder(order?: { isTest?: boolean; clientName?: string | nu
  */
 export function cleanProductTitle(product?: string | null): string {
   const p = String(product || "").trim();
-  return p.replace(/^\d+x\s*/i, "").trim() || "votre article";
+  return p.replace(/^(?:\d+\s*x\s+)+/i, "").trim() || "votre article";
+}
+
+/**
+ * Formate l'affichage propre du produit et de sa quantité sans doublon de préfixe
+ * ex: ("2x 2x Correcteur", 2) -> "2x Correcteur"
+ * ex: ("Correcteur", 2) -> "2x Correcteur"
+ * ex: ("Correcteur", 1) -> "Correcteur"
+ */
+export function formatOrderProductDisplay(product?: string | null, quantity?: number | null): string {
+  const clean = cleanProductTitle(product);
+  const q = quantity && quantity > 1 ? quantity : 1;
+  return q > 1 ? `${q}x ${clean}` : clean;
+}
+
+/**
+ * Supprime les traces de coordonnées GPS et liens Google Maps d'un libellé d'adresse / ville
+ * ex: "ADIDOGOME [GPS: https://www.google.com/maps?q=...]" -> "ADIDOGOME"
+ */
+export function stripGpsInfo(text?: string | null): string {
+  if (!text) return "";
+  return text
+    .replace(/\[\s*GPS\s*:[^\]]*\]/gi, "")
+    .replace(/\(\s*GPS\s*:[^)]*\)/gi, "")
+    .replace(/GPS\s*:\s*https?:\/\/\S+/gi, "")
+    .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*[-–—,]\s*$/, "")
+    .replace(/^\s*[-–—,]\s*/, "")
+    .trim();
 }
 
 /**

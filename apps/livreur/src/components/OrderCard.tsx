@@ -18,6 +18,8 @@ import {
   cleanOrderNumber,
   ConfirmDialog,
   formatCurrency,
+  formatOrderProductDisplay,
+  stripGpsInfo,
   generateDeliverySlipNumber,
   LIVREUR_STATUS_LABELS,
   openPrintDialog,
@@ -63,22 +65,6 @@ function extractMapsUrl(text?: string | null): string | null {
   if (!text) return null;
   const match = text.match(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/i);
   return match ? match[0].replace(/[\])]+$/, "") : null;
-}
-
-function stripGpsInfo(text?: string | null): string {
-  if (!text) return "";
-  return text
-    .replace(/\[\s*GPS\s*:[^\]]*\]/gi, "")
-    .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-function formatOrderProductDisplay(product?: string | null, quantity?: number): string {
-  const clean = (product || "").trim();
-  if (!quantity || quantity <= 1) return clean;
-  if (/^\d+\s*x\s+/i.test(clean)) return clean;
-  return `${quantity}x ${clean}`;
 }
 
 const DELIVERY_FAILURE_REASONS = [

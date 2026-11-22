@@ -30,7 +30,7 @@ const TABS: { key: LivreurTab; label: string }[] = [
 ];
 
 export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardProps) {
-  const { orders, loading } = useOrders({ workspaceId, teamId, livreurId });
+  const { orders, loading } = useOrders({ workspaceId, livreurId });
   const { updateLivreurStatus } = useUpdateOrderStatus(workspaceId);
   const { theme, toggleTheme } = useTheme("light");
   const whiteLabel = useWhiteLabel(workspaceId, "livreur");
@@ -70,11 +70,11 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
   const brandLogoUrl = hasCustomLogo ? whiteLabel!.customLogoUrl! : null;
   const headerTitle = whiteLabel?.livreurTitle || "Mes livraisons";
 
-  const matchesTab = (status: string | null, tab: LivreurTab) => {
-    const s = status ?? "recu";
-    if (tab === "a_livrer") return s === "recu";
-    if (tab === "en_cours") return s === "en_route";
-    return s === "livre" || s === "injoignable";
+  const matchesTab = (status: string | null | undefined, tab: LivreurTab) => {
+    const s = status && typeof status === "string" && status.trim() !== "" ? status.trim().toLowerCase() : "recu";
+    if (tab === "a_livrer") return s === "recu" || s === "assigne" || s === "nouveau";
+    if (tab === "en_cours") return s === "en_route" || s === "en_cours";
+    return s === "livre" || s === "injoignable" || s === "rejete" || s === "annule";
   };
 
   const visibleOrders = orders.filter((o) => matchesTab(o.statutLivreur, activeTab));
@@ -94,10 +94,10 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
   const navigateToOrder = (orderId: string) => {
     const target = orders.find((o) => o.id === orderId);
     if (target) {
-      const status = target.statutLivreur ?? "recu";
+      const status = target.statutLivreur && typeof target.statutLivreur === "string" && target.statutLivreur.trim() !== "" ? target.statutLivreur.trim().toLowerCase() : "recu";
       let tab: LivreurTab;
-      if (status === "recu") tab = "a_livrer";
-      else if (status === "en_route") tab = "en_cours";
+      if (status === "recu" || status === "assigne" || status === "nouveau") tab = "a_livrer";
+      else if (status === "en_route" || status === "en_cours") tab = "en_cours";
       else tab = "terminees";
       setActiveTab(tab);
     }

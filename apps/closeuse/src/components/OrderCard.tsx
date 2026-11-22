@@ -20,6 +20,8 @@ import {
   CLOSEUSE_STATUS_LABELS,
   ConfirmDialog,
   formatCurrency,
+  formatOrderProductDisplay,
+  stripGpsInfo,
   type AppUser,
   type CloseuseStatus,
   type CloseuseUpdateExtras,
@@ -102,22 +104,6 @@ const RESCHEDULE_REASONS = [
   "Demande rappel en fin de journée",
   "Doit confirmer avec un proche",
 ];
-
-function formatOrderProductDisplay(product?: string | null, quantity?: number): string {
-  const clean = (product || "").trim();
-  if (!quantity || quantity <= 1) return clean;
-  if (/^\d+\s*x\s+/i.test(clean)) return clean;
-  return `${quantity}x ${clean}`;
-}
-
-function stripGpsInfo(text?: string | null): string {
-  if (!text) return "";
-  return text
-    .replace(/\[\s*GPS\s*:[^\]]*\]/gi, "")
-    .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
 
 function useNativeDialog(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDialogElement>(null);
