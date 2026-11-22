@@ -1055,7 +1055,7 @@ export default function LandingPage({
                   </p>
                 </div>
 
-                {/* Boutons Sociaux Rapides (Google & Facebook) */}
+                {/* Connexion Google Rapide */}
                 <div className="space-y-2.5">
                   <button
                     type="button"
@@ -1067,15 +1067,7 @@ export default function LandingPage({
                     <span>Continuer avec Google</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => signInWithFacebook && signInWithFacebook()}
-                    disabled={busy}
-                    className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-blue-500/30 bg-blue-500/15 hover:bg-blue-500/25 px-4 py-3 text-xs font-semibold text-blue-200 shadow-sm transition-all disabled:opacity-50"
-                  >
-                    <FacebookBrandIcon className="h-4 w-4" />
-                    <span>Continuer avec Facebook</span>
-                  </button>
+
                 </div>
 
                 <div className="relative flex items-center justify-center py-1">
