@@ -1,3 +1,14 @@
+// 0. Suivi des fenêtres PWA standalone installées
+const standaloneClientIds = new Set();
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "WARITRACK_CLIENT_IDENTITY") {
+    if (event.data.isStandalone && event.source?.id) {
+      standaloneClientIds.add(event.source.id);
+    }
+  }
+});
+
 // 1. Enregistrement PRIORITAIRE du listener de clic pour focaliser instantanément la PWA installée
 function toAbsolute(path) {
   if (!path) return self.location.origin + "/";
@@ -27,24 +38,41 @@ self.addEventListener("notificationclick", (event) => {
         includeUncontrolled: true,
       });
 
-      // 1. Chercher immédiatement une fenêtre active de l'application
+      // 1. Chercher en priorité absolue une fenêtre PWA standalone installée
       let targetClient = windowClients.find(
-        (c) => c.url && (c.url.startsWith(self.location.origin) || c.url.includes("waritrack"))
+        (c) => c.url && c.url.startsWith(self.location.origin) && standaloneClientIds.has(c.id)
       );
 
-      if (!targetClient && windowClients.length > 0) {
-        targetClient = windowClients[0];
+      // 2. Si aucune fenêtre explicitement marquée standalone n'est trouvée, chercher toute fenêtre du même origin
+      if (!targetClient) {
+        targetClient = windowClients.find(
+          (c) => c.url && c.url.startsWith(self.location.origin)
+        );
       }
 
-      // 2. Si trouvée, la focaliser IMMÉDIATEMENT pour conserver le geste utilisateur natif
+      // 3. Repli si une fenêtre waritrack existe
+      if (!targetClient) {
+        targetClient = windowClients.find(
+          (c) => c.url && c.url.includes("waritrack")
+        );
+      }
+
+      // 4. Si une fenêtre active existe : la focaliser et naviguer dedans
       if (targetClient && "focus" in targetClient) {
-        if (orderId) {
-          targetClient.postMessage({ type: "NAVIGATE_ORDER", orderId, url: targetUrl });
+        const focused = await targetClient.focus();
+        const activeClient = focused || targetClient;
+        if (activeClient && "navigate" in activeClient) {
+          try {
+            await activeClient.navigate(targetUrl);
+          } catch {}
         }
-        return await targetClient.focus();
+        if (orderId) {
+          activeClient.postMessage({ type: "NAVIGATE_ORDER", orderId, url: targetUrl });
+        }
+        return;
       }
 
-      // 3. Si aucune fenêtre n'est ouverte : ouvrir la PWA installée
+      // 5. Si aucune fenêtre n'est ouverte : ouvrir la PWA installée
       if (clients.openWindow) {
         return await clients.openWindow(targetUrl);
       }

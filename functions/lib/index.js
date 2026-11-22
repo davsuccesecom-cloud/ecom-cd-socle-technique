@@ -2000,9 +2000,6 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId, 
                 data: dataPayload,
                 ...(hasImage ? { image: imageUrl } : {}),
             },
-            fcmOptions: {
-                link: clickUrl,
-            },
         },
     };
 }

@@ -34,20 +34,10 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=3" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=3" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
-    <link rel="manifest" href="/manifest.webmanifest" />
 
     <script>
       (function() {
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        if (isStandalone) {
-          try {
-            var u = new URL(window.location.href);
-            if (!u.searchParams.has('standalone')) {
-              u.searchParams.set('standalone', 'true');
-              window.history.replaceState(null, '', u.toString());
-            }
-          } catch (e) {}
-        }
         function sendIdentity() {
           if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({

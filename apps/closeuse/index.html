@@ -6,20 +6,10 @@
     <meta name="theme-color" content="#4F46E5" />
     <title>WariTrack — Espace Closeuse</title>
     <meta name="description" content="Espace dédié aux téléconseillères pour la confirmation rapide et le suivi des commandes." />
-    <link rel="manifest" href="/manifest.webmanifest" />
 
     <script>
       (function() {
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        if (isStandalone) {
-          try {
-            var u = new URL(window.location.href);
-            if (!u.searchParams.has('standalone')) {
-              u.searchParams.set('standalone', 'true');
-              window.history.replaceState(null, '', u.toString());
-            }
-          } catch (e) {}
-        }
         function sendIdentity() {
           if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({

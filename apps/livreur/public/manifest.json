@@ -6,11 +6,13 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#F8FAFC",
   "theme_color": "#0EA5E9",
   "launch_handler": {
-    "client_mode": "navigate-existing"
+    "client_mode": ["focus-existing", "auto"]
   },
+  "handle_links": "preferred",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },

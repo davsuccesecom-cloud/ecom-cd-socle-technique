@@ -2420,9 +2420,6 @@ function buildPushMulticastMessage(
         data: dataPayload,
         ...(hasImage ? { image: imageUrl } : {}),
       },
-      fcmOptions: {
-        link: clickUrl,
-      },
     },
   };
 }

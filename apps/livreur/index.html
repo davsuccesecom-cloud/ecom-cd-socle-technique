@@ -6,20 +6,10 @@
     <meta name="theme-color" content="#0EA5E9" />
     <title>WariTrack — Espace Livreur</title>
     <meta name="description" content="Application mobile de livraison terrain, mise à jour des statuts et encaissement en direct." />
-    <link rel="manifest" href="/manifest.webmanifest" />
 
     <script>
       (function() {
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-        if (isStandalone) {
-          try {
-            var u = new URL(window.location.href);
-            if (!u.searchParams.has('standalone')) {
-              u.searchParams.set('standalone', 'true');
-              window.history.replaceState(null, '', u.toString());
-            }
-          } catch (e) {}
-        }
         function sendIdentity() {
           if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({

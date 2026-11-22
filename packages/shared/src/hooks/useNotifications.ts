@@ -123,7 +123,7 @@ export function useNotifications(workspaceId: string | null, userId: string | nu
               title: n.title,
               body: n.body,
               orderId: n.orderId,
-              url: n.orderId ? `/?orderId=${n.orderId}&standalone=true` : "/?standalone=true",
+              url: n.orderId ? `/?orderId=${n.orderId}` : "/",
               tag: `waritrack-notif-${n.id}`,
               requireInteraction: true,
               image: bannerImg,
