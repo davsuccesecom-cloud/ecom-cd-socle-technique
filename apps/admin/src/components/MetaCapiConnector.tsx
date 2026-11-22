@@ -366,6 +366,41 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     }
   };
 
+  const handleSaveManual = async () => {
+    if (!manualPixelId.trim() || !manualToken.trim()) {
+      setError("Veuillez renseigner un Pixel ID et un jeton d'accès Meta (EAAG...).");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const db = getDb();
+      const newConfig: MetaCapiConfig = {
+        enabled: true,
+        pixelId: manualPixelId.trim(),
+        accessToken: manualToken.trim(),
+        currency: currency.trim() || "XOF",
+        testEventCode: testCode.trim() || undefined,
+        connectedAt: Date.now(),
+        connectedUserName: "Jeton permanent / Manuel",
+        pixelName: `Pixel ${manualPixelId.trim()}`,
+      };
+      await updateDoc(doc(db, "workspaces", workspaceId, "teams", team.id), {
+        metaCapiConfig: newConfig,
+      });
+      setSuccessMsg(`✓ Pixel Meta « ${newConfig.pixelId} » activé et enregistré avec succès pour l'équipe ${team.name} !`);
+      if (onConfigSaved) {
+        onConfigSaved(newConfig);
+      }
+    } catch (err: any) {
+      const f = formatFirebaseError(err);
+      setError(`${f.title} : ${f.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleDisconnect = async () => {
     setSaving(true);
     try {
@@ -822,14 +857,24 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
                 className="w-full rounded-md border border-surface-border bg-surface-raised px-2.5 py-1.5 font-mono text-slate-100 outline-none"
               />
             </div>
-            <button
-              type="button"
-              disabled={testing || !manualPixelId || !manualToken}
-              onClick={handleTestConnection}
-              className="w-full rounded-md border border-surface-border py-1.5 text-xs text-slate-200 hover:bg-surface-raised"
-            >
-              🧪 Tester la connexion manuelle
-            </button>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                disabled={testing || !manualPixelId || !manualToken}
+                onClick={handleTestConnection}
+                className="rounded-md border border-surface-border py-2 text-xs font-medium text-slate-200 hover:bg-surface-raised transition-colors disabled:opacity-50"
+              >
+                {testing ? "Test en cours..." : "🧪 Tester d'abord"}
+              </button>
+              <button
+                type="button"
+                disabled={saving || !manualPixelId || !manualToken}
+                onClick={handleSaveManual}
+                className="rounded-md bg-brand py-2 text-xs font-semibold text-white hover:bg-brand-hover transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {saving ? "Enregistrement..." : "💾 Enregistrer & Activer"}
+              </button>
+            </div>
           </div>
         )}
       </div>
