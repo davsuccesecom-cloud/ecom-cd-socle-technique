@@ -69,23 +69,88 @@ async function fetchMetaAdAccountsAndPixels(userAccessToken) {
         throw new Error(adAccountsData?.error?.message || "Impossible de récupérer les comptes publicitaires.");
     }
     const rawAccounts = Array.isArray(adAccountsData?.data) ? adAccountsData.data : [];
-    // 4. Pour chaque compte pub, récupérer ses pixels associés
-    const adAccounts = await Promise.all(rawAccounts.map(async (acc) => {
-        let pixels = [];
-        try {
-            const pixRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.id}/adspixels?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`);
-            const pixData = (await pixRes.json());
-            if (pixRes.ok && Array.isArray(pixData?.data)) {
-                pixels = pixData.data.map((p) => ({ id: p.id, name: p.name }));
+    // 4a. Récupérer les Pixels et Datasets globaux du profil et de TOUS les Business Managers
+    const globalPixelMap = new Map();
+    // 4a.1 Profil utilisateur /me/adspixels
+    try {
+        const mePixRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/me/adspixels?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`);
+        const mePixData = (await mePixRes.json());
+        if (mePixRes.ok && Array.isArray(mePixData?.data)) {
+            for (const p of mePixData.data) {
+                if (p?.id && !globalPixelMap.has(p.id)) {
+                    globalPixelMap.set(p.id, { id: p.id, name: p.name || `Pixel ${p.id}` });
+                }
             }
         }
-        catch (err) {
-            console.warn(`Erreur fetch pixels pour compte ${acc.id}:`, err);
+    }
+    catch (err) {
+        console.warn("Erreur fetch /me/adspixels:", err);
+    }
+    // 4a.2 TOUS les Business Managers (adspixels, datasets, owned_pixels, client_pixels)
+    await Promise.all(businesses.map(async (biz) => {
+        const bizEndpoints = [
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${biz.id}/datasets?fields=id,name`,
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${biz.id}/adspixels?fields=id,name`,
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${biz.id}/owned_pixels?fields=id,name`,
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${biz.id}/client_pixels?fields=id,name`,
+        ];
+        await Promise.all(bizEndpoints.map(async (url) => {
+            try {
+                const r = await fetch(`${url}&access_token=${encodeURIComponent(userAccessToken)}`);
+                const d = (await r.json());
+                if (r.ok && Array.isArray(d?.data)) {
+                    for (const p of d.data) {
+                        if (p?.id && !globalPixelMap.has(p.id)) {
+                            globalPixelMap.set(p.id, { id: p.id, name: p.name || `Dataset ${p.id}` });
+                        }
+                    }
+                }
+            }
+            catch (_) { }
+        }));
+    }));
+    // 4b. Pour chaque compte pub, récupérer ses pixels et jeux de données (datasets) associés
+    const adAccounts = await Promise.all(rawAccounts.map(async (acc) => {
+        const pixelMap = new Map();
+        const cleanId = (acc.account_id || acc.id || "").replace("act_", "");
+        const fullId = `act_${cleanId}`;
+        const endpoints = [
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${fullId}/adspixels?fields=id,name`,
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${fullId}/datasets?fields=id,name`,
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${fullId}/customconversions?fields=id,name`,
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${cleanId}/adspixels?fields=id,name`,
+            `https://graph.facebook.com/${GRAPH_API_VERSION}/${cleanId}/datasets?fields=id,name`,
+        ];
+        if (acc.business?.id) {
+            endpoints.push(`https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.business.id}/datasets?fields=id,name`, `https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.business.id}/adspixels?fields=id,name`, `https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.business.id}/owned_pixels?fields=id,name`);
         }
+        await Promise.all(endpoints.map(async (url) => {
+            try {
+                const pixRes = await fetch(`${url}&access_token=${encodeURIComponent(userAccessToken)}`);
+                const pixData = (await pixRes.json());
+                if (pixRes.ok && Array.isArray(pixData?.data)) {
+                    for (const p of pixData.data) {
+                        if (p?.id && !pixelMap.has(p.id)) {
+                            pixelMap.set(p.id, { id: p.id, name: p.name || `Pixel ${p.id}` });
+                        }
+                    }
+                }
+            }
+            catch (err) {
+                // Ignorer silencieusement si un endpoint spécifique n'est pas applicable
+            }
+        }));
+        // Si le compte n'a pas de pixel propre rattaché, il hérite des pixels / datasets du Business Manager et du profil
+        for (const [id, pix] of globalPixelMap.entries()) {
+            if (!pixelMap.has(id)) {
+                pixelMap.set(id, pix);
+            }
+        }
+        const pixels = Array.from(pixelMap.values());
         return {
-            id: acc.id,
-            accountId: acc.account_id || acc.id.replace("act_", ""),
-            name: acc.name || `Compte ${acc.account_id || acc.id}`,
+            id: fullId,
+            accountId: cleanId,
+            name: acc.name || `Compte ${cleanId}`,
             currency: acc.currency,
             business: acc.business ? { id: acc.business.id, name: acc.business.name } : undefined,
             pixels,

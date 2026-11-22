@@ -36,6 +36,75 @@ interface MetaAdAccount {
   pixels: MetaPixel[];
 }
 
+async function fetchDirectMetaPixels(
+  token: string,
+  baseAdAccounts: MetaAdAccount[],
+  baseBusinesses: { id: string; name: string }[]
+): Promise<MetaAdAccount[]> {
+  const allDiscovered = new Map<string, MetaPixel>();
+
+  const safeQuery = async (url: string) => {
+    try {
+      const res = await fetch(`${url}&access_token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data?.data)) {
+        for (const item of data.data) {
+          if (item?.id && !allDiscovered.has(item.id)) {
+            allDiscovered.set(item.id, { id: item.id, name: item.name || `Pixel ${item.id}` });
+          }
+        }
+      }
+    } catch (_) {}
+  };
+
+  // 1. Profil utilisateur /me/adspixels
+  const pUser = safeQuery("https://graph.facebook.com/v19.0/me/adspixels?fields=id,name");
+
+  // 2. Business Managers (datasets, adspixels, owned_pixels)
+  const pBiz = Promise.all(
+    baseBusinesses.map(async (b) => {
+      await Promise.all([
+        safeQuery(`https://graph.facebook.com/v19.0/${b.id}/datasets?fields=id,name`),
+        safeQuery(`https://graph.facebook.com/v19.0/${b.id}/adspixels?fields=id,name`),
+        safeQuery(`https://graph.facebook.com/v19.0/${b.id}/owned_pixels?fields=id,name`),
+        safeQuery(`https://graph.facebook.com/v19.0/${b.id}/client_pixels?fields=id,name`),
+      ]);
+    })
+  );
+
+  // 3. Comptes publicitaires (act_ et sans act_)
+  const pAcc = Promise.all(
+    baseAdAccounts.map(async (acc) => {
+      const cleanId = (acc.accountId || acc.id || "").replace("act_", "");
+      const fullId = `act_${cleanId}`;
+      await Promise.all([
+        safeQuery(`https://graph.facebook.com/v19.0/${fullId}/adspixels?fields=id,name`),
+        safeQuery(`https://graph.facebook.com/v19.0/${fullId}/datasets?fields=id,name`),
+        safeQuery(`https://graph.facebook.com/v19.0/${fullId}/customconversions?fields=id,name`),
+        safeQuery(`https://graph.facebook.com/v19.0/${cleanId}/adspixels?fields=id,name`),
+        safeQuery(`https://graph.facebook.com/v19.0/${cleanId}/datasets?fields=id,name`),
+      ]);
+    })
+  );
+
+  await Promise.all([pUser, pBiz, pAcc]);
+
+  // Si on a découvert des pixels, on les fusionne dans chaque compte pub
+  return baseAdAccounts.map((acc) => {
+    const pMap = new Map<string, MetaPixel>();
+    (acc.pixels || []).forEach((p) => pMap.set(p.id, p));
+    for (const [id, pix] of allDiscovered.entries()) {
+      if (!pMap.has(id)) {
+        pMap.set(id, pix);
+      }
+    }
+    return {
+      ...acc,
+      pixels: Array.from(pMap.values()),
+    };
+  });
+}
+
 export default function MetaCapiConnector({ workspaceId, team, allTeams = [], onConfigSaved }: MetaCapiConnectorProps) {
   const [fbSdkLoaded, setFbSdkLoaded] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
@@ -60,22 +129,43 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     setRefreshingPixels(true);
     setError(null);
     try {
-      const functions = getFunctions();
-      const fetchFn = httpsCallable(functions, "getMetaAccountsAndPixels");
-      const res = (await fetchFn({ userAccessToken: userToken })) as {
-        data: {
-          user: { id: string; name: string; picture?: string };
-          businesses: { id: string; name: string }[];
-          adAccounts: MetaAdAccount[];
-        };
-      };
-      setAdAccounts(res.data.adAccounts || []);
-      setBusinesses(res.data.businesses || []);
-      const currentAcc = (res.data.adAccounts || []).find((a) => a.id === selectedAdAccountId);
-      if (currentAcc?.pixels && currentAcc.pixels.length > 0 && !selectedPixelId) {
-        setSelectedPixelId(currentAcc.pixels[0].id);
+      let accounts: MetaAdAccount[] = [];
+      let bizList = businesses;
+
+      try {
+        const functions = getFunctions();
+        const fetchFn = httpsCallable(functions, "getMetaAccountsAndPixels");
+        const res = (await fetchFn({ userAccessToken: userToken })) as any;
+        if (res.data?.adAccounts) accounts = res.data.adAccounts;
+        if (res.data?.businesses) bizList = res.data.businesses;
+      } catch (cfErr) {
+        console.warn("Cloud function fallback vers direct Meta Graph:", cfErr);
       }
-      setSuccessMsg("✓ Liste des Pixels et comptes publicitaires mise à jour !");
+
+      const baseAccounts = accounts.length > 0 ? accounts : adAccounts;
+      const enriched = await fetchDirectMetaPixels(userToken, baseAccounts, bizList);
+
+      setAdAccounts(enriched);
+      setBusinesses(bizList);
+
+      const currentAcc = enriched.find((a) => a.id === selectedAdAccountId) || enriched[0];
+      if (currentAcc) {
+        if (!selectedAdAccountId) setSelectedAdAccountId(currentAcc.id);
+        if (currentAcc.currency) setCurrency(currentAcc.currency);
+        if (currentAcc.pixels && currentAcc.pixels.length > 0) {
+          if (!selectedPixelId || !currentAcc.pixels.some((p) => p.id === selectedPixelId)) {
+            setSelectedPixelId(currentAcc.pixels[0].id);
+          }
+          setIsManualPixelMode(false);
+        }
+      }
+
+      const totalFound = enriched.reduce((sum, a) => sum + (a.pixels?.length || 0), 0);
+      setSuccessMsg(
+        totalFound > 0
+          ? `✓ Synchronisation réussie ! ${totalFound} Pixel(s) & Dataset(s) détectés et prêts à l'emploi.`
+          : "✓ Synchronisation terminée. Aucun Pixel n'a été trouvé automatiquement."
+      );
     } catch (err: any) {
       setError(err?.message || "Impossible de rafraîchir les pixels.");
     } finally {
@@ -86,6 +176,7 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
   // Selection state
   const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>("");
   const [selectedPixelId, setSelectedPixelId] = useState<string>("");
+  const [isManualPixelMode, setIsManualPixelMode] = useState(false);
   const [currency, setCurrency] = useState(team.metaCapiConfig?.currency || team.currency || "XOF");
   const [testCode, setTestCode] = useState(team.metaCapiConfig?.testEventCode || "");
 
@@ -165,30 +256,37 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     setLoggingIn(true);
     setError(null);
     try {
-      const functions = getFunctions();
-      const fetchFn = httpsCallable(functions, "getMetaAccountsAndPixels");
-      const res = (await fetchFn({ userAccessToken: token })) as {
-        data: {
-          user: { id: string; name: string; picture?: string };
-          businesses: { id: string; name: string }[];
-          adAccounts: MetaAdAccount[];
-        };
-      };
+      let accounts: MetaAdAccount[] = [];
+      let bizList: { id: string; name: string }[] = [];
+      let userProfile = { id: "me", name: "Compte Facebook" };
 
-      const data = res.data;
-      setFbUser(data.user);
-      setBusinesses(data.businesses || []);
-      setAdAccounts(data.adAccounts || []);
+      try {
+        const functions = getFunctions();
+        const fetchFn = httpsCallable(functions, "getMetaAccountsAndPixels");
+        const res = (await fetchFn({ userAccessToken: token })) as any;
+        if (res.data?.user) userProfile = res.data.user;
+        if (res.data?.businesses) bizList = res.data.businesses;
+        if (res.data?.adAccounts) accounts = res.data.adAccounts;
+      } catch (cfErr) {
+        console.warn("Cloud function fallback vers direct Meta Graph:", cfErr);
+      }
 
-      if (data.adAccounts && data.adAccounts.length > 0) {
-        const firstAcc = data.adAccounts[0];
+      const enriched = await fetchDirectMetaPixels(token, accounts, bizList);
+
+      setFbUser(userProfile);
+      setBusinesses(bizList);
+      setAdAccounts(enriched);
+
+      if (enriched.length > 0) {
+        const firstAcc = enriched[0];
         setSelectedAdAccountId(firstAcc.id);
         if (firstAcc.currency) setCurrency(firstAcc.currency);
         if (firstAcc.pixels && firstAcc.pixels.length > 0) {
           setSelectedPixelId(firstAcc.pixels[0].id);
+          setIsManualPixelMode(false);
         }
       }
-      setSuccessMsg(`✓ Compte Facebook connecté (${data.user?.name || "Compte Facebook"}) ! Choisissez votre compte publicitaire et votre Pixel ci-dessous.`);
+      setSuccessMsg(`✓ Compte Facebook connecté (${userProfile.name}) ! Sélectionnez votre compte publicitaire et votre Pixel ci-dessous.`);
     } catch (err: any) {
       setError(err?.message || "Impossible de récupérer les comptes Meta.");
     } finally {
@@ -809,23 +907,40 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
 
             {/* 2. Pixel Meta ou Dataset */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-semibold text-slate-200">
-                  2. Pixel Meta / Jeu de données (Dataset)
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                <label className="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                  <span>2. Pixel Meta / Jeu de données (Dataset)</span>
+                  {availablePixels.length > 0 && (
+                    <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                      ✓ {availablePixels.length} Pixel{availablePixels.length > 1 ? "s" : ""} détecté{availablePixels.length > 1 ? "s" : ""}
+                    </span>
+                  )}
                 </label>
-                {availablePixels.length > 0 && (
-                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                    {availablePixels.length} Pixel{availablePixels.length > 1 ? "s" : ""} disponible{availablePixels.length > 1 ? "s" : ""}
-                  </span>
-                )}
+                <button
+                  type="button"
+                  disabled={refreshingPixels}
+                  onClick={handleRefreshPixels}
+                  className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                  title="Interroge Meta en temps réel pour synchroniser les nouveaux Pixels créés"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshingPixels ? "animate-spin" : ""}`} />
+                  <span>{refreshingPixels ? "Synchronisation..." : "🔄 Synchroniser les nouveaux Pixels"}</span>
+                </button>
               </div>
 
-              {availablePixels.length > 0 ? (
-                <div className="space-y-2">
+              {availablePixels.length > 0 && !isManualPixelMode ? (
+                <div className="space-y-2.5">
                   <select
                     value={selectedPixelId}
-                    onChange={(e) => setSelectedPixelId(e.target.value)}
-                    className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2.5 text-sm font-medium text-slate-100 outline-none focus:border-brand shadow-sm font-mono"
+                    onChange={(e) => {
+                      if (e.target.value === "__custom__") {
+                        setIsManualPixelMode(true);
+                        setSelectedPixelId("");
+                      } else {
+                        setSelectedPixelId(e.target.value);
+                      }
+                    }}
+                    className="w-full rounded-xl border border-surface-border bg-surface px-3.5 py-2.5 text-sm font-semibold text-slate-100 outline-none focus:border-brand shadow-sm font-mono cursor-pointer"
                   >
                     {availablePixels.map((pix) => (
                       <option key={pix.id} value={pix.id}>
@@ -835,36 +950,84 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
                     <option value="__custom__">➕ Saisir un autre ID de Pixel manuellement...</option>
                   </select>
 
-                  {selectedPixelId === "__custom__" && (
-                    <input
-                      type="text"
-                      placeholder="Collez l'ID du Pixel (ex: 1055198566876012)"
-                      value=""
-                      onChange={(e) => setSelectedPixelId(e.target.value)}
-                      className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-xs font-mono text-slate-100 outline-none focus:border-brand"
-                    />
-                  )}
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsManualPixelMode(true);
+                        setSelectedPixelId("");
+                      }}
+                      className="text-blue-400 hover:underline hover:text-blue-300 transition-colors cursor-pointer"
+                    >
+                      Vous ne trouvez pas votre Pixel ? ➕ Saisir l&apos;ID manuellement
+                    </button>
+                    <a
+                      href="https://business.facebook.com/events_manager2/list/dataset/create"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-400 hover:text-slate-200 underline transition-colors"
+                    >
+                      Créer un Pixel sur Meta Events Manager ↗
+                    </a>
+                  </div>
                 </div>
               ) : (
-                <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3.5 space-y-2">
+                <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-slate-200">
-                      Entrez l'ID de votre Pixel ou Dataset Facebook :
+                    <p className="text-xs font-semibold text-slate-200">
+                      Entrez l&apos;ID de votre Pixel ou Dataset Facebook :
                     </p>
-                    {/^\d{14,17}$/.test(selectedPixelId.trim()) && (
-                      <span className="text-[11px] font-semibold text-emerald-400">✓ Format valide</span>
-                    )}
+                    {/^d{14,17}$/.test(selectedPixelId.trim()) ? (
+                      <span className="text-[11px] font-bold text-emerald-400">✓ Format valide (15-16 chiffres)</span>
+                    ) : selectedPixelId.trim().length > 0 ? (
+                      <span className="text-[11px] text-amber-400">Format attendu : 15 à 16 chiffres</span>
+                    ) : null}
                   </div>
+
                   <input
                     type="text"
                     placeholder="ex: 1055198566876012"
                     value={selectedPixelId}
-                    onChange={(e) => setSelectedPixelId(e.target.value)}
-                    className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 font-mono text-sm text-slate-100 outline-none focus:border-brand"
+                    onChange={(e) => setSelectedPixelId(e.target.value.replace(/\D/g, ""))}
+                    className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2.5 font-mono text-sm font-semibold text-slate-100 outline-none focus:border-brand"
                   />
-                  <p className="text-[11px] text-slate-400">
-                    💡 <em>Où trouver cet ID ?</em> Dans votre <strong>Meta Events Manager</strong>, l'identifiant à 15-16 chiffres se trouve sous le nom de votre Pixel.
-                  </p>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-surface-border/60 text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <a
+                        href="https://business.facebook.com/events_manager2/list/dataset/create"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-400 hover:underline hover:text-blue-300 font-medium"
+                      >
+                        Créer un Pixel sur Meta Events Manager ↗
+                      </a>
+                      <span className="text-slate-600">·</span>
+                      <button
+                        type="button"
+                        disabled={refreshingPixels}
+                        onClick={handleRefreshPixels}
+                        className="text-slate-300 hover:text-white underline cursor-pointer"
+                      >
+                        {refreshingPixels ? "Recherche en cours..." : "Actualiser dès création"}
+                      </button>
+                    </div>
+
+                    {availablePixels.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsManualPixelMode(false);
+                          if (availablePixels.length > 0) {
+                            setSelectedPixelId(availablePixels[0].id);
+                          }
+                        }}
+                        className="text-emerald-400 hover:underline font-semibold cursor-pointer"
+                      >
+                        ← Revenir à la sélection dans la liste ({availablePixels.length} disponible{availablePixels.length > 1 ? "s" : ""})
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
