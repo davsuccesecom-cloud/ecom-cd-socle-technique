@@ -21,6 +21,24 @@ export default function App() {
   // mauvais thème au chargement si "clair" était déjà choisi.
   useTheme();
 
+  // Détection du retour d'authentification popup OAuth Meta direct
+  useEffect(() => {
+    if (window.opener && window.location.hash && window.location.hash.includes("access_token=")) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const token = hashParams.get("access_token");
+        if (token) {
+          window.opener.postMessage({ type: "META_OAUTH_TOKEN", token }, window.location.origin);
+          window.close();
+        }
+      } catch (e) {
+        console.warn("Erreur transmission token OAuth:", e);
+      }
+    }
+  }, []);
+
+
+
   const {
     firebaseUser,
     authLoading,

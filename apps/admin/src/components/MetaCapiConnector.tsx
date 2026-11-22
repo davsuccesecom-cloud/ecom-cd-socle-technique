@@ -130,6 +130,70 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     return () => unsubscribe();
   }, [bridgeSession?.sessionId, workspaceId]);
 
+  const handleProcessAccessToken = async (token: string) => {
+    setUserToken(token);
+    setLoggingIn(true);
+    setError(null);
+    try {
+      const functions = getFunctions();
+      const fetchFn = httpsCallable(functions, "getMetaAccountsAndPixels");
+      const res = (await fetchFn({ userAccessToken: token })) as {
+        data: {
+          user: { id: string; name: string; picture?: string };
+          businesses: { id: string; name: string }[];
+          adAccounts: MetaAdAccount[];
+        };
+      };
+
+      const data = res.data;
+      setFbUser(data.user);
+      setBusinesses(data.businesses || []);
+      setAdAccounts(data.adAccounts || []);
+
+      if (data.adAccounts && data.adAccounts.length > 0) {
+        const firstAcc = data.adAccounts[0];
+        setSelectedAdAccountId(firstAcc.id);
+        if (firstAcc.currency) setCurrency(firstAcc.currency);
+        if (firstAcc.pixels && firstAcc.pixels.length > 0) {
+          setSelectedPixelId(firstAcc.pixels[0].id);
+        }
+      }
+      setSuccessMsg(`✓ Compte Facebook connecté (${data.user?.name || "Compte Facebook"}) ! Choisissez votre compte publicitaire et votre Pixel ci-dessous.`);
+    } catch (err: any) {
+      setError(err?.message || "Impossible de récupérer les comptes Meta.");
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  // Écoute du message de la popup OAuth Facebook directe
+  useEffect(() => {
+    const handleMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "META_OAUTH_TOKEN" && e.data?.token) {
+        void handleProcessAccessToken(e.data.token);
+      }
+    };
+    window.addEventListener("message", handleMsg);
+    return () => window.removeEventListener("message", handleMsg);
+  }, []);
+
+  // Détection du retour d'authentification direct sur la même fenêtre (si la popup était bloquée)
+  useEffect(() => {
+    if (window.location.hash && window.location.hash.includes("access_token=")) {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        const token = hashParams.get("access_token");
+        if (token) {
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          void handleProcessAccessToken(token);
+        }
+      } catch (e) {
+        console.warn("Erreur lecture token OAuth direct:", e);
+      }
+    }
+  }, []);
+
   // Load Facebook JS SDK dynamically
   useEffect(() => {
     if (window.FB) {
@@ -174,69 +238,33 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
   const handleFbLogin = (forceReauth = false) => {
     setError(null);
     setSuccessMsg(null);
-    if (!window.FB) {
-      setError("Le module Facebook est en cours de chargement. Veuillez patienter 2 secondes et réessayer.");
-      return;
-    }
-
     setLoggingIn(true);
+
     try {
-      const onLoginResponse = (response: any) => {
-        void (async () => {
-          if (response.authResponse && response.authResponse.accessToken) {
-            const token = response.authResponse.accessToken;
-            setUserToken(token);
-            try {
-              const functions = getFunctions();
-              const fetchFn = httpsCallable(functions, "getMetaAccountsAndPixels");
-              const res = (await fetchFn({ userAccessToken: token })) as {
-                data: {
-                  user: { id: string; name: string; picture?: string };
-                  businesses: { id: string; name: string }[];
-                  adAccounts: MetaAdAccount[];
-                };
-              };
-
-              const data = res.data;
-              setFbUser(data.user);
-              setBusinesses(data.businesses || []);
-              setAdAccounts(data.adAccounts || []);
-
-              // Auto-select first ad account & pixel if available
-              if (data.adAccounts && data.adAccounts.length > 0) {
-                const firstAcc = data.adAccounts[0];
-                setSelectedAdAccountId(firstAcc.id);
-                if (firstAcc.currency) setCurrency(firstAcc.currency);
-                if (firstAcc.pixels && firstAcc.pixels.length > 0) {
-                  setSelectedPixelId(firstAcc.pixels[0].id);
-                }
-              }
-            } catch (err: any) {
-              setError(err?.message || "Impossible de récupérer les comptes Meta.");
-            } finally {
-              setLoggingIn(false);
-            }
-          } else {
-            setLoggingIn(false);
-            if (response.status !== "unknown") {
-              setError("Connexion Facebook annulée ou non autorisée.");
-            }
-          }
-        })();
-      };
-
-      const loginOpts: Record<string, unknown> = {
-        scope: "ads_read,ads_management,business_management",
-        return_scopes: true,
-      };
+      const redirectUri = `${window.location.origin}/`;
+      let authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${FB_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=ads_read,ads_management,business_management&response_type=token`;
       if (forceReauth) {
-        loginOpts.auth_type = "reauthenticate";
+        authUrl += "&auth_type=reauthenticate";
       }
 
-      window.FB.login(onLoginResponse, loginOpts);
+      const width = 650;
+      const height = 750;
+      const left = Math.max(0, (window.screen.width - width) / 2);
+      const top = Math.max(0, (window.screen.height - height) / 2);
+
+      const popup = window.open(
+        authUrl,
+        "waritrack_meta_oauth",
+        `width=${width},height=${height},top=${top},left=${left},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+      );
+
+      if (!popup || popup.closed || typeof popup.closed === "undefined") {
+        // Si le navigateur bloque la popup, redirection pleine page fluide
+        window.location.href = authUrl;
+      }
     } catch (err: any) {
       setLoggingIn(false);
-      setError(err?.message || "Erreur ouverture popup Facebook.");
+      setError(err?.message || "Erreur ouverture fenêtre Facebook.");
     }
   };
 
