@@ -760,6 +760,12 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 const notesInfo = extractNotesAndAddress(item);
                 const pricingInfo = calculateOrderPricing(item);
                 const qtyInfo = extractQuantityAndItems(item);
+                const fbclid = String(item.fbclid || item.tracking?.fbclid || "").trim();
+                const fbp = String(item.fbp || item._fbp || item.tracking?.fbp || "").trim();
+                const fbc = String(item.fbc || item._fbc || item.tracking?.fbc || (fbclid ? `fb.1.${now}.${fbclid}` : "")).trim();
+                const clientIp = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || item.ip || item.browserIp || "").split(",")[0].trim();
+                const userAgent = String(req.headers["user-agent"] || item.userAgent || "").trim();
+                const isMetaAds = Boolean(fbclid || fbc || item.trafficSource === "meta_ads" || item.source === "facebook" || item.source === "instagram");
                 const orderRef = db.collection("workspaces").doc(targetWorkspaceId).collection("orders").doc(orderId);
                 const orderDoc = {
                     id: orderId,
@@ -799,8 +805,19 @@ exports.azifyGateway = (0, https_1.onRequest)({
                     statutCloseuse: "nouveau",
                     statutLivreur: null,
                     temperature: "hot",
-                    trafficSource: "organique",
-                    capiIsolated: true,
+                    trafficSource: isMetaAds ? "meta_ads" : "organique",
+                    capiIsolated: !isMetaAds,
+                    browserIp: clientIp || null,
+                    userAgent: userAgent || null,
+                    shopifyData: {
+                        fbp: fbp || null,
+                        fbc: fbc || null,
+                        fbclid: fbclid || null,
+                        browserIp: clientIp || null,
+                        browserUserAgent: userAgent || null,
+                        pageUrl: item.pageUrl || item.referrer || null,
+                        shopDomain: connData.shopDomain || item.shopDomain || "boutique.azify.store",
+                    },
                     timestamps: { received: now },
                     capiSent: false,
                     purgeAt: null,
@@ -963,6 +980,12 @@ exports.azifyGateway = (0, https_1.onRequest)({
             const notesInfo = extractNotesAndAddress(root);
             const pricingInfo = calculateOrderPricing(root);
             const qtyInfo = extractQuantityAndItems(root);
+            const fbclid = String(root.fbclid || root.tracking?.fbclid || "").trim();
+            const fbp = String(root.fbp || root._fbp || root.tracking?.fbp || "").trim();
+            const fbc = String(root.fbc || root._fbc || root.tracking?.fbc || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : "")).trim();
+            const clientIp = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || root.ip || root.browserIp || "").split(",")[0].trim();
+            const userAgent = String(req.headers["user-agent"] || root.userAgent || "").trim();
+            const isMetaAds = Boolean(fbclid || fbc || root.trafficSource === "meta_ads" || root.source === "facebook" || root.source === "instagram");
             const now = Date.now();
             const orderDoc = {
                 id: orderId,
@@ -1008,8 +1031,19 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 callInProgress: null,
                 reminderAt: null,
                 temperature: "hot",
-                trafficSource: "organique",
-                capiIsolated: true,
+                trafficSource: isMetaAds ? "meta_ads" : "organique",
+                capiIsolated: !isMetaAds,
+                browserIp: clientIp || null,
+                userAgent: userAgent || null,
+                shopifyData: {
+                    fbp: fbp || null,
+                    fbc: fbc || null,
+                    fbclid: fbclid || null,
+                    browserIp: clientIp || null,
+                    browserUserAgent: userAgent || null,
+                    pageUrl: root.pageUrl || root.referrer || null,
+                    shopDomain: connData.shopDomain || root.shopDomain || "boutique.azify.store",
+                },
                 timestamps: {
                     received: now,
                     assignedToCloseuse: null,
