@@ -27,7 +27,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ workspaceId, teamId, closeuseId }: DashboardProps) {
-  const { orders, loading } = useOrders({ workspaceId, teamId, closeuseId });
+  const { orders, loading } = useOrders({ workspaceId, teamId });
   const { team } = useTeam(workspaceId, teamId);
   const { users: livreurs } = useTeamUsers(workspaceId, teamId, "livreur");
   const { startCall, endCall } = useCallInProgress(workspaceId);

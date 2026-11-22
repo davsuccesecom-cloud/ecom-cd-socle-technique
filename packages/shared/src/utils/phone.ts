@@ -183,8 +183,11 @@ export function isTestOrder(order?: { isTest?: boolean; clientName?: string | nu
  * ex: "1x Exemple de produit" -> "Exemple de produit"
  */
 export function cleanProductTitle(product?: string | null): string {
-  const p = String(product || "").trim();
-  return p.replace(/^(?:\d+\s*x\s+)+/i, "").trim() || "votre article";
+  let p = String(product || "").trim();
+  while (/^\d+\s*x\s+/i.test(p)) {
+    p = p.replace(/^\d+\s*x\s+/i, "").trim();
+  }
+  return p || "votre article";
 }
 
 /**

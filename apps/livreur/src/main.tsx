@@ -5,33 +5,21 @@ import "./styles/index.css";
 import App from "./App";
 import { registerSW } from "virtual:pwa-register";
 
-// Demande proprement un rafraîchissement via un bandeau non-intrusif
-// plutôt que de recharger brutalement en pleine tournée.
+// Enregistrement PWA avec mise à jour automatique sans bloquer le livreur
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    window.dispatchEvent(
-      new CustomEvent("waritrack-sw-update", {
-        detail: {
-          applyUpdate: async () => {
-            try {
-              await updateSW(true);
-            } catch (err) {
-              console.warn("[PWA] updateSW error:", err);
-            }
-            setTimeout(() => {
-              window.location.reload();
-            }, 300);
-          },
-        },
-      })
-    );
+    updateSW(true).then(() => {
+      window.location.reload();
+    }).catch(() => {
+      window.location.reload();
+    });
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
     setInterval(() => {
       registration.update().catch(() => {});
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         registration.update().catch(() => {});

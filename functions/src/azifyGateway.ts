@@ -128,6 +128,20 @@ export function extractMapAndLocation(root: any): {
     }
   }
 
+  if (!mapUrl) {
+    const rawSearch = `${root.address || ""} ${root.street || ""} ${root.addressNote || ""} ${root.city || ""}`;
+    const matchUrl = rawSearch.match(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/i);
+    if (matchUrl) {
+      mapUrl = matchUrl[0].replace(/[\]\)\s,;]+$/, "");
+    }
+  }
+  if (!gpsCoordinates && mapUrl) {
+    const coordsMatch = mapUrl.match(/([+-]?\d+\.\d+)\s*,\s*([+-]?\d+\.\d+)/);
+    if (coordsMatch) {
+      gpsCoordinates = `${coordsMatch[1]},${coordsMatch[2]}`;
+    }
+  }
+
   const mapAddress = String(
     root.mapAddress ||
     root.addressMap ||
@@ -150,6 +164,27 @@ export function extractMapAndLocation(root: any): {
 /**
  * Extrait distinctement l'adresse physique et les remarques/instructions de livraison
  */
+export function stripGpsRaw(text?: string | null): string {
+  if (!text) return "";
+  return text
+    .replace(/\[\s*GPS\s*:[^\]]*\]/gi, "")
+    .replace(/\(\s*GPS\s*:[^)]*\)/gi, "")
+    .replace(/GPS\s*:\s*https?:\/\/\S+/gi, "")
+    .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*[-–—,]\s*$/, "")
+    .replace(/^\s*[-–—,]\s*/, "")
+    .trim();
+}
+
+export function cleanProductTitleRaw(product?: string | null): string {
+  let p = String(product || "").trim();
+  while (/^\d+\s*x\s+/i.test(p)) {
+    p = p.replace(/^\d+\s*x\s+/i, "").trim();
+  }
+  return p || "Produit Azify COD";
+}
+
 export function extractNotesAndAddress(root: any): {
   address: string;
   notes: string;
@@ -846,8 +881,8 @@ export const azifyGateway = onRequest(
             city,
             address: notesInfo.address || undefined,
             notes: notesInfo.notes || undefined,
-            addressNote: notesInfo.addressNote,
-            product: String(item.product || item.productTitle || "Produit Azify COD"),
+            addressNote: stripGpsRaw(notesInfo.addressNote),
+            product: cleanProductTitleRaw(item.product || item.productTitle),
             quantity: qtyInfo.quantity,
             amount: pricingInfo.amount,
             originalAmount: pricingInfo.originalAmount,
@@ -1086,8 +1121,8 @@ export const azifyGateway = onRequest(
           city,
           address: notesInfo.address || undefined,
           notes: notesInfo.notes || undefined,
-          addressNote: notesInfo.addressNote,
-          product: String(root.product || root.productTitle || "Produit Azify COD"),
+          addressNote: stripGpsRaw(notesInfo.addressNote),
+          product: cleanProductTitleRaw(root.product || root.productTitle),
           productImageUrl: root.productImageUrl || root.image || null,
           quantity: qtyInfo.quantity,
           amount: pricingInfo.amount,

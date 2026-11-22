@@ -50,46 +50,25 @@ export function useOrders({ workspaceId, teamId, allocatedTeamIds, closeuseId, l
     // Les règles Firestore autorisent explicitement resource.data.livreurId == auth.uid
     // sans exiger de filtre teamId. Il ne faut JAMAIS restreindre la requête livreur par teamId.
     if (livreurId) {
-      const clauses = [where("livreurId", "==", livreurId)];
-      let q = query(ordersRef, ...clauses, orderBy("timestamps.received", "desc"));
-      let unsubFallback: (() => void) | null = null;
-
+      // Requête directe sans orderBy Firestore : aucun index composite requis,
+      // aucun document perdu si timestamps.received est manquant, et tri instantané en mémoire.
+      const q = query(ordersRef, where("livreurId", "==", livreurId));
       const unsub = onSnapshot(
         q,
         (snapshot) => {
           const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+          list.sort((a, b) => safeOrderTs(b) - safeOrderTs(a));
           setOrders(list);
           setLoading(false);
         },
         (err) => {
-          console.warn("[useOrders] Livreur query avec orderBy échouée, repli sans orderBy:", err.message);
-          try {
-            const fallbackQ = query(ordersRef, ...clauses);
-            unsubFallback = onSnapshot(
-              fallbackQ,
-              (snap) => {
-                const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
-                list.sort((a, b) => safeOrderTs(b) - safeOrderTs(a));
-                setOrders(list);
-                setLoading(false);
-              },
-              (fallbackErr) => {
-                console.error("[useOrders] Erreur fallback livreur:", fallbackErr);
-                setError(fallbackErr as Error);
-                setLoading(false);
-              }
-            );
-          } catch (e) {
-            setError(err as Error);
-            setLoading(false);
-          }
+          console.error("[useOrders] Erreur écoute commandes livreur:", err);
+          setError(err as Error);
+          setLoading(false);
         }
       );
 
-      return () => {
-        unsub();
-        if (unsubFallback) unsubFallback();
-      };
+      return () => unsub();
     }
 
     // Construire la liste des équipes cibles :

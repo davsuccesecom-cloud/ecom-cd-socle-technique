@@ -18,7 +18,7 @@ export default defineConfig({
         theme_color: "#0EA5E9",
         background_color: "#F8FAFC",
         display: "standalone",
-        display_override: ["window-controls-overlay", "standalone", "minimal-ui"],
+        display_override: ["standalone"],
         launch_handler: {
           client_mode: ["focus-existing", "auto"],
         },
@@ -37,6 +37,8 @@ export default defineConfig({
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/__/, /^\/firebase-messaging-sw\.js$/, /\/api\//],
         cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],

@@ -35,6 +35,8 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.azifyGateway = void 0;
 exports.extractMapAndLocation = extractMapAndLocation;
+exports.stripGpsRaw = stripGpsRaw;
+exports.cleanProductTitleRaw = cleanProductTitleRaw;
 exports.extractNotesAndAddress = extractNotesAndAddress;
 exports.calculateOrderPricing = calculateOrderPricing;
 exports.extractQuantityAndItems = extractQuantityAndItems;
@@ -154,6 +156,19 @@ function extractMapAndLocation(root) {
             mapUrl = `https://www.google.com/maps?q=${gpsCoordinates}`;
         }
     }
+    if (!mapUrl) {
+        const rawSearch = `${root.address || ""} ${root.street || ""} ${root.addressNote || ""} ${root.city || ""}`;
+        const matchUrl = rawSearch.match(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/i);
+        if (matchUrl) {
+            mapUrl = matchUrl[0].replace(/[\]\)\s,;]+$/, "");
+        }
+    }
+    if (!gpsCoordinates && mapUrl) {
+        const coordsMatch = mapUrl.match(/([+-]?\d+\.\d+)\s*,\s*([+-]?\d+\.\d+)/);
+        if (coordsMatch) {
+            gpsCoordinates = `${coordsMatch[1]},${coordsMatch[2]}`;
+        }
+    }
     const mapAddress = String(root.mapAddress ||
         root.addressMap ||
         root.locationName ||
@@ -172,6 +187,26 @@ function extractMapAndLocation(root) {
 /**
  * Extrait distinctement l'adresse physique et les remarques/instructions de livraison
  */
+function stripGpsRaw(text) {
+    if (!text)
+        return "";
+    return text
+        .replace(/\[\s*GPS\s*:[^\]]*\]/gi, "")
+        .replace(/\(\s*GPS\s*:[^)]*\)/gi, "")
+        .replace(/GPS\s*:\s*https?:\/\/\S+/gi, "")
+        .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps\S*|maps\.google\.com\S*|maps\.app\.goo\.gl\S*)/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/\s*[-–—,]\s*$/, "")
+        .replace(/^\s*[-–—,]\s*/, "")
+        .trim();
+}
+function cleanProductTitleRaw(product) {
+    let p = String(product || "").trim();
+    while (/^\d+\s*x\s+/i.test(p)) {
+        p = p.replace(/^\d+\s*x\s+/i, "").trim();
+    }
+    return p || "Produit Azify COD";
+}
 function extractNotesAndAddress(root) {
     const address = String(root.address ||
         root.adresse ||
@@ -783,8 +818,8 @@ exports.azifyGateway = (0, https_1.onRequest)({
                     city,
                     address: notesInfo.address || undefined,
                     notes: notesInfo.notes || undefined,
-                    addressNote: notesInfo.addressNote,
-                    product: String(item.product || item.productTitle || "Produit Azify COD"),
+                    addressNote: stripGpsRaw(notesInfo.addressNote),
+                    product: cleanProductTitleRaw(item.product || item.productTitle),
                     quantity: qtyInfo.quantity,
                     amount: pricingInfo.amount,
                     originalAmount: pricingInfo.originalAmount,
@@ -1003,8 +1038,8 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 city,
                 address: notesInfo.address || undefined,
                 notes: notesInfo.notes || undefined,
-                addressNote: notesInfo.addressNote,
-                product: String(root.product || root.productTitle || "Produit Azify COD"),
+                addressNote: stripGpsRaw(notesInfo.addressNote),
+                product: cleanProductTitleRaw(root.product || root.productTitle),
                 productImageUrl: root.productImageUrl || root.image || null,
                 quantity: qtyInfo.quantity,
                 amount: pricingInfo.amount,
