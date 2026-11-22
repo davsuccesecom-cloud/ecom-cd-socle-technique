@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import {
-  FacebookAuthProvider,
+  OAuthProvider,
   GoogleAuthProvider,
   isSignInWithEmailLink,
   onAuthStateChanged,
@@ -175,12 +175,13 @@ export function useAdminEmailAuth() {
     }
   }, [provision]);
 
-  const signInWithFacebook = useCallback(async () => {
+  const signInWithMicrosoft = useCallback(async () => {
     setError(null);
     setBusy(true);
     try {
       const auth = getFirebaseAuth();
-      const provider = new FacebookAuthProvider();
+      const provider = new OAuthProvider("microsoft.com");
+      provider.setCustomParameters({ prompt: "select_account" });
       await signInWithPopup(auth, provider);
       await provision();
     } catch (err: any) {
@@ -188,7 +189,7 @@ export function useAdminEmailAuth() {
         setBusy(false);
         return;
       }
-      setError(formatAuthError(err, "Connexion Facebook impossible."));
+      setError(formatAuthError(err, "Connexion Microsoft / Outlook impossible."));
       setBusy(false);
     }
   }, [provision]);
@@ -222,7 +223,7 @@ export function useAdminEmailAuth() {
     error,
     sendLoginLink,
     signInWithGoogle,
-    signInWithFacebook,
+    signInWithMicrosoft,
     createWorkspace,
     logout,
   };

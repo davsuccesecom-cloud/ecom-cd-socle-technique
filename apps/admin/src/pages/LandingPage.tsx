@@ -35,7 +35,7 @@ import AdminAntiBotGuard from "../components/AdminAntiBotGuard";
 interface LandingPageProps {
   sendLoginLink?: (email: string) => Promise<void>;
   signInWithGoogle?: () => Promise<void>;
-  signInWithFacebook?: () => Promise<void>;
+  signInWithMicrosoft?: () => Promise<void>;
   createWorkspace?: (name: string) => Promise<boolean>;
   needsWorkspaceName?: boolean;
   linkSent?: boolean;
@@ -64,6 +64,17 @@ function GoogleIcon({ className = "h-4 w-4" }: { className?: string }) {
         fill="#EA4335"
         d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.36 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
       />
+    </svg>
+  );
+}
+
+function MicrosoftIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 21 21" className={className} aria-hidden="true">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
     </svg>
   );
 }
@@ -202,7 +213,7 @@ const SHOWCASE_TABS = [
 export default function LandingPage({
   sendLoginLink,
   signInWithGoogle,
-  signInWithFacebook,
+  signInWithMicrosoft,
   createWorkspace,
   needsWorkspaceName = false,
   linkSent = false,
@@ -1065,6 +1076,16 @@ export default function LandingPage({
                   >
                     <GoogleIcon className="h-4 w-4" />
                     <span>Continuer avec Google</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => signInWithMicrosoft && signInWithMicrosoft()}
+                    disabled={busy}
+                    className="w-full inline-flex items-center justify-center gap-3 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 px-4 py-3 text-xs font-semibold text-white shadow-sm transition-all disabled:opacity-50"
+                  >
+                    <MicrosoftIcon className="h-4 w-4" />
+                    <span>Continuer avec Microsoft / Outlook</span>
                   </button>
 
 

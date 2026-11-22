@@ -47,7 +47,7 @@ export default function App() {
     needsWorkspaceName,
     sendLoginLink,
     signInWithGoogle,
-    signInWithFacebook,
+    signInWithMicrosoft,
     createWorkspace,
     logout,
     error,
@@ -316,7 +316,7 @@ export default function App() {
       <LandingPage
         sendLoginLink={sendLoginLink}
         signInWithGoogle={signInWithGoogle}
-        signInWithFacebook={signInWithFacebook}
+        signInWithMicrosoft={signInWithMicrosoft}
         createWorkspace={createWorkspace}
         needsWorkspaceName={needsWorkspaceName}
         linkSent={linkSent}
@@ -401,7 +401,7 @@ export default function App() {
       <LandingPage
         sendLoginLink={sendLoginLink}
         signInWithGoogle={signInWithGoogle}
-        signInWithFacebook={signInWithFacebook}
+        signInWithMicrosoft={signInWithMicrosoft}
         createWorkspace={createWorkspace}
         needsWorkspaceName={true}
         linkSent={linkSent}
@@ -454,7 +454,7 @@ export default function App() {
     <LandingPage
       sendLoginLink={sendLoginLink}
       signInWithGoogle={signInWithGoogle}
-      signInWithFacebook={signInWithFacebook}
+      signInWithMicrosoft={signInWithMicrosoft}
       createWorkspace={createWorkspace}
       needsWorkspaceName={needsWorkspaceName}
       linkSent={linkSent}

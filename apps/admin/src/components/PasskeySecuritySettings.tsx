@@ -123,7 +123,7 @@ export default function PasskeySecuritySettings({ workspaceId }: PasskeySecurity
 
   return (
     <div className="space-y-6">
-      {/* 1. Carte d'introduction Passkeys & CinetPay Ready */}
+      {/* 1. Carte d'introduction Passkeys & Compte Sécurisé */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 md:p-6 shadow-xs">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="flex items-start gap-3.5">
@@ -136,11 +136,11 @@ export default function PasskeySecuritySettings({ workspaceId }: PasskeySecurity
                   Passkeys Biométriques FIDO2 & Sécurité Forte
                 </h3>
                 <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-emerald-400 uppercase">
-                  CinetPay Ready
+                  Compte Sécurisé
                 </span>
               </div>
               <p className="mt-1 text-xs leading-relaxed text-slate-400 max-w-2xl">
-                Associez votre empreinte digitale (Touch ID, Windows Hello), reconnaissance faciale (Face ID) ou clé physique FIDO2. Votre compte sera immunisé contre le vol d'identifiants et prêt pour la validation des paiements CinetPay.
+                Associez votre empreinte digitale (Touch ID, Windows Hello), reconnaissance faciale (Face ID) ou clé physique FIDO2. Votre compte sera immunisé contre le vol d'identifiants, le piratage de session et le phishing.
               </p>
             </div>
           </div>
@@ -240,18 +240,18 @@ export default function PasskeySecuritySettings({ workspaceId }: PasskeySecurity
         )}
       </div>
 
-      {/* 3. Encadré Préparation CinetPay & Décaissements */}
+      {/* 3. Encadré Sécurité & Immunité WariTrack */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised p-5 md:p-6 shadow-xs">
         <div className="flex items-start gap-3.5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-sky-500/30 bg-sky-500/10 text-sky-400">
-            <CreditCard className="h-5 w-5" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+            <ShieldCheck className="h-5 w-5" />
           </div>
           <div className="space-y-1">
             <h4 className="text-sm font-bold text-slate-100">
-              Protection des Passerelles de Paiement CinetPay
+              Protection Absolue du Compte WariTrack
             </h4>
             <p className="text-xs leading-relaxed text-slate-400">
-              Dès l&apos;activation des clés d&apos;API CinetPay (Mobile Money Wave, Orange, MTN, Moov et cartes bancaires), chaque modification des coordonnées de reversement ou demande de décaissement exigera une confirmation par Passkey biométrique (Step-Up Authentication). Cela garantit qu&apos;aucun tiers ne pourra détourner vos fonds même en cas de compromission d&apos;email.
+              Les Passkeys utilisent le standard cryptographique mondial FIDO2 / WebAuthn. Votre clé d&apos;accès privée reste stockée de manière chiffrée sur la puce de sécurité de votre appareil (Secure Enclave Apple, TPM Windows, puce Titan Android). Même en cas de fuite de mot de passe ou de tentative de phishing, personne ne peut accéder à votre poste de pilotage sans votre confirmation biométrique physique.
             </p>
           </div>
         </div>

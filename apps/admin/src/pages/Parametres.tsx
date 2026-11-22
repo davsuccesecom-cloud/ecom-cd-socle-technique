@@ -25,6 +25,11 @@ import {
   Smartphone,
   Zap,
   Fingerprint,
+  Globe,
+  Settings2,
+  ShieldCheck,
+  ChevronRight,
+  Layers,
 } from "lucide-react";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import AzifyFluxManager from "../components/AzifyFluxManager";
@@ -42,112 +47,316 @@ interface ParametresProps {
   orders?: Order[];
 }
 
-type SettingsTab = "rules" | "shopify" | "azify" | "print" | "metacapi" | "phone_export" | "white_label" | "security";
+type SettingsCategory = "integrations" | "operations" | "security_brand";
+type SettingsTab = "azify" | "shopify" | "metacapi" | "rules" | "print" | "phone_export" | "security" | "white_label";
+
+interface TabDefinition {
+  id: SettingsTab;
+  category: SettingsCategory;
+  label: string;
+  shortLabel: string;
+  desc: string;
+  badge?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  isMarketSpecific: boolean;
+}
+
+const CATEGORIES: {
+  id: SettingsCategory;
+  label: string;
+  shortLabel: string;
+  desc: string;
+  icon: React.ComponentType<{ className?: string }>;
+  count: number;
+}[] = [
+  {
+    id: "integrations",
+    label: "Canaux de Vente & Intégrations",
+    shortLabel: "Canaux & Vente",
+    desc: "Boutiques Azify, Shopify & Meta Conversions API",
+    icon: Globe,
+    count: 3,
+  },
+  {
+    id: "operations",
+    label: "Opérations & Logistique Marché",
+    shortLabel: "Opérations & Marché",
+    desc: "Commissions, devises, bordereaux & export SAV",
+    icon: Settings2,
+    count: 3,
+  },
+  {
+    id: "security_brand",
+    label: "Sécurité & Personnalisation",
+    shortLabel: "Sécurité & Marque",
+    desc: "Passkeys biométriques WariTrack & marque blanche",
+    icon: ShieldCheck,
+    count: 2,
+  },
+];
+
+const SETTINGS_TABS: TabDefinition[] = [
+  // 1. Canaux & Intégrations
+  {
+    id: "azify",
+    category: "integrations",
+    label: "Boutiques Azify",
+    shortLabel: "Azify Studio",
+    desc: "Connexion 1-clic Azify PWA Studio, tunnels COD 1-page & routage",
+    badge: "Recommandé COD",
+    icon: Zap,
+    isMarketSpecific: true,
+  },
+  {
+    id: "shopify",
+    category: "integrations",
+    label: "Boutiques Shopify",
+    shortLabel: "Shopify",
+    desc: "Webhooks de commandes, routage multi-boutiques & suivi",
+    icon: Store,
+    isMarketSpecific: true,
+  },
+  {
+    id: "metacapi",
+    category: "integrations",
+    label: "Meta Conversions API",
+    shortLabel: "Meta CAPI",
+    desc: "Pixel Facebook & Instagram avec tracking d'achat serveur en direct",
+    badge: "Indispensable ADS",
+    icon: Share2,
+    isMarketSpecific: true,
+  },
+
+  // 2. Opérations & Logistique
+  {
+    id: "rules",
+    category: "operations",
+    label: "Règles & Rémunérations",
+    shortLabel: "Règles & Commissions",
+    desc: "Commissions livreurs & closeuses, devises locales & alertes",
+    icon: Sliders,
+    isMarketSpecific: true,
+  },
+  {
+    id: "print",
+    category: "operations",
+    label: "Impression & Bordereaux",
+    shortLabel: "Bordereaux Thermiques",
+    desc: "En-tête bordereau, logos, mentions légales & format A6/80mm",
+    icon: Printer,
+    isMarketSpecific: true,
+  },
+  {
+    id: "phone_export",
+    category: "operations",
+    label: "Export Contacts & SAV",
+    desc: "Extraction de numéros sur période, filtres doublons & relances WhatsApp",
+    shortLabel: "Export SAV",
+    icon: PhoneCall,
+    isMarketSpecific: true,
+  },
+
+  // 3. Sécurité & Marque
+  {
+    id: "security",
+    category: "security_brand",
+    label: "Sécurité du Compte & Passkeys",
+    shortLabel: "Sécurité & Passkeys",
+    desc: "Biométrie FIDO2 (Touch ID, Face ID, Windows Hello) pour protéger l'accès au cockpit",
+    badge: "Protection Forte",
+    icon: Fingerprint,
+    isMarketSpecific: false,
+  },
+  {
+    id: "white_label",
+    category: "security_brand",
+    label: "Apps Employés & Marque Blanche",
+    shortLabel: "Marque Blanche",
+    desc: "Nom de marque, logos et couleurs pour les interfaces livreurs et closeuses",
+    icon: Smartphone,
+    isMarketSpecific: false,
+  },
+];
 
 export default function Parametres({ workspaceId, team, teams = [], orders = [] }: ParametresProps) {
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>("integrations");
   const [activeTab, setActiveTab] = useState<SettingsTab>("shopify");
 
-  const navItems: { id: SettingsTab; label: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    {
-      id: "shopify",
-      label: "Boutiques Shopify",
-      desc: "Webhooks, routage multi-pays & suivi",
-      icon: Store,
-    },
-    {
-      id: "security",
-      label: "Sécurité & Passkeys",
-      desc: "Biométrie FIDO2 & Prêt CinetPay",
-      icon: Fingerprint,
-    },
-    {
-      id: "azify",
-      label: "Boutiques Azify",
-      desc: "Connexion 1-clic Azify PWA Studio & routage pays",
-      icon: Zap,
-    },
-    {
-      id: "rules",
-      label: "Règles & Rémunérations",
-      desc: "Commissions, devise & seuils d'alerte",
-      icon: Sliders,
-    },
-    {
-      id: "print",
-      label: "Impression & Bon 3D",
-      desc: "En-tête bordereau, mentions & format",
-      icon: Printer,
-    },
-    {
-      id: "metacapi",
-      label: "Meta Conversions API",
-      desc: "Pixel Facebook & événements serveur",
-      icon: Share2,
-    },
-    {
-      id: "phone_export",
-      label: "Export Numéros & SAV",
-      desc: "Extraction complète des numéros sur une durée",
-      icon: PhoneCall,
-    },
-    {
-      id: "white_label",
-      label: "Apps Employés & Marque Blanche",
-      desc: "Nom, icônes & couleurs closeuses/livreurs",
-      icon: Smartphone,
-    },
-  ];
+  const currentCategoryTabs = useMemo(() => {
+    return SETTINGS_TABS.filter((t) => t.category === activeCategory);
+  }, [activeCategory]);
+
+  const activeTabDef = useMemo(() => {
+    return SETTINGS_TABS.find((t) => t.id === activeTab) || SETTINGS_TABS[0];
+  }, [activeTab]);
+
+  const handleSelectCategory = (catId: SettingsCategory) => {
+    setActiveCategory(catId);
+    const catTabs = SETTINGS_TABS.filter((t) => t.category === catId);
+    if (!catTabs.some((t) => t.id === activeTab)) {
+      setActiveTab(catTabs[0].id);
+    }
+  };
+
+  const ActiveIcon = activeTabDef.icon;
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] space-y-5">
-      {/* Top Status Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-surface-border bg-surface-raised px-5 py-3.5">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-100">Configuration de l'espace de travail</h2>
-          <p className="text-xs text-slate-500">
-            Les paramètres opérationnels s'appliquent au marché sélectionné dans la barre supérieure.
+    <div className="mx-auto w-full max-w-[1440px] space-y-6">
+      {/* 1. En-tête Principal & Sélecteur de Marché */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-surface-border bg-surface-raised p-5 md:flex-row md:items-center md:justify-between shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-slate-100">
+              Paramètres & Configuration Système
+            </h1>
+            <span className="rounded-md border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
+              Cockpit Admin
+            </span>
+          </div>
+          <p className="text-xs text-slate-400">
+            Configurez vos canaux de vente, logistique opérationnelle par pays et sécurisez l&apos;accès à votre espace.
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
-          {team && (
-            <div className="inline-flex items-center gap-2 rounded-xl border border-brand/30 bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand">
-              <span className="h-2 w-2 rounded-full bg-brand" />
+          {team ? (
+            <div className="inline-flex items-center gap-2.5 rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2 text-xs font-bold text-brand shadow-xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
+              </span>
               <span>
                 Marché actif : {team.name} ({team.defaultCountry})
               </span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-semibold text-amber-300">
+              <AlertTriangle className="h-4 w-4" />
+              <span>Aucun marché sélectionné</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Barre d'onglets horizontale moderne (Navigation 100% pleine largeur) */}
-      <div className="rounded-2xl border border-surface-border bg-surface-raised p-1.5 shadow-xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveTab(item.id)}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all ${
-                  active
-                    ? "bg-brand text-white shadow-sm ring-1 ring-brand/30"
-                    : "text-slate-400 hover:bg-surface hover:text-slate-200"
-                }`}
-              >
+      {/* 2. Barre de Catégories de Niveau 1 (Grille 3 volets équilibrée & nette) */}
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+        {CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const isActiveCat = activeCategory === cat.id;
+          return (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => handleSelectCategory(cat.id)}
+              className={`group relative flex min-h-[58px] items-center justify-between rounded-2xl border p-3.5 text-left transition-all cursor-pointer ${
+                isActiveCat
+                  ? "border-brand bg-brand/10 shadow-sm ring-1 ring-brand/40"
+                  : "border-surface-border bg-surface-raised hover:border-slate-600 hover:bg-surface"
+              }`}
+            >
+              <div className="flex items-center gap-3">
                 <div
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition ${
-                    active ? "bg-white/20 text-white" : "text-slate-400"
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
+                    isActiveCat
+                      ? "border-brand/40 bg-brand text-white shadow-xs"
+                      : "border-surface-border bg-surface text-slate-400 group-hover:text-slate-200"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-5 w-5" />
                 </div>
-                <span className="whitespace-nowrap">{item.label}</span>
+                <div>
+                  <h2 className={`text-xs font-bold ${isActiveCat ? "text-slate-100" : "text-slate-300"}`}>
+                    {cat.shortLabel}
+                  </h2>
+                  <p className="text-[11px] text-slate-500 line-clamp-1">
+                    {cat.desc}
+                  </p>
+                </div>
+              </div>
+
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
+                  isActiveCat
+                    ? "bg-brand/20 text-brand border border-brand/30"
+                    : "bg-surface border border-surface-border text-slate-400"
+                }`}
+              >
+                {cat.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 3. Barre des Sous-Onglets (Niveau 2 tactile) */}
+      <div className="rounded-2xl border border-surface-border bg-surface-raised p-2 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          {currentCategoryTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isTabActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex min-h-[46px] flex-1 sm:flex-initial items-center justify-center sm:justify-start gap-2.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+                  isTabActive
+                    ? "bg-brand text-white shadow-xs ring-1 ring-brand/40"
+                    : "text-slate-400 hover:bg-surface hover:text-slate-200 border border-transparent"
+                }`}
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${isTabActive ? "text-white" : "text-slate-400"}`} />
+                <span className="whitespace-nowrap">{tab.label}</span>
+                {tab.badge && (
+                  <span
+                    className={`hidden md:inline-flex rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${
+                      isTabActive
+                        ? "bg-white/20 text-white"
+                        : "bg-brand/10 text-brand border border-brand/30"
+                    }`}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* 4. Bandeau Contextuel de l'Onglet Actif */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-surface-border bg-surface-raised px-5 py-3.5 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface border border-surface-border text-brand">
+            <ActiveIcon className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-xs font-bold text-slate-100 flex items-center gap-2">
+              <span>{activeTabDef.label}</span>
+              {activeTabDef.badge && (
+                <span className="rounded border border-brand/30 bg-brand/10 px-1.5 py-0.2 text-[9px] font-bold text-brand uppercase">
+                  {activeTabDef.badge}
+                </span>
+              )}
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              {activeTabDef.desc}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          {activeTabDef.isMarketSpecific ? (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span>Paramétrage marché : {team?.name || "Actif"}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" />
+              <span>Portée Globale Espace de Travail</span>
+            </span>
+          )}
         </div>
       </div>
 
