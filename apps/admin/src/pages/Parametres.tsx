@@ -202,42 +202,6 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
 
   return (
     <div className="mx-auto w-full max-w-[1440px] space-y-6">
-      {/* 1. En-tête Principal & Sélecteur de Marché */}
-      <div className="flex flex-col gap-4 rounded-2xl border border-surface-border bg-surface-raised p-5 md:flex-row md:items-center md:justify-between shadow-xs">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-bold text-slate-100">
-              Paramètres & Configuration Système
-            </h1>
-            <span className="rounded-md border border-slate-700 bg-slate-800/80 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-slate-300 uppercase">
-              Cockpit Admin
-            </span>
-          </div>
-          <p className="text-xs text-slate-400">
-            Configurez vos canaux de vente, logistique opérationnelle par pays et sécurisez l&apos;accès à votre espace.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {team ? (
-            <div className="inline-flex items-center gap-2.5 rounded-xl border border-brand/30 bg-brand/10 px-3.5 py-2 text-xs font-bold text-brand shadow-xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand" />
-              </span>
-              <span>
-                Marché actif : {team.name} ({team.defaultCountry})
-              </span>
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-semibold text-amber-300">
-              <AlertTriangle className="h-4 w-4" />
-              <span>Aucun marché sélectionné</span>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* 2. Barre de Catégories de Niveau 1 (Grille 3 volets équilibrée & nette) */}
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         {CATEGORIES.map((cat) => {
