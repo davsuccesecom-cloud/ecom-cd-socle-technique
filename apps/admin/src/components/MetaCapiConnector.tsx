@@ -53,6 +53,36 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
   const [creatingBridge, setCreatingBridge] = useState(false);
   const [copiedBridgeLink, setCopiedBridgeLink] = useState(false);
 
+  const [refreshingPixels, setRefreshingPixels] = useState(false);
+
+  const handleRefreshPixels = async () => {
+    if (!userToken) return;
+    setRefreshingPixels(true);
+    setError(null);
+    try {
+      const functions = getFunctions();
+      const fetchFn = httpsCallable(functions, "getMetaAccountsAndPixels");
+      const res = (await fetchFn({ userAccessToken: userToken })) as {
+        data: {
+          user: { id: string; name: string; picture?: string };
+          businesses: { id: string; name: string }[];
+          adAccounts: MetaAdAccount[];
+        };
+      };
+      setAdAccounts(res.data.adAccounts || []);
+      setBusinesses(res.data.businesses || []);
+      const currentAcc = (res.data.adAccounts || []).find((a) => a.id === selectedAdAccountId);
+      if (currentAcc?.pixels && currentAcc.pixels.length > 0 && !selectedPixelId) {
+        setSelectedPixelId(currentAcc.pixels[0].id);
+      }
+      setSuccessMsg("✓ Liste des Pixels et comptes publicitaires mise à jour !");
+    } catch (err: any) {
+      setError(err?.message || "Impossible de rafraîchir les pixels.");
+    } finally {
+      setRefreshingPixels(false);
+    }
+  };
+
   // Selection state
   const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>("");
   const [selectedPixelId, setSelectedPixelId] = useState<string>("");
@@ -730,13 +760,28 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
+            {/* 1. Compte Publicitaire */}
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-300">
-                1. Compte Publicitaire ({adAccounts.length} trouvé{adAccounts.length > 1 ? "s" : ""})
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-200">
+                  1. Compte Publicitaire ({adAccounts.length} détecté{adAccounts.length > 1 ? "s" : ""})
+                </label>
+                <button
+                  type="button"
+                  disabled={refreshingPixels}
+                  onClick={handleRefreshPixels}
+                  className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors inline-flex items-center gap-1"
+                >
+                  <RefreshCw className={`h-3 w-3 ${refreshingPixels ? "animate-spin" : ""}`} />
+                  Actualiser les Pixels
+                </button>
+              </div>
+
               {adAccounts.length === 0 ? (
-                <p className="text-xs text-amber-400">Aucun compte publicitaire trouvé avec ce profil Facebook.</p>
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300">
+                  Aucun compte publicitaire n'est rattaché à ce profil Facebook. Vérifiez que votre profil a les droits Admin dans le Business Manager.
+                </div>
               ) : (
                 <select
                   value={selectedAdAccountId}
@@ -751,77 +796,130 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
                       setSelectedPixelId("");
                     }
                   }}
-                  className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+                  className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2.5 text-sm font-medium text-slate-100 outline-none focus:border-brand shadow-sm"
                 >
                   {adAccounts.map((acc) => (
                     <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.accountId}) {acc.business ? `• ${acc.business.name}` : ""}
+                      {acc.name} (act_{acc.accountId}) {acc.business ? `• ${acc.business.name}` : ""}
                     </option>
                   ))}
                 </select>
               )}
             </div>
 
+            {/* 2. Pixel Meta ou Dataset */}
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-300">
-                2. Pixel Meta ({availablePixels.length} disponible{availablePixels.length > 1 ? "s" : ""})
-              </label>
-              {availablePixels.length === 0 ? (
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2 text-xs text-amber-300">
-                  Aucun Pixel détecté directement sur ce compte pub. Vous pouvez saisir manuellement l'ID du Pixel ci-dessous.
-                  <input
-                    type="text"
-                    placeholder="ex: 123456789012345"
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-200">
+                  2. Pixel Meta / Jeu de données (Dataset)
+                </label>
+                {availablePixels.length > 0 && (
+                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                    {availablePixels.length} Pixel{availablePixels.length > 1 ? "s" : ""} disponible{availablePixels.length > 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+
+              {availablePixels.length > 0 ? (
+                <div className="space-y-2">
+                  <select
                     value={selectedPixelId}
                     onChange={(e) => setSelectedPixelId(e.target.value)}
-                    className="mt-2 w-full rounded-md border border-surface-border bg-surface px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-brand"
-                  />
+                    className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2.5 text-sm font-medium text-slate-100 outline-none focus:border-brand shadow-sm font-mono"
+                  >
+                    {availablePixels.map((pix) => (
+                      <option key={pix.id} value={pix.id}>
+                        {pix.name} (ID: {pix.id})
+                      </option>
+                    ))}
+                    <option value="__custom__">➕ Saisir un autre ID de Pixel manuellement...</option>
+                  </select>
+
+                  {selectedPixelId === "__custom__" && (
+                    <input
+                      type="text"
+                      placeholder="Collez l'ID du Pixel (ex: 1055198566876012)"
+                      value=""
+                      onChange={(e) => setSelectedPixelId(e.target.value)}
+                      className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-xs font-mono text-slate-100 outline-none focus:border-brand"
+                    />
+                  )}
                 </div>
               ) : (
-                <select
-                  value={selectedPixelId}
-                  onChange={(e) => setSelectedPixelId(e.target.value)}
-                  className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
-                >
-                  {availablePixels.map((pix) => (
-                    <option key={pix.id} value={pix.id}>
-                      {pix.name} (ID: {pix.id})
-                    </option>
-                  ))}
-                </select>
+                <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-slate-200">
+                      Entrez l'ID de votre Pixel ou Dataset Facebook :
+                    </p>
+                    {/^\d{14,17}$/.test(selectedPixelId.trim()) && (
+                      <span className="text-[11px] font-semibold text-emerald-400">✓ Format valide</span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="ex: 1055198566876012"
+                    value={selectedPixelId}
+                    onChange={(e) => setSelectedPixelId(e.target.value)}
+                    className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 font-mono text-sm text-slate-100 outline-none focus:border-brand"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    💡 <em>Où trouver cet ID ?</em> Dans votre <strong>Meta Events Manager</strong>, l'identifiant à 15-16 chiffres se trouve sous le nom de votre Pixel.
+                  </p>
+                </div>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* 3. Devise & Code de test */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
               <div>
-                <label className="mb-1 block text-xs text-slate-400">Devise</label>
+                <label className="mb-1 block text-xs font-medium text-slate-300">Devise de suivi COD</label>
+                <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                  {["XOF", "XAF", "GNF", "EUR", "USD"].map((curr) => (
+                    <button
+                      key={curr}
+                      type="button"
+                      onClick={() => setCurrency(curr)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                        currency === curr
+                          ? "bg-brand text-white shadow-sm"
+                          : "border border-surface-border bg-surface text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      {curr}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="text"
                   value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
+                  onChange={(e) => setCurrency(e.target.value.toUpperCase())}
                   placeholder="XOF"
-                  className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 uppercase outline-none focus:border-brand"
+                  className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 uppercase font-mono outline-none focus:border-brand"
                 />
               </div>
+
               <div>
-                <label className="mb-1 block text-xs text-slate-400">Code de test (optionnel)</label>
+                <label className="mb-1 block text-xs font-medium text-slate-300">Code de test Events Manager (optionnel)</label>
+                <p className="text-[10px] text-slate-400 mb-1.5">Pour tester en temps réel dans l'onglet « Tester les évènements »</p>
                 <input
                   type="text"
                   value={testCode}
                   onChange={(e) => setTestCode(e.target.value)}
                   placeholder="ex: TEST12345"
-                  className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 outline-none focus:border-brand"
+                  className="w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm text-slate-100 font-mono outline-none focus:border-brand"
                 />
               </div>
             </div>
 
+            {/* Bouton d'activation principale */}
             <button
               type="button"
-              disabled={saving || !selectedAdAccountId || !selectedPixelId}
+              disabled={saving || !selectedAdAccountId || !selectedPixelId || selectedPixelId === "__custom__"}
               onClick={handleConnectSystemUser}
-              className="w-full rounded-xl bg-brand py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand/20 disabled:opacity-50 transition-all"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand hover:bg-brand-hover py-3 text-sm font-semibold text-white shadow-lg shadow-brand/20 disabled:opacity-50 transition-all cursor-pointer mt-2"
             >
-              {saving ? "Création du jeton permanent en cours..." : "🚀 Activer et lier ce Pixel automatiquement"}
+              <Sparkles className="h-4 w-4" />
+              <span>{saving ? "Création du jeton permanent en cours..." : "🚀 Activer et lier ce Pixel automatiquement"}</span>
             </button>
           </div>
         </div>

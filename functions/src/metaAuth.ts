@@ -62,21 +62,41 @@ export async function fetchMetaAdAccountsAndPixels(userAccessToken: string) {
 
   const rawAccounts = Array.isArray(adAccountsData?.data) ? adAccountsData.data : [];
 
-  // 4. Pour chaque compte pub, récupérer ses pixels associés
+  // 4. Pour chaque compte pub, récupérer ses pixels et jeux de données (datasets) associés
   const adAccounts: MetaAdAccount[] = await Promise.all(
     rawAccounts.map(async (acc: any) => {
-      let pixels: MetaPixel[] = [];
-      try {
-        const pixRes = await fetch(
-          `https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.id}/adspixels?fields=id,name&access_token=${encodeURIComponent(userAccessToken)}`
+      const pixelMap = new Map<string, MetaPixel>();
+
+      const endpoints = [
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.id}/adspixels?fields=id,name`,
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.id}/datasets?fields=id,name`,
+      ];
+      if (acc.business?.id) {
+        endpoints.push(
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.business.id}/adspixels?fields=id,name`,
+          `https://graph.facebook.com/${GRAPH_API_VERSION}/${acc.business.id}/datasets?fields=id,name`
         );
-        const pixData = (await pixRes.json()) as any;
-        if (pixRes.ok && Array.isArray(pixData?.data)) {
-          pixels = pixData.data.map((p: any) => ({ id: p.id, name: p.name }));
-        }
-      } catch (err) {
-        console.warn(`Erreur fetch pixels pour compte ${acc.id}:`, err);
       }
+
+      await Promise.all(
+        endpoints.map(async (url) => {
+          try {
+            const pixRes = await fetch(`${url}&access_token=${encodeURIComponent(userAccessToken)}`);
+            const pixData = (await pixRes.json()) as any;
+            if (pixRes.ok && Array.isArray(pixData?.data)) {
+              for (const p of pixData.data) {
+                if (p?.id && !pixelMap.has(p.id)) {
+                  pixelMap.set(p.id, { id: p.id, name: p.name || `Pixel ${p.id}` });
+                }
+              }
+            }
+          } catch (err) {
+            // Ignorer silencieusement si un endpoint spécifique n'est pas applicable
+          }
+        })
+      );
+
+      const pixels = Array.from(pixelMap.values());
 
       return {
         id: acc.id,
