@@ -767,7 +767,21 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 });
                 let assignedTeamId = "";
                 let assignedTeamName = "";
-                // Routage par countryRoutes
+                // 1. ROUTAGE PRIORITAIRE PAR PIXEL ID (Attribution Meta Ads & Isolation produit étanche)
+                const incomingPixelId = String(item.pixelId ||
+                    item.metaPixelId ||
+                    item.pixel_id ||
+                    item.meta_pixel_id ||
+                    (item.meta && (item.meta.pixelId || item.meta.pixel_id)) ||
+                    "").trim();
+                if (incomingPixelId) {
+                    const pixelTeam = teamsList.find(t => t.metaCapiConfig?.pixelId === incomingPixelId);
+                    if (pixelTeam) {
+                        assignedTeamId = pixelTeam.id;
+                        assignedTeamName = pixelTeam.name || "";
+                    }
+                }
+                // 2. Routage par countryRoutes
                 if (connData.countryRoutes && typeof connData.countryRoutes === "object" && !Array.isArray(connData.countryRoutes)) {
                     const r = connData.countryRoutes[countryCode];
                     if (r && r.status === "active" && r.assignedTeamId) {
@@ -833,6 +847,7 @@ exports.azifyGateway = (0, https_1.onRequest)({
                     longitude: mapInfo.longitude,
                     mapAddress: mapInfo.mapAddress,
                     orderNumber: item.orderNumber ? `#${String(item.orderNumber).replace(/^#/, "")}` : `#${orderId}`,
+                    pixelId: incomingPixelId || undefined,
                     sourcePlatform: "azify",
                     azifyStoreId: connData.azifyStoreId || null,
                     closeuseId: null,
@@ -982,12 +997,30 @@ exports.azifyGateway = (0, https_1.onRequest)({
             else if (Array.isArray(connData.countryRoutes)) {
                 targetRoute = connData.countryRoutes.find((r) => String(r?.countryCode || r?.country || "").toUpperCase() === countryCode);
             }
-            let assignedTeamId = (targetRoute && targetRoute.status === "active" && targetRoute.assignedTeamId)
-                ? targetRoute.assignedTeamId
-                : "";
-            let assignedTeamName = targetRoute?.assignedTeamName || "";
+            // 1. PRIORITÉ ABSOLUE : Routage par Pixel ID (Attribution Meta Ads & Séparation des produits)
+            const incomingPixelId = String(root.pixelId ||
+                root.metaPixelId ||
+                root.pixel_id ||
+                root.meta_pixel_id ||
+                (root.meta && (root.meta.pixelId || root.meta.pixel_id)) ||
+                "").trim();
+            let assignedTeamId = "";
+            let assignedTeamName = "";
             let isUnrouted = false;
-            // 1. Chercher automatiquement l'équipe du même pays dans le workspace
+            if (incomingPixelId) {
+                const pixelTeamSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams")
+                    .where("metaCapiConfig.pixelId", "==", incomingPixelId).limit(1).get();
+                if (!pixelTeamSnap.empty) {
+                    assignedTeamId = pixelTeamSnap.docs[0].id;
+                    assignedTeamName = pixelTeamSnap.docs[0].data()?.name || "";
+                }
+            }
+            // 2. Routage par countryRoutes
+            if (!assignedTeamId && targetRoute && targetRoute.status === "active" && targetRoute.assignedTeamId) {
+                assignedTeamId = targetRoute.assignedTeamId;
+                assignedTeamName = targetRoute.assignedTeamName || "";
+            }
+            // 3. Chercher automatiquement l'équipe du même pays dans le workspace
             if (!assignedTeamId) {
                 const cTeamSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").where("defaultCountry", "==", countryCode).limit(1).get();
                 if (!cTeamSnap.empty) {
@@ -1055,6 +1088,7 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 mapAddress: mapInfo.mapAddress,
                 orderNumber,
                 sourcePlatform: "azify",
+                pixelId: incomingPixelId || undefined,
                 azifyStoreId: connData.azifyStoreId || root.storeId || null,
                 azifyStoreName: connData.shopName || root.storeName || "Azify Studio",
                 clientLanguage: root.clientLanguage || root.language || root.langue || null,

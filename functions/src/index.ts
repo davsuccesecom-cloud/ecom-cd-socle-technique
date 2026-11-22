@@ -1607,8 +1607,9 @@ export const onOrderUpdated = onDocumentUpdated(
         metaAccessToken
       ) {
         try {
+          const targetPixelId = (after as any).pixelId || team.metaCapiConfig.pixelId;
           const capiRes = await sendMetaPurchaseEvent(
-            { ...team.metaCapiConfig, accessToken: metaAccessToken },
+            { ...team.metaCapiConfig, pixelId: targetPixelId, accessToken: metaAccessToken },
             {
               id: orderId,
               sourceRowId: after.sourceRowId,
@@ -1712,8 +1713,9 @@ export const onOrderUpdated = onDocumentUpdated(
         metaAccessToken
       ) {
         try {
+          const targetPixelId = (after as any).pixelId || team.metaCapiConfig.pixelId;
           const confRes = await sendMetaConfirmedEvent(
-            { ...team.metaCapiConfig, accessToken: metaAccessToken },
+            { ...team.metaCapiConfig, pixelId: targetPixelId, accessToken: metaAccessToken },
             {
               id: orderId,
               sourceRowId: after.sourceRowId,

@@ -1374,7 +1374,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             team.metaCapiConfig.pixelId &&
             metaAccessToken) {
             try {
-                const capiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)({ ...team.metaCapiConfig, accessToken: metaAccessToken }, {
+                const targetPixelId = after.pixelId || team.metaCapiConfig.pixelId;
+                const capiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)({ ...team.metaCapiConfig, pixelId: targetPixelId, accessToken: metaAccessToken }, {
                     id: orderId,
                     sourceRowId: after.sourceRowId,
                     orderNumber: after.orderNumber,
@@ -1459,7 +1460,8 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
             team.metaCapiConfig.pixelId &&
             metaAccessToken) {
             try {
-                const confRes = await (0, metaCapi_1.sendMetaConfirmedEvent)({ ...team.metaCapiConfig, accessToken: metaAccessToken }, {
+                const targetPixelId = after.pixelId || team.metaCapiConfig.pixelId;
+                const confRes = await (0, metaCapi_1.sendMetaConfirmedEvent)({ ...team.metaCapiConfig, pixelId: targetPixelId, accessToken: metaAccessToken }, {
                     id: orderId,
                     sourceRowId: after.sourceRowId,
                     orderNumber: after.orderNumber,
