@@ -30,6 +30,9 @@ export { aiChatProxy, aiProviders } from "./aiProxy";
 
 admin.initializeApp();
 const db = admin.firestore();
+try {
+  db.settings({ ignoreUndefinedProperties: true });
+} catch {}
 const messaging = admin.messaging();
 
 const MAX_SESSIONS_PER_ACCESS_LINK = 2;

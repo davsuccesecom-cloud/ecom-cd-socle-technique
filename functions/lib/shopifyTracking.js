@@ -42,7 +42,12 @@ const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const libphonenumber_js_1 = require("libphonenumber-js");
 function getDb() {
-    return admin.firestore();
+    const firestore = admin.firestore();
+    try {
+        firestore.settings({ ignoreUndefinedProperties: true });
+    }
+    catch { }
+    return firestore;
 }
 function sha256(str) {
     if (!str)
@@ -1162,17 +1167,17 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             clientPhoneRaw: rawPhone || "",
             clientPhoneFormatted: phoneNormalized || rawPhone || "Non renseigné",
             city: city || "",
-            address: notesInfo.address || shipping.address1 || undefined,
-            notes: notesInfo.notes || undefined,
+            address: notesInfo.address || shipping.address1 || null,
+            notes: notesInfo.notes || null,
             addressNote: notesInfo.addressNote || shipping.address1 || root.address || root.note || "",
             product: product || "Produit COD",
-            productImageUrl,
+            productImageUrl: productImageUrl || null,
             quantity: effectiveQty,
             amount: effectiveFinalAmount,
             originalAmount: effectiveOriginalAmount,
-            promoCode: pricingInfo.promoCode,
-            discountAmount: pricingInfo.discountAmount,
-            discountPercent: pricingInfo.discountPercent,
+            promoCode: pricingInfo.promoCode || null,
+            discountAmount: pricingInfo.discountAmount || 0,
+            discountPercent: pricingInfo.discountPercent || null,
             orderNumber: orderNumber || `#${shopifyOrderId}`,
             clientLanguage: root.clientLanguage ||
                 noteMap["clientlanguage"] ||
@@ -1193,12 +1198,12 @@ exports.shopifyWebhook = (0, https_1.onRequest)(async (req, res) => {
             callInProgress: null,
             reminderAt: null,
             temperature: "hot",
-            mapUrl: effectiveMapUrl,
-            googleMapsUrl: effectiveMapUrl,
-            gpsCoordinates: effectiveGps,
-            latitude: mapInfo.latitude,
-            longitude: mapInfo.longitude,
-            mapAddress: mapInfo.mapAddress,
+            mapUrl: effectiveMapUrl || null,
+            googleMapsUrl: effectiveMapUrl || null,
+            gpsCoordinates: effectiveGps || null,
+            latitude: mapInfo.latitude !== undefined && mapInfo.latitude !== null && !isNaN(mapInfo.latitude) ? mapInfo.latitude : null,
+            longitude: mapInfo.longitude !== undefined && mapInfo.longitude !== null && !isNaN(mapInfo.longitude) ? mapInfo.longitude : null,
+            mapAddress: mapInfo.mapAddress || null,
             gpsAccuracy: precisionGps || null,
             isDuplicatePhone,
             previousOrdersCount,

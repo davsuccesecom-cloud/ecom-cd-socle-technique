@@ -61,6 +61,10 @@ Object.defineProperty(exports, "aiChatProxy", { enumerable: true, get: function 
 Object.defineProperty(exports, "aiProviders", { enumerable: true, get: function () { return aiProxy_1.aiProviders; } });
 admin.initializeApp();
 const db = admin.firestore();
+try {
+    db.settings({ ignoreUndefinedProperties: true });
+}
+catch { }
 const messaging = admin.messaging();
 const MAX_SESSIONS_PER_ACCESS_LINK = 2;
 const ORDER_PURGE_AFTER_DAYS = 3;
