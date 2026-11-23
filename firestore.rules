@@ -151,15 +151,28 @@ service cloud.firestore {
       let nextData = request.resource.data;
       return affected.hasOnly([
           'statutLivreur',
+          'callInProgress',
           'rejectionReason',
           'deliveryFailureReason',
           'deliveryFieldNote'
         ])
-        && 'statutLivreur' in nextData
-        && nextData.statutLivreur in ['recu', 'en_route', 'livre', 'injoignable']
+        && (!affected.hasAny(['statutLivreur'])
+            || ('statutLivreur' in nextData
+                && nextData.statutLivreur in ['recu', 'en_route', 'livre', 'injoignable']))
         && isValidOptionalNullableString(nextData, 'rejectionReason', 1000)
         && isValidOptionalNullableString(nextData, 'deliveryFailureReason', 1000)
-        && isValidOptionalNullableString(nextData, 'deliveryFieldNote', 1000);
+        && isValidOptionalNullableString(nextData, 'deliveryFieldNote', 1000)
+        && (!affected.hasAny(['callInProgress'])
+            || !('callInProgress' in nextData)
+            || nextData.callInProgress == null
+            || (nextData.callInProgress is map
+                && nextData.callInProgress.keys().hasAll(['active', 'by', 'startedAt'])
+                && nextData.callInProgress.keys().hasOnly(['active', 'by', 'startedAt'])
+                && nextData.callInProgress.active is bool
+                && nextData.callInProgress.by is string
+                && nextData.callInProgress.by == auth_().uid
+                && nextData.callInProgress.startedAt is number
+                && nextData.callInProgress.startedAt >= 0));
     }
 
     // Table de correspondance email Google → workspace possédé — jamais
@@ -260,7 +273,7 @@ service cloud.firestore {
           && (resource.data.closeuseId == auth_().uid || resource.data.closeuseId == null)
           && isValidCloseuseOrderUpdate();
 
-        // Livreur : uniquement statutLivreur, motifs et note terrain sur ses propres commandes
+        // Livreur : statutLivreur, callInProgress, motifs et note terrain sur ses propres commandes
         allow update: if isLivreur(workspaceId)
           && resource.data.livreurId == auth_().uid
           && isValidLivreurOrderUpdate();

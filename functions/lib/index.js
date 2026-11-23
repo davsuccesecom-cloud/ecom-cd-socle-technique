@@ -1954,7 +1954,7 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId, 
         url: clickUrl,
         tag,
         ...(orderId ? { orderId } : {}),
-        ...(hasImage ? { image: imageUrl, productImageUrl: imageUrl } : {}),
+        ...(hasImage ? { image: imageUrl, imageUrl, productImageUrl: imageUrl } : {}),
     };
     return {
         tokens,
@@ -1998,7 +1998,7 @@ function buildPushMulticastMessage(tokens, title, body, clickUrl, tag, orderId, 
             notification: {
                 title,
                 body,
-                icon: "/icons/icon-192.png",
+                icon: hasImage ? imageUrl : "/icons/icon-192.png",
                 badge: "/icons/badge-96.png",
                 tag,
                 renotify: true,

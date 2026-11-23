@@ -86,7 +86,10 @@ export function useUpdateOrderStatus(workspaceId: string) {
         rejectionReasonOrExtras !== null && typeof rejectionReasonOrExtras === "object"
           ? rejectionReasonOrExtras
           : { rejectionReason: rejectionReasonOrExtras };
-      const payload: Record<string, unknown> = { statutLivreur: status };
+      const payload: Record<string, unknown> = {
+        statutLivreur: status,
+        callInProgress: null, // toute action ferme l'appel en cours
+      };
       if (extras.rejectionReason !== undefined) {
         payload.rejectionReason = extras.rejectionReason;
       }

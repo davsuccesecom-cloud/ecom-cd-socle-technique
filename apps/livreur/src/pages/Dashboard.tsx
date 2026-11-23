@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import {
+  useCallInProgress,
   useOrders,
   useRegisterPushNotifications,
   useUpdateOrderStatus,
@@ -31,6 +32,7 @@ const TABS: { key: LivreurTab; label: string }[] = [
 
 export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardProps) {
   const { orders, loading } = useOrders({ workspaceId, livreurId });
+  const { startCall, endCall } = useCallInProgress(workspaceId);
   const { updateLivreurStatus } = useUpdateOrderStatus(workspaceId);
   const { theme, toggleTheme } = useTheme("light");
   const whiteLabel = useWhiteLabel(workspaceId, "livreur");
@@ -255,6 +257,8 @@ export default function Dashboard({ workspaceId, teamId, livreurId }: DashboardP
             order={order}
             team={team}
             livreurName={livreurName}
+            onCall={() => startCall(order.id, livreurId)}
+            onEndCall={() => endCall(order.id)}
             onChangeStatus={(status, extras?: LivreurUpdateExtras) =>
               updateLivreurStatus(order.id, status, extras)
             }

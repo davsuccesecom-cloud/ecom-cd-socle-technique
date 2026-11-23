@@ -280,7 +280,11 @@ export default function OrderCard({
   return (
     <article
       id={`order-${order.id}`}
-      className="rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-sm transition-shadow"
+      className={`rounded-2xl border transition-all ${
+        isCallActive
+          ? "border-sky-500 ring-2 ring-sky-500/25 bg-sky-50/20 dark:bg-sky-950/20 shadow-md"
+          : "border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
+      } p-3`}
     >
       {isCallActive && <CallBar onEndCall={onEndCall} />}
 
@@ -353,6 +357,7 @@ export default function OrderCard({
 
         <a
           href={buildWhatsAppLink(order.clientPhoneFormatted, whatsAppMessage)}
+          onClick={onCall}
           target="_blank"
           rel="noopener noreferrer"
           className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"

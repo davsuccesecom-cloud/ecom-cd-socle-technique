@@ -29,11 +29,14 @@ import {
   type Order,
   type Team,
 } from "@ecomcod/shared";
+import CallBar from "./CallBar";
 
 interface OrderCardProps {
   order: Order;
   team?: Team | null;
   livreurName?: string;
+  onCall?: () => void;
+  onEndCall?: () => void;
   onChangeStatus: (status: LivreurStatus, extras?: LivreurUpdateExtras) => void;
 }
 
@@ -75,9 +78,10 @@ const DELIVERY_FAILURE_REASONS = [
   "Budget indisponible à l'arrivée",
 ];
 
-export default function OrderCard({ order, team, livreurName, onChangeStatus }: OrderCardProps) {
+export default function OrderCard({ order, team, livreurName, onCall, onEndCall, onChangeStatus }: OrderCardProps) {
   const status = order.statutLivreur ?? "recu";
   const isFinal = status === "livre" || status === "injoignable";
+  const isCallActive = Boolean(order.callInProgress?.active);
   const currency = team?.currency || "XOF";
   const displayName = cleanClientName(order.clientName);
   const cleanNum = cleanOrderNumber(order.orderNumber);
@@ -114,8 +118,13 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
   return (
     <article
       id={`order-${order.id}`}
-      className="rounded-2xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 shadow-sm transition-shadow"
+      className={`rounded-2xl border transition-all ${
+        isCallActive
+          ? "border-sky-500 ring-2 ring-sky-500/25 bg-sky-50/20 dark:bg-sky-950/20 shadow-md"
+          : "border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
+      } p-3`}
     >
+      {isCallActive && onEndCall && <CallBar onEndCall={onEndCall} />}
       {((team && order.teamId && order.teamId !== team.id) || order.teamName || order.shopifyData?.shopDomain) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
           {team && order.teamId && order.teamId !== team.id && (
@@ -156,6 +165,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
           <div className="flex items-center gap-2">
             <a
               href={buildWhatsAppLink(order.clientPhoneFormatted, whatsAppMessage)}
+              onClick={onCall}
               target="_blank"
               rel="noopener noreferrer"
               className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"
@@ -171,6 +181,7 @@ export default function OrderCard({ order, team, livreurName, onChangeStatus }: 
 
             <a
               href={buildTelLink(order.clientPhoneFormatted)}
+              onClick={onCall}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-light text-brand hover:opacity-90 transition-opacity"
               aria-label={`Appeler ${displayName}`}
             >

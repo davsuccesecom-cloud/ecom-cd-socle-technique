@@ -134,7 +134,12 @@ try {
     const badge = toAbsolute("/icons/badge-96.png");
 
     // N'afficher de grande image que s'il s'agit d'une vraie image produit en HTTP/HTTPS
-    const rawImage = payload?.notification?.image || payload?.data?.image || payload?.data?.productImageUrl;
+    const rawImage =
+      payload?.notification?.imageUrl ||
+      payload?.notification?.image ||
+      payload?.data?.imageUrl ||
+      payload?.data?.image ||
+      payload?.data?.productImageUrl;
     const hasProductImage =
       typeof rawImage === "string" &&
       rawImage.startsWith("http") &&
@@ -145,7 +150,7 @@ try {
 
     const notificationOptions = {
       body,
-      icon,
+      icon: image || icon,
       badge,
       tag,
       renotify: true,
