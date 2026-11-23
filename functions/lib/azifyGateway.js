@@ -494,7 +494,7 @@ exports.azifyGateway = (0, https_1.onRequest)({
     if (req.method === "POST" && (path === "/pair" || path.endsWith("/pair"))) {
         try {
             const body = parseJsonBody(req);
-            const { storeId, storeName, slug, shopDomain, customDomain, verifyToken, ownerTeamId, defaultCountry, countryRoutes, accountEmail, workspaceId, } = body;
+            const { storeId, storeName, slug, shopDomain, customDomain, verifyToken, ownerTeamId, requestedTeamId, requestedTeamName, logoUrl, defaultCountry, countryRoutes, accountEmail, workspaceId, status, } = body;
             if (!shopDomain || !verifyToken) {
                 res.status(400).json({
                     error: "Bad Request",
@@ -540,7 +540,10 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 azifyStoreSlug: slug || null,
                 azifyAccountEmail: accountEmail || null,
                 verifyToken: verifyToken,
-                ownerTeamId: ownerTeamId || existing.data()?.ownerTeamId || null,
+                ownerTeamId: ownerTeamId || requestedTeamId || existing.data()?.ownerTeamId || null,
+                requestedTeamId: requestedTeamId || ownerTeamId || existing.data()?.requestedTeamId || null,
+                requestedTeamName: requestedTeamName || existing.data()?.requestedTeamName || null,
+                logoUrl: logoUrl || existing.data()?.logoUrl || null,
                 defaultCountry: defaultCountry || "TG",
                 countryRoutes: (function () {
                     let finalRoutes = {};
@@ -565,10 +568,11 @@ exports.azifyGateway = (0, https_1.onRequest)({
                     }
                     return finalRoutes;
                 })(),
-                status: "active",
+                status: status || "pending_approval",
                 workspaceId: targetWorkspaceId,
-                webhookVerifiedAt: Date.now(),
+                webhookVerifiedAt: status === "active" ? Date.now() : (existing.data()?.webhookVerifiedAt || null),
                 updatedAt: Date.now(),
+                requestedAt: Date.now(),
                 createdAt: existing.exists ? (existing.data()?.createdAt || Date.now()) : Date.now(),
             };
             await connRef.set(connData, { merge: true });

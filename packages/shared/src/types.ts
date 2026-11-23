@@ -219,9 +219,13 @@ export interface ShopifyConnection {
   customDomain?: string; // Domaine personnalisé (ex: "maboutique.com")
   domains?: string[]; // Tous les alias de domaines connus pour cette boutique
   shopName?: string;
-  status: "active" | "pending" | "revoked" | "disconnected";
+  logoUrl?: string; // Logo de la boutique pour affichage et confirmation
+  status: "active" | "pending" | "pending_approval" | "rejected" | "revoked" | "disconnected";
   connectedAt: number;
   activatedAt?: number;
+  requestedAt?: number;
+  requestedTeamId?: string;
+  requestedTeamName?: string;
   accessToken?: string;
   countryRoutes: Record<string, ShopifyCountryRoute>; // "TG" -> route
   verifyToken?: string;
@@ -229,6 +233,12 @@ export interface ShopifyConnection {
   webhookVerifiedAt?: number;
   lastOrderAt?: number;
   ordersCount?: number;
+  sourcePlatform?: "azify" | "shopify" | "custom";
+  azifyStoreId?: string;
+  azifyStoreSlug?: string;
+  azifyAccountEmail?: string;
+  azifyDefaultCurrency?: string;
+  callbackUrl?: string;
 }
 
 export interface ShopifyUnroutedOrder {

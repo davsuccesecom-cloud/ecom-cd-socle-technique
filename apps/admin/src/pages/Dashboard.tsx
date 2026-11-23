@@ -43,6 +43,7 @@ import LiveShopifyAnalytics from "../components/LiveShopifyAnalytics";
 import OrderReceipt3DModal from "../components/OrderReceipt3DModal";
 import WhatsNewModal from "../components/WhatsNewModal";
 import KeyboardShortcutsModal from "../components/KeyboardShortcutsModal";
+import PendingStoreConnectionModal from "../components/PendingStoreConnectionModal";
 import SequenceIndicator from "../components/SequenceIndicator";
 import { useGlobalShortcuts } from "../hooks/useGlobalShortcuts";
 import { useTheme } from "../hooks/useTheme";
@@ -789,6 +790,12 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         workspaceId={workspaceId}
         activeTeam={activeTeam}
         onNavigateToAzifySettings={() => setPage("settings")}
+      />
+
+      {/* Popup automatique d'approbation des connexions boutiques en attente (Logo, Boutique, Équipe) */}
+      <PendingStoreConnectionModal
+        workspaceId={workspaceId}
+        teams={teams}
       />
 
       <PushToast

@@ -530,10 +530,14 @@ export const azifyGateway = onRequest(
           customDomain,
           verifyToken,
           ownerTeamId,
+          requestedTeamId,
+          requestedTeamName,
+          logoUrl,
           defaultCountry,
           countryRoutes,
           accountEmail,
           workspaceId,
+          status,
         } = body;
 
         if (!shopDomain || !verifyToken) {
@@ -588,7 +592,10 @@ export const azifyGateway = onRequest(
           azifyStoreSlug: slug || null,
           azifyAccountEmail: accountEmail || null,
           verifyToken: verifyToken,
-          ownerTeamId: ownerTeamId || existing.data()?.ownerTeamId || null,
+          ownerTeamId: ownerTeamId || requestedTeamId || existing.data()?.ownerTeamId || null,
+          requestedTeamId: requestedTeamId || ownerTeamId || existing.data()?.requestedTeamId || null,
+          requestedTeamName: requestedTeamName || existing.data()?.requestedTeamName || null,
+          logoUrl: logoUrl || existing.data()?.logoUrl || null,
           defaultCountry: defaultCountry || "TG",
           countryRoutes: (function() {
             let finalRoutes: Record<string, any> = {};
@@ -609,10 +616,11 @@ export const azifyGateway = onRequest(
             }
             return finalRoutes;
           })(),
-          status: "active",
+          status: status || "pending_approval",
           workspaceId: targetWorkspaceId,
-          webhookVerifiedAt: Date.now(),
+          webhookVerifiedAt: status === "active" ? Date.now() : (existing.data()?.webhookVerifiedAt || null),
           updatedAt: Date.now(),
+          requestedAt: Date.now(),
           createdAt: existing.exists ? (existing.data()?.createdAt || Date.now()) : Date.now(),
         };
 

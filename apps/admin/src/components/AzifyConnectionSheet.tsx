@@ -27,6 +27,7 @@ export interface AzifyConnectPayload {
   customDomain?: string;
   myshopifyDomain?: string;
   domains?: string[];
+  logoUrl?: string;
   verifyToken: string;
   accountEmail?: string;
   defaultCurrency?: string;
@@ -119,6 +120,7 @@ export default function AzifyConnectionSheet({
           storeId: sp.get("storeId") || sp.get("id") || `azify_${Date.now()}`,
           defaultCurrency: sp.get("currency") || "XOF",
           defaultCountry: sp.get("country")?.toUpperCase() || "TG",
+          logoUrl: sp.get("logoUrl") || sp.get("logo") || undefined,
           verifyToken: sp.get("token") || sp.get("verifyToken") || "azify_verify_auto",
           callbackUrl: sp.get("callbackUrl") || sp.get("origin") || undefined,
         };
@@ -211,14 +213,17 @@ export default function AzifyConnectionSheet({
         workspaceId,
         ownerTeamId: selectedTeam.id,
         ownerTeamName: selectedTeam.name,
+        requestedTeamId: selectedTeam.id,
+        requestedTeamName: selectedTeam.name,
         shopDomain: cleanDomain,
         shopName: effectiveStoreName,
+        logoUrl: detectedPayload?.logoUrl || "",
         myshopifyDomain: detectedPayload?.myshopifyDomain || "",
         customDomain: detectedPayload?.customDomain || "",
         domains: aliasDomains,
-        status: "active",
+        status: "pending_approval",
         connectedAt: now,
-        activatedAt: now,
+        requestedAt: now,
         countryRoutes: routes,
         verifyToken: detectedPayload?.verifyToken || "azify_verify_auto",
         sourcePlatform: "azify" as any,
@@ -226,6 +231,7 @@ export default function AzifyConnectionSheet({
         azifyStoreSlug: detectedPayload?.slug || cleanDomain,
         azifyAccountEmail: detectedPayload?.accountEmail || userEmail || "",
         azifyDefaultCurrency: selectedTeam.currency || detectedPayload?.defaultCurrency || "XOF",
+        callbackUrl: detectedPayload?.callbackUrl || undefined,
       } as any;
 
       await setDoc(ref, docPayload, { merge: true });
@@ -235,8 +241,9 @@ export default function AzifyConnectionSheet({
         try {
           window.opener.postMessage(
             {
-              type: "AZIFY_WARITRACK_CONNECTED",
+              type: "AZIFY_WARITRACK_PENDING_APPROVAL",
               success: true,
+              status: "pending_approval",
               teamId: selectedTeam.id,
               teamName: selectedTeam.name,
               countryCode,
@@ -276,22 +283,27 @@ export default function AzifyConnectionSheet({
         {/* Fiche de Connexion Principale */}
         <div className="rounded-2xl border border-surface-border bg-surface-raised p-6 sm:p-7 shadow-2xl">
           {successTeam ? (
-            /* ÉCRAN DE SUCCÈS CONFIRMÉ */
+            /* ÉCRAN DE VALIDATION EN COURS */
             <div className="text-center py-4 animate-in fade-in duration-300">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                <CheckCircle2 className="h-8 w-8" />
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                <RefreshCw className="h-7 w-7 animate-spin text-amber-400" />
               </div>
-              <h2 className="text-xl font-bold text-slate-100">Boutique connectée avec succès !</h2>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-300 mb-2">
+                <span>⏳ En cours de validation WariTrack</span>
+              </span>
+              <h2 className="text-xl font-bold text-slate-100">Demande envoyée avec succès !</h2>
               <p className="mt-2 text-sm text-slate-300">
-                La boutique <span className="font-semibold text-white">« {effectiveStoreName} »</span> est désormais
-                rattachée à l'équipe <span className="font-semibold text-brand-light">{successTeam.name}</span>.
+                La boutique <span className="font-semibold text-white">« {effectiveStoreName} »</span> a demandé son rattachement à l&apos;équipe <span className="font-semibold text-brand-light">{successTeam.name}</span>.
+              </p>
+              <p className="mt-1 text-xs text-slate-400">
+                Un popup de confirmation va automatiquement vous demander de valider la liaison dès votre entrée sur le poste de pilotage WariTrack.
               </p>
 
               <div className="mt-5 rounded-xl border border-surface-border bg-surface p-4 text-left space-y-2 text-xs text-slate-400">
                 <div className="flex items-center justify-between">
-                  <span>Marché / Pays :</span>
+                  <span>Équipe demandée :</span>
                   <span className="font-semibold text-slate-200">
-                    {COUNTRY_FLAGS[successTeam.defaultCountry] || successTeam.defaultCountry}
+                    {successTeam.name} ({COUNTRY_FLAGS[successTeam.defaultCountry] || successTeam.defaultCountry})
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -299,12 +311,8 @@ export default function AzifyConnectionSheet({
                   <span className="font-semibold text-slate-200 font-mono">{successTeam.currency || "XOF"}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span>Routage par dialecte :</span>
-                  <span className="font-semibold text-emerald-400">Actif (Skill-Based Routing)</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Décompte des stocks :</span>
-                  <span className="font-semibold text-emerald-400">Temps réel sur livraison</span>
+                  <span>Statut :</span>
+                  <span className="font-bold text-amber-400">En attente de confirmation admin</span>
                 </div>
               </div>
 
@@ -318,9 +326,9 @@ export default function AzifyConnectionSheet({
                       onCancel();
                     }
                   }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand hover:opacity-95 px-5 py-3 text-sm font-semibold text-white shadow-md transition-all active:scale-[0.99] cursor-pointer"
+                  className="w-full min-h-[48px] inline-flex items-center justify-center gap-2 rounded-xl bg-brand hover:opacity-95 px-5 py-3 text-sm font-semibold text-white shadow-md transition-all active:scale-[0.99] cursor-pointer"
                 >
-                  <span>Accéder au Poste de Pilotage WariTrack</span>
+                  <span>Accéder à WariTrack (Confirmer la boutique)</span>
                   <ArrowRight className="h-4 w-4" />
                 </button>
 
@@ -331,7 +339,7 @@ export default function AzifyConnectionSheet({
                     className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-surface-border bg-surface px-4 py-2.5 text-xs font-medium text-slate-300 hover:bg-surface/80 transition-all cursor-pointer"
                   >
                     <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
-                    <span>Retourner sur Azify PWA Studio (Fermer l'onglet)</span>
+                    <span>Fermer le popup (Retourner sur Azify Studio)</span>
                   </button>
                 )}
               </div>
