@@ -5,20 +5,24 @@ interface CallBarProps {
 }
 
 /**
- * Bandeau persistant affiché sur la commande en cours d'appel pour éviter
- * qu'une autre commande soit traitée simultanément par erreur.
+ * Bandeau compact blanc (hauteur max 2cm) avec "Terminer" en bleu à droite.
+ * Reste affiché tant que l'employé n'a pas appuyé sur "Terminer".
  */
 export default function CallBar({ onEndCall }: CallBarProps) {
   return (
-    <div className="mb-3 flex min-h-[44px] items-center justify-between rounded-xl bg-sky-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm">
-      <span className="flex items-center gap-2">
-        <PhoneCall className="h-4 w-4 shrink-0" />
-        <span className="font-semibold tracking-wide">Appel en cours</span>
+    <div className="mb-2 flex h-7 items-center justify-between rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 shadow-xs">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-200">
+        <PhoneCall className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
+        <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200">Appel en cours</span>
       </span>
       <button
         type="button"
-        onClick={onEndCall}
-        className="min-h-[34px] rounded-lg bg-white/20 px-3 py-1 text-xs font-bold text-white hover:bg-white/30 active:scale-95 transition-all"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onEndCall();
+        }}
+        className="text-[11px] font-bold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 hover:underline px-1 py-0.5 transition-colors cursor-pointer"
       >
         Terminer
       </button>

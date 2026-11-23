@@ -182,7 +182,18 @@ export default function OrderCard({
     noteClean && noteClean.toLowerCase() !== cityClean.toLowerCase() ? noteClean : "";
 
   const actions = ACTIONS_BY_STATUS[order.statutCloseuse] ?? [];
-  const isCallActive = order.callInProgress?.active;
+  const [localCallActive, setLocalCallActive] = useState(false);
+  const isCallActive = localCallActive || Boolean(order.callInProgress?.active);
+
+  const handleStartCall = () => {
+    setLocalCallActive(true);
+    onCall();
+  };
+
+  const handleEndCall = () => {
+    setLocalCallActive(false);
+    onEndCall();
+  };
 
   const activeLivreurs = useMemo(
     () => livreurs.filter((l) => l.status === "active"),
@@ -282,11 +293,11 @@ export default function OrderCard({
       id={`order-${order.id}`}
       className={`rounded-2xl border transition-all ${
         isCallActive
-          ? "border-sky-500 ring-2 ring-sky-500/25 bg-sky-50/20 dark:bg-sky-950/20 shadow-md"
+          ? "border-sky-400 ring-1 ring-sky-400/30 bg-white dark:bg-slate-800 shadow-xs"
           : "border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
       } p-3`}
     >
-      {isCallActive && <CallBar onEndCall={onEndCall} />}
+      {isCallActive && <CallBar onEndCall={handleEndCall} />}
 
       {((team && order.teamId && order.teamId !== team.id) || order.teamName || order.shopifyData?.shopDomain) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
@@ -357,7 +368,7 @@ export default function OrderCard({
 
         <a
           href={buildWhatsAppLink(order.clientPhoneFormatted, whatsAppMessage)}
-          onClick={onCall}
+          onClick={handleStartCall}
           target="_blank"
           rel="noopener noreferrer"
           className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#25D366] shadow-xs transition-transform hover:scale-105"
@@ -373,7 +384,7 @@ export default function OrderCard({
 
         <a
           href={buildTelLink(order.clientPhoneFormatted)}
-          onClick={onCall}
+          onClick={handleStartCall}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-light text-brand hover:opacity-90 transition-opacity"
           aria-label={`Appeler ${displayName}`}
         >

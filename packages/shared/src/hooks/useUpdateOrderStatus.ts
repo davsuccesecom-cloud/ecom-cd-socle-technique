@@ -51,7 +51,6 @@ export function useUpdateOrderStatus(workspaceId: string) {
             };
       const payload: Record<string, unknown> = {
         statutCloseuse: status,
-        callInProgress: null, // toute action ferme l'appel en cours (section 6)
       };
       if (extras.reminderAt !== undefined) {
         payload.reminderAt = extras.reminderAt;
