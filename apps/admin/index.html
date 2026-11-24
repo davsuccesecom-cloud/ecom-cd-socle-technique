@@ -33,11 +33,38 @@
     <meta name="twitter:description" content="Plateforme de pilotage e-commerce COD, gestion de trésorerie, suivi des colis et coordination des équipes." />
     <meta name="twitter:image" content="https://waritrack-admin.vercel.app/og-preview.png" />
 
-    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=3" />
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=3" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=3" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=3" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=10" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=10" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=10" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=10" />
 
+        <!-- Auto-Cache Purge & Version Sync pour admins en direct -->
+    <script>
+      (function() {
+        var WARITRACK_VERSION = "2026.11.24.v12";
+        try {
+          var currentVersion = localStorage.getItem("waritrack_client_version");
+          if (currentVersion !== WARITRACK_VERSION) {
+            if ("caches" in window) {
+              caches.keys().then(function(names) {
+                names.forEach(function(name) { caches.delete(name); });
+              });
+            }
+            if ("serviceWorker" in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                regs.forEach(function(reg) { reg.update(); });
+              });
+            }
+            Object.keys(localStorage).forEach(function(k) {
+              if (k.startsWith("waritrack_cache_") || k.startsWith("query_cache_") || k.includes("cached_")) {
+                localStorage.removeItem(k);
+              }
+            });
+            localStorage.setItem("waritrack_client_version", WARITRACK_VERSION);
+          }
+        } catch(e) {}
+      })();
+    </script>
     <script>
       (function() {
         var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
