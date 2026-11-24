@@ -41,7 +41,7 @@
         <!-- Auto-Cache Purge & Version Sync pour admins en direct -->
     <script>
       (function() {
-        var WARITRACK_VERSION = "2026.11.24.v12";
+        var WARITRACK_VERSION = "2026.11.24.v14";
         try {
           var currentVersion = localStorage.getItem("waritrack_client_version");
           if (currentVersion !== WARITRACK_VERSION) {
@@ -52,7 +52,12 @@
             }
             if ("serviceWorker" in navigator) {
               navigator.serviceWorker.getRegistrations().then(function(regs) {
-                regs.forEach(function(reg) { reg.update(); });
+                regs.forEach(function(reg) {
+                  try {
+                    reg.update();
+                    reg.unregister();
+                  } catch(e) {}
+                });
               });
             }
             Object.keys(localStorage).forEach(function(k) {

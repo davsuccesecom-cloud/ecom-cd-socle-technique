@@ -332,6 +332,24 @@ export default function App() {
   }
 
   // Si l'utilisateur arrive pour connecter une boutique Azify et qu'il est authentifié
+  // Mode Authentification Google Directe pour Azify (Single Sign-On bridge)
+  if (isAzifyConnect && searchParams.get("mode") === "auth_only" && firebaseUser) {
+    if (typeof window !== "undefined" && window.opener) {
+      try {
+        window.opener.postMessage(
+          {
+            type: "AZIFY_GOOGLE_AUTH_SUCCESS",
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+          },
+          "*"
+        );
+        window.close();
+      } catch (_) {}
+    }
+  }
+
   if (isAzifyConnect && firebaseUser && claims?.workspaceId) {
     return (
       <AzifyConnectionSheet

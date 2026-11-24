@@ -410,6 +410,78 @@ function extractQuantityAndItems(root) {
         items: itemsList,
     };
 }
+/**
+ * Résolution résiliente d'une connexion boutique WariTrack
+ * NE FAIT JAMAIS de .where() sur collectionGroup pour éviter l'erreur Firestore:
+ * "9 FAILED_PRECONDITION: The query requires a COLLECTION_GROUP_ASC index..."
+ */
+async function resolveShopifyConnection(db, identifiers) {
+    const verifyToken = (identifiers.verifyToken || "").trim();
+    const storeId = (identifiers.storeId || "").trim();
+    const rawDomain = (identifiers.shopDomain || "").trim().toLowerCase();
+    const cleanDomain = rawDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const storeSlug = (identifiers.storeSlug || "").trim().toLowerCase();
+    const derivedSlug = storeSlug || (cleanDomain.includes(".") ? cleanDomain.split(".")[0] : cleanDomain);
+    const allConns = [];
+    // 1. Lire directement depuis les sous-collections workspaces/{wsId}/shopifyConnections (aucun index requis)
+    try {
+        const wsSnap = await db.collection("workspaces").limit(30).get();
+        for (const wsDoc of wsSnap.docs) {
+            const cSnap = await wsDoc.ref.collection("shopifyConnections").get();
+            cSnap.forEach((doc) => allConns.push(doc));
+        }
+    }
+    catch (wsErr) {
+        console.warn("azifyGateway resolveShopifyConnection workspaces scan error:", wsErr);
+    }
+    // 2. Si aucune connexion trouvée dans les workspaces scannés, repli sur collectionGroup SANS clause .where()
+    if (allConns.length === 0) {
+        try {
+            const cgSnap = await db.collectionGroup("shopifyConnections").limit(200).get();
+            cgSnap.forEach((doc) => allConns.push(doc));
+        }
+        catch (cgErr) {
+            console.warn("azifyGateway resolveShopifyConnection collectionGroup scan error:", cgErr);
+        }
+    }
+    // 3. Filtrage en mémoire ultra-précis et insensible à la casse
+    for (const doc of allConns) {
+        const d = doc.data();
+        const docToken = String(d.verifyToken || "").trim();
+        const docStoreId = String(d.azifyStoreId || d.storeId || "").trim();
+        const docSlug = String(d.azifyStoreSlug || d.slug || "").trim().toLowerCase();
+        const docDomain = String(d.shopDomain || "").trim().toLowerCase();
+        const docDomains = Array.isArray(d.domains)
+            ? d.domains.map((x) => String(x).toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, ""))
+            : [];
+        if (verifyToken && docToken && docToken === verifyToken) {
+            return doc;
+        }
+        if (storeId && docStoreId && docStoreId === storeId) {
+            return doc;
+        }
+        if (derivedSlug && (docSlug === derivedSlug || docDomain === derivedSlug || docDomain.startsWith(derivedSlug + "."))) {
+            return doc;
+        }
+        if (cleanDomain) {
+            if (docDomain === cleanDomain || docDomains.includes(cleanDomain)) {
+                return doc;
+            }
+            // Tolérance croisée azify.vercel.app <-> azishop-pwa-studio.vercel.app
+            if (cleanDomain.includes("azify.vercel.app")) {
+                const alt = cleanDomain.replace("azify.vercel.app", "azishop-pwa-studio.vercel.app");
+                if (docDomain === alt || docDomains.includes(alt))
+                    return doc;
+            }
+            else if (cleanDomain.includes("azishop-pwa-studio.vercel.app")) {
+                const alt = cleanDomain.replace("azishop-pwa-studio.vercel.app", "azify.vercel.app");
+                if (docDomain === alt || docDomains.includes(alt))
+                    return doc;
+            }
+        }
+    }
+    return null;
+}
 exports.azifyGateway = (0, https_1.onRequest)({
     region: "us-central1",
     cors: true,
@@ -440,31 +512,13 @@ exports.azifyGateway = (0, https_1.onRequest)({
         const workspaceIdParam = String(req.query.workspaceId || "").trim();
         const shopDomain = String(req.query.shopDomain || req.headers["x-azify-shop-domain"] || "").trim().toLowerCase();
         let targetWorkspaceId = workspaceIdParam;
-        // Résolution du workspace par shopDomain ou verifyToken
+        // Résolution du workspace par shopDomain ou verifyToken (index-free via resolveShopifyConnection)
         if (!targetWorkspaceId && (shopDomain || verifyToken)) {
             try {
-                if (shopDomain) {
-                    const cleanDomain = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-                    const snap = await db
-                        .collectionGroup("shopifyConnections")
-                        .where("shopDomain", "==", cleanDomain)
-                        .limit(1)
-                        .get();
-                    if (!snap.empty) {
-                        const d = snap.docs[0].data();
-                        targetWorkspaceId = d.workspaceId || snap.docs[0].ref.parent.parent?.id;
-                    }
-                }
-                if (!targetWorkspaceId && verifyToken) {
-                    const connSnap = await db
-                        .collectionGroup("shopifyConnections")
-                        .where("verifyToken", "==", verifyToken)
-                        .limit(1)
-                        .get();
-                    if (!connSnap.empty) {
-                        const d = connSnap.docs[0].data();
-                        targetWorkspaceId = d.workspaceId || connSnap.docs[0].ref.parent.parent?.id;
-                    }
+                const connDoc = await resolveShopifyConnection(db, { shopDomain, verifyToken });
+                if (connDoc) {
+                    const d = connDoc.data();
+                    targetWorkspaceId = d.workspaceId || connDoc.ref.parent.parent?.id;
                 }
             }
             catch (err) {
@@ -561,15 +615,11 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 return;
             }
             let targetWorkspaceId = workspaceId;
-            // Si le workspaceId n'est pas fourni, trouver ou déduire via token existant
+            // Si le workspaceId n'est pas fourni, trouver ou déduire via token existant (index-free)
             if (!targetWorkspaceId) {
-                const tokenSnap = await db
-                    .collectionGroup("shopifyConnections")
-                    .where("verifyToken", "==", verifyToken)
-                    .limit(1)
-                    .get();
-                if (!tokenSnap.empty) {
-                    targetWorkspaceId = tokenSnap.docs[0].data().workspaceId;
+                const connDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
+                if (connDoc) {
+                    targetWorkspaceId = connDoc.data().workspaceId || connDoc.ref.parent.parent?.id;
                 }
             }
             if (!targetWorkspaceId) {
@@ -665,7 +715,7 @@ exports.azifyGateway = (0, https_1.onRequest)({
             return;
         }
     }
-    // 4. GET /status : Télémétrie et état de synchronisation
+    // 4. GET /status : Télémétrie et état de synchronisation (sans crash FAILED_PRECONDITION)
     if (req.method === "GET" && (path === "/status" || path.endsWith("/status"))) {
         const verifyToken = String(req.headers["x-azify-verify-token"] || req.query.verifyToken || "").trim();
         const shopDomain = String(req.query.shopDomain || "").trim().toLowerCase();
@@ -676,47 +726,12 @@ exports.azifyGateway = (0, https_1.onRequest)({
             return;
         }
         try {
-            let connDoc = null;
-            if (verifyToken) {
-                const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
-                if (!snap.empty)
-                    connDoc = snap.docs[0];
-            }
-            if (!connDoc && storeId) {
-                const snap = await db.collectionGroup("shopifyConnections").where("azifyStoreId", "==", storeId).limit(1).get();
-                if (!snap.empty)
-                    connDoc = snap.docs[0];
-            }
-            const cleanDomain = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-            const derivedSlug = storeSlug || (cleanDomain.includes(".") ? cleanDomain.split(".")[0] : cleanDomain);
-            if (!connDoc && derivedSlug) {
-                const snapSlug = await db.collectionGroup("shopifyConnections").where("azifyStoreSlug", "==", derivedSlug).limit(1).get();
-                if (!snapSlug.empty)
-                    connDoc = snapSlug.docs[0];
-            }
-            if (!connDoc && cleanDomain) {
-                const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cleanDomain).limit(1).get();
-                if (!snap.empty)
-                    connDoc = snap.docs[0];
-            }
-            if (!connDoc && cleanDomain) {
-                const snapArr = await db.collectionGroup("shopifyConnections").where("domains", "array-contains", cleanDomain).limit(1).get();
-                if (!snapArr.empty)
-                    connDoc = snapArr.docs[0];
-            }
-            // Si le domaine utilise azify.vercel.app, tester la variante azishop-pwa-studio.vercel.app et inversement
-            if (!connDoc && cleanDomain.includes("azify.vercel.app")) {
-                const altDomain = cleanDomain.replace("azify.vercel.app", "azishop-pwa-studio.vercel.app");
-                const snapAlt = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", altDomain).limit(1).get();
-                if (!snapAlt.empty)
-                    connDoc = snapAlt.docs[0];
-            }
-            else if (!connDoc && cleanDomain.includes("azishop-pwa-studio.vercel.app")) {
-                const altDomain = cleanDomain.replace("azishop-pwa-studio.vercel.app", "azify.vercel.app");
-                const snapAlt = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", altDomain).limit(1).get();
-                if (!snapAlt.empty)
-                    connDoc = snapAlt.docs[0];
-            }
+            const connDoc = await resolveShopifyConnection(db, {
+                verifyToken,
+                shopDomain,
+                storeId,
+                storeSlug,
+            });
             if (!connDoc) {
                 res.status(404).json({ connected: false, message: "Aucune boutique Azify associée." });
                 return;
@@ -750,6 +765,48 @@ exports.azifyGateway = (0, https_1.onRequest)({
             return;
         }
     }
+    // 4b. POST /disconnect ou action: "disconnect_store" : Dissociation d'équipe en 1 clic
+    if (req.method === "POST" &&
+        (path === "/disconnect" ||
+            path.endsWith("/disconnect") ||
+            (req.body && (req.body.action === "disconnect_store" || req.body.action === "disconnect")))) {
+        const body = req.body || {};
+        const verifyToken = String(req.headers["x-azify-verify-token"] || body.verifyToken || "").trim();
+        const shopDomain = String(body.shopDomain || "").trim().toLowerCase();
+        const storeId = String(body.storeId || "").trim();
+        try {
+            const connDoc = await resolveShopifyConnection(db, {
+                verifyToken,
+                shopDomain,
+                storeId,
+            });
+            if (connDoc) {
+                await connDoc.ref.update({
+                    status: "disconnected",
+                    disconnectedAt: Date.now(),
+                    ownerTeamId: null,
+                    ownerTeamName: null,
+                });
+                res.status(200).json({
+                    ok: true,
+                    status: "disconnected",
+                    message: "Boutique dissociée avec succès dans WariTrack.",
+                });
+                return;
+            }
+            res.status(200).json({
+                ok: true,
+                status: "disconnected",
+                message: "Aucune connexion active trouvée à dissocier.",
+            });
+            return;
+        }
+        catch (err) {
+            console.error("azifyGateway disconnect error:", err);
+            res.status(500).json({ error: "Internal Server Error", message: err.message });
+            return;
+        }
+    }
     // =========================================================================
     // 4bis. API DIRECTE HAUTE PERFORMANCE AZIFY (INGESTION COD SYNCHRONE & STATUTS)
     // =========================================================================
@@ -761,20 +818,9 @@ exports.azifyGateway = (0, https_1.onRequest)({
             const shopDomain = String(req.headers["x-azify-shop-domain"] || req.query.shopDomain || "").trim().toLowerCase();
             let targetWorkspaceId = String(req.query.workspaceId || "").trim();
             if (!targetWorkspaceId && (verifyToken || shopDomain)) {
-                let cDoc = null;
-                if (verifyToken) {
-                    const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
-                    if (!snap.empty)
-                        cDoc = snap.docs[0];
-                }
-                if (!cDoc && shopDomain) {
-                    const clean = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-                    const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", clean).limit(1).get();
-                    if (!snap.empty)
-                        cDoc = snap.docs[0];
-                }
+                const cDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
                 if (cDoc)
-                    targetWorkspaceId = cDoc.data()?.workspaceId || "";
+                    targetWorkspaceId = cDoc.data()?.workspaceId || cDoc.ref.parent.parent?.id || "";
             }
             if (!targetWorkspaceId) {
                 const wsSnap = await db.collection("workspaces").limit(1).get();
@@ -828,20 +874,9 @@ exports.azifyGateway = (0, https_1.onRequest)({
             const verifyToken = String(req.headers["x-azify-verify-token"] || req.headers["x-azify-api-key"] || authHeader || body.apiKey || body.verifyToken || "").trim();
             const shopDomain = String(req.headers["x-azify-shop-domain"] || body.shopDomain || body.storeDomain || "").trim().toLowerCase();
             let targetWorkspaceId = String(body.workspaceId || "").trim();
-            let connDoc = null;
-            if (verifyToken) {
-                const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
-                if (!snap.empty)
-                    connDoc = snap.docs[0];
-            }
-            if (!connDoc && shopDomain) {
-                const clean = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-                const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", clean).limit(1).get();
-                if (!snap.empty)
-                    connDoc = snap.docs[0];
-            }
+            const connDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
             if (connDoc)
-                targetWorkspaceId = connDoc.data()?.workspaceId || targetWorkspaceId;
+                targetWorkspaceId = connDoc.data()?.workspaceId || connDoc.ref.parent.parent?.id || targetWorkspaceId;
             if (!targetWorkspaceId) {
                 const wsSnap = await db.collection("workspaces").limit(1).get();
                 if (!wsSnap.empty)
@@ -1030,20 +1065,9 @@ exports.azifyGateway = (0, https_1.onRequest)({
             const verifyToken = String(req.headers["x-azify-verify-token"] || req.headers["x-azify-api-key"] || authHeader || root.verifyToken || root.apiKey || body.verifyToken || body.apiKey || "").trim();
             const shopDomain = String(req.headers["x-azify-shop-domain"] || req.query.shopDomain || root.shopDomain || root.storeDomain || body.shopDomain || "").trim().toLowerCase();
             let targetWorkspaceId = String(body.workspaceId || root.workspaceId || "").trim();
-            let connDoc = null;
-            if (verifyToken) {
-                const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
-                if (!snap.empty)
-                    connDoc = snap.docs[0];
-            }
-            if (!connDoc && shopDomain) {
-                const clean = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-                const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", clean).limit(1).get();
-                if (!snap.empty)
-                    connDoc = snap.docs[0];
-            }
+            const connDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
             if (connDoc) {
-                targetWorkspaceId = connDoc.data()?.workspaceId || targetWorkspaceId;
+                targetWorkspaceId = connDoc.data()?.workspaceId || connDoc.ref.parent.parent?.id || targetWorkspaceId;
             }
             if (!targetWorkspaceId) {
                 const wsSnap = await db.collection("workspaces").limit(1).get();
@@ -1282,20 +1306,9 @@ exports.azifyGateway = (0, https_1.onRequest)({
             let targetWorkspaceId = String(body.workspaceId || "").trim();
             // Resolution du workspaceId
             if (!targetWorkspaceId && (verifyToken || shopDomain)) {
-                let connDoc = null;
-                if (verifyToken) {
-                    const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
-                    if (!snap.empty)
-                        connDoc = snap.docs[0];
-                }
-                if (!connDoc && shopDomain) {
-                    const cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-                    const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cleanDomain).limit(1).get();
-                    if (!snap.empty)
-                        connDoc = snap.docs[0];
-                }
+                const connDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
                 if (connDoc) {
-                    targetWorkspaceId = connDoc.data().workspaceId || "";
+                    targetWorkspaceId = connDoc.data().workspaceId || connDoc.ref.parent.parent?.id || "";
                 }
             }
             if (!targetWorkspaceId) {
@@ -1368,20 +1381,9 @@ exports.azifyGateway = (0, https_1.onRequest)({
             const verifyToken = String(req.headers["x-azify-verify-token"] || body.verifyToken || "").trim();
             let targetWorkspaceId = String(body.workspaceId || "").trim();
             if (!targetWorkspaceId && (verifyToken || shopDomain)) {
-                let connDoc = null;
-                if (verifyToken) {
-                    const snap = await db.collectionGroup("shopifyConnections").where("verifyToken", "==", verifyToken).limit(1).get();
-                    if (!snap.empty)
-                        connDoc = snap.docs[0];
-                }
-                if (!connDoc && shopDomain) {
-                    const cleanDomain = String(shopDomain).trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-                    const snap = await db.collectionGroup("shopifyConnections").where("shopDomain", "==", cleanDomain).limit(1).get();
-                    if (!snap.empty)
-                        connDoc = snap.docs[0];
-                }
+                const connDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
                 if (connDoc) {
-                    targetWorkspaceId = connDoc.data().workspaceId || "";
+                    targetWorkspaceId = connDoc.data().workspaceId || connDoc.ref.parent.parent?.id || "";
                 }
             }
             if (!targetWorkspaceId) {

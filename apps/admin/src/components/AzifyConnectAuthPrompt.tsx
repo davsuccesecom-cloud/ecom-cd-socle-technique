@@ -1,4 +1,5 @@
 import { Store, ShieldCheck, Loader2, AlertTriangle, ArrowRight } from "lucide-react";
+import { getFirebaseAuth } from "@ecomcod/shared";
 import WariTrackLogo from "./WariTrackLogo";
 
 interface AzifyConnectAuthPromptProps {
@@ -14,17 +15,37 @@ export default function AzifyConnectAuthPrompt({
   busy = false,
   error = null,
 }: AzifyConnectAuthPromptProps) {
+  const isAuthOnly = searchParams.get("mode") === "auth_only";
   const storeName =
     searchParams.get("storeName") ||
     searchParams.get("name") ||
     searchParams.get("store") ||
-    "Boutique Azify";
+    (isAuthOnly ? "Connexion Azify Studio" : "Boutique Azify");
   const shopDomain =
     searchParams.get("shopDomain") ||
     searchParams.get("domain") ||
     searchParams.get("slug") ||
-    "";
+    (isAuthOnly ? "azify.vercel.app" : "");
   const logoUrl = searchParams.get("logoUrl") || searchParams.get("logo") || "";
+
+  const handleGoogleClick = async () => {
+    await signInWithGoogle();
+    const user = getFirebaseAuth().currentUser;
+    if (isAuthOnly && user && typeof window !== "undefined" && window.opener) {
+      try {
+        window.opener.postMessage(
+          {
+            type: "AZIFY_GOOGLE_AUTH_SUCCESS",
+            email: user.email,
+            name: user.displayName,
+            photoURL: user.photoURL,
+          },
+          "*"
+        );
+        window.close();
+      } catch (_) {}
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4 py-8 select-none text-slate-100">
@@ -97,7 +118,7 @@ export default function AzifyConnectAuthPrompt({
           <button
             type="button"
             disabled={busy}
-            onClick={() => signInWithGoogle()}
+            onClick={handleGoogleClick}
             className="w-full min-h-[48px] inline-flex items-center justify-center gap-3 rounded-xl bg-white hover:bg-slate-100 active:scale-[0.99] text-slate-900 font-bold text-sm shadow-md transition-all cursor-pointer disabled:opacity-60"
           >
             {busy ? (

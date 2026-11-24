@@ -35,7 +35,6 @@ import FluxTempsReel from "../components/FluxTempsReel";
 import PerformanceEmployes from "../components/PerformanceEmployes";
 import NotificationBell from "../components/NotificationBell";
 import ThemeQuickPicker from "../components/ThemeQuickPicker";
-import AzifyMobileFab from "../components/AzifyMobileFab";
 import WariTrackLogo from "../components/WariTrackLogo";
 import CommandPalette from "../components/CommandPalette";
 import TabErrorBoundary from "../components/TabErrorBoundary";
@@ -784,13 +783,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
           </div>
         </div>
       )}
-
-      {/* Bouton Flottant Mobile Azify (Bas à Droite) */}
-      <AzifyMobileFab
-        workspaceId={workspaceId}
-        activeTeam={activeTeam}
-        onNavigateToAzifySettings={() => setPage("settings")}
-      />
 
       {/* Popup automatique d'approbation des connexions boutiques en attente (Logo, Boutique, Équipe) */}
       <PendingStoreConnectionModal
