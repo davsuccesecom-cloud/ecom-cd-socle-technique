@@ -261,7 +261,24 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
           [`countryRoutes.${teamShopify.countryCode}.status`]: "inactive",
         });
       }
-      toast("Shopify dissocié");
+
+      // Notification directe à Azify
+      try {
+        const azifyOrigins = ["https://azify.vercel.app", "https://azishop-pwa-studio.vercel.app"];
+        for (const origin of azifyOrigins) {
+          fetch(`${origin}/api/integrations/waritrack/webhook`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: "connection.disconnected",
+              shopDomain: teamShopify.domain,
+              status: "disconnected",
+            }),
+          }).catch(() => {});
+        }
+      } catch (_) {}
+
+      toast("Boutique dissociée de l'équipe");
     } catch (err: any) {
       toast("Échec de dissociation Shopify");
     }

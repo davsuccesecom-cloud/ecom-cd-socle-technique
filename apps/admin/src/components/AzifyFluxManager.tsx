@@ -607,10 +607,24 @@ export default function AzifyFluxManager({
     try {
       await updateDoc(
         doc(getDb(), "workspaces", workspaceId, "shopifyConnections", disconnectTarget.connectionId),
-        { status: "disconnected" }
+        { status: "disconnected", ownerTeamId: null, ownerTeamName: null }
       );
+      try {
+        const azifyOrigins = ["https://azify.vercel.app", "https://azishop-pwa-studio.vercel.app"];
+        for (const origin of azifyOrigins) {
+          fetch(`${origin}/api/integrations/waritrack/webhook`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: "connection.disconnected",
+              shopDomain: disconnectTarget.shopDomain,
+              status: "disconnected",
+            }),
+          }).catch(() => {});
+        }
+      } catch (_) {}
       setDisconnectTarget(null);
-      setNotice(`Boutique « ${disconnectTarget.shopName} » mise en pause.`);
+      setNotice(`Boutique « ${disconnectTarget.shopName} » dissociée avec succès.`);
     } catch (err) {
       const f = formatFirebaseError(err);
       setActionError(`${f.title} : ${f.message}`);
@@ -624,11 +638,25 @@ export default function AzifyFluxManager({
     setDeleteBusy(true);
     setActionError(null);
     try {
+      try {
+        const azifyOrigins = ["https://azify.vercel.app", "https://azishop-pwa-studio.vercel.app"];
+        for (const origin of azifyOrigins) {
+          fetch(`${origin}/api/integrations/waritrack/webhook`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: "connection.disconnected",
+              shopDomain: deleteTarget.shopDomain,
+              status: "disconnected",
+            }),
+          }).catch(() => {});
+        }
+      } catch (_) {}
       await deleteDoc(
         doc(getDb(), "workspaces", workspaceId, "shopifyConnections", deleteTarget.connectionId)
       );
       setDeleteTarget(null);
-      setNotice(`Boutique « ${deleteTarget.shopName} » supprimée.`);
+      setNotice(`Boutique « ${deleteTarget.shopName} » supprimée et dissociée.`);
     } catch (err) {
       const f = formatFirebaseError(err);
       setActionError(`${f.title} : ${f.message}`);

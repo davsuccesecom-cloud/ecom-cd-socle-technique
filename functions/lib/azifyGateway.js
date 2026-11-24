@@ -602,8 +602,11 @@ exports.azifyGateway = (0, https_1.onRequest)({
             return;
         }
     }
-    // 3. POST /pair : Appairage sécurisé Azify <-> WariTrack
-    if (req.method === "POST" && (path === "/pair" || path.endsWith("/pair"))) {
+    // 3. POST /pair ou action: "request_approval" : Appairage sécurisé Azify <-> WariTrack
+    if (req.method === "POST" &&
+        (path === "/pair" ||
+            path.endsWith("/pair") ||
+            (req.body && (req.body.action === "pair" || req.body.action === "request_approval")))) {
         try {
             const body = parseJsonBody(req);
             const { storeId, storeName, slug, shopDomain, customDomain, verifyToken, ownerTeamId, requestedTeamId, requestedTeamName, logoUrl, defaultCountry, countryRoutes, accountEmail, workspaceId, status, } = body;
@@ -747,12 +750,15 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 }
                 catch (_) { }
             }
+            const isConnActive = data.status === "active" ||
+                data.status === "connected" ||
+                (Boolean(data.ownerTeamId) && data.status !== "disconnected" && data.status !== "inactive");
             res.status(200).json({
-                connected: data.status === "active",
-                status: data.status,
+                connected: isConnActive,
+                status: isConnActive ? "active" : (data.status || "disconnected"),
                 shopName: data.shopName,
                 shopDomain: data.shopDomain,
-                ownerTeamId: data.ownerTeamId,
+                ownerTeamId: data.ownerTeamId || data.requestedTeamId || null,
                 ownerTeamName: teamName,
                 lastOrderAt: data.lastOrderAt || null,
                 ordersCount: data.ordersCount || 0,
