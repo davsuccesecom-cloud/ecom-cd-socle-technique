@@ -462,7 +462,7 @@ export const azifyGateway = onRequest(
 
       let targetWorkspaceId = workspaceIdParam;
 
-      // Si le workspace n'est pas fourni, résolution par verifyToken
+      // Si le workspace n'est pas fourni, résolution par verifyToken ou premier workspace
       if (!targetWorkspaceId && verifyToken) {
         try {
           const connSnap = await db
@@ -479,9 +479,18 @@ export const azifyGateway = onRequest(
       }
 
       if (!targetWorkspaceId) {
+        try {
+          const wsSnap = await db.collection("workspaces").limit(1).get();
+          if (!wsSnap.empty) {
+            targetWorkspaceId = wsSnap.docs[0].id;
+          }
+        } catch (_) {}
+      }
+
+      if (!targetWorkspaceId) {
         res.status(401).json({
           error: "Unauthorized",
-          message: "Paramètre verifyToken ou workspaceId requis pour lister les équipes.",
+          message: "Workspace WariTrack introuvable pour lister les équipes.",
         });
         return;
       }
@@ -498,8 +507,10 @@ export const azifyGateway = onRequest(
           return {
             id: docSnap.id,
             name: d.name || "Équipe sans nom",
-            country: d.country || "TG",
+            country: d.country || d.defaultCountry || "TG",
             currency: d.currency || "XOF",
+            pixelId: d.metaCapiConfig?.pixelId || null,
+            pixelName: d.metaCapiConfig?.pixelName || null,
             membersCount: Array.isArray(d.members) ? d.members.length : 0,
             active: d.active !== false,
           };
