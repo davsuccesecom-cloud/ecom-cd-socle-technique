@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-const FB_APP_ID = (import.meta.env.VITE_META_APP_ID as string) || "27919549707704174";
+const FB_APP_ID = (import.meta.env.VITE_META_APP_ID as string) || "1863519984993708";
 
 interface MetaCapiConnectorProps {
   workspaceId: string;
