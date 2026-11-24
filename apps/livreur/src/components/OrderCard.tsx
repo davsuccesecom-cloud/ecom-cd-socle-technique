@@ -135,7 +135,7 @@ export default function OrderCard({ order, team, livreurName, onCall, onEndCall,
           : "border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
       } p-3`}
     >
-      {isCallActive && onEndCall && <CallBar onEndCall={handleEndCall} />}
+      {isCallActive && <CallBar onEndCall={handleEndCall} />}
       {((team && order.teamId && order.teamId !== team.id) || order.teamName || order.shopifyData?.shopDomain) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px]">
           {team && order.teamId && order.teamId !== team.id && (
