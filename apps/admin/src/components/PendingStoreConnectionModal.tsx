@@ -108,17 +108,22 @@ export default function PendingStoreConnectionModal({
       });
 
       // 2. Notification Webhook directe vers la boutique Azify (multi-domaines avec secours automatique)
-      const targetOrigins = [
-        currentConn.callbackUrl,
-        "https://azishop-pwa-studio.vercel.app",
-        "https://azify.shop",
-        currentConn.shopDomain ? `https://${currentConn.shopDomain}` : null,
-      ].filter(Boolean) as string[];
+      const targetOrigins = Array.from(
+        new Set(
+          [
+            currentConn.callbackUrl,
+            "https://azify.vercel.app",
+            "https://azishop-pwa-studio.vercel.app",
+            "https://azify.shop",
+            currentConn.shopDomain ? `https://${currentConn.shopDomain}` : null,
+          ].filter(Boolean) as string[]
+        )
+      );
 
       for (const origin of targetOrigins) {
         try {
           const cleanUrl = `${origin.replace(/\/$/, "")}/api/integrations/waritrack/webhook`;
-          await fetch(cleanUrl, {
+          const hookRes = await fetch(cleanUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -132,7 +137,9 @@ export default function PendingStoreConnectionModal({
               approvedAt: now,
             }),
           });
-          break; // Distribué avec succès
+          if (hookRes.ok) {
+            break; // Distribué avec succès
+          }
         } catch (_) {}
       }
 
