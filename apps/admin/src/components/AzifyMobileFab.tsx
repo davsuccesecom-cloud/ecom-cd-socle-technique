@@ -20,8 +20,8 @@ interface AzifyMobileFabProps {
   onNavigateToAzifySettings?: () => void;
 }
 
-const AZIFY_ADMIN_URL = "https://azishop-pwa-studio.vercel.app/admin";
-const AZIFY_REGISTER_URL = "https://azishop-pwa-studio.vercel.app/admin/login";
+const AZIFY_ADMIN_URL = "https://azify.vercel.app/admin";
+const AZIFY_REGISTER_URL = "https://azify.vercel.app/admin/login";
 
 export default function AzifyMobileFab({
   workspaceId,
@@ -88,7 +88,7 @@ export default function AzifyMobileFab({
         onClick={() => setIsOpen(true)}
         aria-label="Ouvrir le panneau Azify"
         className={`
-          md:hidden fixed bottom-5 right-4 z-40
+          md:hidden fixed bottom-20 right-4 z-40
           flex h-12 w-12 items-center justify-center rounded-2xl shadow-2xl transition-transform active:scale-90
           /* Mode clair : Noir solide avec bordure nette */
           bg-slate-900 text-white border border-slate-800

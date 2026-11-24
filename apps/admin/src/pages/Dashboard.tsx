@@ -492,13 +492,13 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 </kbd>
               </button>
 
-              {/* Contrôleur de thème & Palette */}
-              <div className="flex items-center">
+              {/* Contrôleur de thème & Palette (Desktop uniquement car présent dans Mobile Top Bar) */}
+              <div className="hidden md:flex items-center">
                 <ThemeQuickPicker />
               </div>
 
-              {/* Notification Bell */}
-              <div className="flex items-center">
+              {/* Notification Bell (Desktop uniquement car présent dans Mobile Top Bar) */}
+              <div className="hidden md:flex items-center">
                 <NotificationBell
                   workspaceId={workspaceId}
                   onNotificationClick={(notif) => {
