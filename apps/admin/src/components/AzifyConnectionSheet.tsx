@@ -250,6 +250,8 @@ export default function AzifyConnectionSheet({
               storeId: detectedPayload?.storeId,
               shopDomain: cleanDomain,
               workspaceId,
+              userEmail: userEmail || "",
+              pixelId: (selectedTeam as any).metaCapiConfig?.pixelId || null,
             },
             "*"
           );

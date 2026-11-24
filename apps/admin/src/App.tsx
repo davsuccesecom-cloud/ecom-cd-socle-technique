@@ -9,6 +9,7 @@ import LegalPrivacyModal, { type LegalTab } from "./components/LegalPrivacyModal
 import WariTrackLogo from "./components/WariTrackLogo";
 import GoogleAccountConfirmation from "./components/GoogleAccountConfirmation";
 import AzifyConnectionSheet from "./components/AzifyConnectionSheet";
+import AzifyConnectAuthPrompt from "./components/AzifyConnectAuthPrompt";
 
 interface SessionClaims {
   workspaceId: string;
@@ -445,6 +446,18 @@ export default function App() {
           )}
         </div>
       </div>
+    );
+  }
+
+  // Passerelle de connexion Azify pour visiteur non connecté (Invite d'authentification Google ciblée)
+  if (isAzifyConnect) {
+    return (
+      <AzifyConnectAuthPrompt
+        searchParams={searchParams}
+        signInWithGoogle={signInWithGoogle}
+        busy={busy}
+        error={error}
+      />
     );
   }
 
