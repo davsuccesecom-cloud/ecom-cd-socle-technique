@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { getDb } from "../firebase";
+import { getDb, getFirebaseAuth } from "../firebase";
 import type { CloseuseStatus, LivreurStatus } from "../types";
 
 /**
@@ -22,6 +22,7 @@ export interface CloseuseUpdateExtras {
   fieldNote?: string | null;
   rescheduleReason?: string | null;
   livreurId?: string | null;
+  closeuseId?: string | null;
 }
 
 export interface LivreurUpdateExtras {
@@ -68,7 +69,26 @@ export function useUpdateOrderStatus(workspaceId: string) {
         payload.livreurId = extras.livreurId;
         payload.statutLivreur = "recu";
       }
-      await updateDoc(ref, payload);
+      try {
+        const auth = getFirebaseAuth();
+        const currentUid = auth.currentUser?.uid;
+        if (currentUid && extras.closeuseId !== null) {
+          payload.closeuseId = extras.closeuseId || currentUid;
+        }
+        await updateDoc(ref, payload);
+      } catch (err: any) {
+        console.error("[useUpdateOrderStatus] updateCloseuseStatus error:", orderId, err);
+        if (payload.closeuseId) {
+          try {
+            delete payload.closeuseId;
+            await updateDoc(ref, payload);
+            return;
+          } catch (retryErr) {
+            console.error("[useUpdateOrderStatus] retry without closeuseId failed:", retryErr);
+          }
+        }
+        throw err;
+      }
     },
     [workspaceId]
   );

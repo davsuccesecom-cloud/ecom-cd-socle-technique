@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc } from "firebase/firestore";
 import {
   getDb,
   ConfirmDialog,
@@ -15,6 +15,7 @@ import {
   Search,
   Printer,
   Box,
+  Trash2,
   Phone,
   MapPin,
   Store,
@@ -216,6 +217,44 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
   const selectedOrdersTotal = useMemo(() => {
     return selectedOrdersList.reduce((sum, o) => sum + (o.amount || 0), 0);
   }, [selectedOrdersList]);
+
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
+  const handleDeleteOrder = async (orderId: string, clientName?: string) => {
+    if (!window.confirm(`Supprimer définitivement la commande de "${clientName || orderId}" ?`)) return;
+    try {
+      const db = getDb();
+      await deleteDoc(doc(db, "workspaces", workspaceId, "orders", orderId));
+      setSelected(null);
+      setBatchNotice("Commande supprimée avec succès.");
+      setTimeout(() => setBatchNotice(null), 3000);
+    } catch (err) {
+      const f = formatFirebaseError(err);
+      setBatchNotice(`Erreur suppression : ${f.message}`);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    const count = selectedOrderIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer DÉFINITIVEMENT ces ${count} commandes ? Cette action est irréversible.`)) return;
+    setBatchDeleting(true);
+    try {
+      const db = getDb();
+      const deletes = Array.from(selectedOrderIds).map((orderId) =>
+        deleteDoc(doc(db, "workspaces", workspaceId, "orders", orderId))
+      );
+      await Promise.all(deletes);
+      setSelectedOrderIds(new Set());
+      setBatchNotice(`${count} commande(s) supprimée(s) avec succès.`);
+      setTimeout(() => setBatchNotice(null), 4000);
+    } catch (err) {
+      const f = formatFirebaseError(err);
+      setBatchNotice(`Erreur : ${f.message}`);
+    } finally {
+      setBatchDeleting(false);
+    }
+  };
 
   const handleBatchAssignLivreur = async (livreurId: string) => {
     if (!livreurId || selectedOrderIds.size === 0) return;
@@ -557,15 +596,25 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
                         {formatDate(order.timestamps.received)}
                       </td>
                       <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => setReceiptOrder(order)}
-                          title="Ouvrir le Bon de Livraison 3D & Imprimer"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-brand/50 hover:text-brand"
-                        >
-                          <Box className="h-3.5 w-3.5 text-brand" />
-                          <span className="hidden sm:inline">Bon 3D</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setReceiptOrder(order)}
+                            title="Ouvrir le Bon de Livraison 3D & Imprimer"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs font-medium text-slate-300 transition hover:border-brand/50 hover:text-brand"
+                          >
+                            <Box className="h-3.5 w-3.5 text-brand" />
+                            <span className="hidden sm:inline">Bon 3D</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteOrder(order.id, order.clientName)}
+                            title="Supprimer cette commande"
+                            className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-surface-border bg-surface text-slate-400 transition hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -629,6 +678,17 @@ export default function Commandes({ workspaceId, team, orders, closeuses, livreu
             >
               <Printer className="h-3.5 w-3.5" />
               <span>Imprimer {selectedOrderIds.size} bordereaux (80mm)</span>
+            </button>
+
+            {/* Supprimer les commandes sélectionnées */}
+            <button
+              type="button"
+              disabled={batchDeleting}
+              onClick={handleBatchDelete}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 px-3.5 py-2 text-xs font-bold text-rose-300 transition active:scale-[0.98]"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Supprimer ({selectedOrderIds.size})</span>
             </button>
 
             {/* Assigner en masse à un livreur */}

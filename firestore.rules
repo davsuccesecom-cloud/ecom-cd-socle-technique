@@ -25,7 +25,7 @@ service cloud.firestore {
     //     - /notifications/{notifId} (admin or recipient userId; client update 'read' only)
     //     - /remunerations/{userId} (read admin or owner; server-written)
     //     - /codInsights/{countryCode} (read admin only; server-written via Admin SDK)
-    //     - /orders/{orderId} (team-scoped orders; role-separated status & note updates)
+    //     - /orders/{orderId} (team-scoped orders; role-separated status, assignment & note updates)
     //     - /shopifyConnections/{id}, /shopifyUnroutedOrders/{id}, /aiAssistantChats/{id},
     //       /cashSettlements/{id}, /metaOAuthSessions/{id}, /stocks/{id} (admin-only)
     //
@@ -65,6 +65,14 @@ service cloud.firestore {
         || ('allocatedTeamIds' in claims() && claims().allocatedTeamIds is list && teamId in claims().allocatedTeamIds);
     }
 
+    function isOrderAccessibleToCloseuse(orderData) {
+      return !('teamId' in orderData)
+        || orderData.teamId == null
+        || orderData.teamId == ''
+        || isSameTeamOrAllocated(orderData.teamId)
+        || ('closeuseId' in orderData && orderData.closeuseId == auth_().uid);
+    }
+
     function isValidOptionalNullableString(dataMap, field, maxLen) {
       return !(field in dataMap)
         || dataMap[field] == null
@@ -93,12 +101,13 @@ service cloud.firestore {
             || isValidOptionalNullableString(nextData, 'reminderWindowEnd', 10));
     }
 
-    // Validation de mise à jour d'une commande par la closeuse assignée
+    // Validation de mise à jour d'une commande par la closeuse autorisée
     function isValidCloseuseOrderUpdate() {
       let affected = request.resource.data.diff(resource.data).affectedKeys();
       let nextData = request.resource.data;
       return affected.hasOnly([
           'statutCloseuse',
+          'closeuseId',
           'callInProgress',
           'livreurId',
           'statutLivreur',
@@ -117,15 +126,25 @@ service cloud.firestore {
                   'injoignable',
                   'indisponible'
                 ]))
+        // La closeuse peut réclamer la commande (son propre uid) ou la libérer (null),
+        // sans pouvoir usurper l'identité d'une autre closeuse.
+        && (!affected.hasAny(['closeuseId'])
+            || !('closeuseId' in nextData)
+            || nextData.closeuseId == null
+            || nextData.closeuseId == auth_().uid)
         // La closeuse peut laisser statutLivreur inchangé (ex. 'injoignable' posé par le livreur)
         // ou le réinitialiser à null / 'recu', et NE PEUT JAMAIS le changer en 'livre' ou 'en_route'.
         && (!affected.hasAny(['statutLivreur'])
             || ('statutLivreur' in nextData
                 && (nextData.statutLivreur == null || nextData.statutLivreur == 'recu')))
-        && isValidOptionalNullableString(nextData, 'rejectionReason', 1000)
-        && isValidOptionalNullableString(nextData, 'fieldNote', 1000)
-        && isValidOptionalNullableString(nextData, 'rescheduleReason', 1000)
-        && (!('livreurId' in nextData)
+        && (!affected.hasAny(['rejectionReason'])
+            || isValidOptionalNullableString(nextData, 'rejectionReason', 1000))
+        && (!affected.hasAny(['fieldNote'])
+            || isValidOptionalNullableString(nextData, 'fieldNote', 1000))
+        && (!affected.hasAny(['rescheduleReason'])
+            || isValidOptionalNullableString(nextData, 'rescheduleReason', 1000))
+        && (!affected.hasAny(['livreurId'])
+            || !('livreurId' in nextData)
             || nextData.livreurId == null
             || (nextData.livreurId is string && nextData.livreurId.size() <= 128))
         && (!affected.hasAny(['reminderAt'])
@@ -159,9 +178,12 @@ service cloud.firestore {
         && (!affected.hasAny(['statutLivreur'])
             || ('statutLivreur' in nextData
                 && nextData.statutLivreur in ['recu', 'en_route', 'livre', 'injoignable']))
-        && isValidOptionalNullableString(nextData, 'rejectionReason', 1000)
-        && isValidOptionalNullableString(nextData, 'deliveryFailureReason', 1000)
-        && isValidOptionalNullableString(nextData, 'deliveryFieldNote', 1000)
+        && (!affected.hasAny(['rejectionReason'])
+            || isValidOptionalNullableString(nextData, 'rejectionReason', 1000))
+        && (!affected.hasAny(['deliveryFailureReason'])
+            || isValidOptionalNullableString(nextData, 'deliveryFailureReason', 1000))
+        && (!affected.hasAny(['deliveryFieldNote'])
+            || isValidOptionalNullableString(nextData, 'deliveryFieldNote', 1000))
         && (!affected.hasAny(['callInProgress'])
             || !('callInProgress' in nextData)
             || nextData.callInProgress == null
@@ -256,26 +278,27 @@ service cloud.firestore {
 
       match /orders/{orderId} {
         // Admin voit tout le workspace ;
-        // Closeuse voit les commandes de son équipe (principale ou allouée) ou qui lui sont assignées ;
+        // Closeuse voit les commandes de son équipe (principale ou allouée), celles qui lui
+        // sont assignées directement, ou les commandes non routées (sans teamId) ;
         // Livreur ne voit STRICTEMENT QUE ses propres commandes assignées (protection PII).
         allow read: if isAdmin(workspaceId)
-          || (isCloseuse(workspaceId) && (isSameTeamOrAllocated(resource.data.teamId) || resource.data.closeuseId == auth_().uid))
-          || (isLivreur(workspaceId) && resource.data.livreurId == auth_().uid);
+          || (isCloseuse(workspaceId) && isOrderAccessibleToCloseuse(resource.data))
+          || (isLivreur(workspaceId) && ('livreurId' in resource.data && resource.data.livreurId == auth_().uid));
 
         allow create: if isAdmin(workspaceId); // créées par la sync Sheet→Firestore ou Cloud Functions
 
-        // Closeuse : statutCloseuse + callInProgress + livreurId/statutLivreur + reminderAt + motifs/notes.
+        // Closeuse : statutCloseuse + closeuseId + callInProgress + livreurId/statutLivreur + reminderAt + motifs/notes.
         // SÉCURITÉ : La closeuse ne peut assigner que le statut initial 'recu' (ou null) pour statutLivreur,
         // ou le laisser inchangé (ex. 'injoignable'). Elle NE PEUT PAS marquer 'livre' ni 'en_route'.
-        // Elle peut traiter toute commande non assignée (closeuseId == null) ou assignée à elle-même.
+        // Elle peut traiter toute commande de son équipe (ou allouée/assignée/non-routée)
+        // et peut réclamer la commande (closeuseId == auth.uid) ou la reprendre.
         allow update: if isCloseuse(workspaceId)
-          && (isSameTeamOrAllocated(resource.data.teamId) || resource.data.closeuseId == auth_().uid)
-          && (resource.data.closeuseId == auth_().uid || resource.data.closeuseId == null)
+          && isOrderAccessibleToCloseuse(resource.data)
           && isValidCloseuseOrderUpdate();
 
         // Livreur : statutLivreur, callInProgress, motifs et note terrain sur ses propres commandes
         allow update: if isLivreur(workspaceId)
-          && resource.data.livreurId == auth_().uid
+          && ('livreurId' in resource.data && resource.data.livreurId == auth_().uid)
           && isValidLivreurOrderUpdate();
 
         // Admin : accès complet, y compris statutAdminOverride
