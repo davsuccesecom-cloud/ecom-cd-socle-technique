@@ -107,24 +107,49 @@ export default function PendingStoreConnectionModal({
         countryRoutes: routes,
       });
 
-      // 2. Notification Webhook directe vers la boutique Azify
-      const targetOrigin = currentConn.callbackUrl || `https://${currentConn.shopDomain}`;
-      try {
-        await fetch(`${targetOrigin}/api/integrations/waritrack/webhook`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event: "connection.approved",
-            shopDomain: currentConn.shopDomain,
-            status: "connected",
-            teamId: targetTeamId,
-            teamName: targetTeamName,
-            verifyToken: currentConn.verifyToken,
-            approvedAt: now,
-          }),
-        });
-      } catch (webhookErr) {
-        console.warn("Notification webhook vers Azify non distribuée directement :", webhookErr);
+      // 2. Notification Webhook directe vers la boutique Azify (multi-domaines avec secours automatique)
+      const targetOrigins = [
+        currentConn.callbackUrl,
+        "https://azishop-pwa-studio.vercel.app",
+        "https://azify.shop",
+        currentConn.shopDomain ? `https://${currentConn.shopDomain}` : null,
+      ].filter(Boolean) as string[];
+
+      for (const origin of targetOrigins) {
+        try {
+          const cleanUrl = `${origin.replace(/\/$/, "")}/api/integrations/waritrack/webhook`;
+          await fetch(cleanUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: "connection.approved",
+              storeId: (currentConn as any).azifyStoreId || (currentConn as any).storeId || "",
+              shopDomain: currentConn.shopDomain,
+              status: "connected",
+              teamId: targetTeamId,
+              teamName: targetTeamName,
+              verifyToken: currentConn.verifyToken,
+              approvedAt: now,
+            }),
+          });
+          break; // Distribué avec succès
+        } catch (_) {}
+      }
+
+      // Signal postMessage si onglet parent Azify ouvert
+      if (typeof window !== "undefined" && window.opener) {
+        try {
+          window.opener.postMessage(
+            {
+              type: "WARITRACK_CONNECTED",
+              status: "connected",
+              teamId: targetTeamId,
+              teamName: targetTeamName,
+              shopDomain: currentConn.shopDomain,
+            },
+            "*"
+          );
+        } catch (_) {}
       }
 
       setApprovedStoreName(currentConn.shopName || currentConn.shopDomain);
