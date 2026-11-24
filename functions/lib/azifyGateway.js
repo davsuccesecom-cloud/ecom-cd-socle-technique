@@ -416,7 +416,9 @@ exports.azifyGateway = (0, https_1.onRequest)({
 }, async (req, res) => {
     if (setCorsHeaders(req, res))
         return;
-    const path = req.path.replace(/^\/api\/azify/, "").replace(/^\/azifyGateway/, "").replace(/\/$/, "");
+    const queryPath = typeof req.query.path === "string" ? req.query.path.trim() : "";
+    const rawPath = queryPath || req.path;
+    const path = rawPath.replace(/^\/api\/azify/, "").replace(/^\/azifyGateway/, "").replace(/\/$/, "");
     const db = getDb();
     // 1. Diagnostics / Ping
     if (req.method === "GET" && (path === "" || path === "/ping" || path === "/health")) {
@@ -436,17 +438,33 @@ exports.azifyGateway = (0, https_1.onRequest)({
             req.query.ecomcod_verify ||
             "").trim();
         const workspaceIdParam = String(req.query.workspaceId || "").trim();
+        const shopDomain = String(req.query.shopDomain || req.headers["x-azify-shop-domain"] || "").trim().toLowerCase();
         let targetWorkspaceId = workspaceIdParam;
-        // Si le workspace n'est pas fourni, résolution par verifyToken ou premier workspace
-        if (!targetWorkspaceId && verifyToken) {
+        // Résolution du workspace par shopDomain ou verifyToken
+        if (!targetWorkspaceId && (shopDomain || verifyToken)) {
             try {
-                const connSnap = await db
-                    .collectionGroup("shopifyConnections")
-                    .where("verifyToken", "==", verifyToken)
-                    .limit(1)
-                    .get();
-                if (!connSnap.empty) {
-                    targetWorkspaceId = connSnap.docs[0].data().workspaceId;
+                if (shopDomain) {
+                    const cleanDomain = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+                    const snap = await db
+                        .collectionGroup("shopifyConnections")
+                        .where("shopDomain", "==", cleanDomain)
+                        .limit(1)
+                        .get();
+                    if (!snap.empty) {
+                        const d = snap.docs[0].data();
+                        targetWorkspaceId = d.workspaceId || snap.docs[0].ref.parent.parent?.id;
+                    }
+                }
+                if (!targetWorkspaceId && verifyToken) {
+                    const connSnap = await db
+                        .collectionGroup("shopifyConnections")
+                        .where("verifyToken", "==", verifyToken)
+                        .limit(1)
+                        .get();
+                    if (!connSnap.empty) {
+                        const d = connSnap.docs[0].data();
+                        targetWorkspaceId = d.workspaceId || connSnap.docs[0].ref.parent.parent?.id;
+                    }
                 }
             }
             catch (err) {
@@ -461,6 +479,35 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 }
             }
             catch (_) { }
+        }
+        // Si toujours aucun workspace direct, récupération de toutes les équipes réelles via collectionGroup
+        if (!targetWorkspaceId) {
+            try {
+                const allTeamsSnap = await db.collectionGroup("teams").limit(50).get();
+                if (!allTeamsSnap.empty) {
+                    const teamsList = allTeamsSnap.docs.map((docSnap) => {
+                        const d = docSnap.data();
+                        return {
+                            id: docSnap.id,
+                            name: d.name || "Équipe",
+                            country: d.country || d.defaultCountry || "TG",
+                            currency: d.currency || "XOF",
+                            pixelId: d.metaCapiConfig?.pixelId || null,
+                            pixelName: d.metaCapiConfig?.pixelName || null,
+                            membersCount: Array.isArray(d.members) ? d.members.length : 0,
+                            active: d.active !== false,
+                        };
+                    });
+                    res.status(200).json({
+                        success: true,
+                        teams: teamsList,
+                    });
+                    return;
+                }
+            }
+            catch (cgErr) {
+                console.warn("azifyGateway collectionGroup teams lookup error:", cgErr);
+            }
         }
         if (!targetWorkspaceId) {
             res.status(401).json({
@@ -645,12 +692,23 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 return;
             }
             const data = connDoc.data();
+            let teamName = data.ownerTeamName || data.requestedTeamName || null;
+            if (data.ownerTeamId) {
+                try {
+                    const teamDoc = await connDoc.ref.parent.parent?.collection("teams").doc(data.ownerTeamId).get();
+                    if (teamDoc?.exists && teamDoc.data()?.name) {
+                        teamName = teamDoc.data().name;
+                    }
+                }
+                catch (_) { }
+            }
             res.status(200).json({
                 connected: data.status === "active",
                 status: data.status,
                 shopName: data.shopName,
                 shopDomain: data.shopDomain,
                 ownerTeamId: data.ownerTeamId,
+                ownerTeamName: teamName,
                 lastOrderAt: data.lastOrderAt || null,
                 ordersCount: data.ordersCount || 0,
             });

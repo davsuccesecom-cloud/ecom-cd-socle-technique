@@ -350,7 +350,7 @@ export default function App() {
         }}
         onSwitchAccount={async () => {
           await handleLogout();
-          await signInWithGoogle();
+          window.location.reload();
         }}
       />
     );
@@ -378,7 +378,7 @@ export default function App() {
           }}
           onSwitchAccount={async () => {
             await handleLogout();
-            await signInWithGoogle();
+            window.location.reload();
           }}
         />
       );
