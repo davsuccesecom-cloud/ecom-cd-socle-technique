@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ThemeQuickPicker from "./ThemeQuickPicker";
 import WariTrackLogo from "./WariTrackLogo";
 import {
   LayoutDashboard,
@@ -110,6 +111,25 @@ export default function Sidebar({
     }
   };
 
+  const handleOpenAzify = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const azifyUrl = "https://azify.vercel.app/admin";
+    try {
+      const appWindow = window.open(
+        azifyUrl,
+        "AzifyStudioApp",
+        "menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes,width=1320,height=880"
+      );
+      if (!appWindow || appWindow.closed || typeof appWindow.closed === "undefined") {
+        window.open(azifyUrl, "_blank", "noopener,noreferrer");
+      } else {
+        appWindow.focus();
+      }
+    } catch {
+      window.open(azifyUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
   return (
     <aside
       className={`sidebar-surface sticky top-0 z-40 hidden h-screen shrink-0 flex-col border-r border-surface-border py-4 transition-all duration-150 md:flex ${
@@ -190,10 +210,51 @@ export default function Sidebar({
         ))}
       </nav>
 
-      {/* Pied de barre : compte administrateur & déconnexion */}
-      <div className="mt-auto space-y-2.5 border-t border-surface-border pt-3">
+      {/* Pied de barre : basculement Azify, thème & compte administrateur */}
+      <div className="mt-auto space-y-2 border-t border-surface-border pt-3">
+        {/* Basculement Azify Studio (Navigation fluide & promotion autonome) */}
         {collapsed ? (
-          <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={handleOpenAzify}
+            title="Ouvrir Azify Studio (PWA E-commerce COD)"
+            className="flex h-9 w-9 mx-auto items-center justify-center rounded-xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-950 text-white shadow-xs transition-all hover:scale-105 hover:border-brand/60 cursor-pointer"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-500/20 text-[10px] font-black text-emerald-400">
+              A
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleOpenAzify}
+            title="Ouvrir Azify Studio (PWA E-commerce COD)"
+            className="group flex w-full items-center justify-between rounded-xl border border-slate-700/60 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 px-3 py-2 text-xs text-white shadow-xs transition-all hover:border-brand/60 hover:from-slate-850 hover:to-slate-900 cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-xs font-black text-emerald-400 border border-emerald-500/30">
+                A
+              </span>
+              <div className="min-w-0 text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold tracking-tight text-slate-100">Azify Studio</span>
+                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-bold text-emerald-400">
+                    PWA
+                  </span>
+                </div>
+                <p className="truncate text-[10px] text-slate-400">Boutiques COD 1-Page</p>
+              </div>
+            </div>
+            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+          </button>
+        )}
+
+        {/* Contrôleur de Thème & Palette Visuelle (Position initiale au-dessus de la déconnexion) */}
+        <ThemeQuickPicker variant="sidebar" collapsed={collapsed} />
+
+        {/* Compte Administrateur & Déconnexion */}
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2 pt-1">
             <div
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand shadow-xs"
               title={userEmail ?? "Direction Admin"}
@@ -211,7 +272,7 @@ export default function Sidebar({
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 px-1.5">
+          <div className="flex items-center gap-2.5 px-1.5 pt-1">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand">
               {(userEmail ?? "A").charAt(0).toUpperCase()}
             </div>
