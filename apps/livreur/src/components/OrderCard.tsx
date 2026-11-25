@@ -131,7 +131,7 @@ export default function OrderCard({ order, team, livreurName, onCall, onEndCall,
       id={`order-${order.id}`}
       className={`rounded-2xl border transition-all ${
         isCallActive
-          ? "border-sky-400 ring-1 ring-sky-400/30 bg-white dark:bg-slate-800 shadow-xs"
+          ? "border-slate-300 dark:border-slate-600 ring-1 ring-slate-200 dark:ring-slate-700 bg-white dark:bg-slate-800 shadow-md"
           : "border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
       } p-3`}
     >
