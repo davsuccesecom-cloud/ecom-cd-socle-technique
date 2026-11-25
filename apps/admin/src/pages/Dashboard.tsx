@@ -663,18 +663,10 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
               {/* 2. Operational Companion Grid (immediately visible alongside the chart) */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className="rounded-2xl border border-surface-border bg-surface-raised p-4 lg:col-span-1">
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                       Statuts des Commandes
                     </h3>
-                    <button
-                      type="button"
-                      onClick={() => setPage("ai_assistant")}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20 transition-colors"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      Analyser
-                    </button>
                   </div>
                   <StatusDonut counts={stats.statusCounts} />
                 </div>

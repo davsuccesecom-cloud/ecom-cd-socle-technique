@@ -1,5 +1,4 @@
 import { useState } from "react";
-import ThemeQuickPicker from "./ThemeQuickPicker";
 import WariTrackLogo from "./WariTrackLogo";
 import {
   LayoutDashboard,
@@ -191,10 +190,8 @@ export default function Sidebar({
         ))}
       </nav>
 
-      {/* Pied de barre : contrôleur de couleur & compte administrateur */}
+      {/* Pied de barre : compte administrateur & déconnexion */}
       <div className="mt-auto space-y-2.5 border-t border-surface-border pt-3">
-        <ThemeQuickPicker variant="sidebar" collapsed={collapsed} />
-
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
             <div
