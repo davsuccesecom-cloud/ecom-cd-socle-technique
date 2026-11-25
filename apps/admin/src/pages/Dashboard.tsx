@@ -649,6 +649,7 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
                 allOrders={allOrders}
                 currency={currency}
                 periodLabel={periodLabel(period)}
+                period={period}
                 displayTotals={displayTotals}
                 tauxConfirmation={stats.tauxConfirmation}
                 tauxLivraisonReelle={stats.tauxLivraisonReelle}
