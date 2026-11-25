@@ -822,15 +822,30 @@ export default function LiveShopifyAnalytics({
     [baseLiveOrders]
   );
 
-  // Radar ping animé au point d'arrêt exact du tracé
+  // Point d'arrêt exact et stable au moment présent (zéro clignotement ni effet parasite)
+  const dotFillColor =
+    metric === "ca"
+      ? "var(--brand)"
+      : metric === "orders"
+      ? "#0ea5e9"
+      : metric === "deliveries"
+      ? "#10b981"
+      : "#f43f5e";
+
   const renderLivePulseDot = (props: any) => {
     const { cx, cy, payload } = props;
     if (!payload || cx == null || cy == null) return null;
     if (payload.isCurrent) {
       return (
-        <g key={`live-pulse-${payload.key || payload.label}`}>
-          <circle cx={cx} cy={cy} r={10} fill="var(--brand)" opacity={0.35} className="animate-ping" />
-          <circle cx={cx} cy={cy} r={5} fill="var(--brand)" stroke="#ffffff" strokeWidth={2} />
+        <g key={`live-tip-${payload.key || payload.label}`}>
+          <circle
+            cx={cx}
+            cy={cy}
+            r={4.5}
+            fill={dotFillColor}
+            stroke="#ffffff"
+            strokeWidth={2}
+          />
         </g>
       );
     }
@@ -1118,6 +1133,7 @@ export default function LiveShopifyAnalytics({
                 />
 
                 <Tooltip
+                  cursor={false}
                   wrapperStyle={{ zIndex: 20, pointerEvents: "none" }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
@@ -1270,7 +1286,7 @@ export default function LiveShopifyAnalytics({
                     fill="url(#shopifyLiveBrandFill)"
                     connectNulls={false}
                     dot={renderLivePulseDot}
-                    activeDot={{ r: 5, fill: "var(--brand)", stroke: "#ffffff", strokeWidth: 2 }}
+                    activeDot={false}
                   />
                 )}
 
@@ -1284,7 +1300,7 @@ export default function LiveShopifyAnalytics({
                       fill="url(#shopifyLiveSkyFill)"
                       connectNulls={false}
                       dot={renderLivePulseDot}
-                      activeDot={{ r: 5 }}
+                      activeDot={false}
                     />
                     <Area
                       type="monotone"
@@ -1294,7 +1310,7 @@ export default function LiveShopifyAnalytics({
                       fill="url(#shopifyLiveEmeraldFill)"
                       connectNulls={false}
                       dot={false}
-                      activeDot={{ r: 5 }}
+                      activeDot={false}
                     />
                   </>
                 )}
@@ -1308,7 +1324,7 @@ export default function LiveShopifyAnalytics({
                     fill="url(#shopifyLiveEmeraldFill)"
                     connectNulls={false}
                     dot={renderLivePulseDot}
-                    activeDot={{ r: 5 }}
+                    activeDot={false}
                   />
                 )}
 
@@ -1321,7 +1337,7 @@ export default function LiveShopifyAnalytics({
                     fill="url(#shopifyLiveRoseFill)"
                     connectNulls={false}
                     dot={renderLivePulseDot}
-                    activeDot={{ r: 5 }}
+                    activeDot={false}
                   />
                 )}
               </ComposedChart>
