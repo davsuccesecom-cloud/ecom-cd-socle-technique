@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ThemeQuickPicker from "./ThemeQuickPicker";
 import WariTrackLogo from "./WariTrackLogo";
+import { useTheme } from "../hooks/useTheme";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -88,6 +89,9 @@ export default function Sidebar({
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const isControlled = typeof controlledCollapsed === "boolean";
   const collapsed = isControlled ? controlledCollapsed : internalCollapsed;
+
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const toggleCollapsed = () => {
     if (isControlled && onToggleCollapse) {
@@ -212,13 +216,17 @@ export default function Sidebar({
 
       {/* Pied de barre : basculement Azify, thème & compte administrateur */}
       <div className="mt-auto space-y-2 border-t border-surface-border pt-3">
-        {/* Basculement Azify Studio (Bouton blanc distinctif comme avant) */}
+        {/* Basculement Azify Studio (Inversion de contraste : Blanc en mode sombre, Noir en mode clair) */}
         {collapsed ? (
           <button
             type="button"
             onClick={handleOpenAzify}
             title="Ouvrir Azify Studio"
-            className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white text-slate-900 shadow-xs transition-all hover:bg-slate-100 cursor-pointer"
+            className={`flex h-10 w-10 mx-auto items-center justify-center rounded-xl transition-all cursor-pointer shadow-xs border ${
+              isDark
+                ? "border-white bg-white text-slate-950 hover:bg-slate-100"
+                : "border-slate-900 bg-slate-950 text-white hover:bg-slate-800"
+            }`}
           >
             <img src="/icons/azify-logo-symbol.png" alt="Azify" className="h-5 w-5 object-contain rounded" />
           </button>
@@ -227,15 +235,23 @@ export default function Sidebar({
             type="button"
             onClick={handleOpenAzify}
             title="Ouvrir Azify Studio"
-            className="group flex w-full items-center justify-between rounded-xl bg-white px-3 py-2 text-slate-900 shadow-xs transition-all hover:bg-slate-100 cursor-pointer"
+            className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer shadow-xs border ${
+              isDark
+                ? "border-white bg-white text-slate-950 hover:bg-slate-100"
+                : "border-slate-900 bg-slate-950 text-white hover:bg-slate-800"
+            }`}
           >
             <div className="flex items-center gap-2.5">
               <img src="/icons/azify-logo-symbol.png" alt="Azify" className="h-5 w-5 object-contain rounded" />
-              <span className="font-bold text-[13px] tracking-tight text-slate-900">
+              <span className={`text-[13px] font-bold tracking-tight ${isDark ? "text-slate-950" : "text-white"}`}>
                 Azify Studio
               </span>
             </div>
-            <ArrowUpRight className="h-4 w-4 text-slate-700 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-900" />
+            <ArrowUpRight
+              className={`h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${
+                isDark ? "text-slate-800 group-hover:text-slate-950" : "text-slate-300 group-hover:text-white"
+              }`}
+            />
           </button>
         )}
 
