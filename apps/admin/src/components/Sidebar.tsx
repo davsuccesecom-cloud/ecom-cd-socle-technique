@@ -212,15 +212,15 @@ export default function Sidebar({
 
       {/* Pied de barre : basculement Azify, thème & compte administrateur */}
       <div className="mt-auto space-y-2 border-t border-surface-border pt-3">
-        {/* Basculement Azify Studio (Navigation fluide & promotion autonome) */}
+        {/* Basculement Azify Studio (Exactement comme dans la maquette) */}
         {collapsed ? (
           <button
             type="button"
             onClick={handleOpenAzify}
             title="Ouvrir Azify Studio (PWA E-commerce COD)"
-            className="flex h-9 w-9 mx-auto items-center justify-center rounded-xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-950 text-white shadow-xs transition-all hover:scale-105 hover:border-brand/60 cursor-pointer"
+            className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl border border-surface-border bg-surface/80 text-white shadow-xs transition-all hover:border-brand/60 cursor-pointer"
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-500/20 text-[10px] font-black text-emerald-400">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-950/60 text-xs font-black text-emerald-400">
               A
             </span>
           </button>
@@ -229,63 +229,69 @@ export default function Sidebar({
             type="button"
             onClick={handleOpenAzify}
             title="Ouvrir Azify Studio (PWA E-commerce COD)"
-            className="group flex w-full items-center justify-between rounded-xl border border-slate-700/60 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 px-3 py-2 text-xs text-white shadow-xs transition-all hover:border-brand/60 hover:from-slate-850 hover:to-slate-900 cursor-pointer"
+            className="group flex w-full items-center justify-between rounded-2xl border border-surface-border bg-surface/80 hover:bg-surface p-2.5 text-left transition-all hover:border-brand/50 cursor-pointer shadow-xs"
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-xs font-black text-emerald-400 border border-emerald-500/30">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-950/50 text-sm font-black text-emerald-400">
                 A
               </span>
-              <div className="min-w-0 text-left">
+              <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold tracking-tight text-slate-100">Azify Studio</span>
-                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-bold text-emerald-400">
+                  <span className="text-[13px] font-bold tracking-tight text-slate-100">
+                    Azify Studio
+                  </span>
+                  <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 leading-none">
                     PWA
                   </span>
                 </div>
-                <p className="truncate text-[10px] text-slate-400">Boutiques COD 1-Page</p>
+                <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
+                  Boutiques COD 1-Page
+                </p>
               </div>
             </div>
-            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+            <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-200" />
           </button>
         )}
 
-        {/* Contrôleur de Thème & Palette Visuelle (Position initiale au-dessus de la déconnexion) */}
+        {/* Contrôleur de Thème & Palette Visuelle (Au-dessus de la déconnexion) */}
         <ThemeQuickPicker variant="sidebar" collapsed={collapsed} />
 
-        {/* Compte Administrateur & Déconnexion */}
+        {/* Compte Administrateur & Déconnexion (Carte unifiée) */}
         {collapsed ? (
-          <div className="flex flex-col items-center gap-2 pt-1">
+          <div className="flex flex-col items-center gap-2 pt-0.5">
             <div
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand shadow-xs"
               title={userEmail ?? "Direction Admin"}
             >
-              {(userEmail ?? "A").charAt(0).toUpperCase()}
+              {(userEmail ?? "D").charAt(0).toUpperCase()}
             </div>
             <button
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
               title="Se déconnecter"
-              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50 cursor-pointer"
             >
               <LogOut className={`h-4 w-4 ${loggingOut ? "animate-spin" : ""}`} />
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 px-1.5 pt-1">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand">
-              {(userEmail ?? "A").charAt(0).toUpperCase()}
+          <div className="flex items-center justify-between rounded-xl border border-surface-border bg-surface/80 px-2.5 py-2 shadow-xs">
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-surface-border bg-surface text-xs font-bold text-brand"
+            >
+              {(userEmail ?? "D").charAt(0).toUpperCase()}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-slate-200">Direction Admin</p>
-              <p className="truncate text-[11px] text-slate-500">{userEmail}</p>
+            <div className="min-w-0 flex-1 px-2.5">
+              <p className="truncate text-xs font-bold text-slate-200">Direction Admin</p>
+              <p className="truncate text-[11px] font-medium text-slate-400">{userEmail}</p>
             </div>
             <button
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
               title="Se déconnecter"
-              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+              className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50 cursor-pointer"
             >
               <LogOut className={`h-4 w-4 ${loggingOut ? "animate-spin" : ""}`} />
             </button>
