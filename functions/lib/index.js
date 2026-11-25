@@ -1370,16 +1370,26 @@ exports.onOrderUpdated = (0, firestore_1.onDocumentUpdated)({ document: "workspa
                 console.warn("Échec lecture secret Meta CAPI (Purchase):", secErr);
             }
         }
+        const isTestOrder = Boolean(after.testEventCode ||
+            after.capiTestCode ||
+            after.shopifyData?.testEventCode ||
+            after.shopifyData?.noteAttributes?.some((a) => a.name === "capi_test_code" || a.name === "is_test"));
+        const isEligibleCapi = (!after.capiIsolated && after.trafficSource === "meta_ads") || isTestOrder;
         if (!isPhoneAlreadyTracked &&
-            !after.capiIsolated &&
+            isEligibleCapi &&
             !after.capiSent &&
-            after.trafficSource === "meta_ads" &&
             team?.metaCapiConfig?.enabled &&
-            team.metaCapiConfig.pixelId &&
+            (team.metaCapiConfig.pixelId || after.pixelId) &&
             metaAccessToken) {
             try {
                 const targetPixelId = after.pixelId || team.metaCapiConfig.pixelId;
-                const capiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)({ ...team.metaCapiConfig, pixelId: targetPixelId, accessToken: metaAccessToken }, {
+                const targetTestCode = after.testEventCode || after.capiTestCode || team.metaCapiConfig.testEventCode;
+                const capiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)({
+                    ...team.metaCapiConfig,
+                    pixelId: targetPixelId,
+                    accessToken: metaAccessToken,
+                    testEventCode: targetTestCode,
+                }, {
                     id: orderId,
                     sourceRowId: after.sourceRowId,
                     orderNumber: after.orderNumber,

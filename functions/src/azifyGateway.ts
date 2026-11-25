@@ -1052,7 +1052,10 @@ export const azifyGateway = onRequest(
           const fbc = String(item.fbc || item._fbc || item.tracking?.fbc || (fbclid ? `fb.1.${now}.${fbclid}` : "")).trim();
           const clientIp = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || item.ip || item.browserIp || "").split(",")[0].trim();
           const userAgent = String(req.headers["user-agent"] || item.userAgent || "").trim();
-          const isMetaAds = Boolean(fbclid || fbc || item.trafficSource === "meta_ads" || item.source === "facebook" || item.source === "instagram");
+          const isTestOrder = Boolean(item.isTest || item.is_test || item.capiTestCode || item.capi_test_code);
+          const isMetaAds = Boolean(fbclid || fbc || item.trafficSource === "meta_ads" || item.source === "facebook" || item.source === "instagram" || isTestOrder || incomingPixelId);
+          const azifyMetaEvent = String(item.metaEventSent || item.meta_event_sent || "").toLowerCase();
+          const alreadySentPurchase = Boolean(item.capiSent === true || item.capi_sent === true || azifyMetaEvent === "purchase");
 
           const orderRef = db.collection("workspaces").doc(targetWorkspaceId).collection("orders").doc(orderId);
           const orderDoc: Record<string, any> = {
@@ -1095,7 +1098,7 @@ export const azifyGateway = onRequest(
             statutLivreur: null,
             temperature: "hot",
             trafficSource: isMetaAds ? "meta_ads" : "organique",
-            capiIsolated: !isMetaAds,
+            capiIsolated: isMetaAds ? false : true,
             browserIp: clientIp || null,
             userAgent: userAgent || null,
             shopifyData: {
@@ -1108,7 +1111,9 @@ export const azifyGateway = onRequest(
               shopDomain: connData.shopDomain || item.shopDomain || "boutique.azify.store",
             },
             timestamps: { received: now },
-            capiSent: false,
+            capiSent: alreadySentPurchase,
+            metaEventSent: alreadySentPurchase ? "Purchase" : (azifyMetaEvent === "lead" ? "Lead" : undefined),
+            testEventCode: item.capiTestCode || item.capi_test_code || item.testEventCode || undefined,
             purgeAt: null,
           };
           if (qtyInfo.items.length > 0) {
@@ -1305,7 +1310,10 @@ export const azifyGateway = onRequest(
         const fbc = String(root.fbc || root._fbc || root.tracking?.fbc || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : "")).trim();
         const clientIp = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || root.ip || root.browserIp || "").split(",")[0].trim();
         const userAgent = String(req.headers["user-agent"] || root.userAgent || "").trim();
-        const isMetaAds = Boolean(fbclid || fbc || root.trafficSource === "meta_ads" || root.source === "facebook" || root.source === "instagram");
+        const isTestOrder = Boolean(root.isTest || root.is_test || root.capiTestCode || root.capi_test_code || (root.tracking && root.tracking.isTest));
+        const isMetaAds = Boolean(fbclid || fbc || root.trafficSource === "meta_ads" || root.source === "facebook" || root.source === "instagram" || isTestOrder || incomingPixelId);
+        const azifyMetaEvent = String(root.metaEventSent || root.meta_event_sent || "").toLowerCase();
+        const alreadySentPurchase = Boolean(root.capiSent === true || root.capi_sent === true || azifyMetaEvent === "purchase");
 
         const now = Date.now();
         const orderDoc: Record<string, any> = {
@@ -1354,7 +1362,7 @@ export const azifyGateway = onRequest(
           reminderAt: null,
           temperature: "hot",
           trafficSource: isMetaAds ? "meta_ads" : "organique",
-          capiIsolated: !isMetaAds,
+          capiIsolated: isMetaAds ? false : true,
           browserIp: clientIp || null,
           userAgent: userAgent || null,
           shopifyData: {
@@ -1374,7 +1382,9 @@ export const azifyGateway = onRequest(
             livreurRespondedAt: null,
             delivered: null,
           },
-          capiSent: false,
+          capiSent: alreadySentPurchase,
+          metaEventSent: alreadySentPurchase ? "Purchase" : (azifyMetaEvent === "lead" ? "Lead" : undefined),
+          testEventCode: root.capiTestCode || root.capi_test_code || root.testEventCode || undefined,
           purgeAt: null,
           isUnrouted: Boolean(isUnrouted),
         };

@@ -1139,6 +1139,39 @@ export const shopifyWebhook = onRequest(
       const positionGps = noteMap["position_gps"] || noteMap["gps"] || (root.latitude && root.longitude ? `${root.latitude},${root.longitude}` : null);
       const precisionGps = noteMap["precision_gps"] || noteMap["accuracy"] || null;
 
+      // Meta Pixel & CAPI Coordination (Azify <-> WariTrack)
+      const azifyMetaEvent = String(noteMap["meta_event_sent"] || root.meta_event_sent || "").toLowerCase();
+      const alreadySentPurchase =
+        noteMap["capi_sent"] === "true" ||
+        root.capiSent === true ||
+        root.capi_sent === true ||
+        azifyMetaEvent === "purchase";
+
+      const incomingPixelId = String(
+        noteMap["pixel_id"] ||
+        noteMap["pixelid"] ||
+        noteMap["meta_pixel_id"] ||
+        root.pixel_id ||
+        root.pixelId ||
+        ""
+      ).trim();
+
+      const testEventCode = String(
+        noteMap["capi_test_code"] ||
+        noteMap["test_event_code"] ||
+        root.capi_test_code ||
+        root.capiTestCode ||
+        ""
+      ).trim();
+
+      const isTestOrder = Boolean(
+        testEventCode ||
+        noteMap["is_test"] === "true" ||
+        root.is_test === true ||
+        root.isTest === true ||
+        req.headers["x-shopify-test"] === "true"
+      );
+
       let trafficSource: "meta_ads" | "tiktok_ads" | "google_ads" | "organique" | "acces_libre_site" = "organique";
       let capiIsolated = false;
       let attributionDetail = "";
@@ -1166,11 +1199,17 @@ export const shopifyWebhook = onRequest(
       } else if (
         effectiveFbclid ||
         (effectiveFbc && effectiveFbc.startsWith("fb.1.")) ||
-        ["facebook", "fb", "instagram", "ig", "meta"].some((s) => utmSource.includes(s))
+        ["facebook", "fb", "instagram", "ig", "meta"].some((s) => utmSource.includes(s)) ||
+        isTestOrder ||
+        incomingPixelId
       ) {
         trafficSource = "meta_ads";
         capiIsolated = false;
-        attributionDetail = "Campagne Meta Ads (fbc/fbclid vérifié)";
+        attributionDetail = isTestOrder
+          ? "Test d'intégration Meta Ads / CAPI (Événement Test)"
+          : alreadySentPurchase
+          ? "Campagne Meta Ads (Achat direct envoyé par Azify - Mode Testing)"
+          : "Campagne Meta Ads (fbc/fbclid ou Pixel résolu)";
       } else {
         trafficSource = "organique";
         capiIsolated = true;
@@ -1303,7 +1342,10 @@ export const shopifyWebhook = onRequest(
           delivered: null,
         },
 
-        capiSent: false,
+        pixelId: incomingPixelId || undefined,
+        capiSent: alreadySentPurchase,
+        metaEventSent: alreadySentPurchase ? "Purchase" : (azifyMetaEvent === "lead" ? "Lead" : undefined),
+        testEventCode: testEventCode || undefined,
         purgeAt: null,
         isUnrouted: Boolean(isUnrouted),
       };

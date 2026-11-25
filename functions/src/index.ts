@@ -1600,19 +1600,32 @@ export const onOrderUpdated = onDocumentUpdated(
         }
       }
 
+      const isTestOrder = Boolean(
+        (after as any).testEventCode ||
+        (after as any).capiTestCode ||
+        after.shopifyData?.testEventCode ||
+        after.shopifyData?.noteAttributes?.some((a: any) => a.name === "capi_test_code" || a.name === "is_test")
+      );
+      const isEligibleCapi = (!after.capiIsolated && after.trafficSource === "meta_ads") || isTestOrder;
+
       if (
         !isPhoneAlreadyTracked &&
-        !after.capiIsolated &&
+        isEligibleCapi &&
         !after.capiSent &&
-        after.trafficSource === "meta_ads" &&
         team?.metaCapiConfig?.enabled &&
-        team.metaCapiConfig.pixelId &&
+        (team.metaCapiConfig.pixelId || (after as any).pixelId) &&
         metaAccessToken
       ) {
         try {
           const targetPixelId = (after as any).pixelId || team.metaCapiConfig.pixelId;
+          const targetTestCode = (after as any).testEventCode || (after as any).capiTestCode || team.metaCapiConfig.testEventCode;
           const capiRes = await sendMetaPurchaseEvent(
-            { ...team.metaCapiConfig, pixelId: targetPixelId, accessToken: metaAccessToken },
+            {
+              ...team.metaCapiConfig,
+              pixelId: targetPixelId,
+              accessToken: metaAccessToken,
+              testEventCode: targetTestCode,
+            },
             {
               id: orderId,
               sourceRowId: after.sourceRowId,
