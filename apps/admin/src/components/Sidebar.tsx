@@ -212,44 +212,30 @@ export default function Sidebar({
 
       {/* Pied de barre : basculement Azify, thème & compte administrateur */}
       <div className="mt-auto space-y-2 border-t border-surface-border pt-3">
-        {/* Basculement Azify Studio (Exactement comme dans la maquette) */}
+        {/* Basculement Azify Studio (Bouton blanc distinctif comme avant) */}
         {collapsed ? (
           <button
             type="button"
             onClick={handleOpenAzify}
-            title="Ouvrir Azify Studio (PWA E-commerce COD)"
-            className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl border border-surface-border bg-surface/80 text-white shadow-xs transition-all hover:border-brand/60 cursor-pointer"
+            title="Ouvrir Azify Studio"
+            className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl bg-white text-slate-900 shadow-xs transition-all hover:bg-slate-100 cursor-pointer"
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-950/60 text-xs font-black text-emerald-400">
-              A
-            </span>
+            <img src="/icons/azify-logo-symbol.png" alt="Azify" className="h-5 w-5 object-contain rounded" />
           </button>
         ) : (
           <button
             type="button"
             onClick={handleOpenAzify}
-            title="Ouvrir Azify Studio (PWA E-commerce COD)"
-            className="group flex w-full items-center justify-between rounded-2xl border border-surface-border bg-surface/80 hover:bg-surface p-2.5 text-left transition-all hover:border-brand/50 cursor-pointer shadow-xs"
+            title="Ouvrir Azify Studio"
+            className="group flex w-full items-center justify-between rounded-xl bg-white px-3 py-2 text-slate-900 shadow-xs transition-all hover:bg-slate-100 cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-950/50 text-sm font-black text-emerald-400">
-                A
+            <div className="flex items-center gap-2.5">
+              <img src="/icons/azify-logo-symbol.png" alt="Azify" className="h-5 w-5 object-contain rounded" />
+              <span className="font-bold text-[13px] tracking-tight text-slate-900">
+                Azify Studio
               </span>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[13px] font-bold tracking-tight text-slate-100">
-                    Azify Studio
-                  </span>
-                  <span className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 leading-none">
-                    PWA
-                  </span>
-                </div>
-                <p className="mt-0.5 truncate text-[11px] font-medium text-slate-400">
-                  Boutiques COD 1-Page
-                </p>
-              </div>
             </div>
-            <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-200" />
+            <ArrowUpRight className="h-4 w-4 text-slate-700 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-slate-900" />
           </button>
         )}
 
