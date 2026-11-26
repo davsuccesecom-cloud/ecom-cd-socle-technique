@@ -20,6 +20,7 @@ import {
   TrendingUp,
   PhoneCall,
   PhoneOff,
+  ArrowUpRight,
 } from "lucide-react";
 import type { DailyStatRow, Order } from "@ecomcod/shared";
 import type { Period } from "./PeriodSelector";
@@ -131,6 +132,8 @@ export default function LiveShopifyAnalytics({
   displayTotals,
   tauxConfirmation,
   tauxLivraisonReelle,
+  onNavigateToOrders,
+  onNavigateToAi,
 }: LiveShopifyAnalyticsProps) {
   const [metric, setMetric] = useState<ActiveMetric>("ca");
   const [curveMode, setCurveMode] = useState<LiveCurveMode>("bounce");
@@ -822,6 +825,12 @@ export default function LiveShopifyAnalytics({
     [baseLiveOrders]
   );
 
+  // Commandes urgentes à appeler à chaud (statut nouveau)
+  const urgentCount = useMemo(
+    () => baseLiveOrders.filter((o) => o.statutCloseuse === "nouveau").length,
+    [baseLiveOrders]
+  );
+
   // Point d'arrêt exact et stable au moment présent (zéro clignotement ni effet parasite)
   const dotFillColor =
     metric === "ca"
@@ -890,47 +899,128 @@ export default function LiveShopifyAnalytics({
       : "injoignablesRef";
 
   return (
-    <div className="space-y-4">
-      {/* 1. Bandeau de Sécurité Financière : Encaissé vs Circulation */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/20 text-emerald-400">
-              <PackageCheck className="h-5 w-5" />
+    <div className="space-y-3.5">
+      {/* 1. Bandeau de Sécurité Financière : Encaissé vs Circulation (Compact & Allégé) */}
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-2.5 shadow-xs transition-all">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/20 text-emerald-400 shrink-0">
+              <PackageCheck className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-emerald-300">Cash Sécurisé (Encaissé)</p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-emerald-100 sm:text-2xl">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-emerald-300 tracking-tight leading-none">Cash Sécurisé (Encaissé)</p>
+              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-emerald-100 leading-tight">
                 {displayTotals.ca.toLocaleString("fr-FR")}{" "}
-                <span className="text-xs font-normal text-emerald-300">{currency}</span>
+                <span className="text-[11px] font-normal text-emerald-300">{currency}</span>
               </p>
             </div>
           </div>
-          <span className="rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 shrink-0">
             {displayTotals.livraisons} livraison{displayTotals.livraisons > 1 ? "s" : ""} validée{displayTotals.livraisons > 1 ? "s" : ""}
           </span>
         </div>
 
-        <div className="flex items-center justify-between rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-500/30 bg-sky-500/20 text-sky-400">
-              <TrendingUp className="h-5 w-5" />
+        <div className="flex items-center justify-between rounded-xl border border-sky-500/25 bg-sky-500/10 px-3.5 py-2.5 shadow-xs transition-all">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-sky-500/30 bg-sky-500/20 text-sky-400 shrink-0">
+              <TrendingUp className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
-            <div>
-              <p className="text-xs font-semibold text-sky-300">Cash en Circulation (Sur la route)</p>
-              <p className="mt-0.5 text-xl font-bold tabular-nums text-sky-100 sm:text-2xl">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-sky-300 tracking-tight leading-none">Cash en Circulation (Sur la route)</p>
+              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-sky-100 leading-tight">
                 {cashEnRoute.toLocaleString("fr-FR")}{" "}
-                <span className="text-xs font-normal text-sky-300">{currency}</span>
+                <span className="text-[11px] font-normal text-sky-300">{currency}</span>
               </p>
             </div>
           </div>
-          <span className="rounded-full bg-sky-500/20 px-2.5 py-1 text-xs font-semibold text-sky-300">
+          <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[11px] font-semibold text-sky-300 shrink-0">
             {pendingDeliveryCount} colis sur le terrain
           </span>
         </div>
       </div>
 
-      {/* 2. Cockpit Live & Tracé Évolutif Authentique */}
+      {/* 2. Bannières de Prise de Conscience Opérationnelle (Toujours Présentes & Permanentes) */}
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        {/* Volet 1 : Tournées & Livraisons */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-sky-500/25 bg-gradient-to-r from-sky-950/40 via-sky-900/15 to-surface-raised p-3 sm:p-3.5 shadow-xs transition-all hover:border-sky-500/40">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative shrink-0">
+              <img
+                src="/icons/app-livreur-native.png"
+                alt="Tournées & Livraisons"
+                className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover border border-sky-400/40 bg-slate-900 shadow-xs ring-1 ring-sky-500/20"
+              />
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] sm:h-4.5 sm:min-w-[18px] items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] sm:text-[10px] font-black text-slate-950 ring-1 ring-slate-950">
+                {pendingDeliveryCount}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-full bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[9px] font-bold text-sky-300 uppercase tracking-wider">
+                  Tournées &amp; Livraisons
+                </span>
+              </div>
+              <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
+                {pendingDeliveryCount} commande{pendingDeliveryCount > 1 ? "s" : ""} confirmée{pendingDeliveryCount > 1 ? "s" : ""} à livrer
+              </h4>
+              <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                Chaque heure de retard réduit le taux de succès client · Activez vos livreurs.
+              </p>
+            </div>
+          </div>
+          {onNavigateToOrders && (
+            <button
+              type="button"
+              onClick={onNavigateToOrders}
+              className="inline-flex items-center justify-center gap-1 rounded-xl bg-sky-500 hover:bg-sky-400 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold text-slate-950 shadow-xs transition-colors shrink-0 cursor-pointer"
+            >
+              <span>Livrer</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Volet 2 : Appels WhatsApp */}
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-gradient-to-r from-amber-950/40 via-amber-900/15 to-surface-raised p-3 sm:p-3.5 shadow-xs transition-all hover:border-amber-500/40">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative shrink-0">
+              <img
+                src="/icons/app-closeuse-native.png"
+                alt="Appels WhatsApp"
+                className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover border border-amber-400/40 bg-slate-900 shadow-xs ring-1 ring-amber-500/20"
+              />
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] sm:h-4.5 sm:min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] sm:text-[10px] font-black text-slate-950 ring-1 ring-slate-950">
+                {urgentCount}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[9px] font-bold text-amber-300 uppercase tracking-wider">
+                  Appels WhatsApp
+                </span>
+              </div>
+              <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
+                {urgentCount} commande{urgentCount > 1 ? "s" : ""} à confirmer
+              </h4>
+              <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                Le taux de closing est divisé par 2 après 15 min · Intervenez à chaud.
+              </p>
+            </div>
+          </div>
+          {onNavigateToOrders && (
+            <button
+              type="button"
+              onClick={onNavigateToOrders}
+              className="inline-flex items-center justify-center gap-1 rounded-xl bg-amber-500 hover:bg-amber-400 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold text-slate-950 shadow-xs transition-colors shrink-0 cursor-pointer"
+            >
+              <span>Appeler</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 3. Cockpit Live & Tracé Évolutif Authentique */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised shadow-sm overflow-hidden">
         {/* Barre des 4 Métriques Interactives */}
         <div className="grid grid-cols-2 divide-y divide-surface-border lg:grid-cols-4 lg:divide-x lg:divide-y-0">
