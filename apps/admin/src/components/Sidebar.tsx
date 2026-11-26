@@ -217,7 +217,7 @@ export default function Sidebar({
 
       {/* Pied de barre : basculement Azify, thème & compte administrateur */}
       <div className="mt-auto space-y-2 border-t border-surface-border pt-3">
-        {/* Basculement Azify Studio (Bouton Blanc Solide Épuré) */}
+        {/* Basculement Azify Studio (Bouton Blanc Solide avec le VRAI Logo Officiel Azify) */}
         {collapsed ? (
           <button
             type="button"
@@ -226,9 +226,11 @@ export default function Sidebar({
             style={{ backgroundColor: "#ffffff" }}
             className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl border border-slate-200 !bg-white shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-600 text-[11px] font-black text-white">
-              A
-            </span>
+            <img
+              src="/icons/azify-logo.png"
+              alt="Azify Studio"
+              className="h-6 w-6 object-contain"
+            />
           </button>
         ) : (
           <button
@@ -239,9 +241,11 @@ export default function Sidebar({
             className="group flex w-full h-10 items-center justify-between rounded-xl border border-slate-200 !bg-white px-3 text-xs shadow-xs transition-all hover:!bg-slate-50 active:scale-[0.99] cursor-pointer"
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-[10px] font-black text-white">
-                A
-              </span>
+              <img
+                src="/icons/azify-logo.png"
+                alt="Azify Studio"
+                className="h-5 w-5 shrink-0 object-contain"
+              />
               <span className="font-extrabold tracking-tight !text-slate-900 text-xs">
                 Azify Studio
               </span>
