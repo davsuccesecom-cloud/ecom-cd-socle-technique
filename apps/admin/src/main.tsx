@@ -25,21 +25,54 @@ window.addEventListener("vite:preloadError", (event) => {
   }
 });
 
+// Purge automatique du cache navigateur sur chaque nouveau déploiement :
+// Évite à l'administrateur de devoir forcer le rafraîchissement ("Ctrl + Shift + R")
+const APP_BUILD_VERSION = "waritrack-v2026.11.26.2-white-azify";
+try {
+  const currentVersion = localStorage.getItem("waritrack_pwa_version");
+  if (currentVersion !== APP_BUILD_VERSION) {
+    localStorage.setItem("waritrack_pwa_version", APP_BUILD_VERSION);
+    if ("caches" in window) {
+      caches.keys().then((cacheNames) => {
+        cacheNames.forEach((name) => {
+          if (!name.includes("firebase")) {
+            caches.delete(name);
+          }
+        });
+      });
+    }
+  }
+} catch {}
+
+// Écoute de prise de contrôle par un nouveau Service Worker : recharge immédiate transparente
+if ("serviceWorker" in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
+  });
+}
+
 // Enregistrement PWA avec mise à jour automatique sans bloquer l'administrateur
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    updateSW(true).then(() => {
-      window.location.reload();
-    }).catch(() => {
-      window.location.reload();
-    });
+    updateSW(true)
+      .then(() => {
+        window.location.reload();
+      })
+      .catch(() => {
+        window.location.reload();
+      });
   },
   onRegisteredSW(_swUrl, registration) {
     if (!registration) return;
+    // Vérification fréquente pour capter instantanément tout nouveau déploiement
     setInterval(() => {
       registration.update().catch(() => {});
-    }, 60 * 1000);
+    }, 15 * 1000);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         registration.update().catch(() => {});

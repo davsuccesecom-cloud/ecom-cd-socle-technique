@@ -217,15 +217,16 @@ export default function Sidebar({
 
       {/* Pied de barre : basculement Azify, thème & compte administrateur */}
       <div className="mt-auto space-y-2 border-t border-surface-border pt-3">
-        {/* Basculement Azify Studio (Navigation fluide & promotion autonome) */}
+        {/* Basculement Azify Studio (Bouton Blanc Solide Épuré) */}
         {collapsed ? (
           <button
             type="button"
             onClick={handleOpenAzify}
-            title="Ouvrir Azify Studio (PWA E-commerce COD)"
-            className="flex h-9 w-9 mx-auto items-center justify-center rounded-xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-950 text-white shadow-xs transition-all hover:scale-105 hover:border-brand/60 cursor-pointer"
+            title="Ouvrir Azify Studio"
+            style={{ backgroundColor: "#ffffff" }}
+            className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl border border-slate-200 !bg-white shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
           >
-            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-500/20 text-[10px] font-black text-emerald-400">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-600 text-[11px] font-black text-white">
               A
             </span>
           </button>
@@ -233,24 +234,19 @@ export default function Sidebar({
           <button
             type="button"
             onClick={handleOpenAzify}
-            title="Ouvrir Azify Studio (PWA E-commerce COD)"
-            className="group flex w-full items-center justify-between rounded-xl border border-slate-700/60 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 px-3 py-2 text-xs text-white shadow-xs transition-all hover:border-brand/60 hover:from-slate-850 hover:to-slate-900 cursor-pointer"
+            title="Ouvrir Azify Studio"
+            style={{ backgroundColor: "#ffffff" }}
+            className="group flex w-full h-10 items-center justify-between rounded-xl border border-slate-200 !bg-white px-3 text-xs shadow-xs transition-all hover:!bg-slate-50 active:scale-[0.99] cursor-pointer"
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-xs font-black text-emerald-400 border border-emerald-500/30">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-[10px] font-black text-white">
                 A
               </span>
-              <div className="min-w-0 text-left">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold tracking-tight text-slate-100">Azify Studio</span>
-                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-bold text-emerald-400">
-                    PWA
-                  </span>
-                </div>
-                <p className="truncate text-[10px] text-slate-400">Boutiques COD 1-Page</p>
-              </div>
+              <span className="font-extrabold tracking-tight !text-slate-900 text-xs">
+                Azify Studio
+              </span>
             </div>
-            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+            <ArrowUpRight className="h-4 w-4 shrink-0 !text-slate-700 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
           </button>
         )}
 

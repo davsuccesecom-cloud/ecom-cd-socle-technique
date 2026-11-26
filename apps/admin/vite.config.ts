@@ -35,7 +35,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        cacheId: "waritrack-admin-v5-live",
+        cacheId: "waritrack-admin-v7-instant",
         importScripts: ["/firebase-messaging-sw.js"],
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
         globIgnores: ["**/firebase-messaging-sw.js"],
