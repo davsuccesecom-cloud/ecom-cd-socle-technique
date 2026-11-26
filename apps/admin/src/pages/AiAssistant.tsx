@@ -52,6 +52,13 @@ import { formatFirebaseError } from "../lib/firebaseErrors";
 
 const SUGGESTIONS = [
   {
+    icon: Landmark,
+    title: "Bilan Comptable & P&L du Jour",
+    desc: "Clôture certifiée, CA réel, coûts directs, marge nette et règle 65/35.",
+    prompt:
+      "Dresse le Bilan Comptable & P&L Exécutif officiel de la journée d'aujourd'hui : Chiffre d'Affaires Encaissé réel sur livraisons, décomposition stricte des coûts (Landed Cost + Commissions réelles), rentabilité nette réelle, répartition de trésorerie (65% réinjection / 35% dividendes) et pointage du cash terrain des livreurs à récupérer à 18h.",
+  },
+  {
     icon: Globe2,
     title: "Bilan Logistique Stratégique Pays",
     desc: "Courbe de refroidissement COD, créneaux d'appel et zones critiques.",

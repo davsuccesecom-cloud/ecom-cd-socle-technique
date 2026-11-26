@@ -35,7 +35,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        cacheId: "waritrack-admin-v8-azify-logo",
+        cacheId: "waritrack-admin-v9-ai-cfo",
         importScripts: ["/firebase-messaging-sw.js"],
         globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,mp3}"],
         globIgnores: ["**/firebase-messaging-sw.js"],

@@ -27,7 +27,7 @@ window.addEventListener("vite:preloadError", (event) => {
 
 // Purge automatique du cache navigateur sur chaque nouveau déploiement :
 // Évite à l'administrateur de devoir forcer le rafraîchissement ("Ctrl + Shift + R")
-const APP_BUILD_VERSION = "waritrack-v2026.11.26.3-azify-official-logo";
+const APP_BUILD_VERSION = "waritrack-v2026.11.26.4-ai-cfo-dopage";
 try {
   const currentVersion = localStorage.getItem("waritrack_pwa_version");
   if (currentVersion !== APP_BUILD_VERSION) {
