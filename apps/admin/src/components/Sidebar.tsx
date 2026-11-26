@@ -102,6 +102,7 @@ export default function Sidebar({
   };
 
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = async () => {
     if (loggingOut) return;
@@ -216,49 +217,47 @@ export default function Sidebar({
 
       {/* Pied de barre : basculement Azify, thème & compte administrateur */}
       <div className="mt-auto space-y-2 border-t border-surface-border pt-3">
-        {/* Basculement Azify Studio (Inversion de contraste : Blanc en mode sombre, Noir en mode clair) */}
+        {/* Basculement Azify Studio (Navigation fluide & promotion autonome) */}
         {collapsed ? (
           <button
             type="button"
             onClick={handleOpenAzify}
-            title="Ouvrir Azify Studio"
-            className={`flex h-10 w-10 mx-auto items-center justify-center rounded-xl transition-all cursor-pointer shadow-xs border ${
-              isDark
-                ? "border-white bg-white text-slate-950 hover:bg-slate-100"
-                : "border-slate-900 bg-slate-950 text-white hover:bg-slate-800"
-            }`}
+            title="Ouvrir Azify Studio (PWA E-commerce COD)"
+            className="flex h-9 w-9 mx-auto items-center justify-center rounded-xl border border-slate-700/60 bg-gradient-to-br from-slate-900 to-slate-950 text-white shadow-xs transition-all hover:scale-105 hover:border-brand/60 cursor-pointer"
           >
-            <img src="/icons/azify-logo-symbol.png" alt="Azify" className="h-5 w-5 object-contain rounded" />
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-500/20 text-[10px] font-black text-emerald-400">
+              A
+            </span>
           </button>
         ) : (
           <button
             type="button"
             onClick={handleOpenAzify}
-            title="Ouvrir Azify Studio"
-            className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold transition-all cursor-pointer shadow-xs border ${
-              isDark
-                ? "border-white bg-white text-slate-950 hover:bg-slate-100"
-                : "border-slate-900 bg-slate-950 text-white hover:bg-slate-800"
-            }`}
+            title="Ouvrir Azify Studio (PWA E-commerce COD)"
+            className="group flex w-full items-center justify-between rounded-xl border border-slate-700/60 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 px-3 py-2 text-xs text-white shadow-xs transition-all hover:border-brand/60 hover:from-slate-850 hover:to-slate-900 cursor-pointer"
           >
-            <div className="flex items-center gap-2.5">
-              <img src="/icons/azify-logo-symbol.png" alt="Azify" className="h-5 w-5 object-contain rounded" />
-              <span className={`text-[13px] font-bold tracking-tight ${isDark ? "text-slate-950" : "text-white"}`}>
-                Azify Studio
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-xs font-black text-emerald-400 border border-emerald-500/30">
+                A
               </span>
+              <div className="min-w-0 text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold tracking-tight text-slate-100">Azify Studio</span>
+                  <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-bold text-emerald-400">
+                    PWA
+                  </span>
+                </div>
+                <p className="truncate text-[10px] text-slate-400">Boutiques COD 1-Page</p>
+              </div>
             </div>
-            <ArrowUpRight
-              className={`h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${
-                isDark ? "text-slate-800 group-hover:text-slate-950" : "text-slate-300 group-hover:text-white"
-              }`}
-            />
+            <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
           </button>
         )}
 
         {/* Contrôleur de Thème & Palette Visuelle (Au-dessus de la déconnexion) */}
         <ThemeQuickPicker variant="sidebar" collapsed={collapsed} />
 
-        {/* Compte Administrateur & Déconnexion (Carte unifiée) */}
+        {/* Compte Administrateur & Déconnexion (Carte unifiée avec popup de confirmation) */}
         {collapsed ? (
           <div className="flex flex-col items-center gap-2 pt-0.5">
             <div
@@ -269,7 +268,7 @@ export default function Sidebar({
             </div>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               disabled={loggingOut}
               title="Se déconnecter"
               className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50 cursor-pointer"
@@ -290,7 +289,7 @@ export default function Sidebar({
             </div>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               disabled={loggingOut}
               title="Se déconnecter"
               className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50 cursor-pointer"
@@ -300,6 +299,55 @@ export default function Sidebar({
           </div>
         )}
       </div>
+
+      {/* Pop-up de revalidation / confirmation de déconnexion */}
+      {showLogoutConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logout-confirm-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => !loggingOut && setShowLogoutConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-surface-border bg-surface-raised p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/25">
+                <LogOut className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 id="logout-confirm-title" className="text-sm font-bold text-slate-100">
+                  Confirmer la déconnexion
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Êtes-vous certain de vouloir quitter votre session administrateur ?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-surface-border">
+              <button
+                type="button"
+                disabled={loggingOut}
+                onClick={() => setShowLogoutConfirm(false)}
+                className="rounded-xl border border-surface-border bg-surface px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-surface-border transition-colors cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={loggingOut}
+                onClick={handleLogout}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-500 active:scale-95 transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {loggingOut ? "Déconnexion..." : "Se déconnecter"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
