@@ -10,14 +10,20 @@ interface CallBarProps {
  */
 export default function CallBar({ onEndCall }: CallBarProps) {
   return (
-    <div className="mb-2.5 flex h-9 items-center justify-between rounded-xl border border-slate-200 bg-white px-3 shadow-xs">
+    <div
+      style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}
+      className="mb-2.5 flex h-9 items-center justify-between rounded-xl border !border-slate-200 !bg-white px-3 shadow-xs"
+    >
       <div className="flex items-center gap-2 min-w-0">
         <span className="relative flex h-2.5 w-2.5 shrink-0">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
         </span>
         <PhoneCall className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-        <span className="truncate text-xs font-bold text-slate-900">
+        <span
+          style={{ color: "#0f172a" }}
+          className="truncate text-xs font-bold !text-slate-900"
+        >
           Appel en cours...
         </span>
       </div>
@@ -28,7 +34,8 @@ export default function CallBar({ onEndCall }: CallBarProps) {
           e.stopPropagation();
           onEndCall();
         }}
-        className="ml-auto inline-flex items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-600 shadow-xs transition-all hover:bg-rose-100 hover:text-rose-700 active:scale-95 cursor-pointer"
+        style={{ backgroundColor: "#fff1f2", borderColor: "#fecdd3", color: "#e11d48" }}
+        className="ml-auto inline-flex items-center justify-center rounded-lg border !border-rose-200 !bg-rose-50 px-2.5 py-1 text-[11px] font-bold !text-rose-600 shadow-xs transition-all hover:!bg-rose-100 hover:!text-rose-700 active:scale-95 cursor-pointer"
       >
         Terminer
       </button>
