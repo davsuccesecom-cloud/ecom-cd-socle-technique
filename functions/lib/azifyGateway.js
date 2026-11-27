@@ -942,12 +942,32 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 await connRef.update({ apiKey });
             }
             catch { }
+            let teamPixelInfo = {
+                pixelId: null,
+                pixelName: null,
+                capiEnabled: false,
+            };
+            if (connData.ownerTeamId) {
+                try {
+                    const teamDoc = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(connData.ownerTeamId).get();
+                    if (teamDoc.exists && teamDoc.data()?.metaCapiConfig?.pixelId) {
+                        teamPixelInfo.pixelId = teamDoc.data().metaCapiConfig.pixelId;
+                        teamPixelInfo.pixelName = teamDoc.data().metaCapiConfig.pixelName || null;
+                        teamPixelInfo.capiEnabled = Boolean(teamDoc.data().metaCapiConfig.enabled !== false && teamPixelInfo.pixelId);
+                    }
+                }
+                catch (_) { }
+            }
             res.status(200).json({
                 success: true,
                 paired: true,
                 workspaceId: targetWorkspaceId,
                 storeDomain: cleanDomain,
                 ownerTeamId: connData.ownerTeamId,
+                ownerTeamName: connData.requestedTeamName || null,
+                teamPixelId: teamPixelInfo.pixelId,
+                teamPixelName: teamPixelInfo.pixelName,
+                capiEnabled: teamPixelInfo.capiEnabled,
                 // API DIRECTE AZIFY HAUTE PERFORMANCE (INGESTION SYNCHRONE TEMPS RÉEL)
                 apiUrl: "https://azifygateway-7sfexpcitq-uc.a.run.app/orders",
                 apiKey,
@@ -991,11 +1011,44 @@ exports.azifyGateway = (0, https_1.onRequest)({
             }
             const data = connDoc.data();
             let teamName = data.ownerTeamName || data.requestedTeamName || null;
-            if (data.ownerTeamId) {
+            let teamPixelId = null;
+            let teamPixelName = null;
+            let capiEnabled = false;
+            let teamCountry = null;
+            let teamCurrency = "XOF";
+            const resolvedTeamId = data.ownerTeamId || data.requestedTeamId || null;
+            if (resolvedTeamId) {
                 try {
-                    const teamDoc = await connDoc.ref.parent.parent?.collection("teams").doc(data.ownerTeamId).get();
-                    if (teamDoc?.exists && teamDoc.data()?.name) {
-                        teamName = teamDoc.data().name;
+                    const teamDoc = await connDoc.ref.parent.parent?.collection("teams").doc(resolvedTeamId).get();
+                    if (teamDoc?.exists) {
+                        const tData = teamDoc.data();
+                        if (tData?.name)
+                            teamName = tData.name;
+                        if (tData?.country)
+                            teamCountry = tData.country;
+                        if (tData?.currency)
+                            teamCurrency = tData.currency;
+                        if (tData?.metaCapiConfig?.pixelId) {
+                            teamPixelId = tData.metaCapiConfig.pixelId;
+                            teamPixelName = tData.metaCapiConfig.pixelName || null;
+                            capiEnabled = Boolean(tData.metaCapiConfig.enabled !== false && teamPixelId);
+                        }
+                    }
+                }
+                catch (_) { }
+            }
+            // Si l'équipe assignée n'a pas de pixel ou est absente, explorer le workspace pour récupérer le pixel actif
+            if (!teamPixelId && connDoc.ref.parent.parent) {
+                try {
+                    const allTeams = await connDoc.ref.parent.parent.collection("teams").get();
+                    for (const doc of allTeams.docs) {
+                        const tData = doc.data();
+                        if (tData?.metaCapiConfig?.enabled && tData?.metaCapiConfig?.pixelId) {
+                            teamPixelId = tData.metaCapiConfig.pixelId;
+                            teamPixelName = tData.metaCapiConfig.pixelName || null;
+                            capiEnabled = true;
+                            break;
+                        }
                     }
                 }
                 catch (_) { }
@@ -1008,8 +1061,13 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 status: isConnActive ? "active" : (data.status || "disconnected"),
                 shopName: data.shopName,
                 shopDomain: data.shopDomain,
-                ownerTeamId: data.ownerTeamId || data.requestedTeamId || null,
+                ownerTeamId: resolvedTeamId,
                 ownerTeamName: teamName,
+                teamPixelId,
+                teamPixelName,
+                capiEnabled,
+                teamCountry,
+                teamCurrency,
                 lastOrderAt: data.lastOrderAt || null,
                 ordersCount: data.ordersCount || 0,
             });
@@ -1017,6 +1075,114 @@ exports.azifyGateway = (0, https_1.onRequest)({
         }
         catch (err) {
             console.error("azifyGateway status error:", err);
+            res.status(500).json({ error: "Internal Server Error", message: err.message });
+            return;
+        }
+    }
+    // 4b. POST /assign-team ou action: "switch_team" / "assign_team" : Réassignation d'équipe en 1 clic
+    if (req.method === "POST" &&
+        (path === "/assign-team" ||
+            path.endsWith("/assign-team") ||
+            (req.body && (req.body.action === "switch_team" || req.body.action === "assign_team")))) {
+        const body = req.body || {};
+        const verifyToken = String(req.headers["x-azify-verify-token"] || body.verifyToken || "").trim();
+        const shopDomain = String(body.shopDomain || "").trim().toLowerCase();
+        const storeId = String(body.storeId || "").trim();
+        const targetTeamId = String(body.teamId || body.targetTeamId || "").trim();
+        try {
+            const connDoc = await resolveShopifyConnection(db, {
+                verifyToken,
+                shopDomain,
+                storeId,
+            });
+            if (!connDoc) {
+                res.status(404).json({ error: "Boutique Azify introuvable pour réassignation." });
+                return;
+            }
+            const wsRef = connDoc.ref.parent.parent;
+            let targetTeamName = body.teamName || null;
+            let teamPixelId = null;
+            let teamPixelName = null;
+            let capiEnabled = false;
+            if (wsRef && targetTeamId) {
+                const tDoc = await wsRef.collection("teams").doc(targetTeamId).get();
+                if (tDoc.exists) {
+                    const td = tDoc.data();
+                    targetTeamName = td?.name || targetTeamName;
+                    teamPixelId = td?.metaCapiConfig?.pixelId || null;
+                    teamPixelName = td?.metaCapiConfig?.pixelName || null;
+                    capiEnabled = Boolean(td?.metaCapiConfig?.enabled !== false && teamPixelId);
+                }
+            }
+            await connDoc.ref.update({
+                ownerTeamId: targetTeamId,
+                ownerTeamName: targetTeamName,
+                status: "active",
+                updatedAt: Date.now(),
+            });
+            res.status(200).json({
+                success: true,
+                teamId: targetTeamId,
+                teamName: targetTeamName,
+                teamPixelId,
+                teamPixelName,
+                capiEnabled,
+                message: `Équipe « ${targetTeamName || targetTeamId} » réassignée avec succès !`,
+            });
+            return;
+        }
+        catch (err) {
+            console.error("azifyGateway assign-team error:", err);
+            res.status(500).json({ error: "Internal Server Error", message: err.message });
+            return;
+        }
+    }
+    // 4c. POST /sync-pixel ou action: "sync_pixel" : Synchronisation du pixel boutique vers l'équipe WariTrack
+    if (req.method === "POST" &&
+        (path === "/sync-pixel" ||
+            path.endsWith("/sync-pixel") ||
+            (req.body && req.body.action === "sync_pixel"))) {
+        const body = req.body || {};
+        const verifyToken = String(req.headers["x-azify-verify-token"] || body.verifyToken || "").trim();
+        const shopDomain = String(body.shopDomain || "").trim().toLowerCase();
+        const storeId = String(body.storeId || "").trim();
+        const pixelId = String(body.pixelId || "").trim();
+        const pixelName = String(body.pixelName || "Pixel Azify").trim();
+        const targetTeamId = String(body.teamId || "").trim();
+        try {
+            const connDoc = await resolveShopifyConnection(db, {
+                verifyToken,
+                shopDomain,
+                storeId,
+            });
+            if (!connDoc) {
+                res.status(404).json({ error: "Boutique Azify introuvable pour synchronisation pixel." });
+                return;
+            }
+            const wsRef = connDoc.ref.parent.parent;
+            const teamIdToUpdate = targetTeamId || connDoc.data().ownerTeamId;
+            if (wsRef && teamIdToUpdate && pixelId) {
+                const tRef = wsRef.collection("teams").doc(teamIdToUpdate);
+                await tRef.set({
+                    metaCapiConfig: {
+                        pixelId,
+                        pixelName,
+                        enabled: true,
+                        updatedAt: Date.now(),
+                    },
+                }, { merge: true });
+            }
+            res.status(200).json({
+                success: true,
+                pixelId,
+                pixelName,
+                teamId: teamIdToUpdate,
+                message: "Pixel synchronisé avec succès sur l'équipe WariTrack !",
+            });
+            return;
+        }
+        catch (err) {
+            console.error("azifyGateway sync-pixel error:", err);
             res.status(500).json({ error: "Internal Server Error", message: err.message });
             return;
         }
