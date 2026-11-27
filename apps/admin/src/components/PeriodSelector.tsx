@@ -110,7 +110,7 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
           className={`rounded-lg px-3 py-1.5 text-sm transition-all md:rounded-lg md:px-2.5 md:py-1 md:text-xs md:font-semibold ${
             period.type === "preset" && period.value === p
               ? "bg-brand text-white shadow-xs"
-              : "text-slate-400 hover:text-slate-200"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
           }`}
         >
           {PRESET_LABELS[p]}
@@ -119,7 +119,7 @@ export default function PeriodSelector({ period, onChange }: PeriodSelectorProps
       <button
         onClick={openCustomPanel}
         className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-all md:rounded-lg md:px-2.5 md:py-1 md:text-xs md:font-semibold ${
-          isCustom ? "bg-brand text-white shadow-xs" : "text-slate-400 hover:text-slate-200"
+          isCustom ? "bg-brand text-white shadow-xs" : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
         }`}
       >
         <CalendarIcon />

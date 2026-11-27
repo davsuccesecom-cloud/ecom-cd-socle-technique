@@ -48,7 +48,7 @@ export default function MarketSelector({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-3 py-1.5 text-xs font-semibold text-slate-100 outline-none transition-all hover:border-brand/40 shadow-xs focus:border-brand h-9"
+        className="flex items-center gap-2 rounded-xl border border-surface-border bg-surface-raised px-3 py-1.5 text-xs font-semibold text-slate-900 dark:text-slate-100 outline-none transition-all hover:border-brand/40 shadow-xs focus:border-brand h-9"
         title="Sélectionner le marché ou pays actif"
       >
         {isGlobal ? (
@@ -77,13 +77,13 @@ export default function MarketSelector({
             className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium transition-all ${
               isGlobal
                 ? "bg-brand/15 text-brand font-bold"
-                : "text-slate-200 hover:bg-surface"
+                : "text-slate-700 dark:text-slate-200 hover:bg-surface"
             }`}
           >
             <span className="text-base">🌍</span>
             <div className="min-w-0">
               <span className="block truncate font-semibold">Afrique Globale</span>
-              <span className="block text-[10px] text-slate-400">Tous les marchés consolidés</span>
+              <span className="block text-[10px] text-slate-500 dark:text-slate-400">Tous les marchés consolidés</span>
             </div>
           </button>
 
@@ -104,7 +104,7 @@ export default function MarketSelector({
                   className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium transition-all ${
                     isActive
                       ? "bg-brand/15 text-brand font-semibold"
-                      : "text-slate-200 hover:bg-surface"
+                      : "text-slate-700 dark:text-slate-200 hover:bg-surface"
                   }`}
                 >
                   {c && (

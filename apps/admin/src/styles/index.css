@@ -261,110 +261,25 @@ html.light .surface-popover {
   box-shadow: 0 16px 36px -8px rgba(15, 23, 42, 0.14);
 }
 
-/* Mode clair — adaptation globale des nuances de texte et badges (exclut la vitrine/landing sombre) */
+/* ==========================================================================
+   8. SYSTÈME D'ADAPTATION TYPOGRAPHIQUE & CONTRASTE (BLANC / NOIR)
+   ========================================================================== */
+
+/* Mode clair — Corps de document */
 html.light body {
   color: #0f172a;
 }
-html.light:not(.landing-active) .text-slate-100,
-html.light:not(.landing-active) .text-slate-200 {
-  color: #0f172a;
-}
-html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-100,
-html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-200 {
-  color: #1e1108;
-}
-html.light:not(.landing-active) .text-slate-300 {
-  color: #1e293b;
-}
-html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-300 {
-  color: #2e1a0d;
-}
-html.light:not(.landing-active) .text-slate-400 {
-  color: #334155;
-}
-html.light:not(.landing-active) .text-slate-500 {
-  color: #475569;
-}
-html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-400 {
-  color: #4a2f1d;
-}
-html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-500 {
-  color: #634027;
-}
-html.light:not(.landing-active) .text-slate-600 {
-  color: #64748b;
-}
-html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]) {
-  color: #334155;
-}
-html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]):hover {
-  color: #0f172a;
+
+/* Préservation ABSOLUE du texte blanc dans tous les contextes où text-white est requis */
+html.light:not(.landing-active) .text-white,
+html.dark:not(.landing-active) .text-white {
+  color: #ffffff !important;
 }
 
-/* Tonalités Émeraude / Succès / Encaissé en mode clair */
-html.light:not(.landing-active) .text-emerald-100,
-html.light:not(.landing-active) .text-emerald-200 {
-  color: #064e3b;
-}
-html.light:not(.landing-active) .text-emerald-300,
-html.light:not(.landing-active) .text-emerald-400 {
-  color: #047857;
-}
-html.light:not(.landing-active) .text-emerald-500 {
-  color: #059669;
-}
-
-/* Tonalités Ciel / Logistique / Circulation en mode clair */
-html.light:not(.landing-active) .text-sky-100,
-html.light:not(.landing-active) .text-sky-200 {
-  color: #0c4a6e;
-}
-html.light:not(.landing-active) .text-sky-300,
-html.light:not(.landing-active) .text-sky-400 {
-  color: #0369a1;
-}
-html.light:not(.landing-active) .text-sky-500 {
-  color: #0284c7;
-}
-
-/* Tonalités Ambre / Alertes / Clôtures en mode clair */
-html.light:not(.landing-active) .text-amber-100,
-html.light:not(.landing-active) .text-amber-200 {
-  color: #78350f;
-}
-html.light:not(.landing-active) .text-amber-300,
-html.light:not(.landing-active) .text-amber-400 {
-  color: #b45309;
-}
-
-/* Tonalités Rose / Rejets / Injoignables en mode clair */
-html.light:not(.landing-active) .text-rose-100,
-html.light:not(.landing-active) .text-rose-200,
-html.light:not(.landing-active) .text-red-100,
-html.light:not(.landing-active) .text-red-200 {
-  color: #881337;
-}
-html.light:not(.landing-active) .text-rose-300,
-html.light:not(.landing-active) .text-rose-400,
-html.light:not(.landing-active) .text-red-300,
-html.light:not(.landing-active) .text-red-400 {
-  color: #be123c;
-}
-
-/* Tonalités Violette en mode clair */
-html.light:not(.landing-active) .text-purple-100,
-html.light:not(.landing-active) .text-purple-200 {
-  color: #4c1d95;
-}
-html.light:not(.landing-active) .text-purple-300,
-html.light:not(.landing-active) .text-purple-400 {
-  color: #6d28d9;
-}
-
-/* Préservation stricte du texte blanc dans les boutons d'action ou éléments sombres */
+/* Préservation stricte du texte blanc dans les boutons actifs, pastilles brand ou conteneurs sombres */
 html.light:not(.landing-active) :is(
   .bg-brand,
-  [class*="bg-brand"],
+  [class*="bg-brand"]:not([class*="bg-brand-light"]):not([class*="bg-brand/"]),
   .bg-slate-900,
   .bg-slate-950,
   .bg-slate-800,
@@ -374,9 +289,155 @@ html.light:not(.landing-active) :is(
   .bg-rose-600,
   .bg-rose-500,
   .bg-sky-600,
-  .bg-amber-600
-) :is(.text-white, .text-slate-100, .text-slate-200) {
+  .bg-sky-500,
+  .bg-amber-600,
+  .bg-amber-500
+) {
   color: #ffffff !important;
+}
+
+html.light:not(.landing-active) :is(
+  .bg-brand,
+  [class*="bg-brand"]:not([class*="bg-brand-light"]):not([class*="bg-brand/"]),
+  .bg-slate-900,
+  .bg-slate-950,
+  .bg-slate-800,
+  .bg-black,
+  .bg-emerald-600,
+  .bg-emerald-700,
+  .bg-rose-600,
+  .bg-rose-500,
+  .bg-sky-600,
+  .bg-sky-500,
+  .bg-amber-600,
+  .bg-amber-500
+) :is(.text-white, .text-slate-100, .text-slate-200, span, p, b, strong) {
+  color: #ffffff !important;
+}
+
+/* HIÉRARCHIE TYPOGRAPHIQUE EN MODE CLAIR (Exclut les boutons sombres et les vitrines sombres) */
+/* Tier 1 : Titres majeurs, chiffres clés KPI, montants et en-têtes structurants */
+html.light:not(.landing-active) :is(.text-slate-100, .text-slate-200):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #0f172a; /* Slate 900 : Contraste maximal et franchise visuelle */
+}
+html.light:not(.landing-active):where([data-accent="cacao"]) :is(.text-slate-100, .text-slate-200):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #1e1108; /* Expresso intense */
+}
+
+/* Tier 2 : Corps de texte, valeurs de données, labels d'onglets actifs */
+html.light:not(.landing-active) .text-slate-300:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #334155; /* Slate 700 : Lecture équilibrée, confort oculaire, distinct des titres */
+}
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-300:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #3e2413; /* Moka foncé */
+}
+
+/* Tier 3 : Libellés d'aide, métriques secondaires, boutons inactifs et sous-titres */
+html.light:not(.landing-active) .text-slate-400:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #64748b; /* Slate 500 : Texte d'accompagnement élégant, jamais noir écrasant */
+}
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-400:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #6d472c; /* Cuir caramel */
+}
+
+/* Tier 4 : Légendes discrètes, horodatages, compteurs et micro-mentions */
+html.light:not(.landing-active) :is(.text-slate-500, .text-slate-600):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #94a3b8; /* Slate 400 : Hiérarchie subtile sans saturation */
+}
+html.light:not(.landing-active):where([data-accent="cacao"]) :is(.text-slate-500, .text-slate-600):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
+  color: #9b7252; /* Latte doux */
+}
+
+/* Navigation latérale (Sidebar) en mode clair */
+html.light:not(.landing-active) .sidebar-surface p.text-slate-500 {
+  color: #64748b !important;
+  font-weight: 700;
+}
+html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]) {
+  color: #475569;
+}
+html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]):hover {
+  color: #0f172a;
+}
+
+/* Tonalités Émeraude / Succès / Encaissé en mode clair */
+html.light:not(.landing-active) :is(.text-emerald-100, .text-emerald-200, .text-emerald-300) {
+  color: #065f46 !important; /* Emerald 800 : lisibilité sur fond clair */
+}
+html.light:not(.landing-active) :is(.text-emerald-400, .text-emerald-500) {
+  color: #047857 !important; /* Emerald 700 */
+}
+
+/* Tonalités Ciel / Logistique / Circulation en mode clair */
+html.light:not(.landing-active) :is(.text-sky-100, .text-sky-200, .text-sky-300) {
+  color: #075985 !important; /* Sky 800 : lisibilité sur fond clair */
+}
+html.light:not(.landing-active) :is(.text-sky-400, .text-sky-500) {
+  color: #0284c7 !important; /* Sky 600 */
+}
+
+/* Tonalités Ambre / Alertes / Clôtures en mode clair */
+html.light:not(.landing-active) :is(.text-amber-100, .text-amber-200, .text-amber-300) {
+  color: #92400e !important; /* Amber 800 */
+}
+html.light:not(.landing-active) :is(.text-amber-400, .text-amber-500) {
+  color: #b45309 !important; /* Amber 700 */
+}
+
+/* Tonalités Rose & Rouge / Rejets / Injoignables en mode clair */
+html.light:not(.landing-active) :is(.text-rose-100, .text-rose-200, .text-rose-300, .text-red-100, .text-red-200, .text-red-300) {
+  color: #9f1239 !important; /* Rose 800 */
+}
+html.light:not(.landing-active) :is(.text-rose-400, .text-rose-500, .text-red-400, .text-red-500) {
+  color: #be123c !important; /* Rose 700 */
+}
+
+/* Tonalités Violette en mode clair */
+html.light:not(.landing-active) :is(.text-purple-100, .text-purple-200, .text-purple-300) {
+  color: #5b21b6 !important;
+}
+html.light:not(.landing-active) :is(.text-purple-400, .text-purple-500) {
+  color: #7c3aed !important;
+}
+
+/* Pastilles et fonds teintés en mode clair (Élimination des teintes délavées/néon) */
+html.light:not(.landing-active) .bg-emerald-500\/10,
+html.light:not(.landing-active) .bg-emerald-500\/20 {
+  background-color: #ecfdf5 !important; /* emerald-50 */
+}
+html.light:not(.landing-active) :is(.border-emerald-500\/20, .border-emerald-500\/25, .border-emerald-500\/30) {
+  border-color: #a7f3d0 !important; /* emerald-200 */
+}
+
+html.light:not(.landing-active) .bg-sky-500\/10,
+html.light:not(.landing-active) .bg-sky-500\/20 {
+  background-color: #f0f9ff !important; /* sky-50 */
+}
+html.light:not(.landing-active) :is(.border-sky-500\/20, .border-sky-500\/25, .border-sky-500\/30) {
+  border-color: #bae6fd !important; /* sky-200 */
+}
+
+html.light:not(.landing-active) .bg-amber-500\/10,
+html.light:not(.landing-active) .bg-amber-500\/20 {
+  background-color: #fffbeb !important; /* amber-50 */
+}
+html.light:not(.landing-active) :is(.border-amber-500\/20, .border-amber-500\/25, .border-amber-500\/30) {
+  border-color: #fde68a !important; /* amber-200 */
+}
+
+html.light:not(.landing-active) :is(.bg-rose-500\/10, .bg-rose-500\/20, .bg-rose-500\/25) {
+  background-color: #fff1f2 !important; /* rose-50 */
+}
+html.light:not(.landing-active) :is(.border-rose-500\/20, .border-rose-500\/30, .border-rose-500\/40) {
+  border-color: #fecdd3 !important; /* rose-200 */
+}
+
+/* Rétro-protection Mode Sombre : Empêcher le texte sombre d'être invisible sur fond sombre */
+html.dark:not(.landing-active) .text-slate-900:not([class*="bg-white"]):not([class*="!text-slate-900"]):not(.printable-receipt):not(.printable-receipt *) {
+  color: #f8fafc;
+}
+html.dark:not(.landing-active) .text-slate-800:not([class*="bg-white"]):not([class*="!text-slate-800"]):not(.printable-receipt):not(.printable-receipt *) {
+  color: #e2e8f0;
 }
 
 /* Formulaires et champs de saisie en mode clair */

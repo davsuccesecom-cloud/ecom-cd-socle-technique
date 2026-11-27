@@ -176,7 +176,7 @@ export default function Sidebar({
         {GROUPS.map((group) => (
           <div key={group.title} className="space-y-1">
             {!collapsed && (
-              <p className="px-2.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 {group.title}
               </p>
             )}
@@ -193,16 +193,16 @@ export default function Sidebar({
                   className={`group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors ${
                     isActive
                       ? "bg-brand-light text-brand font-semibold"
-                      : "text-slate-400 hover:bg-surface hover:text-slate-100"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-surface hover:text-slate-900 dark:hover:text-slate-100"
                   } ${collapsed ? "justify-center" : ""}`}
                 >
                   {isActive && (
                     <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r bg-brand" />
                   )}
-                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-brand" : "text-slate-400 group-hover:text-slate-200"}`} />
+                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? "text-brand" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200"}`} />
                   {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
                   {showBadge && !collapsed && (
-                    <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-400 tabular-nums">
+                    <span className="rounded-full bg-amber-100 dark:bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:text-amber-400 tabular-nums">
                       {pendingOrdersCount}
                     </span>
                   )}

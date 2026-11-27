@@ -926,7 +926,7 @@ export default function LiveShopifyAnalytics({
               <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 tracking-tight leading-none">Cash Sécurisé (Encaissé)</p>
               <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-emerald-950 dark:text-emerald-100 leading-tight">
                 {displayTotals.ca.toLocaleString("fr-FR")}{" "}
-                <span className="text-[11px] font-normal text-emerald-300">{currency}</span>
+                <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-300">{currency}</span>
               </p>
             </div>
           </div>
@@ -944,7 +944,7 @@ export default function LiveShopifyAnalytics({
               <p className="text-[11px] font-semibold text-sky-800 dark:text-sky-300 tracking-tight leading-none">Cash en Circulation (Sur la route)</p>
               <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-sky-950 dark:text-sky-100 leading-tight">
                 {cashEnRoute.toLocaleString("fr-FR")}{" "}
-                <span className="text-[11px] font-normal text-sky-300">{currency}</span>
+                <span className="text-[11px] font-normal text-sky-700 dark:text-sky-300">{currency}</span>
               </p>
             </div>
           </div>
@@ -968,8 +968,8 @@ export default function LiveShopifyAnalytics({
             <div
               className={`flex items-center justify-between gap-3 rounded-xl border p-3 sm:p-3.5 shadow-xs transition-all ${
                 lateDeliveryCount > 0
-                  ? "border-rose-500/40 bg-gradient-to-r from-rose-950/40 via-sky-950/20 to-surface-raised"
-                  : "border-sky-500/25 bg-gradient-to-r from-sky-950/40 via-sky-900/15 to-surface-raised hover:border-sky-500/40"
+                  ? "border-rose-300 dark:border-rose-500/40 bg-rose-50/70 dark:bg-gradient-to-r dark:from-rose-950/40 dark:via-sky-950/20 dark:to-surface-raised"
+                  : "border-sky-300 dark:border-sky-500/25 bg-sky-50/70 dark:bg-gradient-to-r dark:from-sky-950/40 dark:via-sky-900/15 dark:to-surface-raised hover:border-sky-400 dark:hover:border-sky-500/40"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -991,7 +991,7 @@ export default function LiveShopifyAnalytics({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="rounded-full bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[9px] font-bold text-sky-300 uppercase tracking-wider">
+                    <span className="rounded-full bg-sky-100 dark:bg-sky-500/20 border border-sky-300 dark:border-sky-500/30 px-2 py-0.5 text-[9px] font-bold text-sky-800 dark:text-sky-300 uppercase tracking-wider">
                       Tournées &amp; Livraisons
                     </span>
                     {lateDeliveryCount > 0 && (
@@ -1000,11 +1000,11 @@ export default function LiveShopifyAnalytics({
                       </span>
                     )}
                   </div>
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
                     {pendingDeliveryCount} commande{pendingDeliveryCount > 1 ? "s" : ""} à livrer
                     {lateDeliveryCount > 0 ? ` · ${lateDeliveryCount} en dépassement de délai` : ""}
                   </h4>
-                  <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-tight mt-0.5 truncate">
                     {lateDeliveryCount > 0
                       ? "Temps de traitement dépassé sur le terrain ! Activez vos livreurs pour éviter les annulations."
                       : "Chaque heure de retard réduit le taux de succès client · Activez vos livreurs."}
@@ -1033,8 +1033,8 @@ export default function LiveShopifyAnalytics({
             <div
               className={`flex items-center justify-between gap-3 rounded-xl border p-3 sm:p-3.5 shadow-xs transition-all ${
                 lateConfirmationCount > 0
-                  ? "border-rose-500/40 bg-gradient-to-r from-rose-950/40 via-amber-950/20 to-surface-raised"
-                  : "border-amber-500/25 bg-gradient-to-r from-amber-950/40 via-amber-900/15 to-surface-raised hover:border-amber-500/40"
+                  ? "border-rose-300 dark:border-rose-500/40 bg-rose-50/70 dark:bg-gradient-to-r dark:from-rose-950/40 dark:via-amber-950/20 dark:to-surface-raised"
+                  : "border-amber-300 dark:border-amber-500/25 bg-amber-50/70 dark:bg-gradient-to-r dark:from-amber-950/40 dark:via-amber-900/15 dark:to-surface-raised hover:border-amber-400 dark:hover:border-amber-500/40"
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -1056,7 +1056,7 @@ export default function LiveShopifyAnalytics({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[9px] font-bold text-amber-300 uppercase tracking-wider">
+                    <span className="rounded-full bg-amber-100 dark:bg-amber-500/20 border border-amber-300 dark:border-amber-500/30 px-2 py-0.5 text-[9px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider">
                       Appels WhatsApp
                     </span>
                     {lateConfirmationCount > 0 && (
@@ -1065,11 +1065,11 @@ export default function LiveShopifyAnalytics({
                       </span>
                     )}
                   </div>
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
                     {urgentCount} commande{urgentCount > 1 ? "s" : ""} à confirmer
                     {lateConfirmationCount > 0 ? ` · ${lateConfirmationCount} critique${lateConfirmationCount > 1 ? "s" : ""}` : ""}
                   </h4>
-                  <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-tight mt-0.5 truncate">
                     {lateConfirmationCount > 0
                       ? "Délai de closing dépassé ! Le client se refroidit, appelez immédiatement."
                       : "Le taux de closing est divisé par 2 après 15 min · Intervenez à chaud."}
@@ -1093,8 +1093,10 @@ export default function LiveShopifyAnalytics({
             </div>
           )}
         </div>
-      )}
-
+      )}
+
+
+
       {/* 3. Cockpit Live & Tracé Évolutif Authentique */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised shadow-sm overflow-hidden">
         {/* Barre des 4 Métriques Interactives */}
@@ -1106,16 +1108,16 @@ export default function LiveShopifyAnalytics({
               metric === "ca" ? "border-b-brand bg-brand-light/20" : "border-b-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
               <span>Chiffre d&apos;Affaires Encaissé</span>
               <TrendingUp className="h-3.5 w-3.5 text-brand" />
             </div>
-            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">
               {displayTotals.ca.toLocaleString("fr-FR")}{" "}
-              <span className="text-xs font-normal text-slate-400">{currency}</span>
+              <span className="text-xs font-normal text-slate-500 dark:text-slate-400">{currency}</span>
             </p>
             <div className="mt-1">
-              <span className="text-[11px] text-slate-400">Période : {periodLabel}</span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">Période : {periodLabel}</span>
             </div>
           </button>
 
@@ -1126,15 +1128,15 @@ export default function LiveShopifyAnalytics({
               metric === "orders" ? "border-b-brand bg-brand-light/20" : "border-b-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
               <span>Flux des Commandes</span>
               <PhoneCall className="h-3.5 w-3.5 text-sky-400" />
             </div>
-            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">
               {displayTotals.commandes.toLocaleString("fr-FR")}
             </p>
             <div className="mt-1">
-              <span className="inline-block rounded-md border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400">
+              <span className="inline-block rounded-md border border-sky-200 dark:border-sky-500/20 bg-sky-100 dark:bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 dark:text-sky-300">
                 Confirmation : {tauxConfirmation}%
               </span>
             </div>
@@ -1147,15 +1149,15 @@ export default function LiveShopifyAnalytics({
               metric === "deliveries" ? "border-b-brand bg-brand-light/20" : "border-b-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
               <span>Livraisons Réussies</span>
               <PackageCheck className="h-3.5 w-3.5 text-emerald-400" />
             </div>
-            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">
               {displayTotals.livraisons.toLocaleString("fr-FR")}
             </p>
             <div className="mt-1">
-              <span className="inline-block rounded-md border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+              <span className="inline-block rounded-md border border-emerald-200 dark:border-emerald-500/20 bg-emerald-100 dark:bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800 dark:text-emerald-300">
                 Succès terrain : {tauxLivraisonReelle}%
               </span>
             </div>
@@ -1170,16 +1172,16 @@ export default function LiveShopifyAnalytics({
                 : "border-b-transparent hover:bg-surface/30"
             }`}
           >
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
               <span>Clients Injoignables</span>
               <PhoneOff className="h-3.5 w-3.5 text-rose-400" />
             </div>
-            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-100 sm:text-2xl">
+            <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-slate-100 sm:text-2xl">
               {displayTotals.injoignables.toLocaleString("fr-FR")}
             </p>
             <div className="mt-1">
-              <span className="inline-flex items-center gap-1 rounded-md border border-rose-500/20 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">
-                <Radio className="h-2.5 w-2.5 text-rose-400 animate-pulse" />
+              <span className="inline-flex items-center gap-1 rounded-md border border-rose-200 dark:border-rose-500/20 bg-rose-100 dark:bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800 dark:text-rose-300">
+                <Radio className="h-2.5 w-2.5 text-rose-500 dark:text-rose-400 animate-pulse" />
                 À relancer en priorité
               </span>
             </div>

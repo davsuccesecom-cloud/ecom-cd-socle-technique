@@ -171,7 +171,7 @@ export default function CommandPalette({
             <div className="max-h-[68vh] overflow-y-auto p-2 space-y-3">
               {matchingOrders.length > 0 && (
                 <div>
-                  <p className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <p className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Commandes ({matchingOrders.length})
                   </p>
                   <div className="space-y-0.5">
@@ -210,7 +210,7 @@ export default function CommandPalette({
 
               {matchingNav.length > 0 && (
                 <div>
-                  <p className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <p className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Pages &amp; Outils
                   </p>
                   <div className="space-y-0.5">
@@ -244,7 +244,7 @@ export default function CommandPalette({
 
               {matchingTeams.length > 1 && (
                 <div>
-                  <p className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <p className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Changer d'équipe / marché
                   </p>
                   <div className="flex flex-wrap gap-1 px-2">

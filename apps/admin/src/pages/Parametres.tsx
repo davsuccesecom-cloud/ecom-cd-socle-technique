@@ -230,10 +230,10 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className={`text-xs font-bold ${isActiveCat ? "text-slate-100" : "text-slate-300"}`}>
+                  <h2 className={`text-xs font-bold ${isActiveCat ? "text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300"}`}>
                     {cat.shortLabel}
                   </h2>
-                  <p className="text-[11px] text-slate-500 line-clamp-1">
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
                     {cat.desc}
                   </p>
                 </div>
@@ -243,7 +243,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                   isActiveCat
                     ? "bg-brand/20 text-brand border border-brand/30"
-                    : "bg-surface border border-surface-border text-slate-400"
+                    : "bg-surface border border-surface-border text-slate-500 dark:text-slate-400"
                 }`}
               >
                 {cat.count}
@@ -267,10 +267,10 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                 className={`flex min-h-[46px] flex-1 sm:flex-initial items-center justify-center sm:justify-start gap-2.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
                   isTabActive
                     ? "bg-brand text-white shadow-xs ring-1 ring-brand/40"
-                    : "text-slate-400 hover:bg-surface hover:text-slate-200 border border-transparent"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-surface hover:text-slate-900 dark:hover:text-slate-200 border border-transparent"
                 }`}
               >
-                <Icon className={`h-4 w-4 shrink-0 ${isTabActive ? "text-white" : "text-slate-400"}`} />
+                <Icon className={`h-4 w-4 shrink-0 ${isTabActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
                 <span className="whitespace-nowrap">{tab.label}</span>
                 {tab.badge && (
                   <span
@@ -296,7 +296,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
             <ActiveIcon className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-xs font-bold text-slate-100 flex items-center gap-2">
+            <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <span>{activeTabDef.label}</span>
               {activeTabDef.badge && (
                 <span className="rounded border border-brand/30 bg-brand/10 px-1.5 py-0.2 text-[9px] font-bold text-brand uppercase">
@@ -304,7 +304,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                 </span>
               )}
             </h2>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
               {activeTabDef.desc}
             </p>
           </div>
@@ -312,7 +312,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
 
         <div>
           {activeTabDef.isMarketSpecific ? (
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               <span>Paramétrage marché : {team?.name || "Actif"}</span>
             </span>
