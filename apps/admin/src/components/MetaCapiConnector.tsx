@@ -3,7 +3,7 @@ import { doc, onSnapshot, updateDoc, deleteDoc } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getDb, ConfirmDialog } from "@ecomcod/shared";
 import type { Team, MetaCapiConfig } from "@ecomcod/shared";
-import { Share2, Link2, Copy, Check, RefreshCw, Sparkles, X } from "lucide-react";
+import { Share2, Link2, Copy, Check, RefreshCw, Sparkles, X, Activity } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 
 declare global {
@@ -494,10 +494,12 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
   };
 
   const handleTestConnection = async () => {
-    const pId = team.metaCapiConfig?.pixelId || manualPixelId;
-    const token = team.metaCapiConfig?.accessToken || manualToken;
-    if (!pId || !token) {
-      setTestResult({ success: false, message: "Aucun pixel ou token configuré à tester." });
+    // Si on est dans le panneau de sélection Facebook, tester le pixel sélectionné en priorité
+    const pId = (fbUser ? selectedPixelId : null) || selectedPixelId || team.metaCapiConfig?.pixelId || manualPixelId;
+    const token = userToken || team.metaCapiConfig?.accessToken || manualToken;
+
+    if (!pId && !team.metaCapiConfig?.pixelId) {
+      setTestResult({ success: false, message: "Aucun pixel sélectionné à tester." });
       return;
     }
 
@@ -507,10 +509,12 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
       const functions = getFunctions();
       const testFn = httpsCallable(functions, "testMetaCapiConnection");
       const res = (await testFn({
-        pixelId: pId.trim(),
-        accessToken: token.trim(),
+        teamId: team.id,
+        pixelId: pId ? pId.trim() : undefined,
+        accessToken: token ? token.trim() : undefined,
         testEventCode: testCode.trim() || undefined,
-      })) as { data?: { success?: boolean; error?: string } };
+        currency: currency.trim() || "XOF",
+      })) as { data?: { success?: boolean; error?: string; pixelId?: string } };
 
       if (res.data && res.data.success === false) {
         throw new Error(res.data.error || "Échec rejeté par Meta Graph API");
@@ -613,7 +617,7 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
       </div>
 
       {/* ÉTAT 1 : Déjà connecté et actif */}
-      {isAlreadyConfigured && (
+      {isAlreadyConfigured && !fbUser && (
         <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3.5 space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -834,6 +838,21 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
       {/* ÉTAT 3 : Connecté à Facebook, sélection du Compte et du Pixel */}
       {fbUser && (
         <div className="space-y-4 rounded-xl border border-surface-border bg-surface-raised p-4">
+          {isAlreadyConfigured && (
+            <div className="flex items-center justify-between rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-300">
+              <span>Pixel actuellement actif : <strong>{team.metaCapiConfig?.pixelName || team.metaCapiConfig?.pixelId}</strong></span>
+              <button
+                type="button"
+                onClick={() => {
+                  setFbUser(null);
+                  setUserToken(null);
+                }}
+                className="text-[11px] underline hover:text-white cursor-pointer"
+              >
+                ✕ Conserver le Pixel actuel
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-3">
             <div className="flex items-center gap-2.5">
               {fbUser.picture && (
@@ -1091,16 +1110,27 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
               </div>
             </div>
 
-            {/* Bouton d'activation principale */}
-            <button
-              type="button"
-              disabled={saving || !selectedAdAccountId || !selectedPixelId || selectedPixelId === "__custom__"}
-              onClick={handleConnectSystemUser}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand hover:bg-brand-hover py-3 text-sm font-semibold text-white shadow-lg shadow-brand/20 disabled:opacity-50 transition-all cursor-pointer mt-2"
-            >
-              <Sparkles className="h-4 w-4" />
-              <span>{saving ? "Création du jeton permanent en cours..." : "🚀 Activer et lier ce Pixel automatiquement"}</span>
-            </button>
+            {/* Boutons d'action pour le Pixel sélectionné */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                disabled={testing || !selectedPixelId || selectedPixelId === "__custom__"}
+                onClick={handleTestConnection}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 py-2.5 text-xs font-bold text-emerald-300 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                <Activity className="h-4 w-4 text-emerald-400" />
+                <span>{testing ? "Test en cours..." : "🧪 Tester ce Pixel d'abord"}</span>
+              </button>
+              <button
+                type="button"
+                disabled={saving || !selectedAdAccountId || !selectedPixelId || selectedPixelId === "__custom__"}
+                onClick={handleConnectSystemUser}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand hover:bg-brand-hover py-2.5 text-xs font-bold text-white shadow-lg shadow-brand/20 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>{saving ? "Liaison en cours..." : "🚀 Activer et lier ce Pixel"}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

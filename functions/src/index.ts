@@ -2728,35 +2728,91 @@ export const scheduledSheetsSync = onSchedule(
 // ---------------------------------------------------------------------------
 
 export const testMetaCapiConnection = onCall(async (request) => {
-  requireAdmin(request);
-  const { pixelId, accessToken, testEventCode } = request.data as {
-    pixelId: string;
-    accessToken: string;
+  const workspaceId = requireAdmin(request);
+  const { pixelId, accessToken, testEventCode, teamId, currency, amount } = request.data as {
+    pixelId?: string;
+    accessToken?: string;
     testEventCode?: string;
+    teamId?: string;
+    currency?: string;
+    amount?: number;
   };
 
-  if (!pixelId || !accessToken) {
-    throw new HttpsError("invalid-argument", "Pixel ID et Access Token requis.");
+  let effectiveToken = (accessToken || "").trim();
+  let effectivePixelId = (pixelId || "").trim();
+  let teamDefaultCountry = "TG";
+  let effectiveCurrency = (currency || "XOF").trim();
+
+  // Si le token ou pixelId n'a pas été passé directement par le client, aller le chercher
+  // de manière sécurisée dans teams/{teamId} et teams/{teamId}/secrets/metaCapi
+  if (teamId && workspaceId) {
+    try {
+      const db = admin.firestore();
+      const teamSnap = await db
+        .collection("workspaces")
+        .doc(workspaceId)
+        .collection("teams")
+        .doc(teamId)
+        .get();
+      if (teamSnap.exists) {
+        const teamData = teamSnap.data();
+        if (!effectivePixelId) {
+          effectivePixelId = (teamData?.metaCapiConfig?.pixelId || "").trim();
+        }
+        if (!effectiveToken && teamData?.metaCapiConfig?.accessToken) {
+          effectiveToken = teamData.metaCapiConfig.accessToken.trim();
+        }
+        if (teamData?.defaultCountry) {
+          teamDefaultCountry = teamData.defaultCountry;
+        }
+        if (!currency && teamData?.metaCapiConfig?.currency) {
+          effectiveCurrency = teamData.metaCapiConfig.currency;
+        }
+      }
+
+      if (!effectiveToken) {
+        const secSnap = await db
+          .collection("workspaces")
+          .doc(workspaceId)
+          .collection("teams")
+          .doc(teamId)
+          .collection("secrets")
+          .doc("metaCapi")
+          .get();
+        if (secSnap.exists) {
+          effectiveToken = (secSnap.data()?.accessToken || "").trim();
+        }
+      }
+    } catch (e) {
+      console.warn("Échec lecture secret Meta CAPI pour test:", e);
+    }
+  }
+
+  if (!effectivePixelId || !effectiveToken) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Pixel ID ou Jeton d'accès Meta manquant. Assurez-vous d'avoir lié le Pixel à cette équipe ou renseigné le jeton."
+    );
   }
 
   const result = await sendMetaPurchaseEvent(
     {
       enabled: true,
-      pixelId,
-      accessToken,
-      currency: "XOF",
-      testEventCode,
+      pixelId: effectivePixelId,
+      accessToken: effectiveToken,
+      currency: effectiveCurrency,
+      testEventCode: (testEventCode || "").trim() || undefined,
     },
     {
       id: "TEST_ORDER_" + Date.now(),
-      orderNumber: "TEST-EASYSELL-001",
-      clientName: "Test Client",
+      orderNumber: "TEST-WARITRACK-" + Date.now().toString().slice(-4),
+      clientName: "Test Client WariTrack",
       clientPhoneFormatted: "+22890000000",
-      city: "Lome",
-      country: "TG",
-      product: "Produit Test COD",
+      city: "Lomé",
+      country: teamDefaultCountry,
+      product: "Produit Test COD WariTrack",
       quantity: 1,
-      amount: 15000,
+      amount: amount || 15000,
     }
   );
 
@@ -2764,7 +2820,7 @@ export const testMetaCapiConnection = onCall(async (request) => {
     throw new HttpsError("internal", result.error || "Erreur lors du test Meta CAPI.");
   }
 
-  return { success: true, metaResponse: result.data };
+  return { success: true, metaResponse: result.data, pixelId: effectivePixelId };
 });
 
 // ---------------------------------------------------------------------------
