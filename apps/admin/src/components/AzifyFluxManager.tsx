@@ -61,6 +61,7 @@ type AzifyConnExtra = {
   webhookVerifiedAt?: number;
   lastOrderAt?: number;
   ordersCount?: number;
+  capiMode?: "delivery" | "immediate";
 };
 
 type AzifyConn = ShopifyConnection & AzifyConnExtra;
@@ -564,6 +565,30 @@ export default function AzifyFluxManager({
       setActionError("Impossible de joindre la passerelle d'événement test Meta CAPI.");
     } finally {
       setTestingCapiId(null);
+    }
+  };
+
+  const [updatingCapiModeId, setUpdatingCapiModeId] = useState<string | null>(null);
+
+  const handleUpdateCapiMode = async (connId: string, mode: "delivery" | "immediate") => {
+    setUpdatingCapiModeId(connId);
+    setActionError(null);
+    setNotice(null);
+    try {
+      const db = getDb();
+      await updateDoc(doc(db, "workspaces", workspaceId, "shopifyConnections", connId), {
+        capiMode: mode,
+      });
+      setNotice(
+        mode === "immediate"
+          ? "⚡ Mode Testing Produit activé : chaque commande Azify enverra immédiatement l'événement Purchase à Meta CAPI !"
+          : "🛡️ Mode COD Afrique standard activé : l'événement Purchase sera envoyé uniquement lors de la livraison réelle."
+      );
+    } catch (err) {
+      const f = formatFirebaseError(err);
+      setActionError(`${f.title} : ${f.message}`);
+    } finally {
+      setUpdatingCapiModeId(null);
     }
   };
 
@@ -1267,6 +1292,48 @@ export default function AzifyFluxManager({
                           <span>{isTesting ? "Test en cours…" : "Tester l'API directe"}</span>
                         </button>
                       </div>
+                      {/* Mode de Déclenchement Meta CAPI (Testing Produit vs COD Strict) */}
+                      <div className="mt-2.5 rounded-lg border border-surface-border bg-surface-raised p-3 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <span className="text-xs font-bold text-slate-200 block">
+                              Mode de déclenchement Meta CAPI (Pixel) :
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {conn.capiMode === "immediate"
+                                ? "⚡ Mode Testing Produit actif : l'événement Purchase est envoyé immédiatement dès validation du panier sur Azify."
+                                : "🛡️ Mode COD Afrique standard : l'événement Purchase est envoyé uniquement quand le livreur encaisse le cash."}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 rounded-lg border border-surface-border bg-surface p-1">
+                            <button
+                              type="button"
+                              disabled={updatingCapiModeId === conn.id}
+                              onClick={() => handleUpdateCapiMode(conn.id, "delivery")}
+                              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                                conn.capiMode !== "immediate"
+                                  ? "bg-slate-700 text-white shadow-xs"
+                                  : "text-slate-400 hover:text-slate-200"
+                              }`}
+                            >
+                              🛡️ COD (Livraison)
+                            </button>
+                            <button
+                              type="button"
+                              disabled={updatingCapiModeId === conn.id}
+                              onClick={() => handleUpdateCapiMode(conn.id, "immediate")}
+                              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                                conn.capiMode === "immediate"
+                                  ? "bg-amber-600 text-white shadow-xs"
+                                  : "text-slate-400 hover:text-slate-200"
+                              }`}
+                            >
+                              ⚡ Testing Produit (Achat Direct)
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2 text-xs">
                         <div className="flex items-center justify-between rounded-lg border border-surface-border bg-surface-raised px-3 py-2">
                           <div className="truncate mr-2">

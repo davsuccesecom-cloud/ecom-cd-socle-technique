@@ -607,9 +607,19 @@ exports.azifyGateway = (0, https_1.onRequest)({
     if (req.method === "POST" &&
         (path === "/test-event" ||
             path === "/test-capi" ||
+            path === "/events" ||
+            path === "/event" ||
+            path === "/purchase" ||
             path.endsWith("/test-event") ||
             path.endsWith("/test-capi") ||
-            (req.body && (req.body.action === "test_event" || req.body.action === "test_capi")))) {
+            path.endsWith("/events") ||
+            path.endsWith("/event") ||
+            path.endsWith("/purchase") ||
+            (req.body && (req.body.action === "test_event" ||
+                req.body.action === "test_capi" ||
+                req.body.action === "send_event" ||
+                req.body.action === "purchase" ||
+                req.body.action === "event")))) {
         const startTime = Date.now();
         try {
             const body = parseJsonBody(req);
@@ -1423,8 +1433,20 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 orderDoc.items = qtyInfo.items;
             }
             await existingOrderRef.set(orderDoc);
-            // Si c'est une commande de test Azify, envoi immédiat du test event CAPI
-            if (isTestOrder && targetWorkspaceId && assignedTeamId) {
+            // Mode Testing Produit ou Immédiat : envoi immédiat de l'événement Purchase à Meta CAPI
+            const isImmediatePurchase = Boolean(isTestOrder ||
+                connData.capiMode === "immediate" ||
+                connData.sendPurchaseOnOrder === true ||
+                root.sendPurchase === true ||
+                root.sendPurchaseNow === true ||
+                root.triggerCapi === true ||
+                root.isTestingProduct === true ||
+                root.mode === "purchase" ||
+                root.mode === "testing" ||
+                root.event === "Purchase" ||
+                root.eventName === "Purchase" ||
+                azifyMetaEvent === "purchase");
+            if (isImmediatePurchase && targetWorkspaceId && assignedTeamId) {
                 try {
                     const teamSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(assignedTeamId).get();
                     const tData = teamSnap.data();
@@ -1471,7 +1493,7 @@ exports.azifyGateway = (0, https_1.onRequest)({
                                 testCapiSent: true,
                                 testCapiResponse: testCapiRes.data || true,
                             }).catch(() => { });
-                            console.log("azifyGateway: Événement test CAPI transmis instantanément pour commande " + orderId + " (Code: " + (tCode || "direct") + ")");
+                            console.log("azifyGateway: Événement Purchase CAPI envoyé immédiatement pour commande " + orderId + " (Mode: " + (connData.capiMode === "immediate" ? "Testing Produit" : (isTestOrder ? "Test" : "Direct")) + ")");
                         }
                     }
                 }
