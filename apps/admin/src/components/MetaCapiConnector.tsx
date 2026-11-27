@@ -577,6 +577,24 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     }
   };
 
+  const [renewingToken, setRenewingToken] = useState(false);
+
+  const handleRenewToken = async () => {
+    setRenewingToken(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const functions = getFunctions();
+      const renewFn = httpsCallable(functions, "renewMetaCapiToken");
+      const res = (await renewFn({ teamId: team.id })) as { data: { success: boolean; message: string; expiresAt?: number } };
+      setSuccessMsg(res.data.message || "✓ Jeton renouvelé avec succès pour 60 jours supplémentaires !");
+    } catch (err: any) {
+      setError(err?.message || "Échec renouvellement du jeton.");
+    } finally {
+      setRenewingToken(false);
+    }
+  };
+
   const handleSaveManual = async () => {
     if (!manualPixelId.trim() || !manualToken.trim()) {
       setError("Veuillez renseigner un Pixel ID et un jeton d'accès Meta (EAAG...).");
@@ -671,9 +689,28 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
                 ID : {team.metaCapiConfig?.pixelId} {team.metaCapiConfig?.adAccountName ? `• Compte : ${team.metaCapiConfig?.adAccountName}` : ""}
               </p>
             </div>
-            <span className="rounded-md bg-slate-800 px-2 py-1 text-[10px] font-mono text-slate-300 border border-slate-700">
-              {team.metaCapiConfig?.isSystemUser ? "Jeton permanent (Bot)" : "Jeton 60j"}
-            </span>
+            {team.metaCapiConfig?.isSystemUser ? (
+              <span className="rounded-md bg-slate-800 px-2.5 py-1 text-[10px] font-mono text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Jeton permanent (Bot)
+              </span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-slate-800 px-2.5 py-1 text-[10px] font-mono text-blue-300 border border-blue-500/30 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+                  Jeton 60j • {team.metaCapiConfig?.tokenExpiresAt ? `${Math.max(0, Math.ceil((Number(team.metaCapiConfig.tokenExpiresAt) - Date.now()) / (86400 * 1000)))}j restants (Auto-renouvelé)` : "Renouvellement auto quotidien actif"}
+                </span>
+                <button
+                  type="button"
+                  disabled={renewingToken}
+                  onClick={handleRenewToken}
+                  className="rounded-md border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-300 hover:bg-blue-500/20 disabled:opacity-50 transition-colors cursor-pointer"
+                  title="Prolonger le jeton de 60 jours dès maintenant"
+                >
+                  {renewingToken ? "Renouvellement..." : "🔄 Renouveler"}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pt-1">

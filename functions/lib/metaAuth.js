@@ -36,6 +36,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.fetchMetaAdAccountsAndPixels = fetchMetaAdAccountsAndPixels;
 exports.setupMetaSystemUserAndPixel = setupMetaSystemUserAndPixel;
 exports.disconnectMetaCapiConfig = disconnectMetaCapiConfig;
+exports.refreshMetaToken = refreshMetaToken;
+exports.renewAllExpiringMetaTokens = renewAllExpiringMetaTokens;
 const admin = __importStar(require("firebase-admin"));
 const GRAPH_API_VERSION = "v19.0";
 const FB_APP_ID = process.env.FB_APP_ID || "27919549707704174";
@@ -351,4 +353,143 @@ async function disconnectMetaCapiConfig(workspaceId, teamId) {
     // Suppression du jeton secret
     await teamRef.collection("secrets").doc("metaCapi").delete().catch(() => { });
     return { success: true, message: "Meta CAPI désactivé avec succès." };
+}
+/**
+ * Renouvelle un jeton utilisateur Meta longue durée (60 jours) auprès de Meta Graph API.
+ */
+async function refreshMetaToken(currentToken) {
+    if (!currentToken) {
+        return { success: false, error: "Token actuel manquant." };
+    }
+    try {
+        const exchangeUrl = `https://graph.facebook.com/${GRAPH_API_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&fb_exchange_token=${encodeURIComponent(currentToken)}`;
+        const exchangeRes = await fetch(exchangeUrl);
+        const exchangeData = (await exchangeRes.json());
+        if (exchangeRes.ok && exchangeData?.access_token) {
+            const expiresInSec = Number(exchangeData.expires_in) || 60 * 86400;
+            const expiresAt = Date.now() + expiresInSec * 1000;
+            return {
+                success: true,
+                newAccessToken: exchangeData.access_token,
+                expiresAt,
+            };
+        }
+        else {
+            return {
+                success: false,
+                error: exchangeData?.error?.message || "Échec renouvellement jeton Meta Graph API.",
+            };
+        }
+    }
+    catch (err) {
+        return {
+            success: false,
+            error: err?.message || "Erreur réseau lors du renouvellement Meta.",
+        };
+    }
+}
+/**
+ * Parcourt automatiquement toutes les équipes avec un jeton Meta expirant dans moins de 15 jours
+ * et renouvelle leur jeton pour 60 jours supplémentaires.
+ */
+async function renewAllExpiringMetaTokens() {
+    const db = admin.firestore();
+    const allTeamsSnap = await db.collectionGroup("teams").get();
+    let checked = 0;
+    let renewed = 0;
+    let permanent = 0;
+    let failed = 0;
+    const results = [];
+    const FIFTEEN_DAYS_MS = 15 * 86400 * 1000;
+    const now = Date.now();
+    for (const teamDoc of allTeamsSnap.docs) {
+        const teamData = teamDoc.data();
+        const capiConfig = teamData?.metaCapiConfig;
+        if (!capiConfig || !capiConfig.enabled || !capiConfig.pixelId) {
+            continue;
+        }
+        checked++;
+        const teamName = teamData.name || teamDoc.id;
+        // 1. Si c'est un Système Utilisateur (bot permanent), aucune expiration
+        if (capiConfig.isSystemUser) {
+            permanent++;
+            results.push({
+                teamId: teamDoc.id,
+                teamName,
+                status: "permanent",
+                message: "Jeton permanent Système Utilisateur (aucune expiration requise).",
+            });
+            continue;
+        }
+        // 2. Pour les jetons 60 jours : vérifier l'échéance
+        const expiresAt = capiConfig.tokenExpiresAt ? Number(capiConfig.tokenExpiresAt) : null;
+        const isCloseToExpiry = !expiresAt || (expiresAt - now < FIFTEEN_DAYS_MS);
+        if (!isCloseToExpiry) {
+            results.push({
+                teamId: teamDoc.id,
+                teamName,
+                status: "valid",
+                message: `Jeton encore valide jusqu'au ${new Date(expiresAt).toLocaleDateString("fr-FR")}.`,
+            });
+            continue;
+        }
+        // 3. Récupérer le jeton actuel dans secrets/metaCapi
+        let currentToken = "";
+        try {
+            const secSnap = await teamDoc.ref.collection("secrets").doc("metaCapi").get();
+            if (secSnap.exists) {
+                currentToken = String(secSnap.data()?.accessToken || "").trim();
+            }
+        }
+        catch (e) {
+            console.warn(`[MetaTokenRenewal] Erreur lecture secret pour équipe ${teamName}:`, e);
+        }
+        if (!currentToken) {
+            failed++;
+            results.push({
+                teamId: teamDoc.id,
+                teamName,
+                status: "missing_token",
+                message: "Jeton introuvable dans secrets/metaCapi.",
+            });
+            continue;
+        }
+        // 4. Appel Meta pour renouveler pour 60 jours
+        const res = await refreshMetaToken(currentToken);
+        if (res.success && res.newAccessToken) {
+            renewed++;
+            await teamDoc.ref.collection("secrets").doc("metaCapi").set({
+                accessToken: res.newAccessToken.trim(),
+                updatedAt: now,
+                lastAutoRenewedAt: now,
+            }, { merge: true });
+            await teamDoc.ref.update({
+                "metaCapiConfig.tokenExpiresAt": res.expiresAt,
+                "metaCapiConfig.lastRefreshedAt": now,
+                "metaCapiConfig.tokenStatus": "active",
+            });
+            console.log(`[MetaTokenRenewal] ✓ Jeton renouvelé avec succès pour l'équipe ${teamName} (valable jusqu'au ${new Date(res.expiresAt).toLocaleDateString("fr-FR")})`);
+            results.push({
+                teamId: teamDoc.id,
+                teamName,
+                status: "renewed",
+                message: `✓ Renouvelé avec succès (valable jusqu'au ${new Date(res.expiresAt).toLocaleDateString("fr-FR")}).`,
+            });
+        }
+        else {
+            failed++;
+            console.warn(`[MetaTokenRenewal] Échec renouvellement jeton pour ${teamName}:`, res.error);
+            await teamDoc.ref.update({
+                "metaCapiConfig.tokenStatus": "renewal_warning",
+                "metaCapiConfig.lastRenewalError": res.error || "Échec renouvellement",
+            });
+            results.push({
+                teamId: teamDoc.id,
+                teamName,
+                status: "failed",
+                message: res.error || "Échec renouvellement",
+            });
+        }
+    }
+    return { checked, renewed, permanent, failed, results };
 }

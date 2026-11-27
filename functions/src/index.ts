@@ -22,6 +22,8 @@ import {
   fetchMetaAdAccountsAndPixels,
   setupMetaSystemUserAndPixel,
   disconnectMetaCapiConfig,
+  refreshMetaToken,
+  renewAllExpiringMetaTokens,
 } from "./metaAuth";
 export { trackSession, shopifyWebhook, getStorefrontTrackerScript, syncOrderUpdateToAzify } from "./shopifyTracking";
 export { azifyGateway } from "./azifyGateway";
@@ -2999,6 +3001,87 @@ export const completeMetaOAuthBridgeSession = onCall(async (request) => {
   } catch (err: any) {
     throw new HttpsError("internal", err?.message || "Impossible de récupérer les comptes Meta.");
   }
+});
+
+// ---------------------------------------------------------------------------
+// 8bis. Renouvellement automatique quotidien des jetons Meta CAPI (60 jours)
+// ---------------------------------------------------------------------------
+
+export const scheduledMetaTokenRenewal = onSchedule(
+  {
+    schedule: "every 24 hours",
+    timeZone: "UTC",
+    retryCount: 2,
+  },
+  async () => {
+    console.log("[scheduledMetaTokenRenewal] Démarrage de la vérification quotidienne des jetons Meta CAPI...");
+    const report = await renewAllExpiringMetaTokens();
+    console.log(
+      `[scheduledMetaTokenRenewal] Terminé : ${report.checked} vérifiées, ${report.renewed} renouvelées, ${report.permanent} permanentes, ${report.failed} échecs.`
+    );
+  }
+);
+
+export const renewMetaCapiToken = onCall(async (request) => {
+  const workspaceId = requireAdmin(request);
+  const { teamId } = request.data as { teamId: string };
+  if (!teamId) {
+    throw new HttpsError("invalid-argument", "teamId requis.");
+  }
+
+  const db = admin.firestore();
+  const teamRef = db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId);
+  const teamSnap = await teamRef.get();
+  if (!teamSnap.exists) {
+    throw new HttpsError("not-found", "Équipe introuvable.");
+  }
+
+  const teamData = teamSnap.data();
+  const capiConfig = teamData?.metaCapiConfig;
+  if (!capiConfig?.enabled) {
+    throw new HttpsError("failed-precondition", "Meta CAPI non activé sur cette équipe.");
+  }
+
+  if (capiConfig?.isSystemUser) {
+    return {
+      success: true,
+      isSystemUser: true,
+      message: "Cette équipe utilise un jeton permanent Système Utilisateur (Bot Meta). Il n'expire jamais !",
+    };
+  }
+
+  const secSnap = await teamRef.collection("secrets").doc("metaCapi").get();
+  const currentToken = String(secSnap.data()?.accessToken || "").trim();
+  if (!currentToken) {
+    throw new HttpsError("not-found", "Jeton d'accès Meta introuvable dans le coffre-fort de l'équipe.");
+  }
+
+  const res = await refreshMetaToken(currentToken);
+  if (!res.success || !res.newAccessToken) {
+    throw new HttpsError("internal", res.error || "Impossible de renouveler le jeton auprès de Meta.");
+  }
+
+  const now = Date.now();
+  await teamRef.collection("secrets").doc("metaCapi").set(
+    {
+      accessToken: res.newAccessToken.trim(),
+      updatedAt: now,
+      lastManualRenewedAt: now,
+    },
+    { merge: true }
+  );
+
+  await teamRef.update({
+    "metaCapiConfig.tokenExpiresAt": res.expiresAt,
+    "metaCapiConfig.lastRefreshedAt": now,
+    "metaCapiConfig.tokenStatus": "active",
+  });
+
+  return {
+    success: true,
+    expiresAt: res.expiresAt,
+    message: `✓ Jeton Meta renouvelé avec succès pour 60 jours supplémentaires (valable jusqu'au ${new Date(res.expiresAt!).toLocaleDateString("fr-FR")}) !`,
+  };
 });
 
 // ---------------------------------------------------------------------------

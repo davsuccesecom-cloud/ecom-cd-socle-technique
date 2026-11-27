@@ -481,6 +481,40 @@
       "callableTrigger": {},
       "entryPoint": "completeMetaOAuthBridgeSession"
     },
+    "scheduledMetaTokenRenewal": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "labels": {},
+      "scheduleTrigger": {
+        "schedule": "every 24 hours",
+        "retryConfig": {
+          "retryCount": 2
+        },
+        "timeZone": "UTC"
+      },
+      "entryPoint": "scheduledMetaTokenRenewal"
+    },
+    "renewMetaCapiToken": {
+      "availableMemoryMb": null,
+      "timeoutSeconds": null,
+      "minInstances": null,
+      "maxInstances": null,
+      "ingressSettings": null,
+      "concurrency": null,
+      "serviceAccountEmail": null,
+      "vpc": null,
+      "platform": "gcfv2",
+      "labels": {},
+      "callableTrigger": {},
+      "entryPoint": "renewMetaCapiToken"
+    },
     "testSheetConnection": {
       "availableMemoryMb": null,
       "timeoutSeconds": null,

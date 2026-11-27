@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendCustomAccessEmail = exports.deletePasskeyCredential = exports.listUserPasskeys = exports.savePasskeyCredential = exports.createPasskeyChallenge = exports.scheduledMarketplaceCartRecovery = exports.sendMarketplacePushCampaign = exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
+exports.sendCustomAccessEmail = exports.deletePasskeyCredential = exports.listUserPasskeys = exports.savePasskeyCredential = exports.createPasskeyChallenge = exports.scheduledMarketplaceCartRecovery = exports.sendMarketplacePushCampaign = exports.saveProductStock = exports.testAdminPushNotification = exports.testSheetConnection = exports.renewMetaCapiToken = exports.scheduledMetaTokenRenewal = exports.completeMetaOAuthBridgeSession = exports.createMetaOAuthBridgeSession = exports.disconnectMetaCapi = exports.connectMetaSystemUser = exports.getMetaAccountsAndPixels = exports.testMetaCapiConnection = exports.scheduledSheetsSync = exports.scheduledDigest = exports.scheduledReminders = exports.cancelRemunerationPayment = exports.markRemunerationPaid = exports.onOrderUpdated = exports.onOrderCreated = exports.receiveSheetOrder = exports.updateEmployeeAllocatedTeams = exports.updateEmployeeLanguages = exports.deleteEmployee = exports.listAccessLinks = exports.validateAccessSession = exports.setAccessLinkStatus = exports.regenerateAccessPassword = exports.createAccessUser = exports.authenticateAdmin = exports.authenticateAccess = exports.aiProviders = exports.aiChatProxy = exports.azifyGateway = exports.syncOrderUpdateToAzify = exports.getStorefrontTrackerScript = exports.shopifyWebhook = exports.trackSession = void 0;
 const shopifyTracking_1 = require("./shopifyTracking");
 const emailService_1 = require("./emailService");
 const crypto = __importStar(require("crypto"));
@@ -2466,6 +2466,68 @@ exports.completeMetaOAuthBridgeSession = (0, https_1.onCall)(async (request) => 
     catch (err) {
         throw new https_1.HttpsError("internal", err?.message || "Impossible de récupérer les comptes Meta.");
     }
+});
+// ---------------------------------------------------------------------------
+// 8bis. Renouvellement automatique quotidien des jetons Meta CAPI (60 jours)
+// ---------------------------------------------------------------------------
+exports.scheduledMetaTokenRenewal = (0, scheduler_1.onSchedule)({
+    schedule: "every 24 hours",
+    timeZone: "UTC",
+    retryCount: 2,
+}, async () => {
+    console.log("[scheduledMetaTokenRenewal] Démarrage de la vérification quotidienne des jetons Meta CAPI...");
+    const report = await (0, metaAuth_1.renewAllExpiringMetaTokens)();
+    console.log(`[scheduledMetaTokenRenewal] Terminé : ${report.checked} vérifiées, ${report.renewed} renouvelées, ${report.permanent} permanentes, ${report.failed} échecs.`);
+});
+exports.renewMetaCapiToken = (0, https_1.onCall)(async (request) => {
+    const workspaceId = requireAdmin(request);
+    const { teamId } = request.data;
+    if (!teamId) {
+        throw new https_1.HttpsError("invalid-argument", "teamId requis.");
+    }
+    const db = admin.firestore();
+    const teamRef = db.collection("workspaces").doc(workspaceId).collection("teams").doc(teamId);
+    const teamSnap = await teamRef.get();
+    if (!teamSnap.exists) {
+        throw new https_1.HttpsError("not-found", "Équipe introuvable.");
+    }
+    const teamData = teamSnap.data();
+    const capiConfig = teamData?.metaCapiConfig;
+    if (!capiConfig?.enabled) {
+        throw new https_1.HttpsError("failed-precondition", "Meta CAPI non activé sur cette équipe.");
+    }
+    if (capiConfig?.isSystemUser) {
+        return {
+            success: true,
+            isSystemUser: true,
+            message: "Cette équipe utilise un jeton permanent Système Utilisateur (Bot Meta). Il n'expire jamais !",
+        };
+    }
+    const secSnap = await teamRef.collection("secrets").doc("metaCapi").get();
+    const currentToken = String(secSnap.data()?.accessToken || "").trim();
+    if (!currentToken) {
+        throw new https_1.HttpsError("not-found", "Jeton d'accès Meta introuvable dans le coffre-fort de l'équipe.");
+    }
+    const res = await (0, metaAuth_1.refreshMetaToken)(currentToken);
+    if (!res.success || !res.newAccessToken) {
+        throw new https_1.HttpsError("internal", res.error || "Impossible de renouveler le jeton auprès de Meta.");
+    }
+    const now = Date.now();
+    await teamRef.collection("secrets").doc("metaCapi").set({
+        accessToken: res.newAccessToken.trim(),
+        updatedAt: now,
+        lastManualRenewedAt: now,
+    }, { merge: true });
+    await teamRef.update({
+        "metaCapiConfig.tokenExpiresAt": res.expiresAt,
+        "metaCapiConfig.lastRefreshedAt": now,
+        "metaCapiConfig.tokenStatus": "active",
+    });
+    return {
+        success: true,
+        expiresAt: res.expiresAt,
+        message: `✓ Jeton Meta renouvelé avec succès pour 60 jours supplémentaires (valable jusqu'au ${new Date(res.expiresAt).toLocaleDateString("fr-FR")}) !`,
+    };
 });
 // ---------------------------------------------------------------------------
 // 9. Migration : cree les utilisateurs Firebase Auth manquants pour tous les
