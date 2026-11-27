@@ -794,7 +794,7 @@ export default function LiveShopifyAnalytics({
   }, [baseLiveOrders, isDayPreset, isWeekPreset, isMonthPreset, nowTime, currentHour, periodLabel]);
 
   // Colis en cours sur le terrain (calcul local en mémoire)
-  const pendingDeliveryCount = useMemo(
+  const pendingDeliveryOrders = useMemo(
     () =>
       baseLiveOrders.filter(
         (o) =>
@@ -804,32 +804,47 @@ export default function LiveShopifyAnalytics({
             o.statutLivreur === "en_route") &&
           o.statutLivreur !== "livre" &&
           o.statutLivreur !== "injoignable"
-      ).length,
+      ),
     [baseLiveOrders]
   );
+  const pendingDeliveryCount = pendingDeliveryOrders.length;
+
+  // Colis dont le délai de traitement ou tournée est dépassé (> 12h)
+  const lateDeliveryCount = useMemo(() => {
+    const TWELVE_HOURS_MS = 12 * 3600 * 1000;
+    const nowMs = nowTime.getTime();
+    return pendingDeliveryOrders.filter((o) => {
+      const startTime =
+        o.timestamps?.assignedToLivreur ||
+        o.timestamps?.closeuseDecidedAt ||
+        o.timestamps?.received ||
+        0;
+      return startTime > 0 && nowMs - startTime > TWELVE_HOURS_MS;
+    }).length;
+  }, [pendingDeliveryOrders, nowTime]);
 
   // Cash en circulation sur le terrain
   const cashEnRoute = useMemo(
-    () =>
-      baseLiveOrders
-        .filter(
-          (o) =>
-            (o.statutCloseuse === "en_cours" ||
-              o.statutCloseuse === "programme" ||
-              o.statutLivreur === "recu" ||
-              o.statutLivreur === "en_route") &&
-            o.statutLivreur !== "livre" &&
-            o.statutLivreur !== "injoignable"
-        )
-        .reduce((sum, o) => sum + (o.amount || 0), 0),
-    [baseLiveOrders]
+    () => pendingDeliveryOrders.reduce((sum, o) => sum + (o.amount || 0), 0),
+    [pendingDeliveryOrders]
   );
 
   // Commandes urgentes à appeler à chaud (statut nouveau)
-  const urgentCount = useMemo(
-    () => baseLiveOrders.filter((o) => o.statutCloseuse === "nouveau").length,
+  const urgentOrders = useMemo(
+    () => baseLiveOrders.filter((o) => o.statutCloseuse === "nouveau"),
     [baseLiveOrders]
   );
+  const urgentCount = urgentOrders.length;
+
+  // Commandes à confirmer dont le délai de traitement est dépassé (> 15 minutes)
+  const lateConfirmationCount = useMemo(() => {
+    const FIFTEEN_MINS_MS = 15 * 60 * 1000;
+    const nowMs = nowTime.getTime();
+    return urgentOrders.filter((o) => {
+      const received = o.timestamps?.received || 0;
+      return received > 0 && nowMs - received > FIFTEEN_MINS_MS;
+    }).length;
+  }, [urgentOrders, nowTime]);
 
   // Point d'arrêt exact et stable au moment présent (zéro clignotement ni effet parasite)
   const dotFillColor =
@@ -939,87 +954,147 @@ export default function LiveShopifyAnalytics({
         </div>
       </div>
 
-      {/* 2. Bannières de Prise de Conscience Opérationnelle (Toujours Présentes & Permanentes) */}
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {/* Volet 1 : Tournées & Livraisons */}
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-sky-500/25 bg-gradient-to-r from-sky-950/40 via-sky-900/15 to-surface-raised p-3 sm:p-3.5 shadow-xs transition-all hover:border-sky-500/40">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative shrink-0">
-              <img
-                src="/icons/app-livreur-native.png"
-                alt="Tournées & Livraisons"
-                className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover border border-sky-400/40 bg-slate-900 shadow-xs ring-1 ring-sky-500/20"
-              />
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] sm:h-4.5 sm:min-w-[18px] items-center justify-center rounded-full bg-sky-500 px-1 text-[9px] sm:text-[10px] font-black text-slate-950 ring-1 ring-slate-950">
-                {pendingDeliveryCount}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="rounded-full bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[9px] font-bold text-sky-300 uppercase tracking-wider">
-                  Tournées &amp; Livraisons
-                </span>
-              </div>
-              <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
-                {pendingDeliveryCount} commande{pendingDeliveryCount > 1 ? "s" : ""} confirmée{pendingDeliveryCount > 1 ? "s" : ""} à livrer
-              </h4>
-              <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
-                Chaque heure de retard réduit le taux de succès client · Activez vos livreurs.
-              </p>
-            </div>
-          </div>
-          {onNavigateToOrders && (
-            <button
-              type="button"
-              onClick={onNavigateToOrders}
-              className="inline-flex items-center justify-center gap-1 rounded-xl bg-sky-500 hover:bg-sky-400 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold text-slate-950 shadow-xs transition-colors shrink-0 cursor-pointer"
+      {/* 2. Bannières de Vigilance Opérationnelle : STRICTEMENT conditionnées aux commandes actives & dépassements */}
+      {(pendingDeliveryCount > 0 || urgentCount > 0) && (
+        <div
+          className={`grid gap-2.5 ${
+            pendingDeliveryCount > 0 && urgentCount > 0
+              ? "grid-cols-1 sm:grid-cols-2"
+              : "grid-cols-1"
+          }`}
+        >
+          {/* Volet 1 : Tournées & Livraisons (Affiché uniquement si colis actifs > 0) */}
+          {pendingDeliveryCount > 0 && (
+            <div
+              className={`flex items-center justify-between gap-3 rounded-xl border p-3 sm:p-3.5 shadow-xs transition-all ${
+                lateDeliveryCount > 0
+                  ? "border-rose-500/40 bg-gradient-to-r from-rose-950/40 via-sky-950/20 to-surface-raised"
+                  : "border-sky-500/25 bg-gradient-to-r from-sky-950/40 via-sky-900/15 to-surface-raised hover:border-sky-500/40"
+              }`}
             >
-              <span>Livrer</span>
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative shrink-0">
+                  <img
+                    src="/icons/app-livreur-native.png"
+                    alt="Tournées & Livraisons"
+                    className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover border border-sky-400/40 bg-slate-900 shadow-xs ring-1 ring-sky-500/20"
+                  />
+                  <span
+                    className={`absolute -top-1 -right-1 flex h-4 min-w-[16px] sm:h-4.5 sm:min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] sm:text-[10px] font-black ring-1 ring-slate-950 ${
+                      lateDeliveryCount > 0
+                        ? "bg-rose-500 text-white animate-pulse"
+                        : "bg-sky-500 text-slate-950"
+                    }`}
+                  >
+                    {pendingDeliveryCount}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="rounded-full bg-sky-500/20 border border-sky-500/30 px-2 py-0.5 text-[9px] font-bold text-sky-300 uppercase tracking-wider">
+                      Tournées &amp; Livraisons
+                    </span>
+                    {lateDeliveryCount > 0 && (
+                      <span className="rounded-full bg-rose-500/25 border border-rose-500/40 px-2 py-0.5 text-[9px] font-bold text-rose-300 uppercase tracking-wider animate-pulse">
+                        ⚠️ Retard Critique ({lateDeliveryCount} &gt; 12h)
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
+                    {pendingDeliveryCount} commande{pendingDeliveryCount > 1 ? "s" : ""} à livrer
+                    {lateDeliveryCount > 0 ? ` · ${lateDeliveryCount} en dépassement de délai` : ""}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                    {lateDeliveryCount > 0
+                      ? "Temps de traitement dépassé sur le terrain ! Activez vos livreurs pour éviter les annulations."
+                      : "Chaque heure de retard réduit le taux de succès client · Activez vos livreurs."}
+                  </p>
+                </div>
+              </div>
+              {onNavigateToOrders && (
+                <button
+                  type="button"
+                  onClick={onNavigateToOrders}
+                  className={`inline-flex items-center justify-center gap-1 rounded-xl px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer ${
+                    lateDeliveryCount > 0
+                      ? "bg-rose-500 hover:bg-rose-400 text-white"
+                      : "bg-sky-500 hover:bg-sky-400 text-slate-950"
+                  }`}
+                >
+                  <span>Livrer</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Volet 2 : Appels WhatsApp (Affiché uniquement si commandes à confirmer > 0) */}
+          {urgentCount > 0 && (
+            <div
+              className={`flex items-center justify-between gap-3 rounded-xl border p-3 sm:p-3.5 shadow-xs transition-all ${
+                lateConfirmationCount > 0
+                  ? "border-rose-500/40 bg-gradient-to-r from-rose-950/40 via-amber-950/20 to-surface-raised"
+                  : "border-amber-500/25 bg-gradient-to-r from-amber-950/40 via-amber-900/15 to-surface-raised hover:border-amber-500/40"
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative shrink-0">
+                  <img
+                    src="/icons/app-closeuse-native.png"
+                    alt="Appels WhatsApp"
+                    className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover border border-amber-400/40 bg-slate-900 shadow-xs ring-1 ring-amber-500/20"
+                  />
+                  <span
+                    className={`absolute -top-1 -right-1 flex h-4 min-w-[16px] sm:h-4.5 sm:min-w-[18px] items-center justify-center rounded-full px-1 text-[9px] sm:text-[10px] font-black ring-1 ring-slate-950 ${
+                      lateConfirmationCount > 0
+                        ? "bg-rose-500 text-white animate-pulse"
+                        : "bg-amber-500 text-slate-950"
+                    }`}
+                  >
+                    {urgentCount}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[9px] font-bold text-amber-300 uppercase tracking-wider">
+                      Appels WhatsApp
+                    </span>
+                    {lateConfirmationCount > 0 && (
+                      <span className="rounded-full bg-rose-500/25 border border-rose-500/40 px-2 py-0.5 text-[9px] font-bold text-rose-300 uppercase tracking-wider animate-pulse">
+                        ⚡ Urgence (&gt; 15 min)
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
+                    {urgentCount} commande{urgentCount > 1 ? "s" : ""} à confirmer
+                    {lateConfirmationCount > 0 ? ` · ${lateConfirmationCount} critique${lateConfirmationCount > 1 ? "s" : ""}` : ""}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
+                    {lateConfirmationCount > 0
+                      ? "Délai de closing dépassé ! Le client se refroidit, appelez immédiatement."
+                      : "Le taux de closing est divisé par 2 après 15 min · Intervenez à chaud."}
+                  </p>
+                </div>
+              </div>
+              {onNavigateToOrders && (
+                <button
+                  type="button"
+                  onClick={onNavigateToOrders}
+                  className={`inline-flex items-center justify-center gap-1 rounded-xl px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold shadow-xs transition-colors shrink-0 cursor-pointer ${
+                    lateConfirmationCount > 0
+                      ? "bg-rose-500 hover:bg-rose-400 text-white"
+                      : "bg-amber-500 hover:bg-amber-400 text-slate-950"
+                  }`}
+                >
+                  <span>Appeler</span>
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           )}
         </div>
-
-        {/* Volet 2 : Appels WhatsApp */}
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-gradient-to-r from-amber-950/40 via-amber-900/15 to-surface-raised p-3 sm:p-3.5 shadow-xs transition-all hover:border-amber-500/40">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="relative shrink-0">
-              <img
-                src="/icons/app-closeuse-native.png"
-                alt="Appels WhatsApp"
-                className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl object-cover border border-amber-400/40 bg-slate-900 shadow-xs ring-1 ring-amber-500/20"
-              />
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] sm:h-4.5 sm:min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] sm:text-[10px] font-black text-slate-950 ring-1 ring-slate-950">
-                {urgentCount}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[9px] font-bold text-amber-300 uppercase tracking-wider">
-                  Appels WhatsApp
-                </span>
-              </div>
-              <h4 className="text-xs sm:text-sm font-bold text-slate-100 mt-0.5 truncate">
-                {urgentCount} commande{urgentCount > 1 ? "s" : ""} à confirmer
-              </h4>
-              <p className="text-[11px] text-slate-400 leading-tight mt-0.5 truncate">
-                Le taux de closing est divisé par 2 après 15 min · Intervenez à chaud.
-              </p>
-            </div>
-          </div>
-          {onNavigateToOrders && (
-            <button
-              type="button"
-              onClick={onNavigateToOrders}
-              className="inline-flex items-center justify-center gap-1 rounded-xl bg-amber-500 hover:bg-amber-400 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs font-bold text-slate-950 shadow-xs transition-colors shrink-0 cursor-pointer"
-            >
-              <span>Appeler</span>
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
+      )}
+
       {/* 3. Cockpit Live & Tracé Évolutif Authentique */}
       <div className="rounded-2xl border border-surface-border bg-surface-raised shadow-sm overflow-hidden">
         {/* Barre des 4 Métriques Interactives */}
