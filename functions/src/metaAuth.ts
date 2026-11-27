@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 
 const GRAPH_API_VERSION = "v19.0";
-const FB_APP_ID = process.env.FB_APP_ID || "1863519984993708";
+const FB_APP_ID = process.env.FB_APP_ID || "27919549707704174";
 const FB_APP_SECRET = process.env.FB_APP_SECRET || "6cc4953195a5abd90ed608b830895643";
 
 export interface MetaPixel {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { ShieldCheck, CheckCircle2, AlertTriangle, RefreshCw } from "lucide-react";
 
-const FB_APP_ID = (import.meta.env.VITE_META_APP_ID as string) || "1863519984993708";
+const FB_APP_ID = (import.meta.env.VITE_META_APP_ID as string) || "27919549707704174";
 
 interface MetaOAuthBridgePageProps {
   bridgeParam: string;
