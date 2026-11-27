@@ -29,6 +29,13 @@ export { trackSession, shopifyWebhook, getStorefrontTrackerScript, syncOrderUpda
 export { azifyGateway } from "./azifyGateway";
 import { syncOrderUpdateToAzify } from "./shopifyTracking";
 export { aiChatProxy, aiProviders } from "./aiProxy";
+import {
+  findBestCloseuseCandidate,
+  rebalanceStaleNewOrders,
+  rebalanceOverloadedLivreurs,
+  liberateAndReassignEmployeeOrders,
+  MAX_ACTIVE_ORDERS_CLOSEUSE,
+} from "./dispatching";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -457,13 +464,26 @@ export const setAccessLinkStatus = onCall(async (request) => {
     .doc(workspaceId)
     .collection("users")
     .doc(linkData.userId)
-    .update({ status: disabled ? "disabled" : "active" });
+    .update({
+      status: disabled ? "disabled" : "active",
+      disabledAt: disabled ? Date.now() : null,
+    });
 
   if (disabled) {
     try {
       await admin.auth().revokeRefreshTokens(linkData.userId);
+      await admin.auth().setCustomUserClaims(linkData.userId, { disabled: true });
     } catch (err) {
       console.error("Impossible de revoquer les sessions Firebase :", err);
+    }
+
+    // Libération et réattribution automatique des commandes de l'employé révoqué
+    try {
+      const uSnap = await db.collection("workspaces").doc(workspaceId).collection("users").doc(linkData.userId).get();
+      const uRole = uSnap.data()?.role || "closeuse";
+      await liberateAndReassignEmployeeOrders(db, workspaceId, linkData.userId, uRole, sendPushToUser);
+    } catch (libErr) {
+      console.error("Échec libération des commandes lors de la révocation:", libErr);
     }
   }
 
@@ -615,6 +635,14 @@ export const deleteEmployee = onCall(async (request) => {
   } catch (err) {
     // Compte Firebase Auth deja absent/deja supprime -- pas bloquant
     console.warn("Suppression Firebase Auth ignoree :", err);
+  }
+
+  // Libération et réattribution systématique de toutes les commandes de l'employé avant suppression
+  try {
+    const uRole = userSnap.data()?.role || "closeuse";
+    await liberateAndReassignEmployeeOrders(db, workspaceId, userId, uRole, sendPushToUser);
+  } catch (libErr) {
+    console.error("Échec libération des commandes lors de la suppression:", libErr);
   }
 
   await userRef.delete();
@@ -1169,31 +1197,13 @@ export const onOrderCreated = onDocumentCreated(
     const order = snap.data();
     const { workspaceId } = event.params as { workspaceId: string };
 
-    // Récupérer à la fois les closeuses d'origine ET les closeuses allouées/prêtées à cette équipe (même pays)
-    const [homeCloseusesSnap, allocatedCloseusesSnap] = await Promise.all([
-      db
-        .collection("workspaces")
-        .doc(workspaceId)
-        .collection("users")
-        .where("teamId", "==", order.teamId)
-        .where("role", "==", "closeuse")
-        .where("status", "==", "active")
-        .get(),
-      db
-        .collection("workspaces")
-        .doc(workspaceId)
-        .collection("users")
-        .where("allocatedTeamIds", "array-contains", order.teamId)
-        .where("role", "==", "closeuse")
-        .where("status", "==", "active")
-        .get(),
-    ]);
+    // -----------------------------------------------------------------------
+    // ALGORITHME DE RÉPARTITION INTELLIGENT (Anti-Submersion, Performance, Multi-Équipes)
+    // -----------------------------------------------------------------------
+    const orderLanguage = (order.clientLanguage || "").trim().toLowerCase();
+    const bestCandidate = await findBestCloseuseCandidate(db, workspaceId, order, order.teamId);
 
-    const closeuseMap = new Map<string, admin.firestore.QueryDocumentSnapshot>();
-    homeCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
-    allocatedCloseusesSnap.docs.forEach((doc) => closeuseMap.set(doc.id, doc));
-
-    if (closeuseMap.size === 0) {
+    if (!bestCandidate) {
       console.warn(`onOrderCreated: Aucune closeuse active pour l'équipe ${order.teamId}. Notification admin envoyée.`);
       const orderProductImg = await resolveOrderProductImage(workspaceId, order);
       if (orderProductImg && !order.productImageUrl) {
@@ -1251,48 +1261,18 @@ export const onOrderCreated = onDocumentCreated(
       return;
     }
 
-    const allCloseuseDocs = Array.from(closeuseMap.values());
-
-    const loads = await Promise.all(
-      allCloseuseDocs.map(async (userDoc) => {
-        const activeSnap = await db
-          .collection("workspaces")
-          .doc(workspaceId)
-          .collection("orders")
-          .where("closeuseId", "==", userDoc.id)
-          .where("statutCloseuse", "in", ["nouveau", "programme", "en_cours"])
-          .get();
-        return { id: userDoc.id, data: userDoc.data(), count: activeSnap.size };
-      })
-    );
-
-    // -----------------------------------------------------------------------
-    // ROUTAGE INTELLIGENT PAR COMPÉTENCE LINGUISTIQUE (Skill-Based Routing)
-    // -----------------------------------------------------------------------
-    const orderLanguage = (order.clientLanguage || "").trim().toLowerCase();
-    let candidates = loads;
-    let languageMatched = false;
-
-    if (orderLanguage) {
-      const languageFiltered = loads.filter((c) => {
-        const userLangs: string[] = Array.isArray(c.data.languages) ? c.data.languages : [];
-        return userLangs.some((l) => {
-          const cleanL = l.toLowerCase();
-          return cleanL === orderLanguage || cleanL.includes(orderLanguage) || orderLanguage.includes(cleanL);
-        });
-      });
-
-      if (languageFiltered.length > 0) {
-        candidates = languageFiltered;
-        languageMatched = true;
-      }
-    }
-
-    const chosen = candidates.reduce((lowest, current) => (current.count < lowest.count ? current : lowest));
+    const languageMatched = Boolean(bestCandidate.languageMatched);
 
     const updatePayload: Record<string, any> = {
-      closeuseId: chosen.id,
+      closeuseId: bestCandidate.id,
       "timestamps.assignedToCloseuse": Date.now(),
+      dispatchMetrics: {
+        closerScore: Math.round(bestCandidate.compositeScore),
+        confirmationRate: bestCandidate.confirmationRate,
+        globalLoad: bestCandidate.globalActiveCount,
+        isBorrowed: bestCandidate.isBorrowed,
+        isSubmerged: bestCandidate.isSubmerged,
+      },
     };
 
     if (orderLanguage && !languageMatched) {
@@ -1310,7 +1290,7 @@ export const onOrderCreated = onDocumentCreated(
     }
     await sendPushToUser(
       workspaceId,
-      chosen.id,
+      bestCandidate.id,
       order.isDuplicatePhone ? "⚠️ Nouvelle commande (Doublon N°)" : "Nouvelle commande",
       order.isDuplicatePhone
         ? `${order.clientName} - ${order.product}${langBadge} · Vérifier si 1 ou 2 produits`
@@ -1333,17 +1313,17 @@ export const onOrderCreated = onDocumentCreated(
       await notifyAdmins(
         workspaceId,
         "🤖 Vigie IA · Numéro doublon (Accès libre site)",
-        `${order.clientName} (${order.clientPhoneFormatted}) a commandé à nouveau (${order.product}). Isolé de Meta CAPI — vérifier avec ${chosen.data.name} si 1 ou 2 produits.`
+        `${order.clientName} (${order.clientPhoneFormatted}) a commandé à nouveau (${order.product}). Isolé de Meta CAPI — vérifier avec ${bestCandidate.data?.name || "la closeuse"} si 1 ou 2 produits.`
       );
     }
 
     const teamSnap = await db.collection("workspaces").doc(workspaceId).collection("teams").doc(order.teamId).get();
-    const threshold = teamSnap.data()?.overloadAlertThreshold ?? 20;
-    if (chosen.count + 1 >= threshold) {
+    const threshold = teamSnap.data()?.overloadAlertThreshold ?? MAX_ACTIVE_ORDERS_CLOSEUSE;
+    if (bestCandidate.globalActiveCount + 1 >= threshold) {
       await notifyAdmins(
         workspaceId,
         "🤖 Vigie IA · Closeuse surchargée",
-        `${chosen.data.name} a ${chosen.count + 1} commandes actives en attente.`
+        `${bestCandidate.data?.name || "Une closeuse"} a ${bestCandidate.globalActiveCount + 1} commandes actives en attente.`
       );
     }
 
@@ -2062,6 +2042,19 @@ export const scheduledReminders = onSchedule("every 5 minutes", async () => {
     }
 
     // -----------------------------------------------------------------------
+    // Moteur IA de Répartition & Rééquilibrage Automatique (Anti-Submersion)
+    // -----------------------------------------------------------------------
+    try {
+      // 1. Bascule dynamique des commandes "nouveau" stagnantes (> 15 min sans appel) vers closeuses disponibles
+      await rebalanceStaleNewOrders(db, wsDoc.id, sendPushToUser, 5);
+
+      // 2. Rééquilibrage du surplus des livreurs saturés (> 15 colis) vers livreurs de confiance (>= 70%)
+      await rebalanceOverloadedLivreurs(db, wsDoc.id, sendPushToUser, 15);
+    } catch (dispatchErr) {
+      console.error(`[watchdog] Erreur rebalance dispatch pour ws ${wsDoc.id}:`, dispatchErr);
+    }
+
+    // -----------------------------------------------------------------------
     // Travailleur en arrière-plan : Adaptation & Protection Seuils Équipes
     // -----------------------------------------------------------------------
     const teamsSnap = await wsDoc.ref.collection("teams").get();
@@ -2475,7 +2468,13 @@ async function sendMulticastAndPruneTokens(opts: PushMulticastOptions): Promise<
           `Token invalide/echec [${offset + i}] pour user ${userId} (${code ?? "unknown"}):`,
           r.error?.message
         );
-        if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token" ||
+          code === "messaging/mismatched-credential" ||
+          code === "messaging/invalid-argument" ||
+          code === "messaging/unregistered"
+        ) {
           invalidTokens.push(chunk[i]);
         }
       }
@@ -2783,6 +2782,30 @@ export const testMetaCapiConnection = onCall(async (request) => {
           .get();
         if (secSnap.exists) {
           effectiveToken = (secSnap.data()?.accessToken || "").trim();
+        }
+      }
+
+      // Si le token n'est toujours pas trouvé, chercher si le même Pixel ID est configuré sur une autre équipe
+      if (!effectiveToken && effectivePixelId) {
+        const allTeamsSnap = await db
+          .collection("workspaces")
+          .doc(workspaceId)
+          .collection("teams")
+          .get();
+        for (const tDoc of allTeamsSnap.docs) {
+          if (tDoc.id === teamId) continue;
+          const tData = tDoc.data();
+          if (tData?.metaCapiConfig?.pixelId === effectivePixelId) {
+            if (tData?.metaCapiConfig?.accessToken) {
+              effectiveToken = tData.metaCapiConfig.accessToken.trim();
+              break;
+            }
+            const oSec = await tDoc.ref.collection("secrets").doc("metaCapi").get();
+            if (oSec.exists && oSec.data()?.accessToken) {
+              effectiveToken = (oSec.data()?.accessToken || "").trim();
+              break;
+            }
+          }
         }
       }
     } catch (e) {

@@ -196,8 +196,15 @@ export default function OrderCard({
   };
 
   const activeLivreurs = useMemo(
-    () => livreurs.filter((l) => l.status === "active"),
-    [livreurs]
+    () =>
+      livreurs
+        .filter((l) => l.status === "active")
+        .sort((a, b) => {
+          const loadA = activeDeliveriesByLivreur[a.id] || 0;
+          const loadB = activeDeliveriesByLivreur[b.id] || 0;
+          return loadA - loadB;
+        }),
+    [livreurs, activeDeliveriesByLivreur]
   );
   const assignedLivreur = useMemo(
     () => (order.livreurId ? livreurs.find((l) => l.id === order.livreurId) : undefined),
@@ -576,6 +583,7 @@ export default function OrderCard({
             activeLivreurs.map((livreur) => {
               const selected = modalLivreurId === livreur.id;
               const load = activeDeliveriesByLivreur[livreur.id] || 0;
+              const isSaturated = load >= 15;
               return (
                 <button
                   key={livreur.id}
@@ -588,8 +596,17 @@ export default function OrderCard({
                   }`}
                 >
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="truncate text-sm font-semibold">{livreur.name}</p>
+                      {isSaturated ? (
+                        <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                          ⚠️ Saturé ({load} colis)
+                        </span>
+                      ) : (
+                        <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          🟢 Dispo ({load} colis)
+                        </span>
+                      )}
                       {team && livreur.teamId && livreur.teamId !== team.id && (
                         <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-medium text-amber-600 dark:text-amber-400">
                           Prêté

@@ -223,9 +223,18 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     try {
       const saved = localStorage.getItem(`meta_capi_test_${team.id}`);
       if (saved) {
-        setTestResult(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Ne restaurer que les tests réussis récents (< 24h) pour éviter tout message d'erreur obsolète figé
+        if (parsed?.success && Date.now() - (parsed.testedAt || 0) < 24 * 3600 * 1000) {
+          setTestResult(parsed);
+        } else {
+          localStorage.removeItem(`meta_capi_test_${team.id}`);
+          setTestResult(null);
+        }
       }
-    } catch {}
+    } catch {
+      setTestResult(null);
+    }
     setError(null);
     setSuccessMsg(null);
   }, [team.id, team.metaCapiConfig?.pixelId, team.metaCapiConfig?.enabled]);
@@ -565,12 +574,13 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     } catch (err: any) {
       const errRes = {
         success: false,
-        message: err?.message || "Échec test Meta CAPI. Vérifie que le Pixel et le Token sont valides.",
+        message: err?.message || "Échec test Meta CAPI. Vérifiez que le Pixel et le compte publicitaire sont actifs.",
         testedAt: Date.now(),
       };
       setTestResult(errRes);
+      // Ne JAMAIS persister les erreurs de test dans localStorage pour ne pas polluer l'interface
       try {
-        localStorage.setItem(`meta_capi_test_${team.id}`, JSON.stringify(errRes));
+        localStorage.removeItem(`meta_capi_test_${team.id}`);
       } catch {}
     } finally {
       setTesting(false);
@@ -1076,6 +1086,8 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
                   <select
                     value={selectedPixelId}
                     onChange={(e) => {
+                      setTestResult(null);
+                      setError(null);
                       if (e.target.value === "__custom__") {
                         setIsManualPixelMode(true);
                         setSelectedPixelId("");
@@ -1240,13 +1252,28 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
             </div>
             {testResult && (
               <div
-                className={`rounded-lg border p-3 text-xs ${
+                className={`rounded-lg border p-3 text-xs flex items-start justify-between gap-3 ${
                   testResult.success
                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                     : "border-red-500/30 bg-red-500/10 text-red-400"
                 }`}
               >
-                {testResult.message}
+                <div>
+                  <p className="font-medium">{testResult.message}</p>
+                  {testResult.testedAt && (
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Vérifié à : {new Date(testResult.testedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTestResult(null)}
+                  className="text-slate-400 hover:text-slate-200 text-xs shrink-0 cursor-pointer"
+                  title="Masquer"
+                >
+                  ✕
+                </button>
               </div>
             )}
           </div>
