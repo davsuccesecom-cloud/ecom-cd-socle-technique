@@ -506,12 +506,20 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
     try {
       const functions = getFunctions();
       const testFn = httpsCallable(functions, "testMetaCapiConnection");
-      await testFn({
+      const res = (await testFn({
         pixelId: pId.trim(),
         accessToken: token.trim(),
         testEventCode: testCode.trim() || undefined,
+      })) as { data?: { success?: boolean; error?: string } };
+
+      if (res.data && res.data.success === false) {
+        throw new Error(res.data.error || "Échec rejeté par Meta Graph API");
+      }
+
+      setTestResult({
+        success: true,
+        message: '✓ Parfait ! Événement de test reçu par Meta avec succès' + (testCode.trim() ? ' (Code: ' + testCode.trim() + ')' : '') + '. Regardez l\'onglet « Tester les événements » dans votre Gestionnaire d\'événements Meta.',
       });
-      setTestResult({ success: true, message: "✓ Parfait ! Événement de test reçu par Meta avec succès." });
     } catch (err: any) {
       setTestResult({
         success: false,
@@ -622,14 +630,23 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button
-              type="button"
-              disabled={testing}
-              onClick={handleTestConnection}
-              className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-600/20 px-3 py-1.5 text-xs font-medium text-emerald-200 hover:bg-emerald-600/30 disabled:opacity-50 transition-colors"
-            >
-              {testing ? "Test en cours..." : "🧪 Tester l'événement Meta"}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={testCode}
+                onChange={(e) => setTestCode(e.target.value)}
+                placeholder="Code test (ex: TEST12345)"
+                className="w-44 rounded-lg border border-surface-border bg-surface px-2.5 py-1.5 text-xs text-slate-100 font-mono outline-none focus:border-brand"
+              />
+              <button
+                type="button"
+                disabled={testing}
+                onClick={handleTestConnection}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-600/30 disabled:opacity-50 transition-colors cursor-pointer"
+              >
+                {testing ? "Test en cours..." : "🧪 Tester l'événement Meta"}
+              </button>
+            </div>
 
             <button
               type="button"

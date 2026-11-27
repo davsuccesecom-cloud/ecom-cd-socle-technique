@@ -41,6 +41,7 @@ exports.extractNotesAndAddress = extractNotesAndAddress;
 exports.calculateOrderPricing = calculateOrderPricing;
 exports.extractQuantityAndItems = extractQuantityAndItems;
 const shopifyTracking_1 = require("./shopifyTracking");
+const metaCapi_1 = require("./metaCapi");
 const crypto = __importStar(require("crypto"));
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -598,6 +599,156 @@ exports.azifyGateway = (0, https_1.onRequest)({
         }
         catch (err) {
             console.error("azifyGateway getTeams error:", err);
+            res.status(500).json({ error: "Internal Server Error", message: err.message });
+            return;
+        }
+    }
+    // 2b. POST /test-event ou /test-capi ou action: "test_event" / "test_capi"
+    if (req.method === "POST" &&
+        (path === "/test-event" ||
+            path === "/test-capi" ||
+            path.endsWith("/test-event") ||
+            path.endsWith("/test-capi") ||
+            (req.body && (req.body.action === "test_event" || req.body.action === "test_capi")))) {
+        const startTime = Date.now();
+        try {
+            const body = parseJsonBody(req);
+            const root = (body.data && typeof body.data === "object") ? body.data : body;
+            const authHeader = String(req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
+            const verifyToken = String(req.headers["x-azify-verify-token"] ||
+                req.headers["x-azify-api-key"] ||
+                authHeader ||
+                root.verifyToken ||
+                root.apiKey ||
+                body.verifyToken ||
+                "").trim();
+            const shopDomain = String(req.headers["x-azify-shop-domain"] ||
+                req.query.shopDomain ||
+                root.shopDomain ||
+                body.shopDomain ||
+                "").trim().toLowerCase();
+            let targetWorkspaceId = String(body.workspaceId || root.workspaceId || req.query.workspaceId || "").trim();
+            const connDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
+            if (connDoc) {
+                targetWorkspaceId = connDoc.data()?.workspaceId || connDoc.ref.parent.parent?.id || targetWorkspaceId;
+            }
+            if (!targetWorkspaceId) {
+                const wsSnap = await db.collection("workspaces").limit(1).get();
+                if (!wsSnap.empty)
+                    targetWorkspaceId = wsSnap.docs[0].id;
+            }
+            if (!targetWorkspaceId) {
+                res.status(404).json({ error: "Workspace introuvable pour envoyer l'événement de test." });
+                return;
+            }
+            const connData = connDoc?.data() || {};
+            const requestedTeamId = String(body.teamId || root.teamId || connData.ownerTeamId || "").trim();
+            let targetTeamId = requestedTeamId;
+            let teamData = null;
+            if (targetTeamId) {
+                const tSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(targetTeamId).get();
+                if (tSnap.exists)
+                    teamData = tSnap.data();
+            }
+            if (!teamData) {
+                const allTeamsSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").limit(10).get();
+                if (!allTeamsSnap.empty) {
+                    const activeTeamDoc = allTeamsSnap.docs.find((d) => d.data()?.metaCapiConfig?.enabled) || allTeamsSnap.docs[0];
+                    targetTeamId = activeTeamDoc.id;
+                    teamData = activeTeamDoc.data();
+                }
+            }
+            let metaAccessToken = String(body.accessToken || root.accessToken || teamData?.metaCapiConfig?.accessToken || "").trim();
+            if (!metaAccessToken && targetWorkspaceId && targetTeamId) {
+                try {
+                    const secSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(targetTeamId).collection("secrets").doc("metaCapi").get();
+                    if (secSnap.exists)
+                        metaAccessToken = String(secSnap.data()?.accessToken || "").trim();
+                }
+                catch { }
+            }
+            const effectivePixelId = String(body.pixelId ||
+                root.pixelId ||
+                root.metaPixelId ||
+                teamData?.metaCapiConfig?.pixelId ||
+                "").trim();
+            const effectiveTestCode = String(body.testEventCode ||
+                body.test_event_code ||
+                root.testEventCode ||
+                root.capiTestCode ||
+                root.capi_test_code ||
+                req.query.testEventCode ||
+                teamData?.metaCapiConfig?.testEventCode ||
+                "").trim();
+            if (!effectivePixelId || !metaAccessToken) {
+                res.status(400).json({
+                    success: false,
+                    error: "Pixel ID ou Jeton d'accès Meta manquant pour cette équipe. Veuillez configurer le Pixel dans WariTrack.",
+                    teamId: targetTeamId,
+                    teamName: teamData?.name || null,
+                });
+                return;
+            }
+            const eventName = String(body.eventName || root.eventName || "Purchase");
+            const clientName = String(body.clientName || root.clientName || root.name || "Test Client Azify").trim();
+            const clientPhone = String(body.clientPhone || body.phone || root.phone || root.clientPhone || "+22890000000").trim();
+            const city = String(body.city || root.city || "Lomé").trim();
+            const country = String(body.country || root.country || teamData?.defaultCountry || "TG").trim();
+            const product = String(body.product || root.product || "Produit Test Azify COD").trim();
+            const amount = Number(body.amount || root.amount || root.total || 15000);
+            const currency = String(body.currency || root.currency || teamData?.metaCapiConfig?.currency || "XOF").trim();
+            const testOrder = {
+                id: "AZIFY_TEST_" + Date.now(),
+                orderNumber: "TEST-AZIFY-" + Date.now().toString().slice(-4),
+                clientName,
+                clientPhoneFormatted: clientPhone,
+                clientPhoneRaw: clientPhone,
+                city,
+                country,
+                product,
+                quantity: 1,
+                amount,
+                pageUrl: body.pageUrl || root.pageUrl || (shopDomain ? "https://" + shopDomain : undefined),
+                shopDomain: shopDomain || undefined,
+                temperature: "hot",
+            };
+            const capiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)({
+                enabled: true,
+                pixelId: effectivePixelId,
+                accessToken: metaAccessToken,
+                currency,
+                testEventCode: effectiveTestCode || undefined,
+            }, testOrder);
+            if (capiRes.success) {
+                res.status(200).json({
+                    success: true,
+                    service: "waritrack-azify-gateway",
+                    message: "✓ Événement de test " + eventName + " envoyé avec succès à Meta CAPI !",
+                    pixelId: effectivePixelId,
+                    testEventCode: effectiveTestCode || null,
+                    teamId: targetTeamId,
+                    teamName: teamData?.name || null,
+                    metaResponse: capiRes.data,
+                    executionTimeMs: Date.now() - startTime,
+                });
+                return;
+            }
+            else {
+                res.status(400).json({
+                    success: false,
+                    service: "waritrack-azify-gateway",
+                    error: capiRes.error || "Erreur Meta Graph API",
+                    pixelId: effectivePixelId,
+                    testEventCode: effectiveTestCode || null,
+                    teamId: targetTeamId,
+                    teamName: teamData?.name || null,
+                    executionTimeMs: Date.now() - startTime,
+                });
+                return;
+            }
+        }
+        catch (err) {
+            console.error("azifyGateway test-event error:", err);
             res.status(500).json({ error: "Internal Server Error", message: err.message });
             return;
         }
@@ -1272,6 +1423,62 @@ exports.azifyGateway = (0, https_1.onRequest)({
                 orderDoc.items = qtyInfo.items;
             }
             await existingOrderRef.set(orderDoc);
+            // Si c'est une commande de test Azify, envoi immédiat du test event CAPI
+            if (isTestOrder && targetWorkspaceId && assignedTeamId) {
+                try {
+                    const teamSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(assignedTeamId).get();
+                    const tData = teamSnap.data();
+                    let mToken = tData?.metaCapiConfig?.accessToken;
+                    if (!mToken && tData?.metaCapiConfig?.enabled) {
+                        const secSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(assignedTeamId).collection("secrets").doc("metaCapi").get();
+                        if (secSnap.exists)
+                            mToken = secSnap.data()?.accessToken;
+                    }
+                    const pId = incomingPixelId || tData?.metaCapiConfig?.pixelId;
+                    const tCode = String(root.capiTestCode || root.capi_test_code || root.testEventCode || tData?.metaCapiConfig?.testEventCode || "").trim();
+                    if (tData?.metaCapiConfig?.enabled && pId && mToken) {
+                        const testCapiRes = await (0, metaCapi_1.sendMetaPurchaseEvent)({
+                            ...tData.metaCapiConfig,
+                            pixelId: pId,
+                            accessToken: mToken,
+                            testEventCode: tCode || undefined,
+                        }, {
+                            id: orderId,
+                            orderNumber,
+                            clientName: orderDoc.clientName,
+                            clientPhoneFormatted: orderDoc.clientPhoneFormatted,
+                            clientPhoneRaw: orderDoc.clientPhoneRaw,
+                            city: orderDoc.city,
+                            country: countryCode,
+                            product: orderDoc.product,
+                            quantity: orderDoc.quantity,
+                            amount: orderDoc.amount,
+                            fbp: fbp || undefined,
+                            fbc: fbc || undefined,
+                            fbclid: fbclid || undefined,
+                            browserIp: clientIp || undefined,
+                            userAgent: userAgent || undefined,
+                            pageUrl: root.pageUrl || root.referrer || undefined,
+                            shopDomain: connData.shopDomain || root.shopDomain || undefined,
+                            temperature: orderDoc.temperature,
+                        });
+                        if (testCapiRes.success) {
+                            orderDoc.capiSent = true;
+                            orderDoc.testCapiSent = true;
+                            orderDoc.testCapiResponse = testCapiRes.data || true;
+                            await existingOrderRef.update({
+                                capiSent: true,
+                                testCapiSent: true,
+                                testCapiResponse: testCapiRes.data || true,
+                            }).catch(() => { });
+                            console.log("azifyGateway: Événement test CAPI transmis instantanément pour commande " + orderId + " (Code: " + (tCode || "direct") + ")");
+                        }
+                    }
+                }
+                catch (tErr) {
+                    console.warn("azifyGateway: Erreur envoi test CAPI immédiat:", tErr);
+                }
+            }
             if (connDoc) {
                 try {
                     await connDoc.ref.update({

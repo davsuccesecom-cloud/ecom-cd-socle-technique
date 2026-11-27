@@ -520,6 +520,53 @@ export default function AzifyFluxManager({
     } catch {}
   };
 
+  const [testCapiCode, setTestCapiCode] = useState(team.metaCapiConfig?.testEventCode || "");
+  const [testingCapiId, setTestingCapiId] = useState<string | null>(null);
+
+  const handleTestMetaCapi = async (conn: AzifyConn) => {
+    setTestingCapiId(conn.id);
+    setActionError(null);
+    setNotice(null);
+    const start = performance.now();
+    try {
+      const res = await fetch(`${CLOUD_FUNCTIONS_BASE}/azifyGateway/test-event`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${conn.verifyToken || ""}`,
+          "X-Azify-Verify-Token": conn.verifyToken || "",
+          "X-Azify-Shop-Domain": conn.shopDomain,
+        },
+        body: JSON.stringify({
+          shopDomain: conn.shopDomain,
+          verifyToken: conn.verifyToken,
+          workspaceId,
+          teamId: conn.ownerTeamId || team.id,
+          testEventCode: testCapiCode.trim() || undefined,
+          eventName: "Purchase",
+          amount: 15000,
+          currency: team.metaCapiConfig?.currency || "XOF",
+          product: "Produit Test Azify COD",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const latencyMs = Math.round(performance.now() - start);
+      if (res.ok && data.success) {
+        setNotice(
+          `✓ Événement de test CAPI transmis à Meta en ${latencyMs}ms ! (Pixel : ${data.pixelId || "actif"}, Code test : ${data.testEventCode || "aucun"}). Vérifiez l'onglet « Tester les événements » dans votre Gestionnaire d'événements Meta.`
+        );
+      } else {
+        setActionError(
+          `Échec test Meta CAPI (${latencyMs}ms) : ${data.error || data.message || "Erreur Meta Graph API"}`
+        );
+      }
+    } catch {
+      setActionError("Impossible de joindre la passerelle d'événement test Meta CAPI.");
+    } finally {
+      setTestingCapiId(null);
+    }
+  };
+
   const handleTestDirectApi = async (conn: AzifyConn) => {
     setTestingId(conn.id);
     setActionError(null);
