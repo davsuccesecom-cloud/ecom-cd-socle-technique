@@ -687,6 +687,18 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
               Désactiver
             </button>
           </div>
+
+          {testResult && (
+            <div
+              className={`rounded-lg border p-3 text-xs ${
+                testResult.success
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-red-500/30 bg-red-500/10 text-red-400"
+              }`}
+            >
+              {testResult.message}
+            </div>
+          )}
         </div>
       )}
 
@@ -1131,6 +1143,17 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
                 <span>{saving ? "Liaison en cours..." : "🚀 Activer et lier ce Pixel"}</span>
               </button>
             </div>
+            {testResult && (
+              <div
+                className={`rounded-lg border p-3 text-xs ${
+                  testResult.success
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                    : "border-red-500/30 bg-red-500/10 text-red-400"
+                }`}
+              >
+                {testResult.message}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1145,18 +1168,6 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
       {successMsg && (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-400">
           {successMsg}
-        </div>
-      )}
-
-      {testResult && (
-        <div
-          className={`rounded-lg border p-3 text-xs ${
-            testResult.success
-              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-              : "border-red-500/30 bg-red-500/10 text-red-400"
-          }`}
-        >
-          {testResult.message}
         </div>
       )}
 
