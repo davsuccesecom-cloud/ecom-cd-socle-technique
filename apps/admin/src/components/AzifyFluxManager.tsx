@@ -42,8 +42,6 @@ import {
 } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 import AzifyConnectionSheet from "./AzifyConnectionSheet";
-import AzifyMarketplaceMarketing from "./AzifyMarketplaceMarketing";
-import { BellRing } from "lucide-react";
 
 interface AzifyFluxManagerProps {
   workspaceId: string;
@@ -204,7 +202,6 @@ export default function AzifyFluxManager({
   allTeams,
 }: AzifyFluxManagerProps) {
   const [connections, setConnections] = useState<AzifyConn[]>([]);
-  const [azifySubTab, setAzifySubTab] = useState<"flux" | "marketing">("flux");
   const [unroutedOrders, setUnroutedOrders] = useState<ShopifyUnroutedOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -840,38 +837,6 @@ export default function AzifyFluxManager({
         </div>
       )}
 
-      {/* Navigation des sous-onglets Azify */}
-      <div className="flex border-b border-surface-border">
-        <button
-          type="button"
-          onClick={() => setAzifySubTab("flux")}
-          className={`flex min-h-[46px] items-center gap-2 border-b-2 px-5 text-xs font-bold transition-colors cursor-pointer ${
-            azifySubTab === "flux"
-              ? "border-brand text-slate-100"
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Store className="h-4 w-4" />
-          <span>Boutiques & Routage Pays</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setAzifySubTab("marketing")}
-          className={`flex min-h-[46px] items-center gap-2 border-b-2 px-5 text-xs font-bold transition-colors cursor-pointer ${
-            azifySubTab === "marketing"
-              ? "border-amber-400 text-amber-300"
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <BellRing className="h-4 w-4" />
-          <span>Marketing Push & Paniers Abandonnés</span>
-        </button>
-      </div>
-
-      {azifySubTab === "marketing" ? (
-        <AzifyMarketplaceMarketing workspaceId={workspaceId} team={team} allTeams={allTeams} />
-      ) : (
-        <>
       {/* 3. Hero Card : Azify PWA Studio Connecteur */}
       <div className="overflow-hidden rounded-2xl border border-surface-border bg-surface-raised shadow-xs">
         {/* Header supérieur du connecteur */}
@@ -1559,8 +1524,6 @@ export default function AzifyFluxManager({
         </div>
       )}
 
-        </>
-      )}
 
       {/* Modale d'ajout d'un pays de routage */}
       {addCountryModal && (
