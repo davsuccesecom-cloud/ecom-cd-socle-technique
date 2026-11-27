@@ -534,6 +534,39 @@ export const azifyGateway = onRequest(
       return;
     }
 
+    // 1b. GET /diag : Diagnostics en temps réel de tous les workspaces et Pixels
+    if (req.method === "GET" && (path === "/diag" || path.endsWith("/diag"))) {
+      try {
+        const allTeams = await db.collectionGroup("teams").get();
+        const teamsDiag = [];
+        for (const tDoc of allTeams.docs) {
+          const td = tDoc.data();
+          const wsId = tDoc.ref.parent.parent?.id;
+          let hasSecret = false;
+          try {
+            const sec = await tDoc.ref.collection("secrets").doc("metaCapi").get();
+            hasSecret = Boolean(sec.exists && sec.data()?.accessToken);
+          } catch (_) {}
+          teamsDiag.push({
+            teamId: tDoc.id,
+            teamName: td.name || "Sans nom",
+            workspaceId: wsId,
+            country: td.defaultCountry || td.country || "TG",
+            currency: td.currency || td.metaCapiConfig?.currency || "XOF",
+            pixelId: td.metaCapiConfig?.pixelId || null,
+            pixelName: td.metaCapiConfig?.pixelName || null,
+            capiEnabled: td.metaCapiConfig?.enabled || false,
+            hasSecretToken: hasSecret,
+          });
+        }
+        res.status(200).json({ success: true, count: teamsDiag.length, teams: teamsDiag });
+        return;
+      } catch (err: any) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+    }
+
     // 2. GET /teams : Liste des équipes WariTrack pour sélection dans Azify
     if (req.method === "GET" && (path === "/teams" || path.endsWith("/teams"))) {
       const verifyToken = String(
@@ -563,9 +596,23 @@ export const azifyGateway = onRequest(
 
       if (!targetWorkspaceId) {
         try {
-          const wsSnap = await db.collection("workspaces").limit(1).get();
-          if (!wsSnap.empty) {
-            targetWorkspaceId = wsSnap.docs[0].id;
+          const allTeamsSnap = await db.collectionGroup("teams").get();
+          const teamWithActivePixel = allTeamsSnap.docs.find(d => d.data()?.metaCapiConfig?.enabled && d.data()?.metaCapiConfig?.pixelId) ||
+            allTeamsSnap.docs.find(d => d.data()?.metaCapiConfig?.pixelId);
+          if (teamWithActivePixel) {
+            targetWorkspaceId = teamWithActivePixel.ref.parent.parent?.id || "";
+          }
+          if (!targetWorkspaceId) {
+            const adminDoc = await db.collection("adminsByEmail").doc("davidmike44326@gmail.com").get();
+            if (adminDoc.exists && adminDoc.data()?.workspaceId) {
+              targetWorkspaceId = adminDoc.data()!.workspaceId;
+            }
+          }
+          if (!targetWorkspaceId) {
+            const wsSnap = await db.collection("workspaces").limit(1).get();
+            if (!wsSnap.empty) {
+              targetWorkspaceId = wsSnap.docs[0].id;
+            }
           }
         } catch (_) {}
       }
@@ -690,34 +737,82 @@ export const azifyGateway = onRequest(
           targetWorkspaceId = connDoc.data()?.workspaceId || connDoc.ref.parent.parent?.id || targetWorkspaceId;
         }
 
-        if (!targetWorkspaceId) {
-          const wsSnap = await db.collection("workspaces").limit(1).get();
-          if (!wsSnap.empty) targetWorkspaceId = wsSnap.docs[0].id;
-        }
-
-        if (!targetWorkspaceId) {
-          res.status(404).json({ error: "Workspace introuvable pour envoyer l'événement de test." });
-          return;
-        }
-
         const connData = connDoc?.data() || {};
+        const incomingPixelId = String(
+          body.pixelId ||
+          root.pixelId ||
+          root.metaPixelId ||
+          body.pixel_id ||
+          root.pixel_id ||
+          ""
+        ).trim();
+        const incomingCountry = String(
+          body.country ||
+          root.country ||
+          body.countryCode ||
+          root.countryCode ||
+          ""
+        ).trim().toUpperCase();
+
         const requestedTeamId = String(body.teamId || root.teamId || connData.ownerTeamId || "").trim();
 
         let targetTeamId = requestedTeamId;
         let teamData: any = null;
 
-        if (targetTeamId) {
-          const tSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(targetTeamId).get();
-          if (tSnap.exists) teamData = tSnap.data();
+        // A. PRIORITÉ 1 : Recherche absolue de l'équipe sur TOUT Firestore par Pixel ID exact
+        if (incomingPixelId) {
+          try {
+            const allTeams = await db.collectionGroup("teams").get();
+            for (const tDoc of allTeams.docs) {
+              const td = tDoc.data();
+              if (String(td?.metaCapiConfig?.pixelId || "").trim() === incomingPixelId) {
+                targetTeamId = tDoc.id;
+                teamData = td;
+                targetWorkspaceId = tDoc.ref.parent.parent?.id || targetWorkspaceId;
+                break;
+              }
+            }
+          } catch (cgErr) {
+            console.warn("collectionGroup lookup error by pixelId:", cgErr);
+          }
         }
 
+        // B. PRIORITÉ 2 : Si pas encore trouvé, recherche par requestedTeamId
+        if (!teamData && requestedTeamId && targetWorkspaceId) {
+          try {
+            const tSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").doc(requestedTeamId).get();
+            if (tSnap.exists) {
+              targetTeamId = tSnap.id;
+              teamData = tSnap.data();
+            }
+          } catch (_) {}
+        }
+
+        // C. PRIORITÉ 3 : Si pas encore trouvé, chercher sur tout Firestore l'équipe avec un Pixel configuré et actif
         if (!teamData) {
-          const allTeamsSnap = await db.collection("workspaces").doc(targetWorkspaceId).collection("teams").limit(10).get();
-          if (!allTeamsSnap.empty) {
-            const activeTeamDoc = allTeamsSnap.docs.find((d) => d.data()?.metaCapiConfig?.enabled) || allTeamsSnap.docs[0];
-            targetTeamId = activeTeamDoc.id;
-            teamData = activeTeamDoc.data();
-          }
+          try {
+            const allTeams = await db.collectionGroup("teams").get();
+            const activeTeamDoc = allTeams.docs.find((d) => d.data()?.metaCapiConfig?.enabled && d.data()?.metaCapiConfig?.pixelId) ||
+              allTeams.docs.find((d) => d.data()?.metaCapiConfig?.pixelId);
+            if (activeTeamDoc) {
+              targetTeamId = activeTeamDoc.id;
+              teamData = activeTeamDoc.data();
+              targetWorkspaceId = activeTeamDoc.ref.parent.parent?.id || targetWorkspaceId;
+            }
+          } catch (_) {}
+        }
+
+        // D. Fallback workspace si toujours introuvable
+        if (!targetWorkspaceId) {
+          try {
+            const wsSnap = await db.collection("workspaces").limit(1).get();
+            if (!wsSnap.empty) targetWorkspaceId = wsSnap.docs[0].id;
+          } catch (_) {}
+        }
+
+        if (!targetWorkspaceId) {
+          res.status(404).json({ error: "Workspace introuvable pour envoyer l'événement de test." });
+          return;
         }
 
         let metaAccessToken = String(body.accessToken || root.accessToken || teamData?.metaCapiConfig?.accessToken || "").trim();
@@ -728,13 +823,7 @@ export const azifyGateway = onRequest(
           } catch {}
         }
 
-        const effectivePixelId = String(
-          body.pixelId ||
-          root.pixelId ||
-          root.metaPixelId ||
-          teamData?.metaCapiConfig?.pixelId ||
-          ""
-        ).trim();
+        const effectivePixelId = incomingPixelId || String(teamData?.metaCapiConfig?.pixelId || "").trim();
 
         const effectiveTestCode = String(
           body.testEventCode ||
@@ -1364,9 +1453,39 @@ export const azifyGateway = onRequest(
         const shopDomain = String(req.headers["x-azify-shop-domain"] || req.query.shopDomain || root.shopDomain || root.storeDomain || body.shopDomain || "").trim().toLowerCase();
 
         let targetWorkspaceId = String(body.workspaceId || root.workspaceId || "").trim();
+        const incomingPixelId = String(
+          root.pixelId ||
+          root.metaPixelId ||
+          root.pixel_id ||
+          root.meta_pixel_id ||
+          body.pixelId ||
+          (root.meta && (root.meta.pixelId || root.meta.pixel_id)) ||
+          ""
+        ).trim();
+
         const connDoc = await resolveShopifyConnection(db, { verifyToken, shopDomain });
         if (connDoc) {
           targetWorkspaceId = connDoc.data()?.workspaceId || connDoc.ref.parent.parent?.id || targetWorkspaceId;
+        }
+
+        if (!targetWorkspaceId && incomingPixelId) {
+          try {
+            const allTeams = await db.collectionGroup("teams").get();
+            const pTeam = allTeams.docs.find(d => String(d.data()?.metaCapiConfig?.pixelId || "").trim() === incomingPixelId);
+            if (pTeam) {
+              targetWorkspaceId = pTeam.ref.parent.parent?.id || "";
+            }
+          } catch (_) {}
+        }
+
+        if (!targetWorkspaceId) {
+          try {
+            const allTeams = await db.collectionGroup("teams").get();
+            const activeTeamDoc = allTeams.docs.find(d => d.data()?.metaCapiConfig?.enabled && d.data()?.metaCapiConfig?.pixelId);
+            if (activeTeamDoc) {
+              targetWorkspaceId = activeTeamDoc.ref.parent.parent?.id || "";
+            }
+          } catch (_) {}
         }
 
         if (!targetWorkspaceId) {
@@ -1431,15 +1550,6 @@ export const azifyGateway = onRequest(
         }
 
         // 1. PRIORITÉ ABSOLUE : Routage par Pixel ID (Attribution Meta Ads & Séparation des produits)
-        const incomingPixelId = String(
-          root.pixelId ||
-          root.metaPixelId ||
-          root.pixel_id ||
-          root.meta_pixel_id ||
-          (root.meta && (root.meta.pixelId || root.meta.pixel_id)) ||
-          ""
-        ).trim();
-
         let assignedTeamId = "";
         let assignedTeamName = "";
         let isUnrouted = false;

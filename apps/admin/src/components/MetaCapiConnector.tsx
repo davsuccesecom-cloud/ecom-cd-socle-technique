@@ -178,12 +178,25 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
   const [selectedPixelId, setSelectedPixelId] = useState<string>("");
   const [isManualPixelMode, setIsManualPixelMode] = useState(false);
   const [currency, setCurrency] = useState(team.metaCapiConfig?.currency || team.currency || "XOF");
-  const [testCode, setTestCode] = useState(team.metaCapiConfig?.testEventCode || "");
+  const [testCode, setTestCode] = useState(() => {
+    try {
+      return team.metaCapiConfig?.testEventCode || localStorage.getItem(`meta_capi_test_code_${team.id}`) || "TEST69630";
+    } catch {
+      return team.metaCapiConfig?.testEventCode || "TEST69630";
+    }
+  });
 
   // Status
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; testedAt?: number; pixelId?: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem(`meta_capi_test_${team.id}`);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showManual, setShowManual] = useState(!team.metaCapiConfig?.enabled);
@@ -196,14 +209,26 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
   // Sync state whenever team changes (per-team isolation)
   useEffect(() => {
     setCurrency(team.metaCapiConfig?.currency || team.currency || "XOF");
-    setTestCode(team.metaCapiConfig?.testEventCode || "");
+    const storedCode = (() => {
+      try {
+        return localStorage.getItem(`meta_capi_test_code_${team.id}`) || "TEST69630";
+      } catch {
+        return "TEST69630";
+      }
+    })();
+    setTestCode(team.metaCapiConfig?.testEventCode || storedCode);
     setManualPixelId(team.metaCapiConfig?.pixelId || "");
     setManualToken(team.metaCapiConfig?.accessToken || "");
     setBridgeSession(null);
-    setTestResult(null);
+    try {
+      const saved = localStorage.getItem(`meta_capi_test_${team.id}`);
+      if (saved) {
+        setTestResult(JSON.parse(saved));
+      }
+    } catch {}
     setError(null);
     setSuccessMsg(null);
-  }, [team.id, team.metaCapiConfig]);
+  }, [team.id, team.metaCapiConfig?.pixelId, team.metaCapiConfig?.enabled]);
 
   // Listen in real time to External Bridge Session when active
   useEffect(() => {
@@ -520,15 +545,33 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
         throw new Error(res.data.error || "Échec rejeté par Meta Graph API");
       }
 
-      setTestResult({
+      const finalRes = {
         success: true,
         message: '✓ Parfait ! Événement de test reçu par Meta avec succès' + (testCode.trim() ? ' (Code: ' + testCode.trim() + ')' : '') + '. Regardez l\'onglet « Tester les événements » dans votre Gestionnaire d\'événements Meta.',
-      });
+        testedAt: Date.now(),
+        pixelId: res.data?.pixelId || pId,
+      };
+      setTestResult(finalRes);
+      try {
+        localStorage.setItem(`meta_capi_test_${team.id}`, JSON.stringify(finalRes));
+        if (testCode.trim()) {
+          localStorage.setItem(`meta_capi_test_code_${team.id}`, testCode.trim());
+          const db = getDb();
+          await updateDoc(doc(db, "workspaces", workspaceId, "teams", team.id), {
+            "metaCapiConfig.testEventCode": testCode.trim(),
+          });
+        }
+      } catch {}
     } catch (err: any) {
-      setTestResult({
+      const errRes = {
         success: false,
         message: err?.message || "Échec test Meta CAPI. Vérifie que le Pixel et le Token sont valides.",
-      });
+        testedAt: Date.now(),
+      };
+      setTestResult(errRes);
+      try {
+        localStorage.setItem(`meta_capi_test_${team.id}`, JSON.stringify(errRes));
+      } catch {}
     } finally {
       setTesting(false);
     }
@@ -690,13 +733,28 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
 
           {testResult && (
             <div
-              className={`rounded-lg border p-3 text-xs ${
+              className={`rounded-lg border p-3 text-xs flex items-start justify-between gap-3 ${
                 testResult.success
                   ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                   : "border-red-500/30 bg-red-500/10 text-red-400"
               }`}
             >
-              {testResult.message}
+              <div>
+                <p className="font-medium">{testResult.message}</p>
+                {testResult.testedAt && (
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Dernière vérification enregistrée : {new Date(testResult.testedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setTestResult(null)}
+                className="text-slate-400 hover:text-slate-200 text-xs shrink-0 cursor-pointer"
+                title="Masquer"
+              >
+                ✕
+              </button>
             </div>
           )}
         </div>

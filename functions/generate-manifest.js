@@ -2,8 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 try {
-  const loader = require('firebase-functions/lib/runtime/loader.js');
-  const manifest = require('firebase-functions/lib/runtime/manifest.js');
+  const loaderPath = path.resolve(__dirname, '../node_modules/firebase-functions/lib/runtime/loader.js');
+  const manifestPath = path.resolve(__dirname, '../node_modules/firebase-functions/lib/runtime/manifest.js');
+
+  const loader = require(loaderPath);
+  const manifest = require(manifestPath);
 
   const functionsDir = __dirname;
   loader.loadStack(functionsDir).then((stack) => {
