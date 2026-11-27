@@ -186,7 +186,7 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [showManual, setShowManual] = useState(false);
+  const [showManual, setShowManual] = useState(!team.metaCapiConfig?.enabled);
   const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
 
   // Manual fallback state
