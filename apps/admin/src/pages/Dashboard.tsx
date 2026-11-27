@@ -396,8 +396,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
         onLogout={onLogout}
         onNavigate={setPage}
         pendingOrdersCount={totalPendingOrders}
-        customLogoUrl={brandLogoUrl}
-        customBrandName={brandTitle}
       />
 
       {/* Mobile Top Bar */}
@@ -407,8 +405,6 @@ export default function Dashboard({ workspaceId, onLogout, userEmail, adminId }:
             size="sm"
             variant="full"
             subtitle={activeTeam ? activeTeam.name : "Cockpit"}
-            customLogoUrl={brandLogoUrl}
-            customBrandName={brandTitle}
           />
         </div>
         <div className="flex items-center gap-1.5">

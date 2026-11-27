@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ThemeQuickPicker from "./ThemeQuickPicker";
 import WariTrackLogo from "./WariTrackLogo";
+import { AzifyLogo } from "./ConnectorLogos";
 import { useTheme } from "../hooks/useTheme";
 import {
   LayoutDashboard,
@@ -145,7 +146,7 @@ export default function Sidebar({
       <div className={`mb-5 flex items-center ${collapsed ? "flex-col gap-2.5 justify-center" : "justify-between px-1.5"}`}>
         {collapsed ? (
           <>
-            <WariTrackLogo size="sm" variant="icon" subtitle="" customLogoUrl={customLogoUrl} customBrandName={customBrandName} />
+            <WariTrackLogo size="sm" variant="icon" subtitle="" />
             <button
               type="button"
               onClick={toggleCollapsed}
@@ -157,7 +158,7 @@ export default function Sidebar({
           </>
         ) : (
           <>
-            <WariTrackLogo variant="full" subtitle="LOGISTICS OS" customLogoUrl={customLogoUrl} customBrandName={customBrandName} />
+            <WariTrackLogo variant="full" subtitle="LOGISTICS OS" />
             <button
               type="button"
               onClick={toggleCollapsed}
@@ -226,11 +227,7 @@ export default function Sidebar({
             style={{ backgroundColor: "#ffffff" }}
             className="flex h-10 w-10 mx-auto items-center justify-center rounded-xl border border-slate-200 !bg-white shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
           >
-            <img
-              src="/icons/azify-logo.png"
-              alt="Azify Studio"
-              className="h-6 w-6 object-contain"
-            />
+            <AzifyLogo className="h-6 w-6" />
           </button>
         ) : (
           <button
@@ -241,11 +238,7 @@ export default function Sidebar({
             className="group flex w-full h-10 items-center justify-between rounded-xl border border-slate-200 !bg-white px-3 text-xs shadow-xs transition-all hover:!bg-slate-50 active:scale-[0.99] cursor-pointer"
           >
             <div className="flex items-center gap-2.5 min-w-0">
-              <img
-                src="/icons/azify-logo.png"
-                alt="Azify Studio"
-                className="h-5 w-5 shrink-0 object-contain"
-              />
+              <AzifyLogo className="h-5 w-5 shrink-0" />
               <span className="font-extrabold tracking-tight !text-slate-900 text-xs">
                 Azify Studio
               </span>

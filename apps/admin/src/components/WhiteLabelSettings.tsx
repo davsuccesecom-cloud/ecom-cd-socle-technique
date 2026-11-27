@@ -180,6 +180,12 @@ export default function WhiteLabelSettings({ workspaceId }: WhiteLabelSettingsPr
             <h3 className="text-base font-bold text-slate-100">
               Personnalisation des Applications Closeuse &amp; Livreur
             </h3>
+            <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-sky-500/25 bg-sky-500/10 p-3 text-xs text-sky-800 dark:text-sky-200">
+              <ShieldCheck className="h-4 w-4 text-sky-500 shrink-0 mt-0.5" />
+              <p className="leading-relaxed">
+                <strong>Souveraineté WariTrack Cockpit :</strong> Cette personnalisation s'applique exclusivement aux applications employés sur le terrain (App Closeuse &amp; App Livreur PWA). Le logo officiel et l'interface WariTrack de votre Cockpit Direction restent souverains et intacts.
+              </p>
+            </div>
             <p className="mt-1 text-xs text-slate-400 max-w-xl">
               Vos employés (Closeuse et Livreur) conservent <strong>par défaut leurs vraies icônes natives familières</strong>. Vous pouvez également importer le véritable logo de votre boutique pour afficher votre propre marque sur l'écran d'accueil de leurs téléphones.
             </p>

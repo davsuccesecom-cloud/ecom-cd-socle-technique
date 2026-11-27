@@ -294,37 +294,102 @@ html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-500 {
 html.light:not(.landing-active) .text-slate-600 {
   color: #64748b;
 }
-html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]) {
+html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]) {
   color: #334155;
 }
-html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):hover {
+html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]):hover {
   color: #0f172a;
 }
-html.light:not(.landing-active) .text-emerald-400,
-html.light:not(.landing-active) .text-emerald-300 {
+
+/* Tonalités Émeraude / Succès / Encaissé en mode clair */
+html.light:not(.landing-active) .text-emerald-100,
+html.light:not(.landing-active) .text-emerald-200 {
+  color: #064e3b;
+}
+html.light:not(.landing-active) .text-emerald-300,
+html.light:not(.landing-active) .text-emerald-400 {
   color: #047857;
 }
-html.light:not(.landing-active) .text-amber-400,
-html.light:not(.landing-active) .text-amber-300,
-html.light:not(.landing-active) .text-amber-200 {
-  color: #b45309;
+html.light:not(.landing-active) .text-emerald-500 {
+  color: #059669;
 }
-html.light .text-rose-400,
-html.light .text-rose-300,
-html.light .text-rose-200,
-html.light .text-red-400 {
-  color: #be123c;
+
+/* Tonalités Ciel / Logistique / Circulation en mode clair */
+html.light:not(.landing-active) .text-sky-100,
+html.light:not(.landing-active) .text-sky-200 {
+  color: #0c4a6e;
 }
-html.light .text-sky-400,
-html.light .text-sky-300 {
+html.light:not(.landing-active) .text-sky-300,
+html.light:not(.landing-active) .text-sky-400 {
   color: #0369a1;
 }
-html.light .text-purple-300 {
+html.light:not(.landing-active) .text-sky-500 {
+  color: #0284c7;
+}
+
+/* Tonalités Ambre / Alertes / Clôtures en mode clair */
+html.light:not(.landing-active) .text-amber-100,
+html.light:not(.landing-active) .text-amber-200 {
+  color: #78350f;
+}
+html.light:not(.landing-active) .text-amber-300,
+html.light:not(.landing-active) .text-amber-400 {
+  color: #b45309;
+}
+
+/* Tonalités Rose / Rejets / Injoignables en mode clair */
+html.light:not(.landing-active) .text-rose-100,
+html.light:not(.landing-active) .text-rose-200,
+html.light:not(.landing-active) .text-red-100,
+html.light:not(.landing-active) .text-red-200 {
+  color: #881337;
+}
+html.light:not(.landing-active) .text-rose-300,
+html.light:not(.landing-active) .text-rose-400,
+html.light:not(.landing-active) .text-red-300,
+html.light:not(.landing-active) .text-red-400 {
+  color: #be123c;
+}
+
+/* Tonalités Violette en mode clair */
+html.light:not(.landing-active) .text-purple-100,
+html.light:not(.landing-active) .text-purple-200 {
+  color: #4c1d95;
+}
+html.light:not(.landing-active) .text-purple-300,
+html.light:not(.landing-active) .text-purple-400 {
   color: #6d28d9;
 }
-html.light .placeholder\:text-slate-600::placeholder,
-html.light .placeholder\:text-slate-500::placeholder {
-  color: #94a3b8;
+
+/* Préservation stricte du texte blanc dans les boutons d'action ou éléments sombres */
+html.light:not(.landing-active) :is(
+  .bg-brand,
+  [class*="bg-brand"],
+  .bg-slate-900,
+  .bg-slate-950,
+  .bg-slate-800,
+  .bg-black,
+  .bg-emerald-600,
+  .bg-emerald-700,
+  .bg-rose-600,
+  .bg-rose-500,
+  .bg-sky-600,
+  .bg-amber-600
+) :is(.text-white, .text-slate-100, .text-slate-200) {
+  color: #ffffff !important;
+}
+
+/* Formulaires et champs de saisie en mode clair */
+html.light:not(.landing-active) input:not([type="checkbox"]):not([type="radio"]),
+html.light:not(.landing-active) select,
+html.light:not(.landing-active) textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+html.light:not(.landing-active) input::placeholder,
+html.light:not(.landing-active) textarea::placeholder {
+  color: #94a3b8 !important;
 }
 
 /* Contrôles formulaires sobres et nets */

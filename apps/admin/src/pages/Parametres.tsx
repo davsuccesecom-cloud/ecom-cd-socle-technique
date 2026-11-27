@@ -31,6 +31,7 @@ import {
   ChevronRight,
   Layers,
 } from "lucide-react";
+import { ShopifyLogo, AzifyLogo, MetaLogo } from "../components/ConnectorLogos";
 import MetaCapiConnector from "../components/MetaCapiConnector";
 import AzifyFluxManager from "../components/AzifyFluxManager";
 import ShopifyFluxManager from "../components/ShopifyFluxManager";
@@ -104,7 +105,7 @@ const SETTINGS_TABS: TabDefinition[] = [
     shortLabel: "Azify Studio",
     desc: "Connexion 1-clic Azify PWA Studio, tunnels COD 1-page & routage",
     badge: "Recommandé COD",
-    icon: Zap,
+    icon: AzifyLogo,
     isMarketSpecific: true,
   },
   {
@@ -113,7 +114,7 @@ const SETTINGS_TABS: TabDefinition[] = [
     label: "Boutiques Shopify",
     shortLabel: "Shopify",
     desc: "Webhooks de commandes, routage multi-boutiques & suivi",
-    icon: Store,
+    icon: ShopifyLogo,
     isMarketSpecific: true,
   },
   {
@@ -123,7 +124,7 @@ const SETTINGS_TABS: TabDefinition[] = [
     shortLabel: "Meta CAPI",
     desc: "Pixel Facebook & Instagram avec tracking d'achat serveur en direct",
     badge: "Indispensable ADS",
-    icon: Share2,
+    icon: MetaLogo,
     isMarketSpecific: true,
   },
 

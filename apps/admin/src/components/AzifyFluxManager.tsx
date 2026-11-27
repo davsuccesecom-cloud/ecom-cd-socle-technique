@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { formatFirebaseError } from "../lib/firebaseErrors";
 import AzifyConnectionSheet from "./AzifyConnectionSheet";
+import { AzifyLogo } from "./ConnectorLogos";
 
 interface AzifyFluxManagerProps {
   workspaceId: string;
@@ -844,8 +845,8 @@ export default function AzifyFluxManager({
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
               {/* Badge Azify Studio Icon */}
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-inner">
-                <Zap className="h-6 w-6 fill-amber-400/20 stroke-amber-400" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-surface-border bg-white p-2 shadow-xs">
+                <AzifyLogo className="h-7 w-7" />
               </div>
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2.5">

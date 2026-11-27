@@ -923,14 +923,14 @@ export default function LiveShopifyAnalytics({
               <PackageCheck className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-emerald-300 tracking-tight leading-none">Cash Sécurisé (Encaissé)</p>
-              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-emerald-100 leading-tight">
+              <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 tracking-tight leading-none">Cash Sécurisé (Encaissé)</p>
+              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-emerald-950 dark:text-emerald-100 leading-tight">
                 {displayTotals.ca.toLocaleString("fr-FR")}{" "}
                 <span className="text-[11px] font-normal text-emerald-300">{currency}</span>
               </p>
             </div>
           </div>
-          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 shrink-0">
+          <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 shrink-0">
             {displayTotals.livraisons} livraison{displayTotals.livraisons > 1 ? "s" : ""} validée{displayTotals.livraisons > 1 ? "s" : ""}
           </span>
         </div>
@@ -941,14 +941,14 @@ export default function LiveShopifyAnalytics({
               <TrendingUp className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-sky-300 tracking-tight leading-none">Cash en Circulation (Sur la route)</p>
-              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-sky-100 leading-tight">
+              <p className="text-[11px] font-semibold text-sky-800 dark:text-sky-300 tracking-tight leading-none">Cash en Circulation (Sur la route)</p>
+              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-sky-950 dark:text-sky-100 leading-tight">
                 {cashEnRoute.toLocaleString("fr-FR")}{" "}
                 <span className="text-[11px] font-normal text-sky-300">{currency}</span>
               </p>
             </div>
           </div>
-          <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[11px] font-semibold text-sky-300 shrink-0">
+          <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[11px] font-semibold text-sky-800 dark:text-sky-300 shrink-0">
             {pendingDeliveryCount} colis sur le terrain
           </span>
         </div>
