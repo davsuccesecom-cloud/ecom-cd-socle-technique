@@ -917,14 +917,14 @@ export default function LiveShopifyAnalytics({
     <div className="space-y-3.5">
       {/* 1. Bandeau de Sécurité Financière : Encaissé vs Circulation (Compact & Allégé) */}
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <div className="flex items-center justify-between rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-2.5 shadow-xs transition-all">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-300 dark:border-emerald-500/25 bg-emerald-50/70 dark:bg-emerald-500/10 px-3.5 py-2 shadow-xs transition-all">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/20 text-emerald-400 shrink-0">
+            <div className="flex h-7.5 w-7.5 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
               <PackageCheck className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 tracking-tight leading-none">Cash Sécurisé (Encaissé)</p>
-              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-emerald-950 dark:text-emerald-100 leading-tight">
+              <p className="mt-0.5 text-base sm:text-lg font-extrabold tabular-nums text-emerald-950 dark:text-emerald-100 leading-tight">
                 {displayTotals.ca.toLocaleString("fr-FR")}{" "}
                 <span className="text-[11px] font-normal text-emerald-700 dark:text-emerald-300">{currency}</span>
               </p>
@@ -935,14 +935,14 @@ export default function LiveShopifyAnalytics({
           </span>
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border border-sky-500/25 bg-sky-500/10 px-3.5 py-2.5 shadow-xs transition-all">
+        <div className="flex items-center justify-between rounded-xl border border-sky-300 dark:border-sky-500/25 bg-sky-50/70 dark:bg-sky-500/10 px-3.5 py-2 shadow-xs transition-all">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg border border-sky-500/30 bg-sky-500/20 text-sky-400 shrink-0">
+            <div className="flex h-7.5 w-7.5 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-sky-500/30 bg-sky-500/20 text-sky-600 dark:text-sky-400 shrink-0">
               <TrendingUp className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-semibold text-sky-800 dark:text-sky-300 tracking-tight leading-none">Cash en Circulation (Sur la route)</p>
-              <p className="mt-1 text-lg sm:text-xl font-bold tabular-nums text-sky-950 dark:text-sky-100 leading-tight">
+              <p className="mt-0.5 text-base sm:text-lg font-extrabold tabular-nums text-sky-950 dark:text-sky-100 leading-tight">
                 {cashEnRoute.toLocaleString("fr-FR")}{" "}
                 <span className="text-[11px] font-normal text-sky-700 dark:text-sky-300">{currency}</span>
               </p>

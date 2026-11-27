@@ -265,171 +265,105 @@ html.light .surface-popover {
    8. SYSTÈME D'ADAPTATION TYPOGRAPHIQUE & CONTRASTE (BLANC / NOIR)
    ========================================================================== */
 
-/* Mode clair — Corps de document */
+/* Mode clair — Corps de document & contraste maximal */
 html.light body {
   color: #0f172a;
 }
 
-/* Préservation ABSOLUE du texte blanc dans tous les contextes où text-white est requis */
+/* Préservation du texte blanc UNIQUEMENT là où text-white est explicite ou sur les boutons d'action pleins */
 html.light:not(.landing-active) .text-white,
-html.dark:not(.landing-active) .text-white {
+html.dark:not(.landing-active) .text-white,
+html.light:not(.landing-active) button.bg-brand,
+html.light:not(.landing-active) a.bg-brand,
+html.light:not(.landing-active) .bg-brand.text-white,
+html.light:not(.landing-active) button.bg-slate-900,
+html.light:not(.landing-active) button.bg-black {
   color: #ffffff !important;
 }
 
-/* Préservation stricte du texte blanc dans les boutons actifs, pastilles brand ou conteneurs sombres */
-html.light:not(.landing-active) :is(
-  .bg-brand,
-  [class*="bg-brand"]:not([class*="bg-brand-light"]):not([class*="bg-brand/"]),
-  .bg-slate-900,
-  .bg-slate-950,
-  .bg-slate-800,
-  .bg-black,
-  .bg-emerald-600,
-  .bg-emerald-700,
-  .bg-rose-600,
-  .bg-rose-500,
-  .bg-sky-600,
-  .bg-sky-500,
-  .bg-amber-600,
-  .bg-amber-500
-) {
-  color: #ffffff !important;
+/* Mode clair — Remplacement systématique des nuances claires par des textes sombres, nets et francs */
+html.light:not(.landing-active) .text-slate-100,
+html.light:not(.landing-active) .text-slate-200 {
+  color: #0f172a; /* Noir / ardoise très foncée pour titres et valeurs clés */
+}
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-100,
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-200 {
+  color: #1e1108;
 }
 
-html.light:not(.landing-active) :is(
-  .bg-brand,
-  [class*="bg-brand"]:not([class*="bg-brand-light"]):not([class*="bg-brand/"]),
-  .bg-slate-900,
-  .bg-slate-950,
-  .bg-slate-800,
-  .bg-black,
-  .bg-emerald-600,
-  .bg-emerald-700,
-  .bg-rose-600,
-  .bg-rose-500,
-  .bg-sky-600,
-  .bg-sky-500,
-  .bg-amber-600,
-  .bg-amber-500
-) :is(.text-white, .text-slate-100, .text-slate-200, span, p, b, strong) {
-  color: #ffffff !important;
+html.light:not(.landing-active) .text-slate-300 {
+  color: #1e293b; /* Ardoise foncée franche */
+}
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-300 {
+  color: #2e1a0d;
 }
 
-/* HIÉRARCHIE TYPOGRAPHIQUE EN MODE CLAIR (Exclut les boutons sombres et les vitrines sombres) */
-/* Tier 1 : Titres majeurs, chiffres clés KPI, montants et en-têtes structurants */
-html.light:not(.landing-active) :is(.text-slate-100, .text-slate-200):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #0f172a; /* Slate 900 : Contraste maximal et franchise visuelle */
+html.light:not(.landing-active) .text-slate-400 {
+  color: #334155; /* Ardoise 700 : texte lisible, jamais délavé */
 }
-html.light:not(.landing-active):where([data-accent="cacao"]) :is(.text-slate-100, .text-slate-200):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #1e1108; /* Expresso intense */
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-400 {
+  color: #4a2f1d;
 }
 
-/* Tier 2 : Corps de texte, valeurs de données, labels d'onglets actifs */
-html.light:not(.landing-active) .text-slate-300:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #334155; /* Slate 700 : Lecture équilibrée, confort oculaire, distinct des titres */
+html.light:not(.landing-active) .text-slate-500 {
+  color: #475569; /* Ardoise 600 : contraste confortable */
 }
-html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-300:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #3e2413; /* Moka foncé */
-}
-
-/* Tier 3 : Libellés d'aide, métriques secondaires, boutons inactifs et sous-titres */
-html.light:not(.landing-active) .text-slate-400:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #64748b; /* Slate 500 : Texte d'accompagnement élégant, jamais noir écrasant */
-}
-html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-400:not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #6d472c; /* Cuir caramel */
+html.light:not(.landing-active):where([data-accent="cacao"]) .text-slate-500 {
+  color: #634027;
 }
 
-/* Tier 4 : Légendes discrètes, horodatages, compteurs et micro-mentions */
-html.light:not(.landing-active) :is(.text-slate-500, .text-slate-600):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #94a3b8; /* Slate 400 : Hiérarchie subtile sans saturation */
-}
-html.light:not(.landing-active):where([data-accent="cacao"]) :is(.text-slate-500, .text-slate-600):not([class*="bg-brand"]):not([class*="bg-slate-9"]):not([class*="bg-black"]):not([class*="bg-emerald-6"]):not([class*="bg-rose-6"]):not([class*="bg-sky-6"]) {
-  color: #9b7252; /* Latte doux */
+html.light:not(.landing-active) .text-slate-600 {
+  color: #475569; /* Ardoise 600 : garde une excellente lisibilité */
 }
 
-/* Navigation latérale (Sidebar) en mode clair */
-html.light:not(.landing-active) .sidebar-surface p.text-slate-500 {
-  color: #64748b !important;
-  font-weight: 700;
+/* Sidebar navigation en mode clair : texte sombre franc, ultra-lisible */
+html.light:not(.landing-active) .sidebar-surface p {
+  color: #475569 !important;
+  font-weight: 800;
 }
 html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]) {
-  color: #475569;
+  color: #1e293b !important; /* Ardoise 800 bien foncée */
+  font-weight: 600;
 }
 html.light:not(.landing-active) .sidebar-surface button:not([class*="bg-brand"]):not([class*="!bg-white"]):hover {
-  color: #0f172a;
+  color: #0f172a !important; /* Noir total au survol */
 }
 
 /* Tonalités Émeraude / Succès / Encaissé en mode clair */
-html.light:not(.landing-active) :is(.text-emerald-100, .text-emerald-200, .text-emerald-300) {
-  color: #065f46 !important; /* Emerald 800 : lisibilité sur fond clair */
-}
-html.light:not(.landing-active) :is(.text-emerald-400, .text-emerald-500) {
-  color: #047857 !important; /* Emerald 700 */
-}
-
-/* Tonalités Ciel / Logistique / Circulation en mode clair */
-html.light:not(.landing-active) :is(.text-sky-100, .text-sky-200, .text-sky-300) {
-  color: #075985 !important; /* Sky 800 : lisibilité sur fond clair */
-}
-html.light:not(.landing-active) :is(.text-sky-400, .text-sky-500) {
-  color: #0284c7 !important; /* Sky 600 */
+html.light:not(.landing-active) .text-emerald-400,
+html.light:not(.landing-active) .text-emerald-300 {
+  color: #047857 !important;
 }
 
 /* Tonalités Ambre / Alertes / Clôtures en mode clair */
-html.light:not(.landing-active) :is(.text-amber-100, .text-amber-200, .text-amber-300) {
-  color: #92400e !important; /* Amber 800 */
-}
-html.light:not(.landing-active) :is(.text-amber-400, .text-amber-500) {
-  color: #b45309 !important; /* Amber 700 */
+html.light:not(.landing-active) .text-amber-400,
+html.light:not(.landing-active) .text-amber-300,
+html.light:not(.landing-active) .text-amber-200 {
+  color: #b45309 !important;
 }
 
 /* Tonalités Rose & Rouge / Rejets / Injoignables en mode clair */
-html.light:not(.landing-active) :is(.text-rose-100, .text-rose-200, .text-rose-300, .text-red-100, .text-red-200, .text-red-300) {
-  color: #9f1239 !important; /* Rose 800 */
+html.light .text-rose-400,
+html.light .text-rose-300,
+html.light .text-rose-200,
+html.light .text-red-400 {
+  color: #be123c !important;
 }
-html.light:not(.landing-active) :is(.text-rose-400, .text-rose-500, .text-red-400, .text-red-500) {
-  color: #be123c !important; /* Rose 700 */
+
+/* Tonalités Ciel / Logistique / Circulation en mode clair */
+html.light .text-sky-400,
+html.light .text-sky-300 {
+  color: #0369a1 !important;
 }
 
 /* Tonalités Violette en mode clair */
-html.light:not(.landing-active) :is(.text-purple-100, .text-purple-200, .text-purple-300) {
-  color: #5b21b6 !important;
-}
-html.light:not(.landing-active) :is(.text-purple-400, .text-purple-500) {
-  color: #7c3aed !important;
+html.light .text-purple-300 {
+  color: #6d28d9 !important;
 }
 
-/* Pastilles et fonds teintés en mode clair (Élimination des teintes délavées/néon) */
-html.light:not(.landing-active) .bg-emerald-500\/10,
-html.light:not(.landing-active) .bg-emerald-500\/20 {
-  background-color: #ecfdf5 !important; /* emerald-50 */
-}
-html.light:not(.landing-active) :is(.border-emerald-500\/20, .border-emerald-500\/25, .border-emerald-500\/30) {
-  border-color: #a7f3d0 !important; /* emerald-200 */
-}
-
-html.light:not(.landing-active) .bg-sky-500\/10,
-html.light:not(.landing-active) .bg-sky-500\/20 {
-  background-color: #f0f9ff !important; /* sky-50 */
-}
-html.light:not(.landing-active) :is(.border-sky-500\/20, .border-sky-500\/25, .border-sky-500\/30) {
-  border-color: #bae6fd !important; /* sky-200 */
-}
-
-html.light:not(.landing-active) .bg-amber-500\/10,
-html.light:not(.landing-active) .bg-amber-500\/20 {
-  background-color: #fffbeb !important; /* amber-50 */
-}
-html.light:not(.landing-active) :is(.border-amber-500\/20, .border-amber-500\/25, .border-amber-500\/30) {
-  border-color: #fde68a !important; /* amber-200 */
-}
-
-html.light:not(.landing-active) :is(.bg-rose-500\/10, .bg-rose-500\/20, .bg-rose-500\/25) {
-  background-color: #fff1f2 !important; /* rose-50 */
-}
-html.light:not(.landing-active) :is(.border-rose-500\/20, .border-rose-500\/30, .border-rose-500\/40) {
-  border-color: #fecdd3 !important; /* rose-200 */
+html.light .placeholder\:text-slate-600::placeholder,
+html.light .placeholder\:text-slate-500::placeholder {
+  color: #94a3b8;
 }
 
 /* Rétro-protection Mode Sombre : Empêcher le texte sombre d'être invisible sur fond sombre */

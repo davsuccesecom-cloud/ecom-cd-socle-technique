@@ -366,7 +366,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                 onClick={() => setCur(t.id)}
                 className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition cursor-pointer select-none ${
                   isSelected
-                    ? "border-[#16181D] bg-[#16181D] text-white dark:border-white dark:bg-white dark:text-[#16181D] shadow-sm"
+                    ? "border-brand bg-brand text-white shadow-sm"
                     : "border-slate-200 dark:border-surface-border bg-white dark:bg-surface text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-500 hover:text-slate-900 dark:hover:text-white"
                 }`}
               >
@@ -390,7 +390,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
         <button
           type="button"
           onClick={() => setShowCreateTeam(true)}
-          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-[#16181D] text-white dark:bg-white dark:text-[#16181D] px-3.5 py-2 text-xs font-bold transition hover:opacity-90 active:scale-95 cursor-pointer shadow-xs"
+          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-brand hover:bg-brand-hover text-white px-3.5 py-2 text-xs font-bold transition hover:opacity-90 active:scale-95 cursor-pointer shadow-xs"
         >
           + Nouvelle équipe
         </button>
@@ -496,7 +496,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                         Copier
                       </button>
                     </div>
-                    <div className="rounded-xl border border-slate-200 dark:border-surface-border bg-[#F6F6F3]/60 dark:bg-surface/50 p-3 text-xs">
+                    <div className="rounded-xl border border-slate-200 dark:border-surface-border bg-slate-50 dark:bg-surface p-3 text-xs">
                       <b className="text-slate-900 dark:text-slate-200 font-semibold block mb-0.5">
                         Flux direct actif ({teamShopify.label})
                       </b>
@@ -527,7 +527,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                   <button
                     type="button"
                     onClick={() => setShowShopifyModal(true)}
-                    className="w-full rounded-xl bg-[#16181D] text-white dark:bg-white dark:text-[#16181D] py-2.5 text-xs font-bold shadow-xs transition hover:opacity-90 active:scale-95 cursor-pointer"
+                    className="w-full rounded-xl bg-brand hover:bg-brand-hover text-white py-2.5 text-xs font-bold shadow-xs transition hover:opacity-90 active:scale-95 cursor-pointer"
                   >
                     Connecter Shopify
                   </button>
@@ -601,7 +601,7 @@ export default function EquipesSheets({ workspaceId, teams }: EquipesSheetsProps
                   type="button"
                   onClick={openWizard}
                   disabled={team.sheetIds.length >= MAX_SHEETS}
-                  className="w-full rounded-xl bg-[#16181D] text-white dark:bg-white dark:text-[#16181D] py-2.5 text-xs font-bold shadow-xs transition hover:opacity-90 active:scale-95 disabled:opacity-40 cursor-pointer"
+                  className="w-full rounded-xl bg-brand hover:bg-brand-hover text-white py-2.5 text-xs font-bold shadow-xs transition hover:opacity-90 active:scale-95 disabled:opacity-40 cursor-pointer"
                 >
                   {team.sheetIds.length >= MAX_SHEETS ? "Limite atteinte (5 tableurs)" : "Connecter un tableur"}
                 </button>

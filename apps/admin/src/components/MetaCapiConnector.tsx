@@ -671,15 +671,15 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
 
       {/* ÉTAT 2 : Formulaire de connexion automatique + Lien Externe Multi-Navigateur */}
       {!isAlreadyConfigured && !fbUser && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-950/20 p-4 text-center space-y-3.5">
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20 text-blue-400">
+        <div className="rounded-xl border border-blue-200 dark:border-blue-500/20 bg-blue-50/50 dark:bg-blue-950/20 p-5 text-center space-y-3.5">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-blue-600/20 text-blue-600 dark:text-blue-400">
             <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
             </svg>
           </div>
           <div>
-            <h5 className="text-sm font-medium text-slate-100">Connexion Meta en 1 clic</h5>
-            <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+            <h5 className="text-sm font-bold text-slate-900 dark:text-slate-100">Connexion Meta en 1 clic</h5>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-md mx-auto">
               Connectez votre compte Facebook ici, ou générez un lien externe pour vous connecter depuis une fenêtre Incognito, un autre navigateur (Brave, Firefox, AdsPower) ou un autre profil Chrome.
             </p>
           </div>
@@ -701,7 +701,7 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
               type="button"
               disabled={creatingBridge}
               onClick={handleCreateExternalBridgeLink}
-              className="inline-flex items-center gap-2 rounded-xl border border-blue-400/40 bg-surface/80 hover:bg-surface px-3.5 py-2.5 text-xs font-semibold text-blue-300 transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-blue-500/40 bg-white dark:bg-surface/80 hover:bg-slate-50 dark:hover:bg-surface px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-blue-300 transition-all disabled:opacity-50 shadow-2xs"
             >
               <Link2 className="h-4 w-4" />
               {creatingBridge ? "Création du lien..." : "Générer un lien de connexion externe"}
@@ -713,7 +713,7 @@ export default function MetaCapiConnector({ workspaceId, team, allTeams = [], on
               type="button"
               disabled={loggingIn}
               onClick={() => handleFbLogin(true)}
-              className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-200 underline underline-offset-2 transition-colors"
+              className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 underline underline-offset-2 transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
               Forcer la reconnexion d'un autre compte Facebook sur ce navigateur

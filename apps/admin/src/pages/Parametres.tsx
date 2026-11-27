@@ -215,8 +215,8 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
               onClick={() => handleSelectCategory(cat.id)}
               className={`group relative flex min-h-[58px] items-center justify-between rounded-2xl border p-3.5 text-left transition-all cursor-pointer ${
                 isActiveCat
-                  ? "border-brand bg-brand/10 shadow-sm ring-1 ring-brand/40"
-                  : "border-surface-border bg-surface-raised hover:border-slate-600 hover:bg-surface"
+                  ? "border-brand bg-brand-light/40 dark:bg-brand/10 shadow-xs ring-1 ring-brand/30"
+                  : "border-surface-border bg-surface-raised hover:border-slate-400 dark:hover:border-slate-600 hover:bg-surface"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -224,16 +224,16 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition ${
                     isActiveCat
                       ? "border-brand/40 bg-brand text-white shadow-xs"
-                      : "border-surface-border bg-surface text-slate-400 group-hover:text-slate-200"
+                      : "border-surface-border bg-surface text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200"
                   }`}
                 >
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h2 className={`text-xs font-bold ${isActiveCat ? "text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300"}`}>
+                  <h2 className={`text-xs font-bold ${isActiveCat ? "!text-slate-900 dark:!text-slate-100" : "text-slate-800 dark:text-slate-200"}`}>
                     {cat.shortLabel}
                   </h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-1">
                     {cat.desc}
                   </p>
                 </div>
@@ -242,8 +242,8 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
               <span
                 className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
                   isActiveCat
-                    ? "bg-brand/20 text-brand border border-brand/30"
-                    : "bg-surface border border-surface-border text-slate-500 dark:text-slate-400"
+                    ? "bg-brand/15 text-brand border border-brand/30"
+                    : "bg-surface border border-surface-border text-slate-600 dark:text-slate-400"
                 }`}
               >
                 {cat.count}
@@ -267,7 +267,7 @@ export default function Parametres({ workspaceId, team, teams = [], orders = [] 
                 className={`flex min-h-[46px] flex-1 sm:flex-initial items-center justify-center sm:justify-start gap-2.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
                   isTabActive
                     ? "bg-brand text-white shadow-xs ring-1 ring-brand/40"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-surface hover:text-slate-900 dark:hover:text-slate-200 border border-transparent"
+                    : "text-slate-700 dark:text-slate-300 hover:bg-surface hover:text-slate-900 dark:hover:text-white border border-transparent"
                 }`}
               >
                 <Icon className={`h-4 w-4 shrink-0 ${isTabActive ? "text-white" : "text-slate-500 dark:text-slate-400"}`} />
