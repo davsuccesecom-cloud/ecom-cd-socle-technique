@@ -1273,7 +1273,7 @@ export default function ShopifyFluxManager({
               <div className="space-y-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-200">
-                    Intégration Shopify & EasySell
+                    Intégration Shopify & AziCardSell
                   </label>
                   <p className="text-xs text-slate-400">
                     Copiez ces deux éléments dans vos paramètres Shopify pour activer la transmission instantanée.
@@ -1308,7 +1308,7 @@ export default function ShopifyFluxManager({
                 <div className="space-y-1.5 pt-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-slate-300">
-                      2. Script de capture CAPI (Thème Shopify / EasySell)
+                      2. Script de capture CAPI (Thème Shopify / AziCardSell)
                     </span>
                     <button
                       type="button"

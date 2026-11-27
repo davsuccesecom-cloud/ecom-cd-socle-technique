@@ -434,7 +434,7 @@ export interface ProductStock {
 }
 
 // ---------------------------------------------------------------------------
-// Marketplace Push Marketing & Paniers Abandonnés (Azify / EasySell)
+// Marketplace Push Marketing & Paniers Abandonnés (Azify / AziCardSell)
 // ---------------------------------------------------------------------------
 
 export interface MarketplaceCart {
