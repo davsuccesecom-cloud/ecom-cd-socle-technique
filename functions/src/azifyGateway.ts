@@ -186,6 +186,42 @@ export function cleanProductTitleRaw(product?: string | null): string {
   return p || "Produit Azify COD";
 }
 
+/**
+ * Extrait fidèlement le nom réel du client à partir des différentes structures
+ * (racine, shipping_address, customer) sans jamais retomber sur "#AZ-..." ni sur "Client Azify" si un nom existe
+ */
+export function resolveClientName(data: any, fallback = "Client Azify"): string {
+  if (!data || typeof data !== "object") return fallback;
+  const direct =
+    data.clientName ||
+    data.customerName ||
+    data.fullName ||
+    data.client_name ||
+    data.customer_name;
+  if (direct && typeof direct === "string" && direct.trim()) {
+    return direct.trim();
+  }
+
+  // Vérifier shipping_address (prénom + nom)
+  const shipFirst = data.shipping_address?.first_name || data.shippingAddress?.firstName || "";
+  const shipLast = data.shipping_address?.last_name || data.shippingAddress?.lastName || "";
+  const shipCombined = [shipFirst, shipLast].filter(Boolean).join(" ").trim();
+  if (shipCombined) return shipCombined;
+
+  // Vérifier customer (prénom + nom)
+  const custFirst = data.customer?.first_name || data.customer?.firstName || "";
+  const custLast = data.customer?.last_name || data.customer?.lastName || "";
+  const custCombined = [custFirst, custLast].filter(Boolean).join(" ").trim();
+  if (custCombined) return custCombined;
+
+  // Si data.name existe mais n'est pas un numéro de commande (#...)
+  if (data.name && typeof data.name === "string" && !data.name.trim().startsWith("#")) {
+    return data.name.trim();
+  }
+
+  return fallback;
+}
+
 export function extractNotesAndAddress(root: any): {
   address: string;
   notes: string;
@@ -847,7 +883,7 @@ export const azifyGateway = onRequest(
         }
 
         const eventName = String(body.eventName || root.eventName || "Purchase");
-        const clientName = String(body.clientName || root.clientName || root.name || "Test Client Azify").trim();
+        const clientName = resolveClientName(body, resolveClientName(root, "Test Client Azify"));
         const clientPhone = String(body.clientPhone || body.phone || root.phone || root.clientPhone || "+22890000000").trim();
         const city = String(body.city || root.city || "Lomé").trim();
         const country = String(body.country || root.country || teamData?.defaultCountry || "TG").trim();
@@ -1133,10 +1169,11 @@ export const azifyGateway = onRequest(
             const allTeams = await connDoc.ref.parent.parent.collection("teams").get();
             for (const doc of allTeams.docs) {
               const tData = doc.data();
-              if (tData?.metaCapiConfig?.enabled && tData?.metaCapiConfig?.pixelId) {
-                teamPixelId = tData.metaCapiConfig.pixelId;
+              const pId = tData?.metaCapiConfig?.pixelId;
+              if (pId) {
+                teamPixelId = pId;
                 teamPixelName = tData.metaCapiConfig.pixelName || null;
-                capiEnabled = true;
+                capiEnabled = tData.metaCapiConfig.enabled !== false;
                 break;
               }
             }
@@ -1526,7 +1563,7 @@ export const azifyGateway = onRequest(
             sourceType: "azify_api",
             protocol: "direct_rest_api",
             shopifyOrderId: orderId,
-            clientName: String(item.clientName || item.name || "Client Azify").trim(),
+            clientName: resolveClientName(item, "Client Azify"),
             clientPhoneRaw: rawPhone,
             clientPhoneFormatted: rawPhone || "Non renseigné",
             city,
@@ -1805,7 +1842,7 @@ export const azifyGateway = onRequest(
           sourceType: "azify_api",
           protocol: "direct_rest_api",
           shopifyOrderId: orderId,
-          clientName: String(root.clientName || root.name || root.customerName || "Client Azify").trim(),
+          clientName: resolveClientName(root, "Client Azify"),
           clientPhoneRaw: rawPhone,
           clientPhoneFormatted: rawPhone || "Non renseigné",
           city,
